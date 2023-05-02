@@ -1,2 +1,0 @@
-files:
-    mcache_inode.c:     {args: [--ignore, "STATIC_CONST_CHAR_ARRAY"]}
