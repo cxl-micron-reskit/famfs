@@ -26,7 +26,7 @@
 
 #include <linux/fs.h>
 #include <linux/mm.h>
-#include <linux/ramfs.h>
+#include "ramfs.h"
 #include <linux/sched.h>
 
 #include "internal.h"
