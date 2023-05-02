@@ -1,4 +1,4 @@
-/* file-mmu.c: ramfs MMU-based file operations
+/* file-mmu.c: tagfs MMU-based file operations
  *
  * Resizable simple ram filesystem for Linux.
  *
@@ -26,19 +26,19 @@
 
 #include <linux/fs.h>
 #include <linux/mm.h>
-#include "ramfs.h"
+#include "tagfs.h"
 #include <linux/sched.h>
 
 #include "internal.h"
 
-static unsigned long ramfs_mmu_get_unmapped_area(struct file *file,
+static unsigned long tagfs_mmu_get_unmapped_area(struct file *file,
 		unsigned long addr, unsigned long len, unsigned long pgoff,
 		unsigned long flags)
 {
 	return current->mm->get_unmapped_area(file, addr, len, pgoff, flags);
 }
 
-const struct file_operations ramfs_file_operations = {
+const struct file_operations tagfs_file_operations = {
 	.read_iter	= generic_file_read_iter,
 	.write_iter	= generic_file_write_iter,
 	.mmap		= generic_file_mmap,
@@ -46,10 +46,10 @@ const struct file_operations ramfs_file_operations = {
 	.splice_read	= generic_file_splice_read,
 	.splice_write	= iter_file_splice_write,
 	.llseek		= generic_file_llseek,
-	.get_unmapped_area	= ramfs_mmu_get_unmapped_area,
+	.get_unmapped_area	= tagfs_mmu_get_unmapped_area,
 };
 
-const struct inode_operations ramfs_file_inode_operations = {
+const struct inode_operations tagfs_file_inode_operations = {
 	.setattr	= simple_setattr,
 	.getattr	= simple_getattr,
 };
