@@ -3,8 +3,6 @@
 # Makefile for the linux ramfs routines.
 #
 
-obj-y += ramfs.o
+obj-m += tagfs.o
 
-file-mmu-y := file-nommu.o
-file-mmu-$(CONFIG_MMU) := file-mmu.o
-ramfs-objs += inode.o $(file-mmu-y)
+tagfs-objs += inode.o file-mmu.o

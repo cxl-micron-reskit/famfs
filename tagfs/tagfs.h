@@ -4,6 +4,8 @@
 
 #include <linux/fs_parser.h> // bleh...
 
+#define TAGFS_MAGIC 0xdeadbeef
+
 struct inode *tagfs_get_inode(struct super_block *sb, const struct inode *dir,
 	 umode_t mode, dev_t dev);
 extern int tagfs_init_fs_context(struct fs_context *fc);

@@ -24,12 +24,28 @@
  * caches is sufficient.
  */
 
+#include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
 #include "tagfs.h"
 #include <linux/sched.h>
+#include <linux/dax.h>
 
 #include "internal.h"
+
+MODULE_LICENSE("GPL v2");
+
+#ifndef CONFIG_MMU
+#error "Tagfs requires a kernel with CONFIG_MMU enabled"
+#endif
+
+#ifndef CONFIG_DAX
+#error "Tagfs requires a kernel with CONFIG_DAX enabled"
+#endif
+
+#ifndef CONFIG_FS_DAX
+#error "Tagfs requires a kernel with CONFIG_FS_DAX enabled"
+#endif
 
 static unsigned long tagfs_mmu_get_unmapped_area(struct file *file,
 		unsigned long addr, unsigned long len, unsigned long pgoff,
