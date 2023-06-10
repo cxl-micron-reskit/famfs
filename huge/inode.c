@@ -39,6 +39,8 @@
 #include <linux/uaccess.h>
 #include <linux/sched/mm.h>
 
+MODULE_LICENSE("GPL v2");
+
 static const struct address_space_operations hugetlbfs_aops;
 const struct file_operations hugetlbfs_file_operations;
 static const struct inode_operations hugetlbfs_dir_inode_operations;
