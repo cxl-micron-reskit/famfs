@@ -28,6 +28,7 @@
 #include <linux/fs.h>
 #include <linux/mm.h>
 #include "tagfs.h"
+#include "tagfs_ioctl.h"
 #include <linux/sched.h>
 #include <linux/dax.h>
 
@@ -40,12 +41,187 @@ MODULE_LICENSE("GPL v2");
 #endif
 
 #ifndef CONFIG_DAX
-#error "Tagfs requires a kernel with CONFIG_DAX enabled"
+#error "Tagfs requires a kernel with CONFIG_x52DAX enabled"
 #endif
 
 #ifndef CONFIG_FS_DAX
 #error "Tagfs requires a kernel with CONFIG_FS_DAX enabled"
 #endif
+
+#define MCACHE_MAP_MAX_MBLOCKS  256
+
+/**
+ * mcache_map_meta_alloc() - Allocate mcache map metadata
+ * @mapp:       pointer to an mcache_map_meta pointer
+ * @mbdescc:    mblock descriptor vector element count
+ */
+static
+int
+tagfs_meta_alloc(
+	struct tagfs_file_meta    **mapp,
+	size_t                      ext_count)
+{
+	struct tagfs_file_meta *map;
+	size_t                  mapsz;
+
+	*mapp = NULL;
+
+	mapsz = sizeof(*map) + sizeof(*(map->tfs_extents)) * ext_count;
+
+	map = kzalloc(mapsz, GFP_KERNEL);
+	if (!map)
+		return -ENOMEM;
+
+	map->tfs_extent_ct = ext_count;
+	*mapp = map;
+
+	return 0;
+}
+
+void
+tagfs_meta_free(
+	struct tagfs_file_meta *map)
+{
+	kfree(map);
+}
+
+/**
+ * tagfs_file_create() - MCIOC_MAP_CREATE ioctl handler
+ * @file:
+ * @arg:        ptr to struct mcioc_map in user space
+ *
+ * How are mcache map files created?
+ */
+static
+int
+tagfs_file_create(
+	struct file    *file,
+	void __user    *arg)
+{
+	struct tagfs_file_meta *meta;
+	struct tagfs_fs_info  *fsi;
+	struct tagfs_ioc_map    imap;
+	struct inode           *inode;
+
+	struct tagfs_user_extent *tfs_extents = NULL;
+	size_t  ext_count;
+	int     rc;
+	int     i;
+	size_t  count = 0;
+
+	tfs_extents = NULL;
+	meta = NULL;
+
+	rc = copy_from_user(&imap, arg, sizeof(imap));
+	if (rc)
+		return -EFAULT;
+
+	ext_count = imap.ext_list_count;
+	if (ext_count < 1) {
+		rc = -EINVAL;
+		goto errout;
+	}
+
+	if (ext_count > TAGFS_MAX_EXTENTS) {
+		rc = -E2BIG;
+		goto errout;
+	}
+
+	inode = file->f_inode;
+	if (!inode) {
+		rc = -EBADF;
+		goto errout;
+	}
+
+	fsi = inode->i_sb->s_fs_info;
+
+	/* Get space to copyin ext list from user space */
+	tfs_extents = kcalloc(ext_count, sizeof(*tfs_extents), GFP_KERNEL);
+	if (!tfs_extents) {
+		rc =-ENOMEM;
+		goto errout;
+	}
+
+	rc = copy_from_user(tfs_extents, imap.ext_list,
+			    ext_count * sizeof(*tfs_extents));
+	if (rc) {
+		rc = -EFAULT;
+		goto errout;
+	}
+
+	/* Look through the extents and make sure they meet alignment reqs and
+	 * add up to the right size */
+	for (i=0; i<imap.ext_list_count; i++) {
+		count += imap.ext_list[i].len;
+
+		/* Each offset must be huge page aligned */
+		/* TODO */
+	}
+	if (count != imap.file_size) {
+		rc = -EINVAL;
+		goto errout;
+	}
+	
+	rc = tagfs_meta_alloc(&meta, ext_count);
+	if (rc) {
+		goto errout;
+	}
+
+	/* Fill in the internal file metadata structure */
+	for (i=0; i<imap.ext_list_count; i++) {
+		/* TODO: get HPA from Tag DAX device. Hmmm. */
+		/* meta->tfs_extents[i].hpa = */
+		meta->tfs_extents[i].len = imap.ext_list[i].len;
+	}
+
+
+	/* Publish the tagfs metadata
+	 */
+	if (inode->i_private) {
+		rc = -EEXIST;
+	} else {
+		inode->i_private = meta;
+		i_size_write(inode, imap.file_size);
+	}
+	
+errout:
+	if (rc)
+		tagfs_meta_free(meta);
+
+	if (tfs_extents)
+		kfree(tfs_extents);
+
+	return rc;
+}
+
+/**
+ * tagfs_file_ioctl() -  top-level mcache ioctl handler
+ * @file:
+ * @cmd:
+ * @arg:
+ */
+static
+long
+tagfs_file_ioctl(
+	struct file    *file,
+	unsigned int    cmd,
+	unsigned long   arg)
+{
+	long rc;
+
+	switch (cmd) {
+	case MCIOC_MAP_CREATE:
+		rc = tagfs_file_create(file, (void *)arg);
+		break;
+
+	default:
+		rc = -ENOTTY;
+		break;
+	}
+
+	return rc;
+}
+
 
 static unsigned long tagfs_mmu_get_unmapped_area(struct file *file,
 		unsigned long addr, unsigned long len, unsigned long pgoff,
@@ -63,9 +239,11 @@ const struct file_operations tagfs_file_operations = {
 	.splice_write	= iter_file_splice_write,
 	.llseek		= generic_file_llseek,
 	.get_unmapped_area	= tagfs_mmu_get_unmapped_area,
+	.unlocked_ioctl = tagfs_file_ioctl,
 };
 
 const struct inode_operations tagfs_file_inode_operations = {
 	.setattr	= simple_setattr,
 	.getattr	= simple_getattr,
 };
+
