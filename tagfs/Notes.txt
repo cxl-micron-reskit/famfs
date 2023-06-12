@@ -1,0 +1,16 @@
+
+
+Mounting tagfs manuallly:
+
+# insmod ./tagfs.ko
+# mount -t tagfs dummy /mnt/tagfs
+# grep tagfs /proc/mounts
+dummy /mnt/tagfs tagfs rw,relatime 0 0
+
+Unmounting
+
+# umount /mnt/tagfs
+# grep tagfs /proc/mounts
+<nothing>
+# rmmod tagfs
+(woohoo)

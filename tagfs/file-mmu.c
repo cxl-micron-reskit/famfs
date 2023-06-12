@@ -27,11 +27,13 @@
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/mm.h>
-#include "tagfs.h"
-#include "tagfs_ioctl.h"
 #include <linux/sched.h>
 #include <linux/dax.h>
+#include <linux/uio.h>
 
+#include "tagfs.h"
+#include "tagfs_internal.h"
+#include "tagfs_ioctl.h"
 #include "internal.h"
 
 MODULE_LICENSE("GPL v2");
@@ -177,12 +179,14 @@ tagfs_file_create(
 
 	/* Publish the tagfs metadata
 	 */
+	inode_lock(inode);
 	if (inode->i_private) {
 		rc = -EEXIST;
 	} else {
 		inode->i_private = meta;
 		i_size_write(inode, imap.file_size);
 	}
+	inode_unlock(inode);
 	
 errout:
 	if (rc)
@@ -230,9 +234,30 @@ static unsigned long tagfs_mmu_get_unmapped_area(struct file *file,
 	return current->mm->get_unmapped_area(file, addr, len, pgoff, flags);
 }
 
+
+/**
+ * tagfs_write_iter()
+ *
+ * We need our own write-iter in order to prevent append
+ */
+ssize_t
+tagfs_write_iter(struct kiocb *iocb, struct iov_iter *from)
+{
+	/* starting offsset of write is: ioct->ki_pos
+	 * 
+	 */
+	/* TODO: truncate "from" if necessary so that
+	 * (ki_pos + from_length) <= i_size
+	 * (i.e. i_size will not increase)
+	 * TODO: unit test for this
+	 */
+	printk("%s: iter_type=%d\n", __func__, iov_iter_type(from));
+	return generic_file_write_iter(iocb, from);
+}
+
 const struct file_operations tagfs_file_operations = {
 	.read_iter	= generic_file_read_iter,
-	.write_iter	= generic_file_write_iter,
+	.write_iter	= tagfs_write_iter,
 	.mmap		= generic_file_mmap,
 	.fsync		= noop_fsync,
 	.splice_read	= generic_file_splice_read,

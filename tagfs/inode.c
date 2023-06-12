@@ -297,4 +297,14 @@ static int __init init_tagfs_fs(void)
 {
 	return register_filesystem(&tagfs_fs_type);
 }
+
+void
+__exit tagfs_exit(void)
+{
+	printk("%s\n", __func__);
+	unregister_filesystem(&tagfs_fs_type);
+	printk("%s: unregistered\n", __func__);
+}
+
 fs_initcall(init_tagfs_fs);
+module_exit(tagfs_exit);

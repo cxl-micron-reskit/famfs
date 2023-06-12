@@ -3,31 +3,21 @@
 
 #define TAGFS_MAX_EXTENTS 2
 
-/* move to private ************************************************************/
-/* This is tne internal metadata for the backing memory of a tagfs file
- */
-struct tagfs_internal_extent {
-	u64     hpa;
-	size_t  len;
-};
-/*
- * Each mcache map file has this hanging from its inode->i_private.
- */
-struct tagfs_file_meta {
-	size_t                        tfs_extent_ct;
-	struct tagfs_internal_extent  tfs_extents[];  /* flexible array */
-};
-
-/* end private ****************************************************************/
-
 enum tagfs_ext_type {
 	TAGFS_EXTENT,      /* Struct is a simple extent */
 	TAGFS_INTERLEAVE,  /* Struct is an interleaved extent */
 };
 
+
+
 struct tagfs_user_extent {
+#if 1
+/* Start out HPA based */
+	u64 hpa;
+#else
 	char uuid[16];
 	size_t offset;
+#endif
 	size_t len;
 };
 
