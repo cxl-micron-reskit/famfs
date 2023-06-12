@@ -40,7 +40,8 @@
 #include <linux/fs_parser.h>
 #include <linux/seq_file.h>
 #include <linux/dax.h>
-#include "internal.h"
+
+#include "tagfs_internal.h"
 
 struct tagfs_mount_opts {
 	umode_t mode;

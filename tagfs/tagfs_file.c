@@ -34,7 +34,6 @@
 #include "tagfs.h"
 #include "tagfs_internal.h"
 #include "tagfs_ioctl.h"
-#include "internal.h"
 
 MODULE_LICENSE("GPL v2");
 

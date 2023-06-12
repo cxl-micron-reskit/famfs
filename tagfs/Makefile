@@ -7,7 +7,7 @@
 
 obj-m += tagfs.o
 
-tagfs-objs += inode.o file-mmu.o
+tagfs-objs += tagfs_inode.o tagfs_file.o
 
 all:
 	make -k -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules

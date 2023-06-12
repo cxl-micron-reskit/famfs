@@ -1,6 +1,8 @@
 #ifndef TAGFS_INTERNAL_H
 #define TAGFS_INTERNAL_H
 
+extern const struct inode_operations tagfs_file_inode_operations;
+
 /* This is tne internal metadata for the backing memory of a tagfs file
  */
 struct tagfs_internal_extent {
