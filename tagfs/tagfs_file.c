@@ -109,6 +109,7 @@ tagfs_file_create(
 	int     rc;
 	int     i;
 	size_t  count = 0;
+	int alignment_errs = 0;
 
 	tfs_extents = NULL;
 	meta = NULL;
@@ -176,13 +177,40 @@ tagfs_file_create(
 
 	/* Fill in the internal file metadata structure */
 	for (i=0; i<imap.ext_list_count; i++) {
+		size_t len;
+		off_t addr;
+
+		len  = imap.ext_list[i].len;
+		addr = imap.ext_list[i].hpa;
+
 		/* TODO: get HPA from Tag DAX device. Hmmm. */
 		/* meta->tfs_extents[i].hpa = */
-		meta->tfs_extents[i].len = imap.ext_list[i].len;
-		printk("%s: addr %lx len %ld\n", __func__,
-		       (ulong)imap.ext_list[i].hpa, imap.ext_list[i].len);
+		meta->tfs_extents[i].len = len;
+		printk("%s: addr %lx len %ld\n", __func__, addr, len);
+
+		/* All extent addresses/offsets must be 2MiB aligned,
+		 * and all but the last length must be a 2MiB multiple.
+		 */
+		if (!is_aligned(addr, 0x200000)) {
+			printk(KERN_ERR "%s: error ext %d hpa %lx not aligned\n",
+			       __func__, i, addr);
+			alignment_errs++;
+		}
+		if (i < (imap.ext_list_count - 1) && !is_aligned(len, 0x200000)) {
+			printk(KERN_ERR "%s: error ext %d length %ld not aligned\n",
+			       __func__, i, len);
+			alignment_errs++;
+		}
 	}
 
+	if (alignment_errs > 0) {
+		printk(KERN_ERR "%s: there were %d alignment errors in the extent list\n",
+		       __func__, alignment_errs);
+		rc = -EINVAL;
+	}
+
+	rc = -EINVAL;
+	goto errout;
 
 	/* Publish the tagfs metadata
 	 */

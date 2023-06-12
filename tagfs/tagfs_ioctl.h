@@ -1,6 +1,9 @@
 #ifndef TAGFS_IOCTL_H
 #define TAGFS_IOCTL_H
 
+#define is_aligned(POINTER, BYTE_COUNT) \
+    (((uintptr_t)(const void *)(POINTER)) % (BYTE_COUNT) == 0)
+
 #define TAGFS_MAX_EXTENTS 2
 
 enum tagfs_ext_type {
