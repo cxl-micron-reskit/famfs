@@ -119,9 +119,11 @@ tagfs_file_create(
 
 	ext_count = imap.ext_list_count;
 	if (ext_count < 1) {
+		printk("%s: invalid extent count %ld\n", __func__, ext_count);
 		rc = -EINVAL;
 		goto errout;
 	}
+	printk("%s: there are %ld extents\n", __func__, ext_count);
 
 	if (ext_count > TAGFS_MAX_EXTENTS) {
 		rc = -E2BIG;
@@ -130,6 +132,7 @@ tagfs_file_create(
 
 	inode = file->f_inode;
 	if (!inode) {
+		printk("%s: no inode\n", __func__);
 		rc = -EBADF;
 		goto errout;
 	}
@@ -139,6 +142,7 @@ tagfs_file_create(
 	/* Get space to copyin ext list from user space */
 	tfs_extents = kcalloc(ext_count, sizeof(*tfs_extents), GFP_KERNEL);
 	if (!tfs_extents) {
+		printk("%s: Failed to alloc space for ext list\n", __func__);
 		rc =-ENOMEM;
 		goto errout;
 	}
@@ -146,6 +150,8 @@ tagfs_file_create(
 	rc = copy_from_user(tfs_extents, imap.ext_list,
 			    ext_count * sizeof(*tfs_extents));
 	if (rc) {
+		printk("%s: Failed to retrieve extent list from user space\n",
+		       __func__);
 		rc = -EFAULT;
 		goto errout;
 	}
@@ -173,6 +179,8 @@ tagfs_file_create(
 		/* TODO: get HPA from Tag DAX device. Hmmm. */
 		/* meta->tfs_extents[i].hpa = */
 		meta->tfs_extents[i].len = imap.ext_list[i].len;
+		printk("%s: addr %lx len %ld\n", __func__,
+		       (ulong)imap.ext_list[i].hpa, imap.ext_list[i].len);
 	}
 
 
@@ -182,7 +190,8 @@ tagfs_file_create(
 	if (inode->i_private) {
 		rc = -EEXIST;
 	} else {
-		inode->i_private = meta;
+		//inode->i_private = meta;
+		rc = -ENXIO; /* Don't save metadata when we don't use it yet */
 		i_size_write(inode, imap.file_size);
 	}
 	inode_unlock(inode);
@@ -191,6 +200,7 @@ errout:
 	if (rc)
 		tagfs_meta_free(meta);
 
+	/* This was just temporary storage: */
 	if (tfs_extents)
 		kfree(tfs_extents);
 
