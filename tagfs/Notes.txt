@@ -14,3 +14,29 @@ Unmounting
 <nothing>
 # rmmod tagfs
 (woohoo)
+
+
+Create a fake pmem device:
+    # vi /etc/default/grub
+    GRUB_CMDLINE_LINUX="memmap=nn[KMG]!ss[KMG]"
+
+Convert the pmem0 device to a dax device
+    ndctl create-namespace --mode devdax --map mem -e namespace0.0 -f
+
+List DAX regions:
+    daxctl list --regions --devices
+
+Other:
+    disable-region region0
+    ndctl init-labels nmem0
+    ndctl create-namespace --region=region0
+    ndctl enable-region region0
+    ndctl create-namespace --region=region0
+
+iomap fault handling
+
+xfs_filemap_fault()
+  ->__xfs_filemap_fault()
+    ->xfs_dax_fault()
+      ->dax_iomap_fault(xfs_read_iomap_ops)
+                       (xfs_dax_write_iomap_ops)
