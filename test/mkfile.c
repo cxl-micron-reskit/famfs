@@ -8,6 +8,8 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
+#include <linux/types.h>
+#include <string.h>
 
 typedef __u64 u64;
 
@@ -17,19 +19,27 @@ void
 print_usage(int   argc,
 	    char *argv[])
 {
+	unsigned char *progname = argv[0];
+
 	printf("\n"
-	       "Usage: %s -n <num_extents> -a <hpa> -l <len> [-h <hpa> -l <len> ... ] <filename>\n"
-		);
+	       "Create one or more HPA based extent:\n"
+	       "    %s -n <num_extents> -o <hpa> -l <len> [-o <hpa> -l <len> ... ] <filename>\n"
+	       "\n", progname);
+	printf(
+	       "Create one or more dax-based extents:"
+	       "    %s --daxdev <daxdev> -n <num_extents> -o <offset> -l <len> [-o <offset> -l <len> ... ] <filename>\n"
+	       "\n", progname);
 }
 
 int verbose_flag = 0;
 
 struct option global_options[] = {
 	/* These options set a flag. */
-	{"address",     required_argument, &verbose_flag,  'a' },
+	{"address",     required_argument, &verbose_flag,  'o' },
 	{"length",      required_argument, &verbose_flag,  'l'},
 	{"num_extents", required_argument,             0,  'n'},
 	{"filename",    required_argument,             0,  'f'},
+	{"daxdev",      required_argument,             0,  'D'},
 	/* These options don't set a flag.
 	   We distinguish them by their indices. */
 	/*{"dryrun",       no_argument,       0, 'n'}, */
@@ -50,6 +60,9 @@ main(int argc,
 
 	size_t ext_size;
 	size_t fsize = 0;
+	int arg_ct = 0;
+	enum extent_type type = HPA_EXTENT;
+	unsigned char *daxdev = NULL;
 
 	/* Process global options, if any */
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
@@ -63,7 +76,26 @@ main(int argc,
 		if (c == -1)
 			break;
 
+		arg_ct++;
 		switch (c) {
+		case 'D': {
+			size_t len = 0;
+
+			/* Must be first argument */
+			if (arg_ct != 1) {
+				fprintf(stderr, "--daxdev must be the first argument\n");
+				exit(-1);
+			}
+			daxdev = optarg;
+			len = strlen(daxdev);
+			if (len <= 0 || len >= sizeof(filemap.daxdevname)) {
+				fprintf(stderr, "Invalid dax device string: (%s)\n", daxdev);
+				exit(-1);
+			}
+			type = DAX_EXTENT;
+			strncpy(filemap.daxdevname, daxdev, len);
+			break;
+		}
 		case 'n':
 			num_extents = atoi(optarg);
 			if (num_extents > 0) {
@@ -76,12 +108,13 @@ main(int argc,
 			}
 			break;
 
-		case 'a':
+		case 'o':
 			if (num_extents == 0) {
-				printf("Must specify num_extents before address\n");
+				printf("Must specify num_extents before address or offset\n");
 				exit(-1);
 			}
-			ext_list[cur_extent].hpa = strtoull(optarg, 0, 0);
+			ext_list[cur_extent].offset = strtoull(optarg, 0, 0);
+
 			/* update cur_extent if we already have len */
 			if (ext_list[cur_extent].len)
 				cur_extent++;
@@ -93,11 +126,15 @@ main(int argc,
 				exit(-1);
 			}
 			ext_size = strtoull(optarg, 0, 0);
+			if (ext_size <= 0) {
+				fprintf(stderr, "invalid extent size %ld\n", ext_size);
+				exit(-1);
+			}
 			ext_list[cur_extent].len = ext_size;
 			fsize += ext_size;
 
-			/* update cur_extent if we already have hpa */
-			if (ext_list[cur_extent].hpa)
+			/* update cur_extent if we already have offset */
+			if (ext_list[cur_extent].offset)
 				cur_extent++;
 			break;
 
@@ -119,9 +156,10 @@ main(int argc,
 
 	printf("%d extents specified:\n", num_extents);
 	printf("Total size: %ld\n", fsize);
-	filemap.file_size = fsize;
+	filemap.file_size   = fsize;
+	filemap.extent_type = type;
 	for (i=0; i<num_extents; i++)
-		printf("\t%p\t%ld\n", ext_list[i].hpa, ext_list[i].len);
+		printf("\t%p\t%ld\n", ext_list[i].offset, ext_list[i].len);
 
 
 	if (filename == NULL) {

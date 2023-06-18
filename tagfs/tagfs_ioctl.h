@@ -1,34 +1,36 @@
 #ifndef TAGFS_IOCTL_H
 #define TAGFS_IOCTL_H
 
+#include <linux/uuid.h>
+
 #define is_aligned(POINTER, BYTE_COUNT) \
     (((uintptr_t)(const void *)(POINTER)) % (BYTE_COUNT) == 0)
 
 #define TAGFS_MAX_EXTENTS 2
 
-enum tagfs_ext_type {
-	TAGFS_EXTENT,      /* Struct is a simple extent */
-	TAGFS_INTERLEAVE,  /* Struct is an interleaved extent */
+enum extent_type {
+	HPA_EXTENT,
+	DAX_EXTENT,
+	BLOCK_EXTENT,
+	TAG_EXTENT,
 };
 
-
-
 struct tagfs_user_extent {
-#if 1
-/* Start out HPA based */
-	u64 hpa;
-#else
-	char uuid[16];
-	size_t offset;
-#endif
-	size_t len;
+	u64              offset;
+	size_t           len;
 };
 
 
 struct tagfs_ioc_map {
+	enum extent_type          extent_type;
 	size_t                    file_size;
 	size_t                    ext_list_count;
 	struct tagfs_user_extent *ext_list;
+	/* TODO later: move to extents, for file spanning flexibility */
+	union {
+		unsigned char    daxdevname[32]; /* if DAX_EXTENT or BLOCK_EXTENT */
+		uuid_le   uuid;        /* if TAG_EXTENT */
+	};
 };
 
 /*

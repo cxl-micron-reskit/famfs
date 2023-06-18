@@ -40,3 +40,8 @@ xfs_filemap_fault()
     ->xfs_dax_fault()
       ->dax_iomap_fault(xfs_read_iomap_ops)
                        (xfs_dax_write_iomap_ops)
+
+
+Need to figure out
+* How does FS "open" (or otherwise get a ref on) its block device
+* Same question for DAX device

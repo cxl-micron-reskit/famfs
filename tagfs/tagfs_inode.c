@@ -40,6 +40,7 @@
 #include <linux/fs_parser.h>
 #include <linux/seq_file.h>
 #include <linux/dax.h>
+#include <linux/hugetlb.h>
 
 #include "tagfs_internal.h"
 

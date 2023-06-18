@@ -178,22 +178,22 @@ tagfs_file_create(
 	/* Fill in the internal file metadata structure */
 	for (i=0; i<imap.ext_list_count; i++) {
 		size_t len;
-		off_t addr;
+		off_t offset;
 
-		len  = imap.ext_list[i].len;
-		addr = imap.ext_list[i].hpa;
+		len    = imap.ext_list[i].len;
+		offset = imap.ext_list[i].offset;
 
 		/* TODO: get HPA from Tag DAX device. Hmmm. */
-		/* meta->tfs_extents[i].hpa = */
+		meta->tfs_extents[i].offset = offset;
 		meta->tfs_extents[i].len = len;
-		printk("%s: addr %lx len %ld\n", __func__, addr, len);
+		printk("%s: offset %lx len %ld\n", __func__, offset, len);
 
 		/* All extent addresses/offsets must be 2MiB aligned,
 		 * and all but the last length must be a 2MiB multiple.
 		 */
-		if (!is_aligned(addr, 0x200000)) {
+		if (!is_aligned(offset, 0x200000)) {
 			printk(KERN_ERR "%s: error ext %d hpa %lx not aligned\n",
-			       __func__, i, addr);
+			       __func__, i, offset);
 			alignment_errs++;
 		}
 		if (i < (imap.ext_list_count - 1) && !is_aligned(len, 0x200000)) {
