@@ -221,6 +221,7 @@ tagfs_file_create(
 		//inode->i_private = meta;
 		rc = -ENXIO; /* Don't save metadata when we don't use it yet */
 		i_size_write(inode, imap.file_size);
+		inode->i_flags |= S_DAX;
 	}
 	inode_unlock(inode);
 	
