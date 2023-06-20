@@ -30,6 +30,7 @@
 #include <linux/sched.h>
 #include <linux/dax.h>
 #include <linux/uio.h>
+#include <linux/iomap.h>
 
 #include "tagfs.h"
 #include "tagfs_internal.h"
@@ -49,7 +50,17 @@ MODULE_LICENSE("GPL v2");
 #error "Tagfs requires a kernel with CONFIG_FS_DAX enabled"
 #endif
 
-#define MCACHE_MAP_MAX_MBLOCKS  256
+/* XXX: this is in dax-private.h */
+struct dax_device *inode_dax(struct inode *inode);
+
+/* TODO: move this into a list or tree hanging from superblock
+ * This will be necessary to support more than one mount, and also to support more than one
+ * dax device (or tag) per file system
+ */
+struct file *dax_filp = NULL; /* Just one global initially... */
+char *dax_filename = NULL;
+struct dax_device *dax_dev = NULL;
+/**************/
 
 /**
  * mcache_map_meta_alloc() - Allocate mcache map metadata
@@ -84,6 +95,31 @@ tagfs_meta_free(
 	struct tagfs_file_meta *map)
 {
 	kfree(map);
+}
+
+static int
+tagfs_meta_to_dax_offset(struct inode *inode,
+			 struct iomap *iomap,
+			 loff_t offset,
+			 loff_t len)
+{
+	struct tagfs_file_meta *meta = (struct tagfs_file_meta *)inode->i_private;
+	int i;
+	loff_t local_offset = offset;
+
+	for (i=0; i<meta->tfs_extent_ct; i++) {
+		loff_t dax_ext_offset = meta->tfs_extents[i].offset;
+		loff_t dax_ext_len    = meta->tfs_extents[i].len;
+
+		if (local_offset < dax_ext_len) {
+			iomap->offset = dax_ext_offset + local_offset;
+			iomap->length = min_t(loff_t, len, (dax_ext_len - iomap->offset));
+			iomap->dax_dev = dax_dev;
+			return 0;
+		}
+		local_offset -= dax_ext_len; /* Get ready for the next extent */
+	}
+	return 1; /* What is correct error to return? */
 }
 
 /**
@@ -175,6 +211,70 @@ tagfs_file_create(
 		goto errout;
 	}
 
+	if (!dax_filename) {
+		int len = strlen(imap.daxdevname);
+		struct inode *dax_inode;
+		struct dax_sb_info *dax_sbinfo = NULL;
+
+		dax_filename = kcalloc(1, len + 1, GFP_KERNEL);
+		strcpy(dax_filename, imap.daxdevname);
+		printk("%s: opening dax device (%s)\n", __func__, dax_filename);
+		dax_filp = filp_open(dax_filename, O_RDWR, 0);
+		if (!dax_filp) {
+			printk(KERN_ERR "%s: failed to open dax dev %s\n", __func__,  dax_filename);
+			rc = -EINVAL;
+			goto errout;
+		}
+
+		/* How we get to the struct dax_device depends on whether we were given the name of
+		 * a pmem device (which is block) or a dax device (which is character)
+		 */
+		switch (imap.extent_type) {
+		case DAX_EXTENT:
+			/* The supplied special-file-name is to a dax character device */
+			dax_inode = file_inode(dax_filp);
+			dax_dev = inode_dax(dax_inode); /* XXX Not sure yet whether this works */
+
+			if (!dax_sbinfo) {
+				printk(KERN_ERR "%s: failed to get struct dax_device from dax driver %s\n",
+				       __func__, dax_filename);
+				rc = -EINVAL;
+				goto errout;
+			}
+			break;
+
+		case FSDAX_EXTENT: {
+			struct block_device *blkdev;
+
+			/* The supplied special-file-name is to a pmem/fsdax block device */
+			dax_inode = file_inode(dax_filp);
+			blkdev = dax_inode->i_sb->s_bdev;
+			dax_dev = fs_dax_get_by_bdev(blkdev, 0, 0 /* holder */,
+						     NULL /* holder ops */);
+			break;
+		}
+		default:
+			printk("%s: unsupported extent type %d\n", __func__, imap.extent_type);
+			rc = -EINVAL;
+			goto errout;
+			break;
+		}
+	} else {
+		/* Dax device already open; make sure this file needs the same device.
+		 * TODO: generalize to multiple devices
+		 */
+		if (strcmp(dax_filename, imap.daxdevname) != 0) {
+			printk(KERN_ERR "%s: new dax filname (%s) differs from the first (%s)\n",
+			       __func__, imap.daxdevname, dax_filename);
+			rc = -EINVAL;
+			goto errout;
+		}
+		if (!dax_dev) {
+			printk(KERN_ERR "%s: dax_filename (%s) set but dax_dev is NULL\n",
+			       __func__, dax_filename);
+		}
+	}
+
 	/* Fill in the internal file metadata structure */
 	for (i=0; i<imap.ext_list_count; i++) {
 		size_t len;
@@ -222,6 +322,7 @@ tagfs_file_create(
 		rc = -ENXIO; /* Don't save metadata when we don't use it yet */
 		i_size_write(inode, imap.file_size);
 		inode->i_flags |= S_DAX;
+		inode->i_private = meta;
 	}
 	inode_unlock(inode);
 	
@@ -308,5 +409,71 @@ const struct file_operations tagfs_file_operations = {
 const struct inode_operations tagfs_file_inode_operations = {
 	.setattr	= simple_setattr,
 	.getattr	= simple_getattr,
+};
+
+static void
+tagfs_get_iomap_flags_str(char *flag_str, unsigned flags)
+{
+	flag_str[0] = 0;
+
+	if (flags & IOMAP_WRITE)
+		strcat(flag_str, " IOMAP_WRITE");
+	if (flags & IOMAP_ZERO)
+		strcat(flag_str, " IOMAP_ZERO");
+	if (flags & IOMAP_REPORT)
+		strcat(flag_str, " IOMAP_REPORT");
+	if (flags & IOMAP_FAULT)
+		strcat(flag_str, " IOMAP_FAULT");
+	if (flags & IOMAP_DIRECT)
+		strcat(flag_str, " IOMAP_DIRECT");
+	if (flags & IOMAP_NOWAIT)
+		strcat(flag_str, " IOMAP_NOWAIT");
+	if (flags & IOMAP_OVERWRITE_ONLY)
+		strcat(flag_str, " IOMAP_OVERWRITE_ONLY");
+	if (flags & IOMAP_DAX)
+		strcat(flag_str, " IOMAP_DAX");
+}
+
+/**
+ * tagfs-read_iomap_begin()
+ *
+ * This function is pretty simple because files are
+ * * never partially allocated
+ * * never have holes (files are never sparse)
+ *
+ */
+static int
+tagfs_iomap_begin(
+	struct inode		*inode,
+	loff_t			offset,
+	loff_t			length,
+	unsigned		flags,
+	struct iomap		*iomap,
+	struct iomap		*srcmap)
+{
+	char flag_str[200];
+	int rc;
+
+	printk("%s: offset %lld length %lld\n", __func__, offset, length);
+
+	/* Dump flags */
+	tagfs_get_iomap_flags_str(flag_str, flags);
+	printk("        iomap flags: %s\n", flag_str);
+
+	if ((offset + length) > i_size_read(inode)) {
+		printk(KERN_ERR "%s: ofs + length exceeds file size; append not allowed\n", __func__);
+		return -EINVAL;
+	}
+
+	/* Need to lock inode? */
+
+	rc = tagfs_meta_to_dax_offset(inode, iomap, offset, length);
+
+	return rc;
+}
+
+/* Should just need one set of iomap ops */
+const struct iomap_ops tags_iomap_ops = {
+	.iomap_begin		= tagfs_iomap_begin,
 };
 

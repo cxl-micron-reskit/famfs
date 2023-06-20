@@ -44,14 +44,6 @@
 
 #include "tagfs_internal.h"
 
-struct tagfs_mount_opts {
-	umode_t mode;
-};
-
-struct tagfs_fs_info {
-	struct tagfs_mount_opts mount_opts;
-};
-
 #define TAGFS_DEFAULT_MODE	0755
 
 static const struct super_operations tagfs_ops;
@@ -275,6 +267,7 @@ int tagfs_init_fs_context(struct fs_context *fc)
 	if (!fsi)
 		return -ENOMEM;
 
+	mutex_init(&fsi->fsi_mutex);
 	fsi->mount_opts.mode = TAGFS_DEFAULT_MODE;
 	fc->s_fs_info = fsi;
 	fc->ops = &tagfs_context_ops;
@@ -283,6 +276,9 @@ int tagfs_init_fs_context(struct fs_context *fc)
 
 static void tagfs_kill_sb(struct super_block *sb)
 {
+	struct tagfs_fs_info *fsi = sb->s_fs_info;
+
+	mutex_destroy(&fsi->fsi_mutex);
 	kfree(sb->s_fs_info);
 	kill_litter_super(sb);
 }

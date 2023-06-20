@@ -40,6 +40,7 @@ struct option global_options[] = {
 	{"num_extents", required_argument,             0,  'n'},
 	{"filename",    required_argument,             0,  'f'},
 	{"daxdev",      required_argument,             0,  'D'},
+	{"fsdaxdev",    required_argument,             0,  'F'},
 	/* These options don't set a flag.
 	   We distinguish them by their indices. */
 	/*{"dryrun",       no_argument,       0, 'n'}, */
@@ -68,7 +69,7 @@ main(int argc,
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
-	while ((c = getopt_long(argc, argv, "+n:a:l:f:h?",
+	while ((c = getopt_long(argc, argv, "+n:o:l:f:h?",
 				global_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -103,14 +104,14 @@ main(int argc,
 				filemap.ext_list = ext_list;
 				filemap.ext_list_count = num_extents;
 			} else {
-				printf("Specify at least 1 extent\n");
+				fprintf(stderr, "Specify at least 1 extent\n");
 				exit(-1);
 			}
 			break;
 
 		case 'o':
 			if (num_extents == 0) {
-				printf("Must specify num_extents before address or offset\n");
+				fprintf(stderr, "Must specify num_extents before address or offset\n");
 				exit(-1);
 			}
 			ext_list[cur_extent].offset = strtoull(optarg, 0, 0);
@@ -122,7 +123,7 @@ main(int argc,
 			
 		case 'l':
 			if (num_extents == 0) {
-				printf("Must specify num_extents before length\n");
+				fprintf(stderr, "Must specify num_extents before length\n");
 				exit(-1);
 			}
 			ext_size = strtoull(optarg, 0, 0);
@@ -150,6 +151,7 @@ main(int argc,
 			return 0;
 
 		default:
+			printf("default\n");
 			return -1;
 		}
 	}
@@ -163,12 +165,12 @@ main(int argc,
 
 
 	if (filename == NULL) {
-		printf("Must supply filename\n");
+		fprintf(stderr, "Must supply filename\n");
 		exit(-1);
 	}
 	fd = open(filename, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
 	if (fd < 0) {
-		printf("open/create failed; rc %d errno %d\n", rc, errno);
+		fprintf(stderr, "open/create failed; rc %d errno %d\n", rc, errno);
 		exit(-1);
 	}
 	rc = ioctl(fd, MCIOC_MAP_CREATE, &filemap);

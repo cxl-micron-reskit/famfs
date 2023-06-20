@@ -11,7 +11,7 @@
 enum extent_type {
 	HPA_EXTENT,
 	DAX_EXTENT,
-	BLOCK_EXTENT,
+	FSDAX_EXTENT,
 	TAG_EXTENT,
 };
 
@@ -21,6 +21,11 @@ struct tagfs_user_extent {
 };
 
 
+/**
+ * struct tagfs_ioc_map
+ *
+ * This is the metadata that indicates where the memory is for a tagfs file
+ */
 struct tagfs_ioc_map {
 	enum extent_type          extent_type;
 	size_t                    file_size;

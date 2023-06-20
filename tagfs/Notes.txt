@@ -45,3 +45,53 @@ xfs_filemap_fault()
 Need to figure out
 * How does FS "open" (or otherwise get a ref on) its block device
 * Same question for DAX device
+
+
+[jmg@f38-dev0 ~]$ sudo ndctl create-namespace -f -e namespace0.0 --mode=devdax
+{
+  "dev":"namespace0.0",
+  "mode":"devdax",
+  "map":"dev",
+  "size":"3.94 GiB (4.23 GB)",
+  "uuid":"cd4373fd-456a-47d2-9908-7c009cae2700",
+  "daxregion":{
+    "id":0,
+    "size":"3.94 GiB (4.23 GB)",
+    "align":2097152,
+    "devices":[
+      {
+        "chardev":"dax0.0",
+        "size":"3.94 GiB (4.23 GB)",
+        "align":2097152,
+        "mode":"devdax"
+      }
+    ]
+  },
+  "align":2097152
+}
+[jmg@f38-dev0 ~]$ sudo grep dax /proc/iomem
+  504200000-5ffffffff : dax0.0
+[jmg@f38-dev0 ~]$ ndctl list
+[
+  {
+    "dev":"namespace0.0",
+    "mode":"devdax",
+    "map":"dev",
+    "size":4225761280,
+    "uuid":"cd4373fd-456a-47d2-9908-7c009cae2700",
+    "chardev":"dax0.0",
+    "align":2097152
+  }
+]
+[jmg@f38-dev0 ~]$ sudo ndctl create-namespace -f -e namespace0.0 --mode=fsdax
+{
+  "dev":"namespace0.0",
+  "mode":"fsdax",
+  "map":"dev",
+  "size":"3.94 GiB (4.23 GB)",
+  "uuid":"b5cdbf79-00cd-4a91-b8bf-9197b9b2c2d2",
+  "sector_size":512,
+  "align":2097152,
+  "blockdev":"pmem0"
+}
+[jmg@f38-dev0 ~]$ 
