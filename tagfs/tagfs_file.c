@@ -558,35 +558,36 @@ tagfs_iomap_begin(
 }
 
 /* Should just need one set of iomap ops */
-const struct iomap_ops tags_iomap_ops = {
+const struct iomap_ops tagfs_iomap_ops = {
 	.iomap_begin		= tagfs_iomap_begin,
 };
 
-#if 0
+
 /*********************************************************************
  * vm_operations
  */
-/*
- * Locking for serialisation of IO during page faults. This results in a lock
- * ordering of:
- *
- * mmap_lock (MM)
- *   sb_start_pagefault(vfs, freeze)
- *     invalidate_lock (vfs/XFS_MMAPLOCK - truncate serialisation)
- *       page_lock (MM)
- *         i_lock (XFS - extent map serialisation)
- */
+static inline vm_fault_t
+tagfs_dax_fault(
+	struct vm_fault		*vmf,
+	enum page_entry_size	pe_size,
+	bool			write_fault,
+	pfn_t			*pfn)
+{
+	/* We never need a special set of write_iomap_ops becuase we never have to
+	 * perform allocation on write.
+	 */
+	return dax_iomap_fault(vmf, pe_size, pfn, NULL, &tagfs_iomap_ops);
+}
+
 static vm_fault_t
-__xfs_filemap_fault(
+__tagfs_filemap_fault(
 	struct vm_fault		*vmf,
 	enum page_entry_size	pe_size,
 	bool			write_fault)
 {
 	struct inode		*inode = file_inode(vmf->vma->vm_file);
-	struct xfs_inode	*ip = XFS_I(inode);
 	vm_fault_t		ret;
 
-	trace_xfs_filemap_fault(ip, pe_size, write_fault);
 
 	if (write_fault) {
 		sb_start_pagefault(inode->i_sb);
@@ -596,20 +597,12 @@ __xfs_filemap_fault(
 	if (IS_DAX(inode)) {
 		pfn_t pfn;
 
-		xfs_ilock(XFS_I(inode), XFS_MMAPLOCK_SHARED);
-		ret = xfs_dax_fault(vmf, pe_size, write_fault, &pfn);
+		ret = tagfs_dax_fault(vmf, pe_size, write_fault, &pfn);
 		if (ret & VM_FAULT_NEEDDSYNC)
 			ret = dax_finish_sync_fault(vmf, pe_size, pfn);
-		xfs_iunlock(XFS_I(inode), XFS_MMAPLOCK_SHARED);
 	} else {
-		if (write_fault) {
-			xfs_ilock(XFS_I(inode), XFS_MMAPLOCK_SHARED);
-			ret = iomap_page_mkwrite(vmf,
-					&xfs_page_mkwrite_iomap_ops);
-			xfs_iunlock(XFS_I(inode), XFS_MMAPLOCK_SHARED);
-		} else {
-			ret = filemap_fault(vmf);
-		}
+		/* All tagfs faults will be dax... */
+		printk(KERN_ERR "%s: oops, non-dax fault\n", __func__);
 	}
 
 	if (write_fault)
@@ -618,7 +611,7 @@ __xfs_filemap_fault(
 }
 
 static inline bool
-xfs_is_write_fault(
+tagfs_is_write_fault(
 	struct vm_fault		*vmf)
 {
 	return (vmf->flags & FAULT_FLAG_WRITE) &&
@@ -626,17 +619,17 @@ xfs_is_write_fault(
 }
 
 static vm_fault_t
-xfs_filemap_fault(
+tagfs_filemap_fault(
 	struct vm_fault		*vmf)
 {
 	/* DAX can shortcut the normal fault path on write faults! */
-	return __xfs_filemap_fault(vmf, PE_SIZE_PTE,
+	return __tagfs_filemap_fault(vmf, PE_SIZE_PTE,
 			IS_DAX(file_inode(vmf->vma->vm_file)) &&
-			xfs_is_write_fault(vmf));
+			tagfs_is_write_fault(vmf));
 }
 
 static vm_fault_t
-xfs_filemap_huge_fault(
+tagfs_filemap_huge_fault(
 	struct vm_fault		*vmf,
 	enum page_entry_size	pe_size)
 {
@@ -644,15 +637,15 @@ xfs_filemap_huge_fault(
 		return VM_FAULT_FALLBACK;
 
 	/* DAX can shortcut the normal fault path on write faults! */
-	return __xfs_filemap_fault(vmf, pe_size,
-			xfs_is_write_fault(vmf));
+	return __tagfs_filemap_fault(vmf, pe_size,
+			tagfs_is_write_fault(vmf));
 }
 
 static vm_fault_t
-xfs_filemap_page_mkwrite(
+tagfs_filemap_page_mkwrite(
 	struct vm_fault		*vmf)
 {
-	return __xfs_filemap_fault(vmf, PE_SIZE_PTE, true);
+	return __tagfs_filemap_fault(vmf, PE_SIZE_PTE, true);
 }
 
 /*
@@ -661,34 +654,30 @@ xfs_filemap_page_mkwrite(
  * prepare memory for writing so handle is as standard write fault.
  */
 static vm_fault_t
-xfs_filemap_pfn_mkwrite(
+tagfs_filemap_pfn_mkwrite(
 	struct vm_fault		*vmf)
 {
 
-	return __xfs_filemap_fault(vmf, PE_SIZE_PTE, true);
+	return __tagfs_filemap_fault(vmf, PE_SIZE_PTE, true);
 }
 
 static vm_fault_t
-xfs_filemap_map_pages(
+tagfs_filemap_map_pages(
 	struct vm_fault		*vmf,
 	pgoff_t			start_pgoff,
 	pgoff_t			end_pgoff)
 {
-	struct inode		*inode = file_inode(vmf->vma->vm_file);
 	vm_fault_t ret;
 
-	xfs_ilock(XFS_I(inode), XFS_MMAPLOCK_SHARED);
 	ret = filemap_map_pages(vmf, start_pgoff, end_pgoff);
-	xfs_iunlock(XFS_I(inode), XFS_MMAPLOCK_SHARED);
 	return ret;
 }
 
-static const struct vm_operations_struct xfs_file_vm_ops = {
-	.fault		= xfs_filemap_fault,
-	.huge_fault	= xfs_filemap_huge_fault,
-	.map_pages	= xfs_filemap_map_pages,
-	.page_mkwrite	= xfs_filemap_page_mkwrite,
-	.pfn_mkwrite	= xfs_filemap_pfn_mkwrite,
+static const struct vm_operations_struct tagfs_file_vm_ops = {
+	.fault		= tagfs_filemap_fault,
+	.huge_fault	= tagfs_filemap_huge_fault,
+	.map_pages	= tagfs_filemap_map_pages,
+	.page_mkwrite	= tagfs_filemap_page_mkwrite,
+	.pfn_mkwrite	= tagfs_filemap_pfn_mkwrite,
 };
 
-#endif
