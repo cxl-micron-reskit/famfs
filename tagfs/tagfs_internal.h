@@ -26,25 +26,26 @@ struct tagfs_mount_opts {
 	umode_t mode;
 };
 
-enum fname_devtype {
-	FNAME_IS_BLKDEV,
-	FNAME_IS_DAXDEV,
-};
-
+#if 0
 struct tagfs_dax_dev {
-	enum fname_devtype fname_devtype;
 	char *daxdev_filename;
-	struct file *blkdev_filp;
-	struct file *daxdev_filp;
+	struct block_device *bdevp;
+	struct dax_device *dax_devp;
 };
 
 #define TAGFS_MAX_DAXDEVS 2
+#endif
+
+extern int tagfs_blkdev_mode;
 
 struct tagfs_fs_info {
 	struct mutex fsi_mutex;
 	struct tagfs_mount_opts mount_opts;
 	int num_dax_devs;
-	struct tagfs_dax_dev daxdev[TAGFS_MAX_DAXDEVS];
+	dev_t dax_devno; /* XXX: ddo we need to save the devno? I think not */
+	struct dax_device *dax_devp; /* TODO: indexed list of dax_devp's */
+	struct block_device *bdevp;  /* TODO: indexed list of bdevp's (if usigng bdevs)
+				      * (extents would index into the device list) */
 };
 
 

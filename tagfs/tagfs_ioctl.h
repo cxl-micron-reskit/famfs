@@ -9,7 +9,7 @@
 #define TAGFS_MAX_EXTENTS 2
 
 enum extent_type {
-	HPA_EXTENT,
+	HPA_EXTENT = 13,
 	DAX_EXTENT,
 	FSDAX_EXTENT,
 	TAG_EXTENT,
@@ -32,10 +32,9 @@ struct tagfs_ioc_map {
 	size_t                    ext_list_count;
 	struct tagfs_user_extent *ext_list;
 	/* TODO later: move to extents, for file spanning flexibility */
-	union {
-		unsigned char    daxdevname[32]; /* if DAX_EXTENT or BLOCK_EXTENT */
-		uuid_le   uuid;        /* if TAG_EXTENT */
-	};
+
+	unsigned char    devname[32]; /* if DAX_EXTENT or BLOCK_EXTENT */
+	dev_t            devno;
 };
 
 /*

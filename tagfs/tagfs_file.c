@@ -57,10 +57,14 @@ struct dax_device *inode_dax(struct inode *inode);
  * This will be necessary to support more than one mount, and also to support more than one
  * dax device (or tag) per file system
  */
-struct file *dax_filp = NULL; /* Just one global initially... */
-char *dax_filename = NULL;
-struct dax_device *dax_dev = NULL;
+//char *dax_filename = NULL;
+#if 0
+struct block_device *bdevp     = NULL;
+dev_t                dax_devno = 0;
+struct dax_device   *dax_devp   = NULL;
+#endif
 /**************/
+int tagfs_blkdev_mode = FMODE_READ|FMODE_WRITE|FMODE_EXCL;
 
 /**
  * mcache_map_meta_alloc() - Allocate mcache map metadata
@@ -106,6 +110,7 @@ tagfs_meta_to_dax_offset(struct inode *inode,
 	struct tagfs_file_meta *meta = (struct tagfs_file_meta *)inode->i_private;
 	int i;
 	loff_t local_offset = offset;
+	struct tagfs_fs_info  *fsi = inode->i_sb->s_fs_info;
 
 	for (i=0; i<meta->tfs_extent_ct; i++) {
 		loff_t dax_ext_offset = meta->tfs_extents[i].offset;
@@ -114,13 +119,47 @@ tagfs_meta_to_dax_offset(struct inode *inode,
 		if (local_offset < dax_ext_len) {
 			iomap->offset = dax_ext_offset + local_offset;
 			iomap->length = min_t(loff_t, len, (dax_ext_len - iomap->offset));
-			iomap->dax_dev = dax_dev;
+			iomap->dax_dev = fsi->dax_devp;
 			return 0;
 		}
 		local_offset -= dax_ext_len; /* Get ready for the next extent */
 	}
 	return 1; /* What is correct error to return? */
 }
+
+char *extent_type_str(enum extent_type et)
+{
+	static char *hpa_extent   = "HPA_EXTENT";
+	static char *dax_extent   = "DAX_EXTENT";
+	static char *fsdax_extent = "FSDAX_EXTENT";
+	static char *tag_extent   = "TAG_EXTENT";
+	static char *unknown_ext  = "(Undefined extent type)";
+	switch (et) {
+	case HPA_EXTENT:   return hpa_extent;
+	case DAX_EXTENT:   return dax_extent;
+	case FSDAX_EXTENT: return fsdax_extent;
+	case TAG_EXTENT:   return tag_extent;
+	default:           return unknown_ext;
+	}
+}
+
+static int
+tagfs_dax_notify_failure(
+	struct dax_device	*dax_devp,
+	u64			offset,
+	u64			len,
+	int			mf_flags)
+{
+
+	printk(KERN_ERR "%s: dax_devp %llx offset %llx len %lld mf_flags %x\n",
+	       __func__, (u64)dax_devp, (u64)offset, (u64)len, mf_flags);
+
+	return -EOPNOTSUPP;
+}
+
+const struct dax_holder_operations tagfs_dax_holder_operations = {
+	.notify_failure		= tagfs_dax_notify_failure,
+};
 
 /**
  * tagfs_file_create() - MCIOC_MAP_CREATE ioctl handler
@@ -139,10 +178,11 @@ tagfs_file_create(
 	struct tagfs_fs_info  *fsi;
 	struct tagfs_ioc_map    imap;
 	struct inode           *inode;
+	struct super_block     *sb;
 
 	struct tagfs_user_extent *tfs_extents = NULL;
 	size_t  ext_count;
-	int     rc;
+	int     rc = 0;
 	int     i;
 	size_t  count = 0;
 	int alignment_errs = 0;
@@ -156,8 +196,9 @@ tagfs_file_create(
 
 	ext_count = imap.ext_list_count;
 	if (ext_count < 1) {
-		printk("%s: invalid extent count %ld\n", __func__, ext_count);
-		rc = -EINVAL;
+		printk("%s: invalid extent count %ld type %s\n",
+		       __func__, ext_count, extent_type_str(imap.extent_type));
+		rc = -ENOSPC;
 		goto errout;
 	}
 	printk("%s: there are %ld extents\n", __func__, ext_count);
@@ -173,7 +214,7 @@ tagfs_file_create(
 		rc = -EBADF;
 		goto errout;
 	}
-
+	sb = inode->i_sb;
 	fsi = inode->i_sb->s_fs_info;
 
 	/* Get space to copyin ext list from user space */
@@ -211,46 +252,78 @@ tagfs_file_create(
 		goto errout;
 	}
 
-	if (!dax_filename) {
-		int len = strlen(imap.daxdevname);
-		struct inode *dax_inode;
-		struct dax_sb_info *dax_sbinfo = NULL;
+	/* One supported dax device, and we haven't opened it yet since we don't have the name
+	 * stored yet
+	 */
+	if (!fsi->dax_devno) {
+		//int len = strlen(imap.devname);
+		//struct dax_sb_info *dax_sbinfo = NULL;
 
+#if 0
 		dax_filename = kcalloc(1, len + 1, GFP_KERNEL);
-		strcpy(dax_filename, imap.daxdevname);
-		printk("%s: opening dax device (%s)\n", __func__, dax_filename);
-		dax_filp = filp_open(dax_filename, O_RDWR, 0);
-		if (!dax_filp) {
-			printk(KERN_ERR "%s: failed to open dax dev %s\n", __func__,  dax_filename);
-			rc = -EINVAL;
-			goto errout;
-		}
-
+		strcpy(dax_filename, imap.devname);
+#endif
 		/* How we get to the struct dax_device depends on whether we were given the name of
 		 * a pmem device (which is block) or a dax device (which is character)
 		 */
 		switch (imap.extent_type) {
-		case DAX_EXTENT:
-			/* The supplied special-file-name is to a dax character device */
-			dax_inode = file_inode(dax_filp);
-			dax_dev = inode_dax(dax_inode); /* XXX Not sure yet whether this works */
-
+		case DAX_EXTENT: {
+			/* Intent here is to open char device directly, and not get dax_device from a
+			 * block_device, which we don't use anyway. Haven't figured it out yet though.
+			 */
+#if 1
+			printk(KERN_ERR "%s: raw character dax device not supported yet\n", __func__);
+			rc = -EINVAL;
+			goto errout;
+#else
+			printk("%s: opening dax block device (%s) by devno (%x)\n",
+			       __func__, imap.devname, dax_devno);
+			dax_devp = dax_dev_get(dax_devno);
+			if (IS_ERR(dax_devp)) {
+				rc = -PTR_ERR(dax_devp);
+				goto errout;
+			}
+			printk("%s: da_dev %llx\n", __func__, (u64)dax_devp);
 			if (!dax_sbinfo) {
 				printk(KERN_ERR "%s: failed to get struct dax_device from dax driver %s\n",
-				       __func__, dax_filename);
+				       __func__, imap.devname);
 				rc = -EINVAL;
 				goto errout;
 			}
+#endif
 			break;
-
+		}
 		case FSDAX_EXTENT: {
-			struct block_device *blkdev;
+			u64 start_off = 0;
+			struct block_device *bdevp;
+			struct dax_device   *dax_devp;
 
-			/* The supplied special-file-name is to a pmem/fsdax block device */
-			dax_inode = file_inode(dax_filp);
-			blkdev = dax_inode->i_sb->s_bdev;
-			dax_dev = fs_dax_get_by_bdev(blkdev, 0, 0 /* holder */,
-						     NULL /* holder ops */);
+			if (fsi->bdevp) {
+				printk("%p: already have block_device\n", __func__);
+			} else {
+				printk("%s: opening dax block device (%s)\n", __func__, imap.devname);
+
+				/* TODO: open by devno instead? (less effective error checking perhaps) */
+				bdevp = blkdev_get_by_path(imap.devname, tagfs_blkdev_mode, sb);
+				if (IS_ERR(bdevp)) {
+					rc = PTR_ERR(bdevp);
+					printk(KERN_ERR "%s: failed to open block device (%s)\n"
+					       , __func__, imap.devname);
+					goto errout;
+				}
+
+				dax_devp = fs_dax_get_by_bdev(bdevp, &start_off,
+							      sb->s_fs_info /* holder */,
+							     &tagfs_dax_holder_operations);
+				if (IS_ERR(dax_devp)) {
+					printk(KERN_ERR "%s: unable to get daxdev from bdevp\n", __func__);
+					blkdev_put(bdevp, tagfs_blkdev_mode);
+					goto errout;
+				}
+				printk("%s: dax_devp %llx\n", __func__, (u64)dax_devp);
+				fsi->bdevp = bdevp;
+				fsi->dax_devp = dax_devp;
+			}
 			break;
 		}
 		default:
@@ -261,17 +334,18 @@ tagfs_file_create(
 		}
 	} else {
 		/* Dax device already open; make sure this file needs the same device.
-		 * TODO: generalize to multiple devices
 		 */
-		if (strcmp(dax_filename, imap.daxdevname) != 0) {
-			printk(KERN_ERR "%s: new dax filname (%s) differs from the first (%s)\n",
-			       __func__, imap.daxdevname, dax_filename);
+		if (fsi->dax_devno != imap.devno) {
+			printk(KERN_ERR "%s: new dax devno (%x) differs from the first (%x)\n",
+			       __func__, imap.devno, fsi->dax_devno);
 			rc = -EINVAL;
 			goto errout;
 		}
-		if (!dax_dev) {
-			printk(KERN_ERR "%s: dax_filename (%s) set but dax_dev is NULL\n",
-			       __func__, dax_filename);
+		if (!fsi->dax_devp) {
+			printk(KERN_ERR "%s: dax_devno (%x) set but dax_dev is NULL\n",
+			       __func__, fsi->dax_devno);
+			rc = -EINVAL;
+			goto errout;
 		}
 	}
 
@@ -309,17 +383,14 @@ tagfs_file_create(
 		rc = -EINVAL;
 	}
 
-	rc = -EINVAL;
-	goto errout;
-
-	/* Publish the tagfs metadata
-	 */
+	/* Publish the tagfs metadata on inode->i_private */
 	inode_lock(inode);
 	if (inode->i_private) {
+		printk("%s: inode already has i_private!\n", __func__);
 		rc = -EEXIST;
 	} else {
-		//inode->i_private = meta;
-		rc = -ENXIO; /* Don't save metadata when we don't use it yet */
+		inode->i_private = meta;
+		//rc = -ENXIO; /* Don't save metadata when we don't use it yet */
 		i_size_write(inode, imap.file_size);
 		inode->i_flags |= S_DAX;
 		inode->i_private = meta;

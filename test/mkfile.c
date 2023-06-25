@@ -8,8 +8,10 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
-#include <linux/types.h>
 #include <string.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
 
 typedef __u64 u64;
 
@@ -79,8 +81,10 @@ main(int argc,
 
 		arg_ct++;
 		switch (c) {
+		case 'F':
 		case 'D': {
 			size_t len = 0;
+			struct stat devstat;
 
 			/* Must be first argument */
 			if (arg_ct != 1) {
@@ -89,12 +93,36 @@ main(int argc,
 			}
 			daxdev = optarg;
 			len = strlen(daxdev);
-			if (len <= 0 || len >= sizeof(filemap.daxdevname)) {
+			if (len <= 0 || len >= sizeof(filemap.devname)) {
 				fprintf(stderr, "Invalid dax device string: (%s)\n", daxdev);
 				exit(-1);
 			}
-			type = DAX_EXTENT;
-			strncpy(filemap.daxdevname, daxdev, len);
+
+			if (stat(daxdev, &devstat) == -1) {
+				fprintf(stderr, "unable to stat special file: %s\n", filename);
+				return -1;
+			}
+
+
+			if (c == 'F') {
+				if (!S_ISBLK(devstat.st_mode)) {
+					fprintf(stderr,
+						"FSDAX special file (%s) is not a block device\n",
+						daxdev);
+				}
+				type = FSDAX_EXTENT;
+			}
+			else if (c == 'D') {
+				if (!S_ISCHR(devstat.st_mode)) {
+					fprintf(stderr,
+						"FSDAX special file (%s) is not a block device\n",
+						daxdev);
+				}
+				type = DAX_EXTENT;
+			}
+
+			strncpy(filemap.devname, daxdev, len);
+			filemap.devno = devstat.st_rdev; /* Device number (dev_t) for the dax dev */
 			break;
 		}
 		case 'n':
@@ -139,19 +167,19 @@ main(int argc,
 				cur_extent++;
 			break;
 
-		case 'f':
+		case 'f': {
 			filename = optarg;
 			printf("filename: %s\n", filename);
 			/* TODO: make sure filename is in a tagfs file system */
 			break;
-
+		}
 		case 'h':
 		case '?':
 			print_usage(argc, argv);
 			return 0;
 
 		default:
-			printf("default\n");
+			printf("default (%c)\n", c);
 			return -1;
 		}
 	}
@@ -177,6 +205,7 @@ main(int argc,
 	if (rc) {
 		printf("ioctl returned rc %d errno %d\n", rc, errno);
 		perror("ioctl");
+		unlink(filename);
 	}
 	close(rc);
 }

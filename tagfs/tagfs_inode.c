@@ -30,7 +30,6 @@
 #include <linux/init.h>
 #include <linux/string.h>
 #include <linux/backing-dev.h>
-#include "tagfs.h"
 #include <linux/sched.h>
 #include <linux/parser.h>
 #include <linux/magic.h>
@@ -41,7 +40,10 @@
 #include <linux/seq_file.h>
 #include <linux/dax.h>
 #include <linux/hugetlb.h>
+#include <linux/uio.h>
+#include <linux/iomap.h>
 
+#include "tagfs.h"
 #include "tagfs_internal.h"
 
 #define TAGFS_DEFAULT_MODE	0755
@@ -279,6 +281,10 @@ static void tagfs_kill_sb(struct super_block *sb)
 	struct tagfs_fs_info *fsi = sb->s_fs_info;
 
 	mutex_destroy(&fsi->fsi_mutex);
+	if (fsi->bdevp)
+		blkdev_put(fsi->bdevp, tagfs_blkdev_mode);
+	if (fsi->dax_devp)
+		fs_put_dax(fsi->dax_devp, fsi);
 	kfree(sb->s_fs_info);
 	kill_litter_super(sb);
 }
@@ -293,6 +299,7 @@ static struct file_system_type tagfs_fs_type = {
 
 static int __init init_tagfs_fs(void)
 {
+	printk("%s\n", __func__);
 	return register_filesystem(&tagfs_fs_type);
 }
 
