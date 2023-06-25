@@ -37,6 +37,7 @@ struct tagfs_dax_dev {
 #endif
 
 extern int tagfs_blkdev_mode;
+extern const struct dax_holder_operations tagfs_dax_holder_operations;
 
 struct tagfs_fs_info {
 	struct mutex fsi_mutex;

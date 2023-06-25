@@ -50,32 +50,60 @@ MODULE_LICENSE("GPL v2");
 #error "Tagfs requires a kernel with CONFIG_FS_DAX enabled"
 #endif
 
-/* XXX: this is in dax-private.h */
-struct dax_device *inode_dax(struct inode *inode);
-
-/* TODO: move this into a list or tree hanging from superblock
- * This will be necessary to support more than one mount, and also to support more than one
- * dax device (or tag) per file system
- */
-//char *dax_filename = NULL;
-#if 0
-struct block_device *bdevp     = NULL;
-dev_t                dax_devno = 0;
-struct dax_device   *dax_devp   = NULL;
-#endif
-/**************/
 int tagfs_blkdev_mode = FMODE_READ|FMODE_WRITE|FMODE_EXCL;
 
+/* Debug stuff */
+char *
+extent_type_str(enum extent_type et)
+{
+	static char *hpa_extent   = "HPA_EXTENT";
+	static char *dax_extent   = "DAX_EXTENT";
+	static char *fsdax_extent = "FSDAX_EXTENT";
+	static char *tag_extent   = "TAG_EXTENT";
+	static char *unknown_ext  = "(Undefined extent type)";
+	switch (et) {
+	case HPA_EXTENT:   return hpa_extent;
+	case DAX_EXTENT:   return dax_extent;
+	case FSDAX_EXTENT: return fsdax_extent;
+	case TAG_EXTENT:   return tag_extent;
+	default:           return unknown_ext;
+	}
+}
+
+static void
+tagfs_get_iomap_flags_str(char *flag_str, unsigned flags)
+{
+	flag_str[0] = 0;
+
+	if (flags & IOMAP_WRITE)
+		strcat(flag_str, " IOMAP_WRITE");
+	if (flags & IOMAP_ZERO)
+		strcat(flag_str, " IOMAP_ZERO");
+	if (flags & IOMAP_REPORT)
+		strcat(flag_str, " IOMAP_REPORT");
+	if (flags & IOMAP_FAULT)
+		strcat(flag_str, " IOMAP_FAULT");
+	if (flags & IOMAP_DIRECT)
+		strcat(flag_str, " IOMAP_DIRECT");
+	if (flags & IOMAP_NOWAIT)
+		strcat(flag_str, " IOMAP_NOWAIT");
+	if (flags & IOMAP_OVERWRITE_ONLY)
+		strcat(flag_str, " IOMAP_OVERWRITE_ONLY");
+	if (flags & IOMAP_DAX)
+		strcat(flag_str, " IOMAP_DAX");
+}
+
+
 /**
- * mcache_map_meta_alloc() - Allocate mcache map metadata
- * @mapp:       pointer to an mcache_map_meta pointer
- * @mbdescc:    mblock descriptor vector element count
+ * tagfs_map_meta_alloc() - Allocate mcache map metadata
+ * @mapp:       Pointer to an mcache_map_meta pointer
+ * @ext_count:  The number of extents needed
  */
 static
 int
 tagfs_meta_alloc(
-	struct tagfs_file_meta    **mapp,
-	size_t                      ext_count)
+	struct tagfs_file_meta  **mapp,
+	size_t                    ext_count)
 {
 	struct tagfs_file_meta *map;
 	size_t                  mapsz;
@@ -104,8 +132,8 @@ tagfs_meta_free(
 static int
 tagfs_meta_to_dax_offset(struct inode *inode,
 			 struct iomap *iomap,
-			 loff_t offset,
-			 loff_t len)
+			 loff_t        offset,
+			 loff_t        len)
 {
 	struct tagfs_file_meta *meta = (struct tagfs_file_meta *)inode->i_private;
 	int i;
@@ -131,21 +159,6 @@ tagfs_meta_to_dax_offset(struct inode *inode,
 	return 1; /* What is correct error to return? */
 }
 
-char *extent_type_str(enum extent_type et)
-{
-	static char *hpa_extent   = "HPA_EXTENT";
-	static char *dax_extent   = "DAX_EXTENT";
-	static char *fsdax_extent = "FSDAX_EXTENT";
-	static char *tag_extent   = "TAG_EXTENT";
-	static char *unknown_ext  = "(Undefined extent type)";
-	switch (et) {
-	case HPA_EXTENT:   return hpa_extent;
-	case DAX_EXTENT:   return dax_extent;
-	case FSDAX_EXTENT: return fsdax_extent;
-	case TAG_EXTENT:   return tag_extent;
-	default:           return unknown_ext;
-	}
-}
 
 static int
 tagfs_dax_notify_failure(
@@ -170,7 +183,8 @@ const struct dax_holder_operations tagfs_dax_holder_operations = {
  * @file:
  * @arg:        ptr to struct mcioc_map in user space
  *
- * How are mcache map files created?
+ * Setup the dax mapping for a file. Files are created empty, and then function is aclled
+ * (by tagfs_file_ioctl()) to setup the mapping and set the file size.
  */
 static
 int
@@ -267,16 +281,18 @@ tagfs_file_create(
 		dax_filename = kcalloc(1, len + 1, GFP_KERNEL);
 		strcpy(dax_filename, imap.devname);
 #endif
-		/* How we get to the struct dax_device depends on whether we were given the name of
-		 * a pmem device (which is block) or a dax device (which is character)
+		/* How we get to the struct dax_device depends on whether we were given the
+		 * name of pmem device (which is block) or a dax device (which is character)
 		 */
 		switch (imap.extent_type) {
 		case DAX_EXTENT: {
-			/* Intent here is to open char device directly, and not get dax_device from a
-			 * block_device, which we don't use anyway. Haven't figured it out yet though.
+			/* Intent here is to open char device directly, and not get dax_device
+			 * from a block_device, which we don't use anyway. Haven't figured it
+			 * out yet though.
 			 */
 #if 1
-			printk(KERN_ERR "%s: raw character dax device not supported yet\n", __func__);
+			printk(KERN_ERR "%s: raw character dax device not supported yet\n",
+			       __func__);
 			rc = -EINVAL;
 			goto errout;
 #else
@@ -289,7 +305,8 @@ tagfs_file_create(
 			}
 			printk("%s: da_dev %llx\n", __func__, (u64)dax_devp);
 			if (!dax_sbinfo) {
-				printk(KERN_ERR "%s: failed to get struct dax_device from dax driver %s\n",
+				printk(KERN_ERR
+				       "%s: failed to get struct dax_device from dax driver %s\n",
 				       __func__, imap.devname);
 				rc = -EINVAL;
 				goto errout;
@@ -305,9 +322,11 @@ tagfs_file_create(
 			if (fsi->bdevp) {
 				printk("%p: already have block_device\n", __func__);
 			} else {
-				printk("%s: opening dax block device (%s)\n", __func__, imap.devname);
+				printk("%s: opening dax block device (%s)\n",
+				       __func__, imap.devname);
 
-				/* TODO: open by devno instead? (less effective error checking perhaps) */
+				/* TODO: open by devno instead?
+				 * (less effective error checking perhaps) */
 				bdevp = blkdev_get_by_path(imap.devname, tagfs_blkdev_mode, sb);
 				if (IS_ERR(bdevp)) {
 					rc = PTR_ERR(bdevp);
@@ -320,7 +339,8 @@ tagfs_file_create(
 							      sb->s_fs_info /* holder */,
 							     &tagfs_dax_holder_operations);
 				if (IS_ERR(dax_devp)) {
-					printk(KERN_ERR "%s: unable to get daxdev from bdevp\n", __func__);
+					printk(KERN_ERR "%s: unable to get daxdev from bdevp\n",
+					       __func__);
 					blkdev_put(bdevp, tagfs_blkdev_mode);
 					goto errout;
 				}
@@ -412,6 +432,10 @@ errout:
 	return rc;
 }
 
+/*********************************************************************
+ * file_operations
+ */
+
 /**
  * tagfs_file_ioctl() -  top-level mcache ioctl handler
  * @file:
@@ -440,14 +464,13 @@ tagfs_file_ioctl(
 	return rc;
 }
 
-
-static unsigned long tagfs_mmu_get_unmapped_area(struct file *file,
+static unsigned long
+tagfs_mmu_get_unmapped_area(struct file *file,
 		unsigned long addr, unsigned long len, unsigned long pgoff,
 		unsigned long flags)
 {
 	return current->mm->get_unmapped_area(file, addr, len, pgoff, flags);
 }
-
 
 /**
  * tagfs_write_iter()
@@ -470,47 +493,34 @@ tagfs_write_iter(struct kiocb *iocb, struct iov_iter *from)
 }
 
 const struct file_operations tagfs_file_operations = {
+	/* Custom tagfs operations */
+	.write_iter	   = tagfs_write_iter,
+	.get_unmapped_area = tagfs_mmu_get_unmapped_area,
+	.unlocked_ioctl    = tagfs_file_ioctl,
+
+	/* Generic Operations */
 	.read_iter	= generic_file_read_iter,
-	.write_iter	= tagfs_write_iter,
 	.mmap		= generic_file_mmap,
 	.fsync		= noop_fsync,
 	.splice_read	= generic_file_splice_read,
 	.splice_write	= iter_file_splice_write,
 	.llseek		= generic_file_llseek,
-	.get_unmapped_area	= tagfs_mmu_get_unmapped_area,
-	.unlocked_ioctl = tagfs_file_ioctl,
 };
 
 const struct inode_operations tagfs_file_inode_operations = {
+	/* All generic */
 	.setattr	= simple_setattr,
 	.getattr	= simple_getattr,
 };
 
-static void
-tagfs_get_iomap_flags_str(char *flag_str, unsigned flags)
-{
-	flag_str[0] = 0;
-
-	if (flags & IOMAP_WRITE)
-		strcat(flag_str, " IOMAP_WRITE");
-	if (flags & IOMAP_ZERO)
-		strcat(flag_str, " IOMAP_ZERO");
-	if (flags & IOMAP_REPORT)
-		strcat(flag_str, " IOMAP_REPORT");
-	if (flags & IOMAP_FAULT)
-		strcat(flag_str, " IOMAP_FAULT");
-	if (flags & IOMAP_DIRECT)
-		strcat(flag_str, " IOMAP_DIRECT");
-	if (flags & IOMAP_NOWAIT)
-		strcat(flag_str, " IOMAP_NOWAIT");
-	if (flags & IOMAP_OVERWRITE_ONLY)
-		strcat(flag_str, " IOMAP_OVERWRITE_ONLY");
-	if (flags & IOMAP_DAX)
-		strcat(flag_str, " IOMAP_DAX");
-}
-
+/*********************************************************************
+ * iomap_operations
+ *
+ * This stuff uses the iomap (dax-related) helpers to resolve file offsets to
+ * offsets within a dax device.
+ */
 /**
- * tagfs-read_iomap_begin()
+ * tagfs_read_iomap_begin()
  *
  * This function is pretty simple because files are
  * * never partially allocated
@@ -552,6 +562,7 @@ const struct iomap_ops tags_iomap_ops = {
 	.iomap_begin		= tagfs_iomap_begin,
 };
 
+#if 0
 /*********************************************************************
  * vm_operations
  */
@@ -679,3 +690,5 @@ static const struct vm_operations_struct xfs_file_vm_ops = {
 	.page_mkwrite	= xfs_filemap_page_mkwrite,
 	.pfn_mkwrite	= xfs_filemap_pfn_mkwrite,
 };
+
+#endif
