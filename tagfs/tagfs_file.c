@@ -112,6 +112,7 @@ tagfs_meta_to_dax_offset(struct inode *inode,
 	loff_t local_offset = offset;
 	struct tagfs_fs_info  *fsi = inode->i_sb->s_fs_info;
 
+	printk("%s: offset %llx len %lld\n", __func__, offset, len);
 	for (i=0; i<meta->tfs_extent_ct; i++) {
 		loff_t dax_ext_offset = meta->tfs_extents[i].offset;
 		loff_t dax_ext_len    = meta->tfs_extents[i].len;
@@ -120,10 +121,13 @@ tagfs_meta_to_dax_offset(struct inode *inode,
 			iomap->offset = dax_ext_offset + local_offset;
 			iomap->length = min_t(loff_t, len, (dax_ext_len - iomap->offset));
 			iomap->dax_dev = fsi->dax_devp;
+			printk("%s: --> daxdev offset %llx len %lld\n", __func__,
+			       iomap->offset, iomap->length);
 			return 0;
 		}
 		local_offset -= dax_ext_len; /* Get ready for the next extent */
 	}
+	printk("%s: Failed to resolve\n", __func__);
 	return 1; /* What is correct error to return? */
 }
 
