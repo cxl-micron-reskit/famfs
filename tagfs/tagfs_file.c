@@ -52,6 +52,8 @@ MODULE_LICENSE("GPL v2");
 
 int tagfs_blkdev_mode = FMODE_READ|FMODE_WRITE|FMODE_EXCL;
 
+
+
 /* Debug stuff */
 char *
 extent_type_str(enum extent_type et)
@@ -472,36 +474,86 @@ tagfs_mmu_get_unmapped_area(struct file *file,
 	return current->mm->get_unmapped_area(file, addr, len, pgoff, flags);
 }
 
+const char *
+tagfs_get_iov_iter_type(struct iov_iter *iovi)
+{
+	switch (iovi->iter_type) {
+	case ITER_IOVEC:    return "ITER_IOVEC";
+	case ITER_KVEC:     return "ITER_KVEC";
+	case ITER_BVEC:     return "ITER_BVEC";
+	case ITER_PIPE:     return "ITER_PIPE";
+	case ITER_XARRAY:   return "ITER_XARRAY";
+	case ITER_DISCARD:  return "ITER_DISCARD";
+	case ITER_UBUF:     return "ITER_UBUF";
+	default:            return "ITER_INVALID";
+	}
+}
+
+static noinline ssize_t
+tagfs_dax_read_iter(
+	struct kiocb		*iocb,
+	struct iov_iter		*to)
+{
+	ssize_t			ret = 0;
+
+
+	if (!iov_iter_count(to))
+		return 0; /* skip atime */
+
+	ret = dax_iomap_rw(iocb, to, &tagfs_iomap_ops);
+
+	file_accessed(iocb->ki_filp);
+	return ret;
+}
+
 /**
  * tagfs_write_iter()
  *
  * We need our own write-iter in order to prevent append
  */
 ssize_t
-tagfs_write_iter(struct kiocb *iocb, struct iov_iter *from)
+tagfs_dax_write_iter(struct kiocb *iocb,
+		     struct iov_iter *from)
 {
+	struct inode		*inode = iocb->ki_filp->f_mapping->host;
+	size_t count = iov_iter_count(from);
+	size_t max_count = i_size_read(inode) - iocb->ki_pos;
+
+	if (!IS_DAX(inode)) {
+		printk(KERN_ERR "%s: inode %llx IS_DAX is false\n", __func__, (u64)inode);
+		return 0;
+	}
 	/* starting offsset of write is: ioct->ki_pos
-	 * 
-	 */
+	 * length is iov_iter_count(from)  */
 	/* TODO: truncate "from" if necessary so that
 	 * (ki_pos + from_length) <= i_size
 	 * (i.e. i_size will not increase)
 	 * TODO: unit test for this
 	 */
-	printk("%s: iter_type=%d\n", __func__, iov_iter_type(from));
-	return generic_file_write_iter(iocb, from);
+	printk("%s: iter_type=%s count %ld max_count %ldx\n",
+	       __func__, tagfs_get_iov_iter_type(from), count, max_count);
+
+	/* If write would go past EOF, truncate it to end at EOF
+	 * TODO: truncate at length of extent list instead - then append can happen if sufficient
+	 * pre-allocated extents exist */
+	if (count > max_count) {
+		printk("%s: truncating to max_count\n", __func__);
+		iov_iter_truncate(from, max_count);
+	}
+
+	return dax_iomap_rw(iocb, from, &tagfs_iomap_ops);
 }
 
 const struct file_operations tagfs_file_operations = {
 	/* Custom tagfs operations */
-	.write_iter	   = tagfs_write_iter,
+	.write_iter	   = tagfs_dax_write_iter,
+	.read_iter	   = tagfs_dax_read_iter,
 	.get_unmapped_area = tagfs_mmu_get_unmapped_area,
 	.unlocked_ioctl    = tagfs_file_ioctl,
 
 	/* Generic Operations */
-	.read_iter	= generic_file_read_iter,
 	.mmap		= generic_file_mmap,
-	.fsync		= noop_fsync,
+	.fsync		= noop_fsync, /* TODO: could to wbinv on range :-/ */
 	.splice_read	= generic_file_splice_read,
 	.splice_write	= iter_file_splice_write,
 	.llseek		= generic_file_llseek,
@@ -524,7 +576,7 @@ const struct inode_operations tagfs_file_inode_operations = {
  *
  * This function is pretty simple because files are
  * * never partially allocated
- * * never have holes (files are never sparse)
+ * * never have holes (never sparse)
  *
  */
 static int
@@ -546,7 +598,8 @@ tagfs_iomap_begin(
 	printk("        iomap flags: %s\n", flag_str);
 
 	if ((offset + length) > i_size_read(inode)) {
-		printk(KERN_ERR "%s: ofs + length exceeds file size; append not allowed\n", __func__);
+		printk(KERN_ERR "%s: ofs + length exceeds file size; append not allowed\n",
+		       __func__);
 		return -EINVAL;
 	}
 
@@ -614,6 +667,7 @@ static inline bool
 tagfs_is_write_fault(
 	struct vm_fault		*vmf)
 {
+	printk("%s\n", __func__);
 	return (vmf->flags & FAULT_FLAG_WRITE) &&
 	       (vmf->vma->vm_flags & VM_SHARED);
 }
@@ -622,6 +676,7 @@ static vm_fault_t
 tagfs_filemap_fault(
 	struct vm_fault		*vmf)
 {
+	printk("%s\n", __func__);
 	/* DAX can shortcut the normal fault path on write faults! */
 	return __tagfs_filemap_fault(vmf, PE_SIZE_PTE,
 			IS_DAX(file_inode(vmf->vma->vm_file)) &&
@@ -633,6 +688,7 @@ tagfs_filemap_huge_fault(
 	struct vm_fault		*vmf,
 	enum page_entry_size	pe_size)
 {
+	printk("%s\n", __func__);
 	if (!IS_DAX(file_inode(vmf->vma->vm_file)))
 		return VM_FAULT_FALLBACK;
 
@@ -645,6 +701,7 @@ static vm_fault_t
 tagfs_filemap_page_mkwrite(
 	struct vm_fault		*vmf)
 {
+	printk("%s\n", __func__);
 	return __tagfs_filemap_fault(vmf, PE_SIZE_PTE, true);
 }
 
