@@ -147,11 +147,16 @@ tagfs_meta_to_dax_offset(struct inode *inode,
 		loff_t dax_ext_offset = meta->tfs_extents[i].offset;
 		loff_t dax_ext_len    = meta->tfs_extents[i].len;
 
+
+		printk("%s: ofs %llx len %llx tagfs: ext %d ofs %llx len %llx\n", __func__,
+		       local_offset, len, i, dax_ext_offset, dax_ext_len);
+
 		if (local_offset < dax_ext_len) {
 			iomap->offset = dax_ext_offset + local_offset;
-			iomap->length = min_t(loff_t, len, (dax_ext_len - iomap->offset));
+			iomap->length = min_t(loff_t, len, (dax_ext_len - local_offset));
 			iomap->dax_dev = fsi->dax_devp;
-			printk("%s: --> daxdev offset %llx len %lld\n", __func__,
+			iomap->bdev    = fsi->bdevp;
+			printk("%s: --> ext %ddaxdev offset %llx len %lld\n", __func__, i,
 			       iomap->offset, iomap->length);
 			return 0;
 		}
@@ -544,15 +549,42 @@ tagfs_dax_write_iter(struct kiocb *iocb,
 	return dax_iomap_rw(iocb, from, &tagfs_iomap_ops);
 }
 
+static int
+tagfs_file_mmap(
+	struct file		*file,
+	struct vm_area_struct	*vma)
+{
+	struct inode		*inode = file_inode(file);
+
+	if (!IS_DAX(inode)) {
+		printk(KERN_ERR "%s: inode %llx IS_DAX is false\n", __func__, (u64)inode);
+		return 0;
+	}
+
+#if 0
+	/*
+	 * We don't support synchronous mappings for non-DAX files and
+	 * for DAX files if underneath dax_device is not synchronous.
+	 */
+	if (!daxdev_mapping_supported(vma, target->bt_daxdev))
+		return -EOPNOTSUPP;
+#endif
+
+	file_accessed(file);
+	vma->vm_ops = &tagfs_file_vm_ops;
+	vm_flags_set(vma, VM_HUGEPAGE);
+	return 0;
+}
+
 const struct file_operations tagfs_file_operations = {
 	/* Custom tagfs operations */
 	.write_iter	   = tagfs_dax_write_iter,
 	.read_iter	   = tagfs_dax_read_iter,
 	.get_unmapped_area = tagfs_mmu_get_unmapped_area,
 	.unlocked_ioctl    = tagfs_file_ioctl,
+	.mmap		   = tagfs_file_mmap,
 
 	/* Generic Operations */
-	.mmap		= generic_file_mmap,
 	.fsync		= noop_fsync, /* TODO: could to wbinv on range :-/ */
 	.splice_read	= generic_file_splice_read,
 	.splice_write	= iter_file_splice_write,
@@ -730,7 +762,7 @@ tagfs_filemap_map_pages(
 	return ret;
 }
 
-static const struct vm_operations_struct tagfs_file_vm_ops = {
+const struct vm_operations_struct tagfs_file_vm_ops = {
 	.fault		= tagfs_filemap_fault,
 	.huge_fault	= tagfs_filemap_huge_fault,
 	.map_pages	= tagfs_filemap_map_pages,
