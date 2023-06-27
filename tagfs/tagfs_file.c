@@ -142,27 +142,27 @@ tagfs_meta_to_dax_offset(struct inode *inode,
 	loff_t local_offset = offset;
 	struct tagfs_fs_info  *fsi = inode->i_sb->s_fs_info;
 
-	printk("%s: offset %llx len %lld\n", __func__, offset, len);
+	printk(KERN_NOTICE "%s: offset %llx len %lld\n", __func__, offset, len);
 	for (i=0; i<meta->tfs_extent_ct; i++) {
 		loff_t dax_ext_offset = meta->tfs_extents[i].offset;
 		loff_t dax_ext_len    = meta->tfs_extents[i].len;
 
 
-		printk("%s: ofs %llx len %llx tagfs: ext %d ofs %llx len %llx\n", __func__,
+		printk(KERN_NOTICE "%s: ofs %llx len %llx tagfs: ext %d ofs %llx len %llx\n", __func__,
 		       local_offset, len, i, dax_ext_offset, dax_ext_len);
 
 		if (local_offset < dax_ext_len) {
 			iomap->offset = dax_ext_offset + local_offset;
 			iomap->length = min_t(loff_t, len, (dax_ext_len - local_offset));
 			iomap->dax_dev = fsi->dax_devp;
-			iomap->bdev    = fsi->bdevp;
-			printk("%s: --> ext %ddaxdev offset %llx len %lld\n", __func__, i,
+			//iomap->bdev    = fsi->bdevp;
+			printk(KERN_NOTICE "%s: --> ext %ddaxdev offset %llx len %lld\n", __func__, i,
 			       iomap->offset, iomap->length);
 			return 0;
 		}
 		local_offset -= dax_ext_len; /* Get ready for the next extent */
 	}
-	printk("%s: Failed to resolve\n", __func__);
+	printk(KERN_NOTICE "%s: Failed to resolve\n", __func__);
 	return 1; /* What is correct error to return? */
 }
 
@@ -175,7 +175,7 @@ tagfs_dax_notify_failure(
 	int			mf_flags)
 {
 
-	printk(KERN_ERR "%s: dax_devp %llx offset %llx len %lld mf_flags %x\n",
+	printk(KERN_NOTICE KERN_ERR "%s: dax_devp %llx offset %llx len %lld mf_flags %x\n",
 	       __func__, (u64)dax_devp, (u64)offset, (u64)len, mf_flags);
 
 	return -EOPNOTSUPP;
@@ -221,12 +221,12 @@ tagfs_file_create(
 
 	ext_count = imap.ext_list_count;
 	if (ext_count < 1) {
-		printk("%s: invalid extent count %ld type %s\n",
+		printk(KERN_INFO "%s: invalid extent count %ld type %s\n",
 		       __func__, ext_count, extent_type_str(imap.extent_type));
 		rc = -ENOSPC;
 		goto errout;
 	}
-	printk("%s: there are %ld extents\n", __func__, ext_count);
+	printk(KERN_INFO "%s: there are %ld extents\n", __func__, ext_count);
 
 	if (ext_count > TAGFS_MAX_EXTENTS) {
 		rc = -E2BIG;
@@ -235,7 +235,7 @@ tagfs_file_create(
 
 	inode = file->f_inode;
 	if (!inode) {
-		printk("%s: no inode\n", __func__);
+		printk(KERN_INFO "%s: no inode\n", __func__);
 		rc = -EBADF;
 		goto errout;
 	}
@@ -245,7 +245,7 @@ tagfs_file_create(
 	/* Get space to copyin ext list from user space */
 	tfs_extents = kcalloc(ext_count, sizeof(*tfs_extents), GFP_KERNEL);
 	if (!tfs_extents) {
-		printk("%s: Failed to alloc space for ext list\n", __func__);
+		printk(KERN_INFO "%s: Failed to alloc space for ext list\n", __func__);
 		rc =-ENOMEM;
 		goto errout;
 	}
@@ -253,7 +253,7 @@ tagfs_file_create(
 	rc = copy_from_user(tfs_extents, imap.ext_list,
 			    ext_count * sizeof(*tfs_extents));
 	if (rc) {
-		printk("%s: Failed to retrieve extent list from user space\n",
+		printk(KERN_INFO "%s: Failed to retrieve extent list from user space\n",
 		       __func__);
 		rc = -EFAULT;
 		goto errout;
@@ -303,14 +303,14 @@ tagfs_file_create(
 			rc = -EINVAL;
 			goto errout;
 #else
-			printk("%s: opening dax block device (%s) by devno (%x)\n",
+			printk(KERN_INFO "%s: opening dax block device (%s) by devno (%x)\n",
 			       __func__, imap.devname, dax_devno);
 			dax_devp = dax_dev_get(dax_devno);
 			if (IS_ERR(dax_devp)) {
 				rc = -PTR_ERR(dax_devp);
 				goto errout;
 			}
-			printk("%s: da_dev %llx\n", __func__, (u64)dax_devp);
+			printk(KERN_INFO "%s: da_dev %llx\n", __func__, (u64)dax_devp);
 			if (!dax_sbinfo) {
 				printk(KERN_ERR
 				       "%s: failed to get struct dax_device from dax driver %s\n",
@@ -327,9 +327,9 @@ tagfs_file_create(
 			struct dax_device   *dax_devp;
 
 			if (fsi->bdevp) {
-				printk("%p: already have block_device\n", __func__);
+				printk(KERN_NOTICE "%p: already have block_device\n", __func__);
 			} else {
-				printk("%s: opening dax block device (%s)\n",
+				printk(KERN_INFO "%s: opening dax block device (%s)\n",
 				       __func__, imap.devname);
 
 				/* TODO: open by devno instead?
@@ -351,14 +351,14 @@ tagfs_file_create(
 					blkdev_put(bdevp, tagfs_blkdev_mode);
 					goto errout;
 				}
-				printk("%s: dax_devp %llx\n", __func__, (u64)dax_devp);
+				printk(KERN_INFO "%s: dax_devp %llx\n", __func__, (u64)dax_devp);
 				fsi->bdevp = bdevp;
 				fsi->dax_devp = dax_devp;
 			}
 			break;
 		}
 		default:
-			printk("%s: unsupported extent type %d\n", __func__, imap.extent_type);
+			printk(KERN_NOTICE "%s: unsupported extent type %d\n", __func__, imap.extent_type);
 			rc = -EINVAL;
 			goto errout;
 			break;
@@ -391,7 +391,7 @@ tagfs_file_create(
 		/* TODO: get HPA from Tag DAX device. Hmmm. */
 		meta->tfs_extents[i].offset = offset;
 		meta->tfs_extents[i].len = len;
-		printk("%s: offset %lx len %ld\n", __func__, offset, len);
+		printk(KERN_INFO "%s: offset %lx len %ld\n", __func__, offset, len);
 
 		/* All extent addresses/offsets must be 2MiB aligned,
 		 * and all but the last length must be a 2MiB multiple.
@@ -417,14 +417,13 @@ tagfs_file_create(
 	/* Publish the tagfs metadata on inode->i_private */
 	inode_lock(inode);
 	if (inode->i_private) {
-		printk("%s: inode already has i_private!\n", __func__);
+		printk(KERN_INFO "%s: inode already has i_private!\n", __func__);
 		rc = -EEXIST;
 	} else {
 		inode->i_private = meta;
 		//rc = -ENXIO; /* Don't save metadata when we don't use it yet */
 		i_size_write(inode, imap.file_size);
 		inode->i_flags |= S_DAX;
-		inode->i_private = meta;
 	}
 	inode_unlock(inode);
 	
@@ -494,7 +493,7 @@ tagfs_get_iov_iter_type(struct iov_iter *iovi)
 	}
 }
 
-static noinline ssize_t
+static ssize_t
 tagfs_dax_read_iter(
 	struct kiocb		*iocb,
 	struct iov_iter		*to)
@@ -535,14 +534,14 @@ tagfs_dax_write_iter(struct kiocb *iocb,
 	 * (i.e. i_size will not increase)
 	 * TODO: unit test for this
 	 */
-	printk("%s: iter_type=%s count %ld max_count %ldx\n",
+	printk(KERN_NOTICE "%s: iter_type=%s count %ld max_count %ldx\n",
 	       __func__, tagfs_get_iov_iter_type(from), count, max_count);
 
 	/* If write would go past EOF, truncate it to end at EOF
 	 * TODO: truncate at length of extent list instead - then append can happen if sufficient
 	 * pre-allocated extents exist */
 	if (count > max_count) {
-		printk("%s: truncating to max_count\n", __func__);
+		printk(KERN_NOTICE "%s: truncating to max_count\n", __func__);
 		iov_iter_truncate(from, max_count);
 	}
 
@@ -556,6 +555,7 @@ tagfs_file_mmap(
 {
 	struct inode		*inode = file_inode(file);
 
+	printk(KERN_NOTICE "%s\n", __func__);
 	if (!IS_DAX(inode)) {
 		printk(KERN_ERR "%s: inode %llx IS_DAX is false\n", __func__, (u64)inode);
 		return 0;
@@ -623,11 +623,11 @@ tagfs_iomap_begin(
 	char flag_str[200];
 	int rc;
 
-	printk("%s: offset %lld length %lld\n", __func__, offset, length);
+	printk(KERN_NOTICE "%s: offset %lld length %lld\n", __func__, offset, length);
 
 	/* Dump flags */
 	tagfs_get_iomap_flags_str(flag_str, flags);
-	printk("        iomap flags: %s\n", flag_str);
+	printk(KERN_NOTICE "        iomap flags: %s\n", flag_str);
 
 	if ((offset + length) > i_size_read(inode)) {
 		printk(KERN_ERR "%s: ofs + length exceeds file size; append not allowed\n",
@@ -699,7 +699,7 @@ static inline bool
 tagfs_is_write_fault(
 	struct vm_fault		*vmf)
 {
-	printk("%s\n", __func__);
+	printk(KERN_NOTICE "%s\n", __func__);
 	return (vmf->flags & FAULT_FLAG_WRITE) &&
 	       (vmf->vma->vm_flags & VM_SHARED);
 }
@@ -708,7 +708,7 @@ static vm_fault_t
 tagfs_filemap_fault(
 	struct vm_fault		*vmf)
 {
-	printk("%s\n", __func__);
+	printk(KERN_NOTICE "%s\n", __func__);
 	/* DAX can shortcut the normal fault path on write faults! */
 	return __tagfs_filemap_fault(vmf, PE_SIZE_PTE,
 			IS_DAX(file_inode(vmf->vma->vm_file)) &&
@@ -720,7 +720,7 @@ tagfs_filemap_huge_fault(
 	struct vm_fault		*vmf,
 	enum page_entry_size	pe_size)
 {
-	printk("%s\n", __func__);
+	printk(KERN_ERR "%s\n", __func__);
 	if (!IS_DAX(file_inode(vmf->vma->vm_file)))
 		return VM_FAULT_FALLBACK;
 
@@ -733,7 +733,7 @@ static vm_fault_t
 tagfs_filemap_page_mkwrite(
 	struct vm_fault		*vmf)
 {
-	printk("%s\n", __func__);
+	printk(KERN_NOTICE "%s\n", __func__);
 	return __tagfs_filemap_fault(vmf, PE_SIZE_PTE, true);
 }
 
@@ -746,7 +746,7 @@ static vm_fault_t
 tagfs_filemap_pfn_mkwrite(
 	struct vm_fault		*vmf)
 {
-
+	printk(KERN_INFO "%s\n", __func__);
 	return __tagfs_filemap_fault(vmf, PE_SIZE_PTE, true);
 }
 
@@ -758,6 +758,7 @@ tagfs_filemap_map_pages(
 {
 	vm_fault_t ret;
 
+	printk(KERN_INFO "%s\n", __func__);
 	ret = filemap_map_pages(vmf, start_pgoff, end_pgoff);
 	return ret;
 }

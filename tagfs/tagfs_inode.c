@@ -300,6 +300,17 @@ static struct file_system_type tagfs_fs_type = {
 static int __init init_tagfs_fs(void)
 {
 	printk("%s\n", __func__);
+	/* See what the different log levels do */
+	printk(KERN_DEBUG    "%s: KERN_DEBUG \n", __func__);
+	printk(KERN_INFO     "%s: KERN_INFO \n", __func__);
+	printk(KERN_NOTICE   "%s: KERN_NOTICE \n", __func__);
+	printk(KERN_WARNING  "%s: KERN_WARNING \n", __func__);
+	printk(KERN_ERR      "%s: KERN_ERR \n", __func__);
+#if 0
+	printk(KERN_CRIT     "%s: KERN_CRIT \n", __func__);
+	printk(KERN_ALERT    "%s: KERN_ALERT \n", __func__);
+	printk(KERN_EMERG    "%s: KERN_EMERG \n", __func__);
+#endif
 	return register_filesystem(&tagfs_fs_type);
 }
 
