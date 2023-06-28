@@ -720,9 +720,12 @@ tagfs_filemap_huge_fault(
 	struct vm_fault		*vmf,
 	enum page_entry_size	pe_size)
 {
-	printk(KERN_ERR "%s\n", __func__);
-	if (!IS_DAX(file_inode(vmf->vma->vm_file)))
+	printk(KERN_NOTICE "%s\n", __func__);
+
+	if (!IS_DAX(file_inode(vmf->vma->vm_file))) {
+		printk(KERN_ERR "%s: file not marked IS_DAX!!\n", __func__);
 		return VM_FAULT_FALLBACK;
+	}
 
 	/* DAX can shortcut the normal fault path on write faults! */
 	return __tagfs_filemap_fault(vmf, pe_size,
