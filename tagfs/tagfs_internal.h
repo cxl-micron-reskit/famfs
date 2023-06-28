@@ -51,6 +51,7 @@ struct tagfs_fs_info {
 				      * (extents would index into the device list) */
 };
 
-
+int tagfs_file_create(struct file    *file, void __user    *arg);
+void tagfs_meta_free(struct tagfs_file_meta *map);
 
 #endif
