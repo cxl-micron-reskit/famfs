@@ -103,7 +103,7 @@ main(int argc,
 	
 	fd = open(filename, O_RDWR, 0);
 	if (fd < 0) {
-		fprintf(stderr, "open/create failed; rc %d errno %d\n", rc, errno);
+		fprintf(stderr, "open failed; rc %d errno %d\n", rc, errno);
 		exit(-1);
 	}
 
@@ -112,6 +112,7 @@ main(int argc,
 		fprintf(stderr, "mmap failed\n");
 	}
 
+	sleep(2);
 	strcpy(buf, "Hello, world\n");
 
 	printf("buf contents: %s\n", buf);

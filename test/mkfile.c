@@ -71,7 +71,7 @@ main(int argc,
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
-	while ((c = getopt_long(argc, argv, "+n:o:l:f:h?",
+	while ((c = getopt_long(argc, argv, "+n:o:l:f:D:F:h?",
 				global_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
