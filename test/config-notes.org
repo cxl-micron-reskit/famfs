@@ -1,5 +1,5 @@
 
-Make the system log persistent
+* Make the system log persistent
 
 
   sudo mkdir-p /var/log/journal
@@ -7,14 +7,15 @@ Make the system log persistent
   -> Storage=persistent
   systemctl restart systemd-journald
 
-Mounting tagfs manuallly:
+* Mount / unmount
+** Mounting tagfs manuallly:
 
 # insmod ./tagfs.ko
 # mount -t tagfs dummy /mnt/tagfs
 # grep tagfs /proc/mounts
 dummy /mnt/tagfs tagfs rw,relatime 0 0
 
-Unmounting
+** Unmounting
 
 # umount /mnt/tagfs
 # grep tagfs /proc/mounts
@@ -23,24 +24,25 @@ Unmounting
 (woohoo)
 
 
-Create a fake pmem device:
+* Pmem / dax administration
+** Create a fake pmem device:
     # vi /etc/default/grub
     GRUB_CMDLINE_LINUX="memmap=nn[KMG]!ss[KMG]"
 
-Convert the pmem0 device to a dax device
+** Convert the pmem0 device to a dax device
     ndctl create-namespace --mode devdax --map mem -e namespace0.0 -f
 
-List DAX regions:
+** List DAX regions:
     daxctl list --regions --devices
 
-Other:
+** Other:
     disable-region region0
     ndctl init-labels nmem0
     ndctl create-namespace --region=region0
     ndctl enable-region region0
     ndctl create-namespace --region=region0
 
-iomap fault handling
+* iomap fault handling notes
 
 xfs_filemap_fault()
   ->__xfs_filemap_fault()
@@ -49,10 +51,11 @@ xfs_filemap_fault()
                        (xfs_dax_write_iomap_ops)
 
 
-Need to figure out
-* How does FS "open" (or otherwise get a ref on) its block device
-* Same question for DAX device
+* Need to figure out
+*+ How does FS "open" (or otherwise get a ref on) its block device
+*+ Same question for DAX device
 
+* ndctl misc
 
 [jmg@f38-dev0 ~]$ sudo ndctl create-namespace -f -e namespace0.0 --mode=devdax
 {
