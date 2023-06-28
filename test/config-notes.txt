@@ -1,4 +1,11 @@
 
+Make the system log persistent
+
+
+  sudo mkdir-p /var/log/journal
+  sudo vim /etc/systemd/journald.conf
+  -> Storage=persistent
+  systemctl restart systemd-journald
 
 Mounting tagfs manuallly:
 

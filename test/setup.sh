@@ -10,5 +10,5 @@ ndctl list
 sudo mkdir -p $MOUNT_PT
 #chown $OWNER $MOUNT_PT
 sudo insmod ../tagfs/tagfs.ko
-sudo mount -t tagfs -o noatime,dax /dev/dax0.0 $MOUNT_PT
+sudo mount -t tagfs -o noatime,dax=always /dev/dax0.0 $MOUNT_PT
 grep tagfs /proc/mounts
