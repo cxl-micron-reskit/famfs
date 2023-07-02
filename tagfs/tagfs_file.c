@@ -192,6 +192,35 @@ tagfs_file_ioctl(
 		rc = tagfs_file_create(file, (void *)arg);
 		break;
 
+	case MCIOC_MAP_GET: {
+		struct inode *inode = file_inode(file);
+		struct tagfs_file_meta *meta = inode->i_private;
+		struct tagfs_ioc_map umeta;
+
+		memset(&umeta, 0, sizeof(umeta));
+
+		/* If these structures change, this will need to change. duh. */
+		umeta.extent_type = meta->tfs_extent_type;
+		umeta.file_size = i_size_read(inode);
+		umeta.ext_list_count = meta->tfs_extent_ct;
+
+		if (meta)
+			rc = copy_to_user((void __user *)arg, &umeta, sizeof(umeta));
+		else
+			rc = -EINVAL;
+	    }
+		break;
+	case MCIOC_MAP_GETEXT: {
+		struct inode *inode = file_inode(file);
+		struct tagfs_file_meta *meta = inode->i_private;
+
+		if (meta)
+			rc = copy_to_user((void __user *)arg, meta->tfs_extents,
+					  meta->tfs_extent_ct * sizeof(struct tagfs_extent));
+		else
+			rc = -EINVAL;
+	    }
+		break;
 	default:
 		rc = -ENOTTY;
 		break;

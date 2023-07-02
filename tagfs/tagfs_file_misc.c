@@ -83,7 +83,7 @@ tagfs_file_create(
 	struct inode           *inode;
 	struct super_block     *sb;
 
-	struct tagfs_user_extent *tfs_extents = NULL;
+	struct tagfs_extent *tfs_extents = NULL;
 	size_t  ext_count;
 	int     rc = 0;
 	int     i;

@@ -5,13 +5,6 @@
 
 extern const struct inode_operations tagfs_file_inode_operations;
 
-/* This is tne internal metadata for the backing memory of a tagfs file
- */
-struct tagfs_internal_extent {
-
-	u64                 offset;
-	size_t              len;
-};
 /*
  * Each mcache map file has this hanging from its inode->i_private.
  */
@@ -19,22 +12,14 @@ struct tagfs_file_meta {
 	enum extent_type              tfs_extent_type;
 	size_t                        tfs_extent_ct;
 	struct dax_device   *daxdev;
-	struct tagfs_internal_extent  tfs_extents[];  /* flexible array */
+	struct tagfs_extent  tfs_extents[];  /* flexible array */
 };
 
 struct tagfs_mount_opts {
 	umode_t mode;
 };
 
-#if 0
-struct tagfs_dax_dev {
-	char *daxdev_filename;
-	struct block_device *bdevp;
-	struct dax_device *dax_devp;
-};
-
 #define TAGFS_MAX_DAXDEVS 2
-#endif
 
 extern int tagfs_blkdev_mode;
 extern const struct dax_holder_operations tagfs_dax_holder_operations;

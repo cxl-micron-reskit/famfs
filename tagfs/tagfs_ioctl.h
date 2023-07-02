@@ -15,7 +15,7 @@ enum extent_type {
 	TAG_EXTENT,
 };
 
-struct tagfs_user_extent {
+struct tagfs_extent {
 	u64              offset;
 	size_t           len;
 };
@@ -30,7 +30,7 @@ struct tagfs_ioc_map {
 	enum extent_type          extent_type;
 	size_t                    file_size;
 	size_t                    ext_list_count;
-	struct tagfs_user_extent *ext_list;
+	struct tagfs_extent      *ext_list;
 	/* TODO later: move to extents, for file spanning flexibility */
 
 	unsigned char    devname[32]; /* if DAX_EXTENT or BLOCK_EXTENT */
@@ -48,5 +48,7 @@ struct tagfs_ioc_map {
 #define MCIOC_MAGIC 'u'
 
 #define MCIOC_MAP_CREATE    _IOWR(MCIOC_MAGIC, 1, struct tagfs_ioc_map)
+#define MCIOC_MAP_GET       _IOWR(MCIOC_MAGIC, 2, struct tagfs_ioc_map)
+#define MCIOC_MAP_GETEXT    _IOWR(MCIOC_MAGIC, 3, struct tagfs_extent)
 
 #endif /* TAGFS_IOCTL_H */

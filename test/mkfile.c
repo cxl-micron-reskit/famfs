@@ -54,7 +54,7 @@ main(int argc,
      char *argv[])
 {
 	struct tagfs_ioc_map filemap;
-	struct tagfs_user_extent *ext_list;
+	struct tagfs_extent *ext_list;
 	int c, i, rc, fd;
 	char *filename = NULL;
 

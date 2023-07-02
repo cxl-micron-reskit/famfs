@@ -64,6 +64,119 @@ void print_global_opts(void)
 /********************************************************************/
 
 void
+tagfs_getmap_usage(int   argc,
+	    char *argv[])
+{
+	unsigned char *progname = argv[0];
+
+	printf("\n"
+	       "Mape one or more HPA based extent:\n"
+	       "    %s -n <num_extents> -o <hpa> -l <len> [-o <hpa> -l <len> ... ] <filename>\n"
+	       "\n", progname);
+	printf(
+	       "Mape one or more dax-based extents:"
+	       "    %s --daxdev <daxdev> -n <num_extents> -o <offset> -l <len> [-o <offset> -l <len> ... ] <filename>\n"
+	       "\n", progname);
+}
+
+int
+do_tagfs_cli_getmap(int argc, char *argv[])
+{
+	struct tagfs_ioc_map filemap;
+	struct tagfs_extent *ext_list;
+	int c, i, rc, fd;
+	char *filename = NULL;
+
+	int num_extents = 0;
+	int cur_extent  = 0;
+
+	size_t ext_size;
+	size_t fsize = 0;
+	int arg_ct = 0;
+	enum extent_type type = HPA_EXTENT;
+	unsigned char *daxdev = NULL;
+
+	/* XXX can't use any of the same strings as the global args! */
+	struct option map_options[] = {
+		/* These options set a */
+		{"filename",    required_argument,             0,  'f'},
+		{0, 0, 0, 0}
+	};
+
+	if (optind >= argc) {
+		fprintf(stderr, "tagfs_cli map: no args\n");
+		tagfs_getmap_usage(argc, argv);
+		return -1;
+	}
+
+	/* The next stuff on the command line is file names;
+	 * err if nothing is left */
+	if (optind >= argc) {
+		fprintf(stderr, "tagfs_cli map: no files\n");
+		tagfs_getmap_usage(argc, argv);
+		return -1;
+	}
+	/* Note: the "+" at the beginning of the arg string tells getopt_long
+	 * to return -1 when it sees something that is not recognized option
+	 * (e.g. the command that will mux us off to the command handlers */
+	while ((c = getopt_long(argc, argv, "+f:h?",
+				global_options, &optind)) != EOF) {
+		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
+
+		/* Detect the end of the options. */
+		if (c == -1)
+			break;
+
+		arg_ct++;
+		switch (c) {
+
+		case 'f': {
+			filename = optarg;
+			printf("filename: %s\n", filename);
+			/* TODO: make sure filename is in a tagfs file system */
+			break;
+		}
+		case 'h':
+		case '?':
+			tagfs_getmap_usage(argc, argv);
+			return 0;
+
+		default:
+			printf("default (%c)\n", c);
+			return -1;
+		}
+	}
+
+	if (filename == NULL) {
+		fprintf(stderr, "Must supply filename\n");
+		exit(-1);
+	}
+	fd = open(filename, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
+	if (fd < 0) {
+		fprintf(stderr, "open/mape failed; rc %d errno %d\n", rc, errno);
+		exit(-1);
+	}
+	rc = ioctl(fd, MCIOC_MAP_GET, &filemap);
+	if (rc) {
+		printf("ioctl returned rc %d errno %d\n", rc, errno);
+		perror("ioctl");
+		unlink(filename);
+	}
+	rc = ioctl(fd, MCIOC_MAP_GETEXT, &filemap);
+	if (rc) {
+		printf("ioctl returned rc %d errno %d\n", rc, errno);
+		perror("ioctl");
+		unlink(filename);
+	}
+
+	close(rc);
+
+	return 0;
+}
+
+/********************************************************************/
+
+void
 tagfs_creat_usage(int   argc,
 	    char *argv[])
 {
@@ -83,7 +196,7 @@ int
 do_tagfs_cli_creat(int argc, char *argv[])
 {
 	struct tagfs_ioc_map filemap;
-	struct tagfs_user_extent *ext_list;
+	struct tagfs_extent *ext_list;
 	int c, i, rc, fd;
 	char *filename = NULL;
 
@@ -289,9 +402,9 @@ struct
 tagfs_cli_cmd tagfs_cli_cmds[] = {
 
 	{"creat",   do_tagfs_cli_creat,   tagfs_creat_usage},
-#if 0
 	{"getmap",  do_tagfs_cli_getmap,  tagfs_getmap_usage},
 
+#if 0
 	{"snoop",   do_tagfs_cli_snoop,   help_tagfs_cli_snoop },
 	{"pagemap", do_tagfs_cli_pagemap, help_tagfs_cli_pagemap },
 	{"cread",   do_tagfs_cli_cread,   help_tagfs_cli_cread },
