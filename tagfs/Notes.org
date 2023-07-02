@@ -1,4 +1,25 @@
 
+TODO
+
+* TODO generate some proper mmap test cases
+* TODO generate proper buffered I/O test cases
+* TODO decouple size from extent list
+i.e. size can be <= extent list length
+* TODO Generate tools for a recursive copy into tagfs file system
+* libtagfs
+** TODO tagfs_create
+- Create file in <mount_pt>/.tmp
+- Set allocation and file size
+- Mv to intended path
+** TODO tagfs_setmode
+** TODO tagfs_clone
+
+* Tagfs cli
+** TODO tagfs create
+** TODO tagfs clone
+** TODO tagfs setmode
+
+
 * Page fault debug plan
 
 * Notes on mmap / fault code flow
@@ -251,7 +272,7 @@ $3 = {
 * page sizes
 /* page entry size for vm->huge_fault() */
 enum page_entry_size {
-	PE_SIZE_PTE = 0,
-	PE_SIZE_PMD,
-	PE_SIZE_PUD,
+	PE_SIZE_PTE = 0, /* 4K */
+	PE_SIZE_PMD,     /* 2M */
+	PE_SIZE_PUD,     /* 1G */
 };

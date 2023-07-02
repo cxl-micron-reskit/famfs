@@ -82,6 +82,22 @@ tagfs_get_iomap_flags_str(char *flag_str, unsigned flags)
 		strcat(flag_str, " IOMAP_DAX");
 }
 
+/**
+ * tagfs_meta_to_dax_offset()
+ *
+ * This function is called for a page fault on the file (which will be limited to TLB and
+ * page table faults, since the file has no backing store other than dax memory.
+ *
+ * Pages can be PTE (4k), PMD (2MiB) or (theoretically) PuD (1GiB)
+ * (these sizes are for X86; may vary on other cpu architectures
+ *
+ * @inode  - the file where the fault occurred
+ * @iomap  - struct iomap to be filled in to indicate where to find the right memory, relative
+ *           to a dax device.
+ * @offset - the offset within the file where the fault occurred (will be page boundary)
+ * @len    - the length of the faulted mapping (will be a page multiple)
+ * @flags
+ */
 static int
 tagfs_meta_to_dax_offset(struct inode *inode,
 			 struct iomap *iomap,
@@ -107,10 +123,12 @@ tagfs_meta_to_dax_offset(struct inode *inode,
 
 			/*+
 			 * OK, we found the file metadata extent where this data begins
-			 * @offset            - The offset within the file
-			 * @local_offset      - The offset within this extent
+			 * @local_offset      - The offset within the current extent
+			 *                      (if local_offset > ext_len, skip to next extent
+			 *                       and try again)
 			 * @ext_len_remainder - Remaining length of ext after skipping local_offset
-			 * iomap->offset is the offset within the dax device where that data
+			 *
+			 * iomap->addr is the offset within the dax device where that data
 			 * starts */
 			iomap->addr    = dax_ext_offset + local_offset;
 			iomap->length  = min_t(loff_t, len, ext_len_remainder);
