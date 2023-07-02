@@ -86,7 +86,8 @@ static int
 tagfs_meta_to_dax_offset(struct inode *inode,
 			 struct iomap *iomap,
 			 loff_t        offset,
-			 loff_t        len)
+			 loff_t        len,
+			 unsigned      flags)
 {
 	struct tagfs_file_meta *meta = (struct tagfs_file_meta *)inode->i_private;
 	int i;
@@ -98,16 +99,28 @@ tagfs_meta_to_dax_offset(struct inode *inode,
 		loff_t dax_ext_offset = meta->tfs_extents[i].offset;
 		loff_t dax_ext_len    = meta->tfs_extents[i].len;
 
-
-		printk(KERN_NOTICE "%s: ofs %llx len %llx tagfs: ext %d ofs %llx len %llx\n", __func__,
-		       local_offset, len, i, dax_ext_offset, dax_ext_len);
+		printk(KERN_NOTICE "%s: ofs %llx len %llx tagfs: ext %d ofs %llx len %llx\n",
+		       __func__, local_offset, len, i, dax_ext_offset, dax_ext_len);
 
 		if (local_offset < dax_ext_len) {
-			iomap->offset = dax_ext_offset + local_offset;
-			iomap->length = min_t(loff_t, len, (dax_ext_len - local_offset));
+			loff_t ext_len_remainder = dax_ext_len - local_offset;
+
+			/*+
+			 * OK, we found the file metadata extent where this data begins
+			 * @offset            - The offset within the file
+			 * @local_offset      - The offset within this extent
+			 * @ext_len_remainder - Remaining length of ext after skipping local_offset
+			 * iomap->offset is the offset within the dax device where that data
+			 * starts */
+			iomap->addr    = dax_ext_offset + local_offset;
+			iomap->length  = min_t(loff_t, len, ext_len_remainder);
 			iomap->dax_dev = fsi->dax_devp;
+			iomap->type    = IOMAP_MAPPED;
+			iomap->flags   = flags;
+
 			//iomap->bdev    = fsi->bdevp;
-			printk(KERN_NOTICE "%s: --> ext %ddaxdev offset %llx len %lld\n", __func__, i,
+			printk(KERN_NOTICE "%s: --> ext %ddaxdev offset %llx len %lld\n",
+			       __func__, i,
 			       iomap->offset, iomap->length);
 			return 0;
 		}
@@ -336,7 +349,7 @@ tagfs_iomap_begin(
 
 	/* Need to lock inode? */
 
-	rc = tagfs_meta_to_dax_offset(inode, iomap, offset, length);
+	rc = tagfs_meta_to_dax_offset(inode, iomap, offset, length, flags);
 
 	return rc;
 }
@@ -350,6 +363,8 @@ const struct iomap_ops tagfs_iomap_ops = {
 /*********************************************************************
  * vm_operations
  */
+/* TODO: drop this function and just call dax_iomap_fault() directly from
+ * __tagfs_filemap_fault() */
 static inline vm_fault_t
 tagfs_dax_fault(
 	struct vm_fault		*vmf,
