@@ -8,3 +8,5 @@ modules.order
 *.mod
 *.mod.c
 *.dwo
+Module.symvers
+.*
