@@ -159,13 +159,12 @@ tagfs_file_create(
 	 * stored yet
 	 */
 	if (!fsi->dax_devno) {
-		//int len = strlen(imap.devname);
+		int len = strlen(imap.devname);
 		//struct dax_sb_info *dax_sbinfo = NULL;
 
-#if 0
-		dax_filename = kcalloc(1, len + 1, GFP_KERNEL);
-		strcpy(dax_filename, imap.devname);
-#endif
+		meta->dax_devname = kcalloc(1, len + 1, GFP_KERNEL);
+		strcpy(meta->dax_devname, imap.devname);
+
 		/* How we get to the struct dax_device depends on whether we were given the
 		 * name of pmem device (which is block) or a dax device (which is character)
 		 */

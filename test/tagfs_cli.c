@@ -160,15 +160,24 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 	if (rc) {
 		printf("ioctl returned rc %d errno %d\n", rc, errno);
 		perror("ioctl");
-		unlink(filename);
+		return rc;
 	}
-	rc = ioctl(fd, MCIOC_MAP_GETEXT, &filemap);
+	ext_list = calloc(filemap.ext_list_count, sizeof(struct tagfs_extent));
+	rc = ioctl(fd, MCIOC_MAP_GETEXT, &ext_list);
 	if (rc) {
 		printf("ioctl returned rc %d errno %d\n", rc, errno);
 		perror("ioctl");
-		unlink(filename);
+		return rc;
 	}
 
+	printf("File:     %s\n",    filename);
+	printf("\tsize:   %lld\n",  filemap.file_size);
+	printf("\ndaxdev: %s\n",    filemap.devname);
+	printf("\textents: %lld\n", filemap.ext_list_count);
+
+	for (i=0; i<filemap.ext_list_count; i++) {
+		printf("\t\t%llx\t%lld\n", ext_list[i].offset, ext_list[i].len);
+	}
 	close(rc);
 
 	return 0;
@@ -308,7 +317,8 @@ do_tagfs_cli_creat(int argc, char *argv[])
 
 		case 'o':
 			if (num_extents == 0) {
-				fprintf(stderr, "Must specify num_extents before address or offset\n");
+				fprintf(stderr,
+					"Must specify num_extents before address or offset\n");
 				exit(-1);
 			}
 			ext_list[cur_extent].offset = strtoull(optarg, 0, 0);

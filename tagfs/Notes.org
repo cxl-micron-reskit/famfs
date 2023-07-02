@@ -4,6 +4,8 @@ TODO
 * TODO generate some proper mmap test cases
 * TODO generate proper buffered I/O test cases
 * TODO Generate tools for a recursive copy into tagfs file system
+* TODO top level makefile that builds everything
+* TODO Debug accessing dax device without block device
 
 * Kernel fs features
 ** TODO decouple size from extent list

@@ -157,7 +157,7 @@ tagfs_dax_notify_failure(
 	int			mf_flags)
 {
 
-	printk(KERN_NOTICE KERN_ERR "%s: dax_devp %llx offset %llx len %lld mf_flags %x\n",
+	printk(KERN_ERR "%s: dax_devp %llx offset %llx len %lld mf_flags %x\n",
 	       __func__, (u64)dax_devp, (u64)offset, (u64)len, mf_flags);
 
 	return -EOPNOTSUPP;
@@ -199,15 +199,20 @@ tagfs_file_ioctl(
 
 		memset(&umeta, 0, sizeof(umeta));
 
-		/* If these structures change, this will need to change. duh. */
-		umeta.extent_type = meta->tfs_extent_type;
-		umeta.file_size = i_size_read(inode);
-		umeta.ext_list_count = meta->tfs_extent_ct;
+		if (meta) {
+			/* TODO: do more to harmonize these structures */
+			umeta.extent_type    = meta->tfs_extent_type;
+			umeta.file_size      = i_size_read(inode);
+			umeta.ext_list_count = meta->tfs_extent_ct;
+			strncpy(umeta.devname, meta->dax_devname, TAGFS_DEVNAME_LEN);
 
-		if (meta)
 			rc = copy_to_user((void __user *)arg, &umeta, sizeof(umeta));
-		else
+			if (rc) {
+				printk(KERN_NOTICE "%s: copy_to_user returned %ld\n", __func__, rc);
+			}
+		} else {
 			rc = -EINVAL;
+		}
 	    }
 		break;
 	case MCIOC_MAP_GETEXT: {

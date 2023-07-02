@@ -21,6 +21,7 @@ struct tagfs_extent {
 };
 
 
+#define TAGFS_DEVNAME_LEN 32
 /**
  * struct tagfs_ioc_map
  *
@@ -33,7 +34,7 @@ struct tagfs_ioc_map {
 	struct tagfs_extent      *ext_list;
 	/* TODO later: move to extents, for file spanning flexibility */
 
-	unsigned char    devname[32]; /* if DAX_EXTENT or BLOCK_EXTENT */
+	unsigned char    devname[TAGFS_DEVNAME_LEN]; /* if DAX_EXTENT or BLOCK_EXTENT */
 	dev_t            devno;
 };
 

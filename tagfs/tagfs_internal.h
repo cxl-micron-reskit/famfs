@@ -9,8 +9,9 @@ extern const struct inode_operations tagfs_file_inode_operations;
  * Each mcache map file has this hanging from its inode->i_private.
  */
 struct tagfs_file_meta {
-	enum extent_type              tfs_extent_type;
-	size_t                        tfs_extent_ct;
+	enum extent_type     tfs_extent_type;
+	size_t               tfs_extent_ct;
+	char                *dax_devname;
 	struct dax_device   *daxdev;
 	struct tagfs_extent  tfs_extents[];  /* flexible array */
 };
