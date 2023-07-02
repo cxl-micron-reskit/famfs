@@ -1,0 +1,257 @@
+
+* Page fault debug plan
+
+* Notes on mmap / fault code flow
+
+* current bug 
+** Intended breakpoints
+
+Num Type       Disp Enb Addr               Hits What
+1   breakpoint keep y   <PENDING>          1    tagfs_iomap_begin
+2   breakpoint keep y   0xffffffffa0941b60 1    in tagfs_iomap_begin of /home/jmg/w/tagfs/tagfs/tagfs_file.c:326
+3   breakpoint keep y   <PENDING>          2    tagfs_file_create
+4   breakpoint keep y   <PENDING>          2    tagfs_file_mmap
+5   breakpoint keep y   0xffffffff814e8540 1    in dax_iomap_fault of fs/dax.c:1934
+6   breakpoint keep y   <PENDING>          0    tagfs_filemap_huge_fault
+7   breakpoint keep y   <PENDING>          0    tagfs_filemap_fault
+8   breakpoint keep y   <PENDING>          0    tagfs_dax_fault
+
+** Notes
+dax_iomap_fault()
+  PE_SIZE_PMD -> dax_iomap_pmd_fault()
+    dax_fault_check_fallback -> fallback to pte fault (4K)
+
+mmap.c/mmap_region()
+   tagfs_file_mmap()
+
+tagfs_filemap_huge_fault()
+    (?) tagfs_filemap_fault()
+        __tagfs_filemap_fault()
+	    dax_iomap_fault(PMD) ->FALLBACK
+	        tagfs_filemap_fault(PTE)
+		   __tagfs_filemap_fault(PTE)
+2		       dax_iomap_fault(PTE)
+		           dax_iomap_pte_fault()
+			       iomap_iter()
+			           iomap_iter_advance() #resets iomap and srcmap
+			       dax_fault_iter() - HORKAGE
+
+dax_iomap_fault()
+    dax_iomap_pte_fault()
+        grab_mapping_entry() // gets xarray for page cache (former radix tree)
+        while(iomap_iter() > 0) // while not error
+	        iomap_iter: if iter->iomap.length: ops->iomap_end()
+		iomap_iter: iomap_advance()
+		iomap_iter: ops->iomap_begin()
+		iomap_titer: iomap_done()
+	    xfs_direct_write_iomap_begin() (iomap->begin())
+	    dax_fault_iter
+	        iomap_direct_access() (returns kaddr)
+	    if (!error) iter->processed = PAGE_SIZE
+			       
+# as initialized by iomap_iter
+(gdb) p *iter
+$5 = {inode = 0xffff8880103f0a00,
+    pos = 0,
+    len = 4096,
+    processed = 0,
+    flags = 265,  /* IOMAP_WRITE IOMAP_FAULT IOMAP_DAX */
+    iomap = {addr = 0,
+        offset = 0, length = 0,
+	type = 0,
+	flags = 0,
+	bdev = 0x0 <fixed_percpu_data>,
+	dax_dev = 0x0 <fixed_percpu_data>,
+	inline_data = 0x0 <fixed_percpu_data>,
+	private = 0x0 <fixed_percpu_data>,
+	folio_ops = 0x0 <fixed_percpu_data>,
+	validity_cookie = 0
+    },
+    srcmap = {addr = 0,
+        offset = 0,
+	length = 0,
+	type = 0,
+	flags = 0,
+	bdev = 0x0 <fixed_percpu_data>,
+	dax_dev = 0x0 <fixed_percpu_data>,
+	inline_data = 0x0 <fixed_percpu_data>,
+	private = 0x0 <fixed_percpu_data>,
+	folio_ops = 0x0 <fixed_percpu_data>,
+	validity_cookie = 0
+    },
+    private = 0x0 <fixed_percpu_data>}
+
+# tagfs after iomap_begin:
+(gdb) p *iter
+$1 = {inode = 0xffff888010510280,
+    pos = 0,
+    len = 4096,
+    processed = 0,
+    flags = 265,
+    iomap = {
+        addr = 0,  /* This seems like a problem! */
+        offset = 6291456,
+	length = 4096,
+	type = 2,
+	flags = 0,
+	bdev = 0x0 <fixed_percpu_data>,
+	dax_dev = 0xffff8880050263c0,
+	inline_data = 0x0 <fixed_percpu_data>,
+	private = 0x0 <fixed_percpu_data>,
+	folio_ops = 0x0 <fixed_percpu_data>,
+	validity_cookie = 0
+    },
+    srcmap = {
+        addr = 0,
+	offset = 0,
+	length = 0,
+	type = 0,
+	flags = 0,
+	bdev = 0x0 <fixed_percpu_data>,
+	dax_dev = 0x0 <fixed_percpu_data>,
+	inline_data = 0x0 <fixed_percpu_data>,
+	private = 0x0 <fixed_percpu_data>,
+	folio_ops = 0x0 <fixed_percpu_data>,
+	validity_cookie = 0},
+	private = 0x0 <fixed_percpu_data>
+    }
+    
+# xfs after iomap_begin:
+(gdb) p *iter
+$1 = {inode = 0xffff88801028a138,
+    pos = 3538944,
+    len = 131072,
+    processed = 0,
+    flags = 9,
+    iomap = {
+        addr = 1334812672,
+        offset = 4096,
+	length = 4845568,
+	type = 2,
+	flags = 2,               /* IOMAP_F_DIRTY - difference probably insignificant */x
+	bdev = 0xffff888007299900,
+	dax_dev = 0x0 <fixed_percpu_data>,
+	inline_data = 0x0 <fixed_percpu_data>,
+	private = 0x0 <fixed_percpu_data>,
+	folio_ops = 0xffffffffa03ed420 <xfs_iomap_folio_ops>,
+	validity_cookie = 10
+    },
+    srcmap = {
+        addr = 0,
+        offset = 0,
+	length = 0,
+	type = 0,
+	flags = 0,
+	bdev = 0x0 <fixed_percpu_data>,
+	dax_dev = 0x0 <fixed_percpu_data>,
+	inline_data = 0x0 <fixed_percpu_data>,
+	private = 0x0 <fixed_percpu_data>,
+	folio_ops = 0x0 <fixed_percpu_data>,
+	validity_cookie = 0},
+	private = 0x0 <fixed_percpu_data>
+    }
+
+
+
+
+# xfs before
+(gdb) p *iter
+$1 = {
+inode = 0xffff8880253cfd38, pos = 0, len = 4096, processed = 0, flags = 265, iomap = {addr = 0, offset = 0, length = 0, type = 0, flags = 0, bdev = 0x0 <fixed_percpu_data>, dax_dev = 0x0 <fixed_percpu_data>, inline_data = 0x0 <fixed_percpu_data>, private = 0x0 <fixed_percpu_data>, folio_ops = 0x0 <fixed_percpu_data>, validity_cookie = 0}, srcmap = {addr = 0, offset = 0, length = 0, type = 0, flags = 0, bdev = 0x0 <fixed_percpu_data>, dax_dev = 0x0 <fixed_percpu_data>, inline_data = 0x0 <fixed_percpu_data>, private = 0x0 <fixed_percpu_data>, folio_ops = 0x0 <fixed_percpu_data>, validity_cookie = 0}, private = 0x0 <fixed_percpu_data>}
+(gdb) p *iter
+$2 = {
+    inode = 0xffff8880103ab538,
+    pos = 0,
+    len = 4096,
+    processed = 0,
+    flags = 265,
+    iomap = {
+        addr = 0,
+	offset = 0,
+	length = 0,
+	type = 0,
+	flags = 0,
+	bdev = 0x0 <fixed_percpu_data>,
+	dax_dev = 0x0 <fixed_percpu_data>,
+	inline_data = 0x0 <fixed_percpu_data>,
+	private = 0x0 <fixed_percpu_data>,
+	folio_ops = 0x0 <fixed_percpu_data>,
+	validity_cookie = 0
+    },
+    srcmap = {
+    addr = 0,
+    offset = 0,
+    length = 0,
+    type = 0,
+    flags = 0,
+    bdev = 0x0 <fixed_percpu_data>,
+    dax_dev = 0x0 <fixed_percpu_data>,
+    inline_data = 0x0 <fixed_percpu_data>,
+    private = 0x0 <fixed_percpu_data>,
+    folio_ops = 0x0 <fixed_percpu_data>,
+    validity_cookie = 0},
+    private = 0x0 <fixed_percpu_data>
+}
+# xfs after
+(gdb) p *iter
+$3 = {
+    inode = 0xffff8880103ab538,
+    pos = 0,
+    len = 4096,
+    processed = 0,
+    flags = 265,
+    iomap = {
+        addr = 4292608,
+	offset = 0,
+	length = 4096,
+	type = 2,
+	flags = 0,
+	bdev = 0x0 <fixed_percpu_data>,
+	dax_dev = 0xffff8880076f3400,
+	inline_data = 0x0 <fixed_percpu_data>,
+	private = 0x0 <fixed_percpu_data>,
+	folio_ops = 0xffffffffa03f0420,
+	validity_cookie = 6
+    },
+    srcmap = {
+        addr = 0,
+	offset = 0,
+	length = 0,
+	type = 0,
+	flags = 0,
+	bdev = 0x0 <fixed_percpu_data>,
+	dax_dev = 0x0 <fixed_percpu_data>,
+	inline_data = 0x0 <fixed_percpu_data>,
+	private = 0x0 <fixed_percpu_data>,
+	folio_ops = 0x0 <fixed_percpu_data>,
+	validity_cookie = 0},
+	private = 0x0 <fixed_percpu_data>
+    }
+
+-> dax_insert_entry()
+
+    0  in dax_fault_iter of fs/dax.c:1694
+1  in dax_iomap_pte_fault of fs/dax.c:1773
+2  in dax_iomap_fault of fs/dax.c:1937
+3  in tagfs_dax_fault of /home/jmg/w/tagfs/tagfs/tagfs_file.c:368
+4  in __tagfs_filemap_fault of /home/jmg/w/tagfs/tagfs/tagfs_file.c:389
+5  in tagfs_filemap_fault of /home/jmg/w/tagfs/tagfs/tagfs_file.c:417
+6  in __do_fault of mm/memory.c:4155
+7  in do_shared_fault of mm/memory.c:4561
+8  in do_fault of mm/memory.c:4639
+9  in handle_pte_fault of mm/memory.c:4923
+10 in __handle_mm_fault of mm/memory.c:5065
+11 in handle_mm_fault of mm/memory.c:5211
+12 in do_user_addr_fault of arch/x86/mm/fault.c:1407
+13 in handle_page_fault of arch/x86/mm/fault.c:1498
+14 in exc_page_fault of arch/x86/mm/fault.c:1554
+15 in asm_exc_page_fault of ./arch/x86/include/asm/idtentry.h:570
+16 in ??
+
+* page sizes
+/* page entry size for vm->huge_fault() */
+enum page_entry_size {
+	PE_SIZE_PTE = 0,
+	PE_SIZE_PMD,
+	PE_SIZE_PUD,
+};
