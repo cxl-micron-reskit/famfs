@@ -3,9 +3,18 @@ TODO
 
 * TODO generate some proper mmap test cases
 * TODO generate proper buffered I/O test cases
-* TODO decouple size from extent list
-i.e. size can be <= extent list length
 * TODO Generate tools for a recursive copy into tagfs file system
+
+* Kernel fs features
+** TODO decouple size from extent list
+i.e. size can be <= extent list length
+** TODO Dump the user-space file metadata (for cloning)
+This will return a tagfs_ioc_map and an array of tagfs_user_extent structs
+(might be 2 ioctls, one for tagfs_ioc_map - which will indicate how many extents - and a
+second for the array of extents)
+** TODO dump the xarray of which pages are currently populated
+
+
 * libtagfs
 ** TODO tagfs_create
 - Create file in <mount_pt>/.tmp
