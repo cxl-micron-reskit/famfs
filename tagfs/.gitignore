@@ -7,4 +7,4 @@ TAGS
 modules.order
 *.mod
 *.mod.c
-*symvers
+*.dwo
