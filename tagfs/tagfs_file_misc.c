@@ -65,7 +65,7 @@ extent_type_str(enum extent_type et)
 }
 
 /**
- * tagfs_file_create() - MCIOC_MAP_CREATE ioctl handler
+ * tagfs_file_create() - TAGFSIOC_MAP_CREATE ioctl handler
  * @file:
  * @arg:        ptr to struct mcioc_map in user space
  *

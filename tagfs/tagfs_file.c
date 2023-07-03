@@ -188,11 +188,11 @@ tagfs_file_ioctl(
 	long rc;
 
 	switch (cmd) {
-	case MCIOC_MAP_CREATE:
+	case TAGFSIOC_MAP_CREATE:
 		rc = tagfs_file_create(file, (void *)arg);
 		break;
 
-	case MCIOC_MAP_GET: {
+	case TAGFSIOC_MAP_GET: {
 		struct inode *inode = file_inode(file);
 		struct tagfs_file_meta *meta = inode->i_private;
 		struct tagfs_ioc_map umeta;
@@ -215,7 +215,7 @@ tagfs_file_ioctl(
 		}
 	    }
 		break;
-	case MCIOC_MAP_GETEXT: {
+	case TAGFSIOC_MAP_GETEXT: {
 		struct inode *inode = file_inode(file);
 		struct tagfs_file_meta *meta = inode->i_private;
 

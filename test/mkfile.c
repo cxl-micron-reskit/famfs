@@ -201,7 +201,7 @@ main(int argc,
 		fprintf(stderr, "open/create failed; rc %d errno %d\n", rc, errno);
 		exit(-1);
 	}
-	rc = ioctl(fd, MCIOC_MAP_CREATE, &filemap);
+	rc = ioctl(fd, TAGFSIOC_MAP_CREATE, &filemap);
 	if (rc) {
 		printf("ioctl returned rc %d errno %d\n", rc, errno);
 		perror("ioctl");

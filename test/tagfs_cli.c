@@ -156,14 +156,14 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 		fprintf(stderr, "open/mape failed; rc %d errno %d\n", rc, errno);
 		exit(-1);
 	}
-	rc = ioctl(fd, MCIOC_MAP_GET, &filemap);
+	rc = ioctl(fd, TAGFSIOC_MAP_GET, &filemap);
 	if (rc) {
 		printf("ioctl returned rc %d errno %d\n", rc, errno);
 		perror("ioctl");
 		return rc;
 	}
 	ext_list = calloc(filemap.ext_list_count, sizeof(struct tagfs_extent));
-	rc = ioctl(fd, MCIOC_MAP_GETEXT, &ext_list);
+	rc = ioctl(fd, TAGFSIOC_MAP_GETEXT, &ext_list);
 	if (rc) {
 		printf("ioctl returned rc %d errno %d\n", rc, errno);
 		perror("ioctl");
@@ -380,7 +380,7 @@ do_tagfs_cli_creat(int argc, char *argv[])
 		fprintf(stderr, "open/create failed; rc %d errno %d\n", rc, errno);
 		exit(-1);
 	}
-	rc = ioctl(fd, MCIOC_MAP_CREATE, &filemap);
+	rc = ioctl(fd, TAGFSIOC_MAP_CREATE, &filemap);
 	if (rc) {
 		printf("ioctl returned rc %d errno %d\n", rc, errno);
 		perror("ioctl");

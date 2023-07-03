@@ -46,10 +46,10 @@ struct tagfs_ioc_map {
  * X means "eXchange": switch G and S atomically
  * H means "sHift": switch T and Q atomically
  */
-#define MCIOC_MAGIC 'u'
+#define TAGFSIOC_MAGIC 'u'
 
-#define MCIOC_MAP_CREATE    _IOWR(MCIOC_MAGIC, 1, struct tagfs_ioc_map)
-#define MCIOC_MAP_GET       _IOWR(MCIOC_MAGIC, 2, struct tagfs_ioc_map)
-#define MCIOC_MAP_GETEXT    _IOWR(MCIOC_MAGIC, 3, struct tagfs_extent)
+#define TAGFSIOC_MAP_CREATE    _IOWR(TAGFSIOC_MAGIC, 1, struct tagfs_ioc_map)
+#define TAGFSIOC_MAP_GET       _IOWR(TAGFSIOC_MAGIC, 2, struct tagfs_ioc_map)
+#define TAGFSIOC_MAP_GETEXT    _IOWR(TAGFSIOC_MAGIC, 3, struct tagfs_extent)
 
 #endif /* TAGFS_IOCTL_H */

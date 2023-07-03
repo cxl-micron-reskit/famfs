@@ -9,7 +9,8 @@ TODO
 * TODO Study what happens when tagfs file is "if" for dd
 The file gets truncated to zero-length, but then no writing happens
 
-* TODO Rename ioctl #defines (s/MCIOC/TAGFSIOC/
+* DONE Rename ioctl #defines (s/MCIOC/TAGFSIOC/)
+
 
 * Kernel fs features
 ** TODO decouple size from extent list
@@ -30,9 +31,13 @@ second for the array of extents)
 ** TODO tagfs_clone
 
 * Tagfs cli
+** TODO tagfs map
+Dump the file map, optionally in the form of a command line that can be used to create a
+clone of the file.
 ** TODO tagfs create
 ** TODO tagfs clone
 ** TODO tagfs setmode
+
 
 
 * Page fault debug plan
