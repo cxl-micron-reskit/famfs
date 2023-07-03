@@ -6,6 +6,10 @@ TODO
 * TODO Generate tools for a recursive copy into tagfs file system
 * TODO top level makefile that builds everything
 * TODO Debug accessing dax device without block device
+* TODO Study what happens when tagfs file is "if" for dd
+The file gets truncated to zero-length, but then no writing happens
+
+* TODO Rename ioctl #defines (s/MCIOC/TAGFSIOC/
 
 * Kernel fs features
 ** TODO decouple size from extent list
