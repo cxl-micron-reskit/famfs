@@ -6,11 +6,20 @@ TODO
 * TODO Generate tools for a recursive copy into tagfs file system
 * TODO top level makefile that builds everything
 * TODO Debug accessing dax device without block device
-* TODO Study what happens when tagfs file is "if" for dd
+* TODO Study what happens when tagfs file is "of" for dd
 The file gets truncated to zero-length, but then no writing happens
 
 * DONE Rename ioctl #defines (s/MCIOC/TAGFSIOC/)
 
+* Design and implement MVP allocator
+** Generate a hidden allocation log file
+Format: superblock, allocation log, superblock crc
+Superblock: magic #, format version, offset to start of log, offset to next free log space
+Each log entry: relpath, ext list, size, crc
+Log entry types: file allocation, host access
+
+** Scan all files and create allocation bitmap
+** Scan hidden file and generate allocation bitmapp
 
 * Kernel fs features
 ** TODO decouple size from extent list
@@ -20,13 +29,16 @@ This will return a tagfs_ioc_map and an array of tagfs_user_extent structs
 (might be 2 ioctls, one for tagfs_ioc_map - which will indicate how many extents - and a
 second for the array of extents)
 ** TODO dump the xarray of which pages are currently populated
-
+This is a derivative of csnoop, though the xarray conversion may change it.
 
 * libtagfs
 ** TODO tagfs_create
 - Create file in <mount_pt>/.tmp
 - Set allocation and file size
 - Mv to intended path
+** TODO get size of pmem block device
+** TODO Get size of dax character device
+** TODO Get device size regardless of type
 ** TODO tagfs_setmode
 ** TODO tagfs_clone
 
@@ -34,6 +46,10 @@ second for the array of extents)
 ** TODO tagfs map
 Dump the file map, optionally in the form of a command line that can be used to create a
 clone of the file.
+** TODO tagfs cp
+Copy a file to tagfs. Source can be in tagfs, or separate.
+
+This requires the allocator.
 ** TODO tagfs create
 ** TODO tagfs clone
 ** TODO tagfs setmode
