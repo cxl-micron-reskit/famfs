@@ -10,15 +10,14 @@
 #include "tagfs.h"
 #include "tagfs_internal.h"
 #include "tagfs_ioctl.h"
-
+#include "tagfs_meta.h"
 
 /**
  * tagfs_map_meta_alloc() - Allocate mcache map metadata
  * @mapp:       Pointer to an mcache_map_meta pointer
  * @ext_count:  The number of extents needed
  */
-static
-int
+static int
 tagfs_meta_alloc(
 	struct tagfs_file_meta  **mapp,
 	size_t                    ext_count)

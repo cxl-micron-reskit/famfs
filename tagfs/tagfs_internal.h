@@ -20,8 +20,6 @@ struct tagfs_mount_opts {
 	umode_t mode;
 };
 
-#define TAGFS_MAX_DAXDEVS 2
-
 extern int tagfs_blkdev_mode;
 extern const struct dax_holder_operations tagfs_dax_holder_operations;
 extern const struct iomap_ops tagfs_iomap_ops;
@@ -31,7 +29,7 @@ struct tagfs_fs_info {
 	struct mutex fsi_mutex;
 	struct tagfs_mount_opts mount_opts;
 	int num_dax_devs;
-	dev_t dax_devno; /* XXX: ddo we need to save the devno? I think not */
+	dev_t dax_devno; /* XXX: do we need to save the devno? I think not */
 	struct dax_device *dax_devp; /* TODO: indexed list of dax_devp's */
 	struct block_device *bdevp;  /* TODO: indexed list of bdevp's (if usigng bdevs)
 				      * (extents would index into the device list) */
