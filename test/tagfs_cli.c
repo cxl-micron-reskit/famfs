@@ -64,6 +64,277 @@ void print_global_opts(void)
 /********************************************************************/
 
 void
+tagfs_cp_usage(int   argc,
+	    char *argv[])
+{
+	unsigned char *progname = argv[0];
+
+	printf("\n"
+	       "Copy a file into a tagfs file system\n"
+	       "    %s <srcfile> <destfile>\n"
+	       "\n", progname);
+}
+
+/**
+ * libtagfs:
+ * tagfs_file_alloc()
+ *
+ */
+int
+tagfs_file_alloc(
+	int fd,
+	size_t size)
+{
+	struct tagfs_ioc_map filemap;
+	struct tagfs_extent ext;
+	int rc;
+
+	filemap.file_size = size;
+	filemap.extent_type = FSDAX_EXTENT;
+	filemap.ext_list_count = 1;
+
+	/* TODO: do an actual allocator  */
+	ext.offset = 0;
+	/* Round length up to 2 MiB boundary */
+	ext.len = ((size + 0x200000 - 1) / 0x200000) * 0x200000;
+
+	filemap.ext_list = &ext; /* XXX only one extent so this is a list */
+
+	rc = ioctl(fd, TAGFSIOC_MAP_CREATE, &filemap);
+	if (rc) {
+		printf("ioctl returned rc %d errno %d\n", rc, errno);
+		perror("ioctl");
+		return rc;
+	}
+	return 0;
+}
+
+/**
+ * libtagfs:
+ * tagfs_file_create()
+ *
+ */
+int
+tagfs_file_create(const char *path,
+		  mode_t mode,
+		  uid_t uid,
+		  gid_t gid,
+		  size_t size)
+{
+	int rc = 0;
+	int fd = open(path, O_RDWR | O_CREAT, mode);
+
+	if (fd < 0)
+		return rc;
+
+	rc = tagfs_file_alloc(fd, size);
+	if (rc) {
+		close(fd);
+		unlink(path);
+	}
+
+	return rc;
+}
+
+/**
+ * libtagfs:
+ *
+ * tagfs_cp(srcfile, destfile)
+ */
+
+int
+tagfs_cp(char *srcfile,
+	 char *destfile)
+{
+	struct stat srcstat;
+	struct stat deststat;
+	int rc, srcfd, destfd;
+	char *destp;
+
+	size_t chunksize, remainder, offset, bytes;
+
+	rc = stat(srcfile, &srcstat);
+	if (rc) {
+		fprintf(stderr, "%s: unable to stat srcfile (%s)\n", __func__, srcfile);
+		return rc;
+	}
+	rc = stat(destfile, &deststat);
+	if (!rc) {
+		fprintf(stderr, "%s: error: dest destfile (%s) exists\n", __func__, destfile);
+		return rc;
+	}
+	srcfd = open(srcfile, O_RDONLY, 0);
+	if (srcfd < 0) {
+		fprintf(stderr, "%s: unable to open srcfile (%s)\n", __func__, srcfile);
+		return rc;
+	}
+
+	destfd = tagfs_file_create(destfile, srcstat.st_mode, srcstat.st_uid, srcstat.st_gid,
+			       srcstat.st_size);
+	if (destfd < 0) {
+		fprintf(stderr, "%s: unable to create destfile (%s)\n", __func__, destfile);
+		return destfd;
+	}
+
+	destp = mmap (0, srcstat.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, destfd, 0);
+	if (destp == MAP_FAILED) {
+		fprintf(stderr, "%s: dest mmap failed\n", __func__);
+		return -1; /* XXX */
+	}
+
+	/* Copy the data */
+	chunksize = 0x100000; /* 1 MiB copy chunks */
+	offset = 0;
+	remainder = srcstat.st_size;
+	for ( ; remainder > 0; ) {
+		size_t cur_chunksize = MIN(chunksize, remainder);
+
+		/* read into mmapped destination */
+		bytes = read(srcfd, &destp[offset], cur_chunksize);
+		if (bytes < 0) {
+			fprintf(stderr, "%s: copy fail: "
+				"size %lld ofs %lld cur_chunksize %lld remainder %lld\n",
+				__func__, offset, cur_chunksize, remainder);
+		}
+		if (bytes < cur_chunksize) {
+			fprintf(stderr, "%s: short read: "
+				"size %lld ofs %lld cur_chunksize %lld remainder %lld\n",
+				__func__, offset, cur_chunksize, remainder);
+		}
+
+		/* Update offset and remainder */
+		offset += cur_chunksize;
+		remainder -= cur_chunksize;
+	}
+
+	close(srcfd);
+	close(destfd);
+	return 0;
+}
+
+/* TODO: add recursive copy? */
+int
+do_tagfs_cli_cp(int argc, char *argv[])
+{
+	struct tagfs_ioc_map filemap;
+	struct tagfs_extent *ext_list;
+	int c, i, rc, fd;
+	char *filename = NULL;
+
+	int num_extents = 0;
+	int cur_extent  = 0;
+
+	size_t ext_size;
+	size_t fsize = 0;
+	int arg_ct = 0;
+	enum extent_type type = HPA_EXTENT;
+	unsigned char *daxdev = NULL;
+
+	char *srcfile;
+	char *destfile;
+
+	/* XXX can't use any of the same strings as the global args! */
+	struct option map_options[] = {
+		/* These options set a */
+		{"daxdev",      required_argument,             0,  'D'},
+		{"fsdaxdev",    required_argument,             0,  'F'},
+		{0, 0, 0, 0}
+	};
+
+	if (optind >= argc) {
+		fprintf(stderr, "tagfs_cli map: no args\n");
+		tagfs_cp_usage(argc, argv);
+		return -1;
+	}
+
+	/* The next stuff on the command line is file names;
+	 * err if nothing is left */
+	if (optind >= argc) {
+		fprintf(stderr, "tagfs_cli map: no files\n");
+		tagfs_cp_usage(argc, argv);
+		return -1;
+	}
+	/* Note: the "+" at the beginning of the arg string tells getopt_long
+	 * to return -1 when it sees something that is not recognized option
+	 * (e.g. the command that will mux us off to the command handlers */
+	while ((c = getopt_long(argc, argv, "+F:D:h?",
+				global_options, &optind)) != EOF) {
+		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
+
+		/* Detect the end of the options. */
+		if (c == -1)
+			break;
+
+		arg_ct++;
+		switch (c) {
+		case 'F':
+		case 'D': {
+			size_t len = 0;
+			struct stat devstat;
+
+			/* Must be first argument */
+			if (arg_ct != 1) {
+				fprintf(stderr, "--daxdev must be the first argument\n");
+				exit(-1);
+			}
+			daxdev = optarg;
+			len = strlen(daxdev);
+			if (len <= 0 || len >= sizeof(filemap.devname)) {
+				fprintf(stderr, "Invalid dax device string: (%s)\n", daxdev);
+				exit(-1);
+			}
+
+			if (stat(daxdev, &devstat) == -1) {
+				fprintf(stderr, "unable to stat special file: %s\n", filename);
+				return -1;
+			}
+
+
+			if (c == 'F') {
+				if (!S_ISBLK(devstat.st_mode)) {
+					fprintf(stderr,
+						"FSDAX special file (%s) is not a block device\n",
+						daxdev);
+				}
+				type = FSDAX_EXTENT;
+			}
+			else if (c == 'D') {
+				if (!S_ISCHR(devstat.st_mode)) {
+					fprintf(stderr,
+						"FSDAX special file (%s) is not a block device\n",
+						daxdev);
+				}
+				type = DAX_EXTENT;
+			}
+
+			strncpy(filemap.devname, daxdev, len);
+			filemap.devno = devstat.st_rdev; /* Device number (dev_t) for the dax dev */
+			break;
+		}
+
+		case 'h':
+		case '?':
+			tagfs_cp_usage(argc, argv);
+			return 0;
+
+		default:
+			printf("default (%c)\n", c);
+			return -1;
+		}
+	}
+
+	srcfile = argv[optind++];
+	destfile = argv[optind++];
+
+	rc = tagfs_cp(srcfile, destfile);
+	printf("tagfs_cp returned %d\n", rc);
+	return 0;
+}
+
+
+/********************************************************************/
+
+void
 tagfs_getmap_usage(int   argc,
 	    char *argv[])
 {
@@ -413,6 +684,7 @@ tagfs_cli_cmd tagfs_cli_cmds[] = {
 
 	{"creat",   do_tagfs_cli_creat,   tagfs_creat_usage},
 	{"getmap",  do_tagfs_cli_getmap,  tagfs_getmap_usage},
+	{"cp",      do_tagfs_cli_cp,      tagfs_cp_usage},
 
 #if 0
 	{"snoop",   do_tagfs_cli_snoop,   help_tagfs_cli_snoop },
