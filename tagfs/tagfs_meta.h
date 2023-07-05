@@ -3,7 +3,9 @@
 
 #include <linux/types.h>
 #include <linux/uuid.h>
-#include <linux/dax.h>
+//#include <linux/dax.h>
+
+#include "tagfs.h"
 #include "tagfs_ioctl.h"
 
 /**
@@ -44,13 +46,24 @@
 #define TAGFS_CURRENT_VERSION  42
 #define TAGFS_MAX_DAXDEVS      64
 
+#define TAGFS_LOG_OFFSET    0x200000 /* 2MiB */
+#define TAGFS_LOG_LEN       0x800000 /* 8MiB */
+
+#define TAGFS_SUPERBLOCK_SIZE TAGFS_LOG_OFFSET
+#define TAGFS_SUPERBLOCK_MAX_DAXDEVS 1
+
 struct tagfs_daxdev {
 	size_t              dd_size;
 //	struct dax_device  *dd_dax_device;
-	void               *dd_dax_device;
-	uuid_le             dd_uuid;
-	char                dd_root_daxdev[TAGFS_DEVNAME_LEN];
+//	void               *dd_dax_device;
+//	uuid_le             dd_uuid;
+	/* TODO: what is an invariant way to reference a DAX device? */
+	char                dd_daxdev[TAGFS_DEVNAME_LEN];
 };
+
+/* ts_sb_flags */
+#define	TAGFS_PRIMARY_SB  (1 << 0) /* This device is the primary superblock of this tagfs instance */
+
 
 /* Lives at the base of a tagged tax device: */
 struct tagfs_superblock {
@@ -59,7 +72,8 @@ struct tagfs_superblock {
 	u64                 ts_log_offset;  /* offset to the start of the log file */
 	u64                 ts_crc;         /* Coves all fields prior to this one */
 	u32                 ts_num_daxdevs; /* limit is TAGFS_MAX_DAXDEVS */
-	struct tagfs_daxev *ts_devlist[];
+	u32                 ts_sb_flags;
+	struct tagfs_daxdev ts_devlist[TAGFS_SUPERBLOCK_MAX_DAXDEVS];
 };
 
 /* Lives at the base of the .meta/log file: */
@@ -110,9 +124,16 @@ enum tagfs_log_entry_type {
 #define TAGFS_MAX_PATHLEN 80
 #define TAGFS_MAX_HOSTNAME_LEN 32
 
+/* tagfs_fc_flags */
+#define TAGFS_FC_ALL_HOSTS_RO (1 << 0)
+#define TAGFS_FC_ALL_HOSTS_RW (1 << 1)
+
+
 /* This log entry creates a file */
 struct tagfs_file_creation {
-	u64     tagfs_nextents;
+	u32     tagfs_nextents;
+	u32     tagfs_fc_flags;
+	
 	u8      tagfs_relpath[TAGFS_MAX_PATHLEN];
 	struct  tagfs_log_extent tagfs_log[];
 };
@@ -129,14 +150,25 @@ struct tagfs_file_access {
 };
 
 struct tagfs_log_entry {
-	u64 tagfs_log_magic;
-	u64 tagfs_log_entry_len;
+	//u64 tagfs_log_entry_len; /* all log entries currently the same size */
+	u64 tagfs_log_entry_seqnum;
 	u32 tagfs_log_entry_type; /* TAGFS_LOG_FILE_CREATION or TAGFS_LOG_ACCESS */
-	uuid_le tagfs_file_uuid;
+	//uuid_le tagfs_file_uuid;  /* TODO: use this, which I think is needed */
 	union {
 		struct tagfs_file_creation tagfs_fc;
 		struct tagfs_file_access   tagfs_fa;
 	};
+};
+
+#define TAGFS_LOG_MAGIC 0xbadcafef00d
+
+struct tagfs_log {
+	u64 tagfs_log_magic;
+	u64 tagfs_log_len;
+	u64 tagfs_log_next_seqnum;
+	u64 tagfs_log_next_index;
+	u64 tagfs_log_last_index; /* Log would overflow if we write past here */
+	struct tagfs_log_entry entries[];
 };
 
 #endif /* TAGFS__META_H */

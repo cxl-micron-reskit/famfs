@@ -3,6 +3,29 @@
 
 #include "tagfs_ioctl.h"
 
+#include <linux/fs_parser.h> // bleh...
+
+#define TAGFS_MAGIC 0xdeadbeef
+
+struct inode *tagfs_get_inode(struct super_block *sb, const struct inode *dir,
+	 umode_t mode, dev_t dev);
+extern int tagfs_init_fs_context(struct fs_context *fc);
+
+#ifdef CONFIG_MMU
+static inline int
+tagfs_nommu_expand_for_mapping(struct inode *inode, size_t newsize)
+{
+	return 0;
+}
+#else
+extern int tagfs_nommu_expand_for_mapping(struct inode *inode, size_t newsize);
+#endif
+
+extern const struct fs_parameter_spec tagfs_fs_parameters[];
+extern const struct file_operations tagfs_file_operations;
+extern const struct vm_operations_struct generic_file_vm_ops;
+
+
 extern const struct inode_operations tagfs_file_inode_operations;
 
 /*
