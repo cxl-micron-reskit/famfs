@@ -56,7 +56,7 @@ struct tagfs_daxdev {
 	size_t              dd_size;
 //	struct dax_device  *dd_dax_device;
 //	void               *dd_dax_device;
-//	uuid_le             dd_uuid;
+	uuid_le             dd_uuid;
 	/* TODO: what is an invariant way to reference a DAX device? */
 	char                dd_daxdev[TAGFS_DEVNAME_LEN];
 };
@@ -128,6 +128,8 @@ enum tagfs_log_entry_type {
 #define TAGFS_FC_ALL_HOSTS_RO (1 << 0)
 #define TAGFS_FC_ALL_HOSTS_RW (1 << 1)
 
+/* Maximum number of extents in a FC extent list */
+#define TAGFS_FC_MAX_EXTENTS 8
 
 /* This log entry creates a file */
 struct tagfs_file_creation {
@@ -135,7 +137,7 @@ struct tagfs_file_creation {
 	u32     tagfs_fc_flags;
 	
 	u8      tagfs_relpath[TAGFS_MAX_PATHLEN];
-	struct  tagfs_log_extent tagfs_log[];
+	struct  tagfs_log_extent tagfs_log[TAGFS_FC_MAX_EXTENTS];
 };
 
 /* A log entry of type TAGFS_LOG_ACCESS contains a struct tagfs_file_access entry.

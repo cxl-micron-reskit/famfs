@@ -29,6 +29,7 @@ tagfs_get_device_size(const char *fname, size_t *size)
 	u_int64_t size_i;
 	struct stat st;
 	int rc;
+	int is_char = 0;
 
 	rc = stat(fname, &st);
 	if (rc < 0) {
@@ -37,27 +38,33 @@ tagfs_get_device_size(const char *fname, size_t *size)
 		return -errno;
 	}
 
-	snprintf(spath, PATH_MAX, "/sys/dev/char/%d:%d/subsystem",
-		 major(st.st_rdev), minor(st.st_rdev));
-
-	rpath = realpath(spath, npath);
-	if (!rpath) {
-		fprintf(stderr, "%s: realpath on %s failed (%s)\n",
-			__func__, spath, strerror(errno));
-		return -errno;
+	switch (st.st_mode & S_IFMT) {
+	case S_IFBLK:
+		printf("%s is a block device\n", fname);
+		break;
+	case S_IFCHR:
+		printf("%s character device\n", fname);
+		is_char = 1;
+		break;
+	default:
+		fprintf(stderr, "invalid dax device %s\n", fname);
+		return -EINVAL;
 	}
 
-	/* Check if DAX device */
-	basename = strrchr(rpath, '/');
-	if (!basename || strcmp("dax", basename+1)) {
-		/* Not a dax device; see if it's a block device */
+	basename = strrchr(fname, '/');
+	if (is_char) {
+		/* character device */
+		snprintf(spath, PATH_MAX, "/sys/dev/char/%d:%d/subsystem",
+			 major(st.st_rdev), minor(st.st_rdev));
 
-		snprintf(spath, PATH_MAX, "/sys/class/block/%s/size", basename);
-	} else {
-
+		//basename = get_basename()
 		snprintf(spath, PATH_MAX, "/sys/dev/char/%d:%d/size",
 			 major(st.st_rdev), minor(st.st_rdev));
+	} else {
+		/* It's a block device */
+		snprintf(spath, PATH_MAX, "/sys/class/block/%s/size", basename);
 	}
+	printf("checking for size in %s\n", spath);
 
 	sfile = fopen(spath, "r");
 	if (!sfile) {
@@ -151,3 +158,25 @@ tagfs_create_superblock_file(struct tagfs_log *logp)
 	
 }
 #endif
+
+void print_fsinfo(struct tagfs_superblock *sb,
+		  struct tagfs_log        *logp,
+		  int                      verbose)
+{
+	size_t  total_log_size;
+
+	if (verbose) {
+		printf("size superblock: %ld\n", sizeof(struct tagfs_superblock));
+		printf("size log:        %ld\n", sizeof(struct tagfs_log));
+		printf("size log_entry:  %ld\n", sizeof(struct tagfs_log_entry));
+		printf("last_log_index:  %ld\n", logp->tagfs_log_last_index);
+		total_log_size = sizeof(struct tagfs_log)
+			+ (sizeof(struct tagfs_log_entry) * logp->tagfs_log_last_index);
+		printf("full log size:   %ld\n", total_log_size);
+		printf("TAGFS_LOG_LEN:   %ld\n", TAGFS_LOG_LEN);
+		printf("Remainder:       %ld\n", TAGFS_LOG_LEN - total_log_size);
+		printf("\nfc: %ld\n", sizeof(struct tagfs_file_creation));
+		printf("fa:   %ld\n", sizeof(struct tagfs_file_access));
+	}
+
+}

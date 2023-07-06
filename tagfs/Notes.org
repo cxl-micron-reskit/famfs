@@ -1,6 +1,18 @@
 
 TODO
 
+* TODO Nedd uuid_gen() function in tagfs_lib
+* TODO How will the kernel module read/access the superblock and log?
+The superblock has the list of dax devices. The primary superblock has the TAGFS_PRIMARY_SB
+flag set.
+
+sb->ts_devlist is only valid on the primary superblock.
+
+Each device has a uuid in its superblock - that will be an invariant way to reference
+devices. Reference can be by index into teh ts_devlist[] on the primary superblock,
+and the tagfs_daxdev needs the uuid for each device.
+* TODO Create file ioctl must inherit dax device from superblock (if there is only one)
+Oof, this requires a persistent mmap of the superblock and log from the in-memory sb. Hmm.
 * TODO generate some proper mmap test cases
 * TODO generate proper buffered I/O test cases
 * TODO Generate tools for a recursive copy into tagfs file system
@@ -11,12 +23,28 @@ The file gets truncated to zero-length, but then no writing happens
 
 * DONE Rename ioctl #defines (s/MCIOC/TAGFSIOC/)
 
+* TODO Superblock needs a UUID
+* TODO Each file creation log entry needs a UUID (i.e. a file UUID)
+
 * Design and implement MVP allocator
 ** Generate a hidden allocation log file
 Format: superblock, allocation log, superblock crc
 Superblock: magic #, format version, offset to start of log, offset to next free log space
 Each log entry: relpath, ext list, size, crc
 Log entry types: file allocation, host access
+
+** interesting Idea:
+*** Append-only allocation log
+Only used by owner; can make allocations durable long before files get committed.
+And allocations can be freed prior to file commit.
+
+Issue: can I guarantee freeing of space for uncommitted files? If files have UUIDs and
+allocation entries reference the file UUID, we can scan the main log and the allocation log and
+free any allocations that reference UUIDs that are not assoociated with files. File creation
+would have to be totally embargoed during this process.
+
+*** Main log gets file creation entries when committed
+
 
 ** Scan all files and create allocation bitmap
 ** Scan hidden file and generate allocation bitmapp

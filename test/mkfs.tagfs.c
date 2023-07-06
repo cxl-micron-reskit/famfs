@@ -77,7 +77,7 @@ main(int argc,
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
-	while ((c = getopt_long(argc, argv, "+D:F:h?",
+	while ((c = getopt_long(argc, argv, "+D:F:fh?",
 				global_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -197,11 +197,9 @@ main(int argc,
 	tagfs_logp->tagfs_log_next_seqnum    = 99;
 	tagfs_logp->tagfs_log_next_index = 0;
 	tagfs_logp->tagfs_log_last_index =
-		((TAGFS_LOG_LEN - offsetof(struct tagfs_log, entries)) /sizeof(struct tagfs_log_entry)) - 1;
+		((TAGFS_LOG_LEN
+		  - offsetof(struct tagfs_log, entries)) /sizeof(struct tagfs_log_entry)) ;
 
-#if 0
-	tagfs_create_superblock_file(tagfs_logp);
-	tagfs_create_log_file(tagfs_logp);
-#endif	
+	print_fsinfo(sb, tagfs_logp, 1);
 	close(rc);
 }
