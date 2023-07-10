@@ -1,7 +1,7 @@
 
 TODO
 
-* TODO Nedd uuid_gen() function in tagfs_lib
+* TODO Need uuid_gen() function in tagfs_lib
 * TODO How will the kernel module read/access the superblock and log?
 The superblock has the list of dax devices. The primary superblock has the TAGFS_PRIMARY_SB
 flag set.

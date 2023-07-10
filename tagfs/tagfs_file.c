@@ -137,7 +137,7 @@ tagfs_meta_to_dax_offset(struct inode *inode,
 			iomap->flags   = flags;
 
 			//iomap->bdev    = fsi->bdevp;
-			printk(KERN_NOTICE "%s: --> ext %ddaxdev offset %llx len %lld\n",
+			printk(KERN_NOTICE "%s: --> ext %d daxdev offset %llx len %lld\n",
 			       __func__, i,
 			       iomap->offset, iomap->length);
 			return 0;
