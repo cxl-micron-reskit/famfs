@@ -183,6 +183,7 @@ main(int argc,
 	sb->ts_magic = TAGFS_SUPER_MAGIC;
 	sb->ts_version = TAGFS_CURRENT_VERSION;
 	sb->ts_log_offset = TAGFS_LOG_OFFSET;
+	tagfs_uuidgen(&sb->ts_uuid);
 	sb->ts_crc = 0; /* TODO: calculate and check crc */
 
 	/* Configure the first daxdev */

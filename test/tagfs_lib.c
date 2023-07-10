@@ -12,12 +12,36 @@
 #include <stdlib.h>
 #include <linux/types.h>
 #include <stddef.h>
+#include <linux/uuid.h> /* Our preferred UUID format */
+#include <uuid/uuid.h>  /* for uuid_generate / libuuid */
 
 #include "../tagfs/tagfs.h"
 #include "../tagfs/tagfs_ioctl.h"
 #include "../tagfs/tagfs_meta.h"
 
 #include "tagfs_lib.h"
+
+void
+tagfs_uuidgen(uuid_le *uuid)
+{
+	uuid_t local_uuid;
+
+	uuid_generate(local_uuid);
+	memcpy(uuid, &local_uuid, sizeof(local_uuid));
+}
+
+void
+tagfs_print_uuid(uuid_le *uuid)
+{
+	uuid_t local_uuid;
+	char uuid_str[37];
+
+	memcpy(&local_uuid, uuid, sizeof(local_uuid));
+	uuid_unparse(local_uuid, uuid_str);
+
+	printf("%s\n", uuid_str);
+
+}
 
 int
 tagfs_get_device_size(const char *fname, size_t *size)
@@ -166,9 +190,12 @@ void print_fsinfo(struct tagfs_superblock *sb,
 	size_t  total_log_size;
 
 	if (verbose) {
-		printf("size superblock: %ld\n", sizeof(struct tagfs_superblock));
-		printf("size log:        %ld\n", sizeof(struct tagfs_log));
-		printf("size log_entry:  %ld\n", sizeof(struct tagfs_log_entry));
+		printf("sizeof superblock: %ld\n", sizeof(struct tagfs_superblock));
+		printf("Superblock UUID:   ");
+		tagfs_print_uuid(&sb->ts_uuid);
+		printf("sizeof log:        %ld\n", sizeof(struct tagfs_log));
+		printf("sizeof log_entry:  %ld\n", sizeof(struct tagfs_log_entry));
+
 		printf("last_log_index:  %ld\n", logp->tagfs_log_last_index);
 		total_log_size = sizeof(struct tagfs_log)
 			+ (sizeof(struct tagfs_log_entry) * logp->tagfs_log_last_index);

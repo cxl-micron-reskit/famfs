@@ -1,7 +1,7 @@
 
 TODO
 
-* TODO Need uuid_gen() function in tagfs_lib
+* DONE Need uuid_gen() function in tagfs_lib
 * TODO How will the kernel module read/access the superblock and log?
 The superblock has the list of dax devices. The primary superblock has the TAGFS_PRIMARY_SB
 flag set.
@@ -23,7 +23,7 @@ The file gets truncated to zero-length, but then no writing happens
 
 * DONE Rename ioctl #defines (s/MCIOC/TAGFSIOC/)
 
-* TODO Superblock needs a UUID
+* DONE Superblock needs a UUID
 * TODO Each file creation log entry needs a UUID (i.e. a file UUID)
 
 * Design and implement MVP allocator
