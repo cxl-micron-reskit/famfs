@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <linux/types.h>
 #include <stddef.h>
+#include <sys/mman.h>
 #include <linux/uuid.h> /* Our preferred UUID format */
 #include <uuid/uuid.h>  /* for uuid_generate / libuuid */
 
@@ -31,7 +32,7 @@ tagfs_uuidgen(uuid_le *uuid)
 }
 
 void
-tagfs_print_uuid(uuid_le *uuid)
+tagfs_print_uuid(const uuid_le *uuid)
 {
 	uuid_t local_uuid;
 	char uuid_str[37];
@@ -44,7 +45,9 @@ tagfs_print_uuid(uuid_le *uuid)
 }
 
 int
-tagfs_get_device_size(const char *fname, size_t *size)
+tagfs_get_device_size(const char       *fname,
+		      size_t           *size,
+		      enum extent_type *type)
 {
 	char spath[PATH_MAX];
 	char npath[PATH_MAX];
@@ -65,10 +68,14 @@ tagfs_get_device_size(const char *fname, size_t *size)
 	switch (st.st_mode & S_IFMT) {
 	case S_IFBLK:
 		printf("%s is a block device\n", fname);
+		if (type)
+			*type = FSDAX_EXTENT;
 		break;
 	case S_IFCHR:
 		printf("%s character device\n", fname);
 		is_char = 1;
+		if (type)
+			*type = DAX_EXTENT;
 		break;
 	default:
 		fprintf(stderr, "invalid dax device %s\n", fname);
@@ -107,6 +114,7 @@ tagfs_get_device_size(const char *fname, size_t *size)
 
 	fclose(sfile);
 
+	printf("%s: size=%ld\n", __func__, size_i);
 	*size = (size_t)size_i;
 	return 0;
 
@@ -183,9 +191,9 @@ tagfs_create_superblock_file(struct tagfs_log *logp)
 }
 #endif
 
-void print_fsinfo(struct tagfs_superblock *sb,
-		  struct tagfs_log        *logp,
-		  int                      verbose)
+void print_fsinfo(const struct tagfs_superblock *sb,
+		  const struct tagfs_log        *logp,
+		  int                            verbose)
 {
 	size_t  total_log_size;
 
@@ -196,14 +204,83 @@ void print_fsinfo(struct tagfs_superblock *sb,
 		printf("sizeof log:        %ld\n", sizeof(struct tagfs_log));
 		printf("sizeof log_entry:  %ld\n", sizeof(struct tagfs_log_entry));
 
-		printf("last_log_index:  %ld\n", logp->tagfs_log_last_index);
+		printf("last_log_index:    %ld\n", logp->tagfs_log_last_index);
 		total_log_size = sizeof(struct tagfs_log)
 			+ (sizeof(struct tagfs_log_entry) * logp->tagfs_log_last_index);
-		printf("full log size:   %ld\n", total_log_size);
-		printf("TAGFS_LOG_LEN:   %ld\n", TAGFS_LOG_LEN);
-		printf("Remainder:       %ld\n", TAGFS_LOG_LEN - total_log_size);
+		printf("full log size:     %ld\n", total_log_size);
+		printf("TAGFS_LOG_LEN:     %ld\n", TAGFS_LOG_LEN);
+		printf("Remainder:         %ld\n", TAGFS_LOG_LEN - total_log_size);
 		printf("\nfc: %ld\n", sizeof(struct tagfs_file_creation));
 		printf("fa:   %ld\n", sizeof(struct tagfs_file_access));
 	}
 
+}
+
+int
+tagfs_mmap_superblock_and_log(const char *devname,
+			      struct tagfs_superblock **sbp,
+			      struct tagfs_log **logp,
+			      int read_only)
+{
+	int fd = 0;
+	void *sb_buf;
+	void *log_buf;
+	int rc = 0;
+	int mapmode = (read_only) ? PROT_READ : PROT_READ | PROT_WRITE;
+	int openmode = (read_only) ? O_RDONLY : O_RDWR;
+
+	fd = open(devname, openmode, 0);
+	if (fd < 0) {
+		fprintf(stderr, "open/create failed; rc %d errno %d\n", rc, errno);
+		rc = -1;
+		goto err_out;
+	}
+
+	sb_buf = mmap (0, TAGFS_SUPERBLOCK_SIZE, mapmode, MAP_SHARED, fd, 0);
+	if (sb_buf == MAP_FAILED) {
+		fprintf(stderr, "Failed to mmap superblock from %s\n", devname);
+		rc = -1;
+		goto err_out;
+	}
+	*sbp = (struct tagfs_superblock *)sb_buf;
+
+	log_buf = mmap (0, TAGFS_LOG_LEN, mapmode, MAP_SHARED, fd, TAGFS_LOG_OFFSET);
+	if (log_buf == MAP_FAILED) {
+		fprintf(stderr, "Failed to mmap log from %s\n", devname);
+		rc = -1;
+		goto err_out;
+	}
+	*logp = (struct tagfs_log *)log_buf;
+	close(fd);
+	return 0;
+
+err_out:
+	if (sb_buf)
+		munmap(sb_buf, TAGFS_SUPERBLOCK_SIZE);
+
+	if (log_buf)
+		munmap(log_buf, TAGFS_LOG_LEN);
+
+	if (fd)
+		close(fd);
+	return rc;
+}
+
+int
+tagfs_fsck(const char *devname)
+{
+	struct tagfs_superblock *sb;
+	struct tagfs_log *logp;
+	size_t size;
+	int rc;
+
+	rc = tagfs_get_device_size(devname, &size, NULL);
+	if (rc < 0)
+		return -1;
+
+	printf("device: %s\n", devname);
+	printf("size:   %ld\n", size);
+	rc = tagfs_mmap_superblock_and_log(devname, &sb, &logp, 1 /* read-only */);
+	print_fsinfo(sb, logp, 1);
+	return 0;
 }

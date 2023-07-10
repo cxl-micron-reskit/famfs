@@ -1,6 +1,17 @@
 
 TODO
 
+* Semi-working functionality
+** tagfs fsck
+** mkfs.tagfs <dev>
+
+* Missing functionality
+** TODO play log into file system
+** TODO Populate log
+
+
+* TODO Integrate wtih googletest and automate baseline set of tests
+* TODO Debug "tagfs cp" cli functionality
 * DONE Need uuid_gen() function in tagfs_lib
 * TODO How will the kernel module read/access the superblock and log?
 The superblock has the list of dax devices. The primary superblock has the TAGFS_PRIMARY_SB

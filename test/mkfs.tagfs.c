@@ -69,7 +69,6 @@ main(int argc,
 
 	char *sb_buf;
 	struct tagfs_superblock *sb;
-	char *log_buf;
 	struct tagfs_log *tagfs_logp;
 	size_t devsize;
 
@@ -77,7 +76,7 @@ main(int argc,
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
-	while ((c = getopt_long(argc, argv, "+D:F:fh?",
+	while ((c = getopt_long(argc, argv, "+fh?",
 				global_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -87,53 +86,6 @@ main(int argc,
 
 		arg_ct++;
 		switch (c) {
-		case 'F':
-		case 'D': {
-			size_t len = 0;
-			struct stat devstat;
-
-			/* Must be first argument */
-			if (arg_ct != 1) {
-				fprintf(stderr, "--daxdev must be the first argument\n");
-				exit(-1);
-			}
-			daxdev = optarg;
-			len = strlen(daxdev);
-			if (len >= TAGFS_DEVNAME_LEN) {
-				fprintf(stderr, "dax devname too long; increate TAGFS_DEVNAME_LEN (%d/%d)\n",
-					len, TAGFS_DEVNAME_LEN);
-				return -1;
-			}
-
-			if (stat(daxdev, &devstat) == -1) {
-				fprintf(stderr, "unable to stat special file: %s\n", filename);
-				return -1;
-			}
-
-
-			if (c == 'F') {
-				if (!S_ISBLK(devstat.st_mode)) {
-					fprintf(stderr,
-						"FSDAX special file (%s) is not a block device\n",
-						daxdev);
-				}
-				type = FSDAX_EXTENT;
-			}
-			else if (c == 'D') {
-				if (!S_ISCHR(devstat.st_mode)) {
-					fprintf(stderr,
-						"FSDAX special file (%s) is not a block device\n",
-						daxdev);
-				}
-				type = DAX_EXTENT;
-			}
-			else {
-				fprintf(stderr, "%s is not a device special file\n", daxdev);
-				return -1;
-			}
-
-			break;
-		}
 		case 'f':
 			force++;
 			break;
@@ -149,34 +101,25 @@ main(int argc,
 		}
 	}
 
-	rc = tagfs_get_device_size(daxdev, &devsize);
+	if (optind >= argc) {
+		fprintf(stderr, "Must specify at least one dax device\n");
+		return -1;
+	}
+	/* TODO: multiple devices? */
+	daxdev = argv[optind++];
+
+	rc = tagfs_get_device_size(daxdev, &devsize, &type);
 	if (rc)
 		return -1;
 
-	fd = open(daxdev, O_RDWR, 0);
-	if (fd < 0) {
-		fprintf(stderr, "open/create failed; rc %d errno %d\n", rc, errno);
-		exit(-1);
-	}
-
-	sb_buf = mmap (0, TAGFS_SUPERBLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-	if (sb_buf == MAP_FAILED) {
-		fprintf(stderr, "Failed to mmap device %s\n", daxdev);
+	rc = tagfs_mmap_superblock_and_log(daxdev, &sb, &tagfs_logp, 0 /* read/write */);
+	if (rc)
 		return -1;
-	}
-	sb = (struct tagfs_superblock *)sb_buf;
+
 	if (sb->ts_magic == TAGFS_SUPER_MAGIC && !force) {
 		fprintf(stderr, "Device %s already has a tagfs superblock\n", daxdev);
 		return -1;
 	}
-
-
-	log_buf = mmap (0, TAGFS_LOG_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, fd, TAGFS_LOG_OFFSET);
-	if (log_buf == MAP_FAILED) {
-		fprintf(stderr, "Failed to mmap device %s\n", daxdev);
-		return -1;
-	}
-	tagfs_logp = (struct tagfs_log *)log_buf;
 
 	memset(sb, 0, TAGFS_SUPERBLOCK_SIZE); /* Zero the memory up to the log */
 
