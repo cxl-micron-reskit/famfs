@@ -1,6 +1,7 @@
 #ifndef TAGFS_IOCTL_H
 #define TAGFS_IOCTL_H
 
+#include <linux/ioctl.h>
 #include <linux/uuid.h>
 
 #define is_aligned(POINTER, BYTE_COUNT) \

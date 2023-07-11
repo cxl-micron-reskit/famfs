@@ -65,6 +65,101 @@ void print_global_opts(void)
 /********************************************************************/
 
 void
+tagfs_mkmeta_usage(int   argc,
+	    char *argv[])
+{
+	unsigned char *progname = argv[0];
+
+	printf("\n"
+	       "Check a tagfs file system\n"
+	       "    %s <memdevice>\n"
+	       "\n", progname);
+}
+
+/* TODO: add recursive copy? */
+int
+do_tagfs_cli_mkmeta(int argc, char *argv[])
+{
+	struct tagfs_ioc_map filemap;
+	struct tagfs_extent *ext_list;
+	int c, i, rc, fd;
+	char *filename = NULL;
+
+	int num_extents = 0;
+	int cur_extent  = 0;
+
+	size_t ext_size;
+	size_t fsize = 0;
+	int arg_ct = 0;
+	enum extent_type type = HPA_EXTENT;
+	unsigned char *daxdev = NULL;
+	unsigned char *realdaxdev = NULL;
+
+	char *srcfile;
+	char *destfile;
+
+	/* XXX can't use any of the same strings as the global args! */
+	struct option map_options[] = {
+		/* These options set a */
+		{0, 0, 0, 0}
+	};
+
+	if (optind >= argc) {
+		fprintf(stderr, "tagfs_cli map: no args\n");
+		tagfs_mkmeta_usage(argc, argv);
+		return -1;
+	}
+
+	/* The next stuff on the command line is file names;
+	 * err if nothing is left */
+	if (optind >= argc) {
+		fprintf(stderr, "tagfs_cli map: no files\n");
+		tagfs_mkmeta_usage(argc, argv);
+		return -1;
+	}
+	/* Note: the "+" at the beginning of the arg string tells getopt_long
+	 * to return -1 when it sees something that is not recognized option
+	 * (e.g. the command that will mux us off to the command handlers */
+	while ((c = getopt_long(argc, argv, "+h?",
+				global_options, &optind)) != EOF) {
+		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
+
+		/* Detect the end of the options. */
+		if (c == -1)
+			break;
+
+		arg_ct++;
+		switch (c) {
+
+		case 'h':
+		case '?':
+			tagfs_mkmeta_usage(argc, argv);
+			return 0;
+
+		default:
+			printf("default (%c)\n", c);
+			return -1;
+		}
+	}
+
+	if (optind >= argc) {
+		fprintf(stderr, "Must specify at least one dax device\n");
+		return -1;
+	}
+	/* TODO: multiple devices? */
+	daxdev = argv[optind++];
+	realdaxdev = realpath(daxdev, NULL);
+	if (!realdaxdev) {
+		fprintf(stderr, "%s: realpath(%s) returned %d\n", __func__, errno);
+		return -1;
+	}
+	tagfs_mkmeta(realdaxdev);
+	return 0;
+}
+
+/********************************************************************/
+
+void
 tagfs_fsck_usage(int   argc,
 	    char *argv[])
 {
@@ -149,8 +244,7 @@ do_tagfs_cli_fsck(int argc, char *argv[])
 	}
 	/* TODO: multiple devices? */
 	daxdev = argv[optind++];
-	tagfs_fsck(daxdev);
-	return 0;
+	return tagfs_fsck(daxdev, 1 /* verbose */);
 }
 
 
@@ -689,6 +783,7 @@ tagfs_cli_cmd tagfs_cli_cmds[] = {
 	{"getmap",  do_tagfs_cli_getmap,  tagfs_getmap_usage},
 	{"cp",      do_tagfs_cli_cp,      tagfs_cp_usage},
 	{"fsck",    do_tagfs_cli_fsck,    tagfs_fsck_usage},
+	{"mkmeta",  do_tagfs_cli_mkmeta,  tagfs_mkmeta_usage},
 
 #if 0
 	{"snoop",   do_tagfs_cli_snoop,   help_tagfs_cli_snoop },

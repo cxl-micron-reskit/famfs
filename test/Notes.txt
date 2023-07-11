@@ -1,6 +1,16 @@
 
-sudo debug/tagfs creat -F /dev/pmem0 -n 2 -o 0x600000 -l 0x200000 -o 0x200000 -l 0x200000  -f /mnt/tagfs/frog1
+Mount & preparation:
+  ./setup.sh
+  mkfs.tagfs [-f] /dev/pmem0
+  tagfs fsck /dev/pmem0
+  tagfs mkmeta /dev/pmem0 # this creates files that map to the superblock and log
 
-sudo debug/mmap_test -f /mnt/tagfs/frog1
+  It's not fully mounted until you've done all of that
 
+
+mmap_test
+
+  sudo debug/tagfs creat -F /dev/pmem0 -n 2 -o 0x600000 -l 0x200000 -o 0x200000 -l 0x200000  -f /mnt/tagfs/frog1
+
+  sudo debug/mmap_test -f /mnt/tagfs/frog1
 

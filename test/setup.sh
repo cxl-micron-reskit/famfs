@@ -25,5 +25,5 @@ ndctl list  || fail " need ndctl"
 sudo mkdir -p $MOUNT_PT        || fail "mkdir"
 #sudo chown $OWNER $MOUNT_PT
 sudo insmod ../tagfs/tagfs.ko  || fail "insmod"
-sudo mount -t tagfs -o noatime -o dax=always -o rootdev=/dev/pmem0 /dev/dax0.0 $MOUNT_PT || fail "mount"
+sudo mount -t tagfs -o noatime -o dax=always -o rootdev=/dev/pmem0 /dev/pmem0 $MOUNT_PT || fail "mount"
 grep tagfs /proc/mounts        || fail "/proc/mounts"

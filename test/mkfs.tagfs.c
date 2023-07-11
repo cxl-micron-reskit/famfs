@@ -116,23 +116,24 @@ main(int argc,
 	if (rc)
 		return -1;
 
-	if (sb->ts_magic == TAGFS_SUPER_MAGIC && !force) {
+	if ((tagfs_check_super(sb) == 0) && !force) {
 		fprintf(stderr, "Device %s already has a tagfs superblock\n", daxdev);
 		return -1;
 	}
 
 	memset(sb, 0, TAGFS_SUPERBLOCK_SIZE); /* Zero the memory up to the log */
 
-	sb->ts_magic = TAGFS_SUPER_MAGIC;
-	sb->ts_version = TAGFS_CURRENT_VERSION;
+	sb->ts_magic      = TAGFS_SUPER_MAGIC;
+	sb->ts_version    = TAGFS_CURRENT_VERSION;
 	sb->ts_log_offset = TAGFS_LOG_OFFSET;
+	sb->ts_log_len    = TAGFS_LOG_LEN;
 	tagfs_uuidgen(&sb->ts_uuid);
 	sb->ts_crc = 0; /* TODO: calculate and check crc */
 
 	/* Configure the first daxdev */
 	sb->ts_num_daxdevs = 1;
-	sb->ts_devlist[1].dd_size = devsize;
-	strncpy(sb->ts_devlist[1].dd_daxdev, daxdev, TAGFS_DEVNAME_LEN);
+	sb->ts_devlist[0].dd_size = devsize;
+	strncpy(sb->ts_devlist[0].dd_daxdev, daxdev, TAGFS_DEVNAME_LEN);
 
 	/* Zero and setup the log */
 	memset(tagfs_logp, 0, TAGFS_LOG_LEN);

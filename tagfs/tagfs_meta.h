@@ -70,6 +70,7 @@ struct tagfs_superblock {
 	u64                 ts_magic;
 	u64                 ts_version;
 	u64                 ts_log_offset;  /* offset to the start of the log file */
+	u64                 ts_log_len;
 	uuid_le             ts_uuid;
 	u64                 ts_crc;         /* Coves all fields prior to this one */
 	u32                 ts_num_daxdevs; /* limit is TAGFS_MAX_DAXDEVS */

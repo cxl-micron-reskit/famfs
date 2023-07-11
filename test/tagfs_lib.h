@@ -11,9 +11,11 @@ int tagfs_mmap_superblock_and_log(const char *devname, struct tagfs_superblock *
 extern int tagfs_append_log(struct tagfs_log *logp, struct tagfs_log_entry *e);
 
 extern void print_fsinfo(const struct tagfs_superblock *sb, const struct tagfs_log *logp, int verbose);
-int tagfs_fsck(const char *devname);
+int tagfs_check_super(const struct tagfs_superblock *sb);
+int tagfs_fsck(const char *devname, int verbose);
 
 void tagfs_uuidgen(uuid_le *uuid);
 void tagfs_print_uuid(const uuid_le *uuid);
+int tagfs_mkmeta(const char *devname);
 
 #endif /* _H_TAGFS_LIB */
