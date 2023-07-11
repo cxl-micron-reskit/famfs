@@ -124,21 +124,6 @@ tagfs_get_device_size(const char       *fname,
 
 }
 
-#if 0
-size_t
-tagfs_get_log_entry_size(struct tagfs_log_entry *le)
-{
-	size_t count = 0;
-
-	/* size of struct tagfs_log_entry before union */
-	count += offsetof(struct tagfs_log_entry, tagfs_fc);
-
-	switch (le->tagfs_log_entry_type) {
-	case TAGFS_LOG_FILE:
-	count += 
-}
-#endif
-
 /**
  * tagfs_append_log()
  *
@@ -173,27 +158,6 @@ tagfs_append_log(struct tagfs_log *logp,
 	
 }
 
-//struct tagfs_log_entry
-
-/*
- *XXX do this from a block read, not from the log
- */
-#if 0
-int
-tagfs_create_superblock_file(struct tagfs_log *logp)
-{
-	struct tagfs_log_entry *e;
-	struct tagfs_file_creation *fc = &e->tagfs_fc;
-
-	memset(&e, 0, sizeof(e));
-
-	e->tagfs_log_entry_type = TAGFS_LOG_FILE;
-	fc->tagfs_nextents = 1;
-	fc->tagfs_fc_flags |= TAGFS_FC_ALL_HOSTS_RO;
-	strcpy(fc->tagfs_relpath, TAGFS_SUPERBLOCK_PATH);
-	
-}
-#endif
 
 void print_fsinfo(const struct tagfs_superblock *sb,
 		  const struct tagfs_log        *logp,
@@ -319,7 +283,7 @@ tagfs_fsck(const char *devname,
 
 #define XLEN 256
 
-char *
+static char *
 get_mpt_by_dev(const char *mtdev)
 {
 	FILE * fp;
