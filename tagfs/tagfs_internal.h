@@ -52,7 +52,7 @@ struct tagfs_fs_info {
 	struct mutex fsi_mutex;
 	struct tagfs_mount_opts mount_opts;
 	int num_dax_devs;
-	dev_t dax_devno; /* XXX: do we need to save the devno? I think not */
+	char *root_daxdev;
 	struct dax_device *dax_devp; /* TODO: indexed list of dax_devp's */
 	struct block_device *bdevp;  /* TODO: indexed list of bdevp's (if usigng bdevs)
 				      * (extents would index into the device list) */

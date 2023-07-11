@@ -204,7 +204,6 @@ tagfs_file_ioctl(
 			umeta.extent_type    = meta->tfs_extent_type;
 			umeta.file_size      = i_size_read(inode);
 			umeta.ext_list_count = meta->tfs_extent_ct;
-			strncpy(umeta.devname, meta->dax_devname, TAGFS_DEVNAME_LEN);
 
 			rc = copy_to_user((void __user *)arg, &umeta, sizeof(umeta));
 			if (rc) {

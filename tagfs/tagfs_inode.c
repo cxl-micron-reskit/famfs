@@ -187,10 +187,14 @@ static const struct super_operations tagfs_ops = {
 
 enum tagfs_param {
 	Opt_mode,
+	Opt_dax,
+	Opt_rootdev,
 };
 
 const struct fs_parameter_spec tagfs_fs_parameters[] = {
-	fsparam_u32oct("mode",	Opt_mode),
+	fsparam_u32oct("mode",	  Opt_mode),
+	fsparam_string("dax",     Opt_dax),
+	fsparam_string("rootdev", Opt_rootdev),
 	{}
 };
 
@@ -219,6 +223,51 @@ static int tagfs_parse_param(struct fs_context *fc, struct fs_parameter *param)
 	switch (opt) {
 	case Opt_mode:
 		fsi->mount_opts.mode = result.uint_32 & S_IALLUGO;
+		break;
+	case Opt_dax:
+		if (strcmp(param->string, "always")) {
+			printk(KERN_NOTICE "%s: invalid dax mode %s\n",
+			       __func__, param->string);
+			//return -EINVAL;
+		}
+		break;
+	case Opt_rootdev: {
+		struct block_device *bdevp;
+		struct dax_device *dax_devp;
+		u64 start_off = 0;
+
+		kfree(fsi->root_daxdev);
+		fsi->root_daxdev = kstrdup(param->string, GFP_KERNEL);
+		printk(KERN_NOTICE "%s: root_daxdev=%s\n", __func__, param->string);
+		if (!fsi->root_daxdev)
+			return -ENOMEM;
+
+		printk(KERN_INFO "%s: opening dax block device (%s)\n",
+		       __func__, fsi->root_daxdev);
+
+		/* TODO: open by devno instead?
+		 * (less effective error checking perhaps) */
+		bdevp = blkdev_get_by_path(fsi->root_daxdev, tagfs_blkdev_mode, fsi);
+		if (IS_ERR(bdevp)) {
+			printk(KERN_ERR "%s: failed to open block device (%s)\n"
+			       , __func__, fsi->root_daxdev);
+			return -ENODEV;
+		}
+
+		dax_devp = fs_dax_get_by_bdev(bdevp, &start_off,
+					      fsi  /* holder */,
+					      &tagfs_dax_holder_operations);
+		if (IS_ERR(dax_devp)) {
+			printk(KERN_ERR "%s: unable to get daxdev from bdevp\n",
+			       __func__);
+			blkdev_put(bdevp, tagfs_blkdev_mode);
+			return -ENODEV;
+		}
+		printk(KERN_INFO "%s: dax_devp %llx\n", __func__, (u64)dax_devp);
+		fsi->bdevp = bdevp;
+		fsi->dax_devp = dax_devp;
+	}
+
 		break;
 	}
 

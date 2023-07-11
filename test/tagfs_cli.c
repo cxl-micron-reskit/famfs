@@ -350,7 +350,7 @@ do_tagfs_cli_cp(int argc, char *argv[])
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
-	while ((c = getopt_long(argc, argv, "+F:D:h?",
+	while ((c = getopt_long(argc, argv, "+h?",
 				global_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -360,50 +360,6 @@ do_tagfs_cli_cp(int argc, char *argv[])
 
 		arg_ct++;
 		switch (c) {
-		case 'F':
-		case 'D': {
-			size_t len = 0;
-			struct stat devstat;
-
-			/* Must be first argument */
-			if (arg_ct != 1) {
-				fprintf(stderr, "--daxdev must be the first argument\n");
-				exit(-1);
-			}
-			daxdev = optarg;
-			len = strlen(daxdev);
-			if (len <= 0 || len >= sizeof(filemap.devname)) {
-				fprintf(stderr, "Invalid dax device string: (%s)\n", daxdev);
-				exit(-1);
-			}
-
-			if (stat(daxdev, &devstat) == -1) {
-				fprintf(stderr, "unable to stat special file: %s\n", filename);
-				return -1;
-			}
-
-
-			if (c == 'F') {
-				if (!S_ISBLK(devstat.st_mode)) {
-					fprintf(stderr,
-						"FSDAX special file (%s) is not a block device\n",
-						daxdev);
-				}
-				type = FSDAX_EXTENT;
-			}
-			else if (c == 'D') {
-				if (!S_ISCHR(devstat.st_mode)) {
-					fprintf(stderr,
-						"FSDAX special file (%s) is not a block device\n",
-						daxdev);
-				}
-				type = DAX_EXTENT;
-			}
-
-			strncpy(filemap.devname, daxdev, len);
-			filemap.devno = devstat.st_rdev; /* Device number (dev_t) for the dax dev */
-			break;
-		}
 
 		case 'h':
 		case '?':
@@ -536,7 +492,6 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 
 	printf("File:     %s\n",    filename);
 	printf("\tsize:   %lld\n",  filemap.file_size);
-	printf("\ndaxdev: %s\n",    filemap.devname);
 	printf("\textents: %lld\n", filemap.ext_list_count);
 
 	for (i=0; i<filemap.ext_list_count; i++) {
@@ -589,8 +544,6 @@ do_tagfs_cli_creat(int argc, char *argv[])
 		{"length",      required_argument, &verbose_flag,  'l'},
 		{"num_extents", required_argument,             0,  'n'},
 		{"filename",    required_argument,             0,  'f'},
-		{"daxdev",      required_argument,             0,  'D'},
-		{"fsdaxdev",    required_argument,             0,  'F'},
 		/* These options don't set a flag.
 		   We distinguish them by their indices. */
 		/*{"dryrun",       no_argument,       0, 'n'}, */
@@ -613,7 +566,7 @@ do_tagfs_cli_creat(int argc, char *argv[])
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
-	while ((c = getopt_long(argc, argv, "+n:o:l:f:D:F:h?",
+	while ((c = getopt_long(argc, argv, "+n:o:l:f:h?",
 				global_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -623,50 +576,7 @@ do_tagfs_cli_creat(int argc, char *argv[])
 
 		arg_ct++;
 		switch (c) {
-		case 'F':
-		case 'D': {
-			size_t len = 0;
-			struct stat devstat;
 
-			/* Must be first argument */
-			if (arg_ct != 1) {
-				fprintf(stderr, "--daxdev must be the first argument\n");
-				exit(-1);
-			}
-			daxdev = optarg;
-			len = strlen(daxdev);
-			if (len <= 0 || len >= sizeof(filemap.devname)) {
-				fprintf(stderr, "Invalid dax device string: (%s)\n", daxdev);
-				exit(-1);
-			}
-
-			if (stat(daxdev, &devstat) == -1) {
-				fprintf(stderr, "unable to stat special file: %s\n", filename);
-				return -1;
-			}
-
-
-			if (c == 'F') {
-				if (!S_ISBLK(devstat.st_mode)) {
-					fprintf(stderr,
-						"FSDAX special file (%s) is not a block device\n",
-						daxdev);
-				}
-				type = FSDAX_EXTENT;
-			}
-			else if (c == 'D') {
-				if (!S_ISCHR(devstat.st_mode)) {
-					fprintf(stderr,
-						"FSDAX special file (%s) is not a block device\n",
-						daxdev);
-				}
-				type = DAX_EXTENT;
-			}
-
-			strncpy(filemap.devname, daxdev, len);
-			filemap.devno = devstat.st_rdev; /* Device number (dev_t) for the dax dev */
-			break;
-		}
 		case 'n':
 			num_extents = atoi(optarg);
 			if (num_extents > 0) {

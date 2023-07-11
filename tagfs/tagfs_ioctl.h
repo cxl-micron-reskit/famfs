@@ -32,10 +32,6 @@ struct tagfs_ioc_map {
 	size_t                    file_size;
 	size_t                    ext_list_count;
 	struct tagfs_extent      *ext_list;
-	/* TODO later: move to extents, for file spanning flexibility */
-
-	unsigned char    devname[TAGFS_DEVNAME_LEN]; /* if DAX_EXTENT or BLOCK_EXTENT */
-	dev_t            devno;
 };
 
 /*

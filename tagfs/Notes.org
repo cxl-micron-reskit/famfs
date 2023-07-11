@@ -10,6 +10,9 @@ TODO
 ** TODO Populate log
 
 
+* Add fs parameters
+** DONE primary dax dev
+
 * TODO Integrate wtih googletest and automate baseline set of tests
 * TODO Debug "tagfs cp" cli functionality
 * DONE Need uuid_gen() function in tagfs_lib
