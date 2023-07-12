@@ -8,7 +8,7 @@ TODO
 * Missing functionality
 ** TODO play log into file system
 ** TODO Populate log
-
+** DONE nop ioctl to verify that a file is in a tagfs fs
 
 * Add fs parameters
 ** DONE primary dax dev

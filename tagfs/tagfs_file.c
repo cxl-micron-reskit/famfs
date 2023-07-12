@@ -188,6 +188,10 @@ tagfs_file_ioctl(
 	long rc;
 
 	switch (cmd) {
+	case TAGFSIOC_NOP:
+		rc = 0;
+		break;
+
 	case TAGFSIOC_MAP_CREATE:
 		rc = tagfs_file_create(file, (void *)arg);
 		break;
