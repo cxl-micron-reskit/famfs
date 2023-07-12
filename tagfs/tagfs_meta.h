@@ -52,6 +52,8 @@
 #define TAGFS_SUPERBLOCK_SIZE TAGFS_LOG_OFFSET
 #define TAGFS_SUPERBLOCK_MAX_DAXDEVS 1
 
+#define TAGFS_ALLOC_UNIT 0x200000 /* 2MiB allocation unit */
+
 struct tagfs_daxdev {
 	size_t              dd_size;
 //	struct dax_device  *dd_dax_device;
@@ -135,6 +137,7 @@ enum tagfs_log_entry_type {
 
 /* This log entry creates a file */
 struct tagfs_file_creation {
+	u64     tagfs_fc_size;
 	u32     tagfs_nextents;
 	u32     tagfs_fc_flags;
 	

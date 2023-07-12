@@ -9,6 +9,8 @@ TODO
 ** TODO play log into file system
 ** TODO Populate log
 ** DONE nop ioctl to verify that a file is in a tagfs fs
+** TODO mkfs should fail if the device is not larger than the superblock + log
+** TODO mkfs should make the log smaller if device is small?
 
 * Add fs parameters
 ** DONE primary dax dev

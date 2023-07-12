@@ -112,7 +112,9 @@ main(int argc,
 	if (rc)
 		return -1;
 
-	rc = tagfs_mmap_superblock_and_log(daxdev, &sb, &tagfs_logp, 0 /* read/write */);
+	printf("devsize: %lld\n", devsize);
+
+	rc = tagfs_mmap_superblock_and_log_raw(daxdev, &sb, &tagfs_logp, 0 /* read/write */);
 	if (rc)
 		return -1;
 
