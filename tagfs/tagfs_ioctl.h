@@ -18,7 +18,7 @@ enum extent_type {
 
 struct tagfs_extent {
 	u64              offset;
-	size_t           len;
+	u64              len;
 };
 
 

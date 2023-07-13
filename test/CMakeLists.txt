@@ -15,12 +15,14 @@ include_directories("${PROJECT_SOURCE_DIR}../tagfs")
 
 add_library(libtagfs tagfs_lib.c )
 
+add_executable(mkfile mmap_test.c )
 add_executable(mmap_test mmap_test.c )
 add_executable(tagfs tagfs_cli.c )
 add_executable(mkfs.tagfs mkfs.tagfs.c )
 
 target_link_libraries(tagfs libtagfs uuid)
 target_link_libraries(mkfs.tagfs libtagfs uuid)
+target_link_libraries(mkfile libtagfs uuid)
 
 
 

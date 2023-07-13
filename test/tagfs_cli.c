@@ -354,7 +354,10 @@ tagfs_cp_usage(int   argc,
 	printf("\n"
 	       "Copy a file into a tagfs file system\n"
 	       "    %s <srcfile> <destfile>\n"
-	       "\n", progname);
+	       "\n"
+	       "NOTE: you need this tool to copy a file into a tagfs file system,\n"
+	       "but the standard \'cp\' can be used to copy FROM a tagfs file system.\n",
+	       progname);
 }
 
 /* TODO: add recursive copy? */
@@ -701,11 +704,9 @@ do_tagfs_cli_creat(int argc, char *argv[])
 		fprintf(stderr, "Must supply filename\n");
 		exit(-1);
 	}
-	fd = open(filename, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
-	if (fd < 0) {
-		fprintf(stderr, "open/create failed; rc %d errno %d\n", rc, errno);
-		exit(-1);
-	}
+
+	fd = tagfs_file_create(filename, S_IRUSR|S_IWUSR, 0, 0, fsize);
+
 	rc = ioctl(fd, TAGFSIOC_MAP_CREATE, &filemap);
 	if (rc) {
 		printf("ioctl returned rc %d errno %d\n", rc, errno);

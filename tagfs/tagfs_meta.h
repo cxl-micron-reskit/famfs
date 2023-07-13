@@ -54,6 +54,11 @@
 
 #define TAGFS_ALLOC_UNIT 0x200000 /* 2MiB allocation unit */
 
+static inline size_t round_size_to_alloc_unit(u64 size)
+{
+	return ((size + TAGFS_ALLOC_UNIT - 1) / TAGFS_ALLOC_UNIT) * TAGFS_ALLOC_UNIT;
+}
+
 struct tagfs_daxdev {
 	size_t              dd_size;
 //	struct dax_device  *dd_dax_device;
@@ -142,7 +147,7 @@ struct tagfs_file_creation {
 	u32     tagfs_fc_flags;
 	
 	u8      tagfs_relpath[TAGFS_MAX_PATHLEN];
-	struct  tagfs_log_extent tagfs_log[TAGFS_FC_MAX_EXTENTS];
+	struct  tagfs_log_extent tagfs_ext_list[TAGFS_FC_MAX_EXTENTS];
 };
 
 /* A log entry of type TAGFS_LOG_ACCESS contains a struct tagfs_file_access entry.

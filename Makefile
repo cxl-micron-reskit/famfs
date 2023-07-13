@@ -8,5 +8,5 @@ all:
 
 clean:
 	cd tagfs; make clean
-	rm -rf test/debug test/release
+	-rm -rf test/debug test/release
 

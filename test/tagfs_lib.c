@@ -160,40 +160,6 @@ tagfs_get_device_size(const char       *fname,
 
 }
 
-/**
- * tagfs_append_log()
- *
- * @logp - pointer to struct tagfs_log in memory media
- * @e    - pointer to log entry in memory
- *
- * NOTE: this function is not re-entrant. Must hold a lock or mutex when calling this
- * function if there is any chance of re-entrancy.
- */
-int
-tagfs_append_log(struct tagfs_log *logp,
-		 struct tagfs_log_entry *e)
-{
-	/* XXX This function is not re-entrant */
-	if (!logp || !e)
-		return EINVAL;;
-
-	if (logp->tagfs_log_magic != TAGFS_LOG_MAGIC) {
-		fprintf(stderr, "Log has invalid magic number\n");
-		return EINVAL;
-	}
-
-	if (logp->tagfs_log_next_index >= logp->tagfs_log_last_index) {
-		fprintf(stderr, "log is full \n");
-		return E2BIG;
-	}
-
-	e->tagfs_log_entry_seqnum = logp->tagfs_log_next_seqnum++;
-	memcpy(&logp->entries[logp->tagfs_log_next_index++], e, sizeof(*e));
-	
-	return 0;
-}
-
-
 void
 print_fsinfo(const struct tagfs_superblock *sb,
 	     const struct tagfs_log        *logp,
@@ -576,6 +542,8 @@ mmap_log_file_writable(const char *mpt)
 	return __mmap_log_file(mpt, 0);
 }
 
+/******/
+
 int
 tagfs_logplay(const char *daxdev)
 {
@@ -634,6 +602,91 @@ tagfs_logplay(const char *daxdev)
 	}
 	printf("%s: processed %d log entries\n", __func__, nlog);
 	return 0;
+}
+
+/**
+ * tagfs_append_log()
+ *
+ * @logp - pointer to struct tagfs_log in memory media
+ * @e    - pointer to log entry in memory
+ *
+ * NOTE: this function is not re-entrant. Must hold a lock or mutex when calling this
+ * function if there is any chance of re-entrancy.
+ */
+int
+tagfs_append_log(struct tagfs_log       *logp,
+		 struct tagfs_log_entry *e)
+{
+	/* XXX This function is not re-entrant */
+	if (!logp || !e)
+		return -EINVAL;
+
+	if (logp->tagfs_log_magic != TAGFS_LOG_MAGIC) {
+		fprintf(stderr, "Log has invalid magic number\n");
+		return -EINVAL;
+	}
+
+	if (logp->tagfs_log_next_index >= logp->tagfs_log_last_index) {
+		fprintf(stderr, "log is full \n");
+		return -E2BIG;
+	}
+
+	e->tagfs_log_entry_seqnum = logp->tagfs_log_next_seqnum;
+	memcpy(&logp->entries[logp->tagfs_log_next_index], e, sizeof(*e));
+
+	logp->tagfs_log_next_seqnum++;
+	logp->tagfs_log_next_index++;
+	return 0;
+}
+
+static inline int
+tagfs_log_full(struct tagfs_log *logp)
+{
+	return (logp->tagfs_log_next_index > logp->tagfs_log_last_index);
+}
+
+static int
+tagfs_log_file_creation(
+	struct tagfs_log           *logp,
+	u64                         nextents,
+	struct tagfs_simple_extent *ext_list,
+	const char                 *path,
+	mode_t                      mode,
+	uid_t                       uid,
+	gid_t                       gid,
+	size_t                      size)
+{
+	struct tagfs_log_entry le;
+	struct tagfs_file_creation *fc = &le.tagfs_fc;
+	int i;
+
+	assert(logp);
+	assert(ext_list);
+	assert(nextents >= 1);
+
+	if (tagfs_log_full(logp)) {
+		fprintf(stderr, "%s: log full\n");
+		return -ENOMEM;
+	}
+
+	//le.tagfs_log_entry_seqnum = logp->tagfs_log_next_seqnum++; /* XXX mem ordering */
+	le.tagfs_log_entry_type = TAGFS_LOG_FILE;
+
+	fc->tagfs_fc_size = size;
+	fc->tagfs_nextents = nextents;
+	fc->tagfs_fc_flags = TAGFS_FC_ALL_HOSTS_RW; /* XXX hard coded access for now */
+	strncpy(fc->tagfs_relpath, path, TAGFS_MAX_PATHLEN - 1);
+
+	/* Copy extents into log entry */
+	for (i=0; i<nextents; i++) {
+		struct tagfs_log_extent *ext = &fc->tagfs_ext_list[i];
+
+		ext->tagfs_extent_type = TAGFS_EXT_SIMPLE;
+		ext->se.tagfs_extent_offset = ext_list[i].tagfs_extent_offset;
+		ext->se.tagfs_extent_len    = ext_list[i].tagfs_extent_len;
+	}
+
+	return tagfs_append_log(logp, &le);
 }
 
 int
@@ -732,6 +785,46 @@ open_superblock_file_writable(const char *path,
 }
 
 /**
+ * tagfs_validate_superblock_by_path()
+ *
+ * @path
+ *
+ * Validate the superblock and return the dax device size, or -1 if sb or size invalid
+ */
+static ssize_t
+tagfs_validate_superblock_by_path(const char *path)
+{
+	int sfd;
+	void *addr;
+	size_t sb_size;
+	ssize_t daxdevsize;
+	struct tagfs_superblock *sb;
+
+	/* XXX should be read only, but that doesn't work */
+	sfd = open_superblock_file_writable(path, &sb_size);
+	if (sfd < 0)
+		return sfd;
+
+	/* XXX should be read only, but that doesn't work */
+	addr = mmap(0, sb_size, O_RDWR, MAP_SHARED, sfd, 0);
+	if (addr == MAP_FAILED) {
+		fprintf(stderr, "Failed to mmap superblock file\n", __func__);
+		close(sfd);
+		return -1;
+	}
+	sb = (struct tagfs_superblock *)addr;
+
+	if (tagfs_check_super(sb)) {
+		fprintf(stderr, "%s: invalid superblock\n", __func__);
+		return -1;
+	}
+	daxdevsize = sb->ts_devlist[0].dd_size;
+	munmap(sb, TAGFS_SUPERBLOCK_SIZE);
+	close(sfd);
+	return daxdevsize;
+}
+
+/**
  * tagfs_build_bitmap()
  *
  * XXX: this is only aware of the first daxdev in the superblock's list
@@ -766,7 +859,7 @@ tagfs_build_bitmap(const struct tagfs_superblock *sb,
 		switch (le->tagfs_log_entry_type) {
 		case TAGFS_LOG_FILE: {
 			struct tagfs_file_creation *fc = &le->tagfs_fc;
-			struct tagfs_log_extent *ext = fc->tagfs_log;
+			struct tagfs_log_extent *ext = fc->tagfs_ext_list;
 
 			printf("%: file=%s size=%ld", __func__,
 			       fc->tagfs_relpath, fc->tagfs_fc_size);
@@ -846,24 +939,28 @@ bitmap_alloc_contiguous(u8 *bitmap,
  * XXX currently only contiuous allocations are supported
  */
 s64
-tagfs_alloc_bypath(const char *path,
-		   u64 size)
+tagfs_alloc_bypath(
+	struct tagfs_log *logp,
+	const char       *path,
+	u64               size)
 {
 	char *mpt;
 	struct tagfs_superblock *sb;
-	struct tagfs_log *logp;
 	void *addr;
 	int nlog = 0;
 	u8 *bitmap;
 	u64 nbits;
 	u64 offset;
 	int sfd, lfd;
-	size_t sb_size, log_size;
+	size_t log_size;
 	u64 daxdevsize;
 
 	if (size <= 0)
 		return -1;
 #if 1
+	if (tagfs_validate_superblock_by_path(path))
+		return -1;
+#else
 	/* XXX should be read only, but that doesn't work */
 	sfd = open_superblock_file_writable(path, &sb_size);
 	if (sfd < 0)
@@ -887,6 +984,7 @@ tagfs_alloc_bypath(const char *path,
 	close(sfd);
 #endif
 
+#if 0
 	/* Log file */
 	lfd = open_log_file_writable(path, &log_size);
 	if (lfd < 0)
@@ -900,6 +998,7 @@ tagfs_alloc_bypath(const char *path,
 	}
 	close(lfd);
 	logp = (struct tagfs_log *)addr;
+#endif
 
 	bitmap = tagfs_build_bitmap(sb, logp, daxdevsize, &nbits);
 	printf("\nbitmap before:\n");
@@ -923,57 +1022,116 @@ __file_not_tagfs(int fd)
 	return 0;
 }
 
-/**
- * tagfs_file_alloc()
- *
- * Alllocate space for a file, making it ready to use
- */
-static int
-tagfs_file_alloc(int         fd,
-		 const char *path,
-		 u64         size)
+int
+tagfs_file_map_create(
+	int                         fd,
+	size_t                      size,
+	int                         nextents,
+	struct tagfs_simple_extent *ext_list)
 {
-	struct tagfs_ioc_map filemap = {0};
-	struct tagfs_extent ext = {0};
-	s64 offset;
+	struct tagfs_ioc_map filemap;
+	struct tagfs_extent *ext;
 	int rc;
+	int i;
 
 	assert(fd > 0);
 
-	/* Allocation is always contiguous initially */
-	offset = tagfs_alloc_bypath(path, size);
-	if (offset < 0)
-		return -1;
+	ext = calloc(nextents, sizeof(struct tagfs_extent));
+	if (!ext)
+		return -ENOMEM;
 
-	filemap.file_size = size;
-	filemap.extent_type = FSDAX_EXTENT;
-	filemap.ext_list_count = 1;
+	filemap.file_size      = size;
+	filemap.extent_type    = FSDAX_EXTENT;
+	filemap.ext_list_count = nextents;
 
-	/* Round length up to 2 MiB boundary */
-	ext.len = ((size + TAGFS_ALLOC_UNIT - 1) / TAGFS_ALLOC_UNIT) * TAGFS_ALLOC_UNIT;
-	ext.offset = offset;
-	filemap.ext_list = &ext; /* XXX only one extent so this is a list */
+	for (i=0; i<nextents; i++) {
+		ext[i].offset = ext_list[i].tagfs_extent_offset;
+		ext[i].len    = ext_list[i].tagfs_extent_len;
+	}
 
 	rc = ioctl(fd, TAGFSIOC_MAP_CREATE, &filemap);
 	if (rc) {
 		printf("ioctl returned rc %d errno %d\n", rc, errno);
 		perror("ioctl");
-		return rc;
 	}
-	return 0;
+	free(ext);
+	return rc;
+}
+
+/**
+ * tagfs_file_alloc()
+ *
+ * Alllocate space for a file, making it ready to use
+ */
+int
+tagfs_file_alloc(
+	int         fd,
+	const char *path,
+	mode_t      mode,
+	uid_t       uid,
+	gid_t       gid,
+	u64         size)
+{
+	struct tagfs_ioc_map filemap = {0};
+	struct tagfs_simple_extent ext = {0};
+	struct tagfs_log *logp;
+	size_t log_size;
+	s64 offset;
+	void *addr;
+	int lfd;
+	int rc;
+
+	assert(fd > 0);
+
+	/* Log file */
+	lfd = open_log_file_writable(path, &log_size);
+	if (lfd < 0)
+		return lfd;
+
+	addr = mmap(0, log_size, O_RDWR, MAP_SHARED, lfd, 0);
+	if (addr == MAP_FAILED) {
+		fprintf(stderr, "Failed to mmap log file", __func__);
+		close(lfd);
+		return -1;
+	}
+	close(lfd);
+	logp = (struct tagfs_log *)addr;
+
+	/* Allocation is always contiguous initially */
+	offset = tagfs_alloc_bypath(logp, path, size);
+	if (offset < 0)
+		return -1;
+
+	ext.tagfs_extent_len    = round_size_to_alloc_unit(size);
+	ext.tagfs_extent_offset = offset;
+
+	rc = tagfs_log_file_creation(logp, 1, &ext,
+				     path, mode, uid, gid, size);
+	if (rc)
+		return rc;
+
+	return tagfs_file_map_create(fd, size, 1, &ext);
 }
 
 /**
  * tagfs_file_create()
  *
  * Create a file but don't allocate dax space yet
+ *
+ * @path
+ * @mode
+ * @uid  - used if both uid and gid are non-null
+ * @gid  - used if both uid and gid are non-null
+ * @size
+ *
+ * Returns a file descriptior or -EBADF if the path is not in a tagfs file system
  */
-static int
+int
 tagfs_file_create(const char *path,
-		  mode_t mode,
-		  uid_t uid,
-		  gid_t gid,
-		  size_t size)
+		  mode_t      mode,
+		  uid_t       uid,
+		  gid_t       gid,
+		  size_t      size)
 {
 	int rc = 0;
 	int fd = open(path, O_RDWR | O_CREAT, mode);
@@ -985,6 +1143,13 @@ tagfs_file_create(const char *path,
 		close(fd);
 		unlink(path);
 		return -EBADF;
+	}
+
+	if (uid && gid) {
+		rc = fchown(fd, uid, gid);
+		if (rc)
+			fprintf(stderr, "%s: fchown returned %d errno %d\n",
+				__func__, rc, errno);
 	}
 	return fd;
 }
@@ -1048,7 +1213,8 @@ tagfs_cp(char *srcfile,
 		return rc;
 	}
 
-	rc = tagfs_file_alloc(destfd, destfile, srcstat.st_size);
+	rc = tagfs_file_alloc(destfd, destfile, srcstat.st_mode, srcstat.st_uid, srcstat.st_gid,
+			      srcstat.st_size);
 	if (rc) {
 		fprintf(stderr, "%s: failed to allocate size %ld for file %s\n",
 			__func__, srcstat.st_size, destfile);

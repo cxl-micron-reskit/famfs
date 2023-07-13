@@ -6,11 +6,20 @@ TODO
 ** mkfs.tagfs <dev>
 
 * Missing functionality
+** TODO Create log entry when allocating/creating a file
 ** TODO play log into file system
+** TODO un-tar into file system
 ** TODO Populate log
 ** DONE nop ioctl to verify that a file is in a tagfs fs
 ** TODO mkfs should fail if the device is not larger than the superblock + log
 ** TODO mkfs should make the log smaller if device is small?
+
+* Needed for testability
+** TODO create files of arbitrary sizes
+** TODO randomize file content based on supplied key (so files can be verified)
+** TODO tool to write/read/verify flexibly with both mmap and posix write/read
+** TODO Read log and build bitmap, detecting duplicate memory references
+** TODO intentional creation of duplicate memory references (alloc with specific extents)
 
 * Add fs parameters
 ** DONE primary dax dev
@@ -32,7 +41,7 @@ Oof, this requires a persistent mmap of the superblock and log from the in-memor
 * TODO generate some proper mmap test cases
 * TODO generate proper buffered I/O test cases
 * TODO Generate tools for a recursive copy into tagfs file system
-* TODO top level makefile that builds everything
+* DONE top level makefile that builds everything
 * TODO Debug accessing dax device without block device
 * TODO Study what happens when tagfs file is "of" for dd
 The file gets truncated to zero-length, but then no writing happens

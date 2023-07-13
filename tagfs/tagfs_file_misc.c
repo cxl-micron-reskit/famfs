@@ -127,6 +127,7 @@ tagfs_file_create(
 		goto errout;
 	}
 
+	/* Copyin the extent list (in dax offset space) of the file */
 	rc = copy_from_user(tfs_extents, imap.ext_list,
 			    ext_count * sizeof(*tfs_extents));
 	if (rc) {
@@ -144,16 +145,18 @@ tagfs_file_create(
 		/* Each offset must be huge page aligned */
 		/* TODO */
 	}
-	if (count != imap.file_size) {
+
+	/* File size can be <= ext list size, since extent sizes are constrained */
+	if (imap.file_size > count) {
 		rc = -EINVAL;
 		goto errout;
 	}
-	
+	/* TODO: if imap.file_size exceeds ext list count by a full extent, should at leasst warn */
+
 	rc = tagfs_meta_alloc(&meta, ext_count);
 	if (rc) {
 		goto errout;
 	}
-
 
 	/* Fill in the internal file metadata structure */
 	for (i=0; i<imap.ext_list_count; i++) {
