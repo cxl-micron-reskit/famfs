@@ -166,7 +166,7 @@ tagfs_mkmeta_usage(int   argc,
 	unsigned char *progname = argv[0];
 
 	printf("\n"
-	       "Check a tagfs file system\n"
+	       "Expose the meta files of a tagfs file system\n"
 	       "    %s <memdevice>\n"
 	       "\n", progname);
 }

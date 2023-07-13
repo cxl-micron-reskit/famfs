@@ -946,6 +946,7 @@ tagfs_alloc_bypath(
 {
 	char *mpt;
 	struct tagfs_superblock *sb;
+	ssize_t daxdevsize;
 	void *addr;
 	int nlog = 0;
 	u8 *bitmap;
@@ -953,52 +954,13 @@ tagfs_alloc_bypath(
 	u64 offset;
 	int sfd, lfd;
 	size_t log_size;
-	u64 daxdevsize;
 
 	if (size <= 0)
 		return -1;
-#if 1
-	if (tagfs_validate_superblock_by_path(path))
-		return -1;
-#else
-	/* XXX should be read only, but that doesn't work */
-	sfd = open_superblock_file_writable(path, &sb_size);
-	if (sfd < 0)
-		return sfd;
 
-	/* XXX should be read only, but that doesn't work */
-	addr = mmap(0, sb_size, O_RDWR, MAP_SHARED, sfd, 0);
-	if (addr == MAP_FAILED) {
-		fprintf(stderr, "Failed to mmap superblock file\n", __func__);
-		close(sfd);
-		return -1;
-	}
-	sb = (struct tagfs_superblock *)addr;
-
-	if (tagfs_check_super(sb)) {
-		fprintf(stderr, "%s: invalid superblock\n", __func__);
-		return -1;
-	}
-	daxdevsize = sb->ts_devlist[0].dd_size;
-	munmap(sb, TAGFS_SUPERBLOCK_SIZE);
-	close(sfd);
-#endif
-
-#if 0
-	/* Log file */
-	lfd = open_log_file_writable(path, &log_size);
-	if (lfd < 0)
-		return lfd;
-
-	addr = mmap(0, log_size, O_RDWR, MAP_SHARED, lfd, 0);
-	if (addr == MAP_FAILED) {
-		fprintf(stderr, "Failed to mmap log file", __func__);
-		close(lfd);
-		return -1;
-	}
-	close(lfd);
-	logp = (struct tagfs_log *)addr;
-#endif
+	daxdevsize = tagfs_validate_superblock_by_path(path);
+	if (daxdevsize < 0)
+		return daxdevsize;
 
 	bitmap = tagfs_build_bitmap(sb, logp, daxdevsize, &nbits);
 	printf("\nbitmap before:\n");
@@ -1043,6 +1005,7 @@ tagfs_file_map_create(
 	filemap.file_size      = size;
 	filemap.extent_type    = FSDAX_EXTENT;
 	filemap.ext_list_count = nextents;
+	filemap.ext_list       = ext;
 
 	for (i=0; i<nextents; i++) {
 		ext[i].offset = ext_list[i].tagfs_extent_offset;
