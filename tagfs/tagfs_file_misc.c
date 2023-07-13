@@ -12,6 +12,9 @@
 #include "tagfs_ioctl.h"
 #include "tagfs_meta.h"
 
+/* For GDB debug; remove later... */
+#pragma GCC optimize ("O1")
+
 /**
  * tagfs_map_meta_alloc() - Allocate mcache map metadata
  * @mapp:       Pointer to an mcache_map_meta pointer
@@ -139,12 +142,8 @@ tagfs_file_create(
 
 	/* Look through the extents and make sure they meet alignment reqs and
 	 * add up to the right size */
-	for (i=0; i<imap.ext_list_count; i++) {
-		count += imap.ext_list[i].len;
-
-		/* Each offset must be huge page aligned */
-		/* TODO */
-	}
+	for (i=0; i<imap.ext_list_count; i++)
+		count += tfs_extents[i].len;
 
 	/* File size can be <= ext list size, since extent sizes are constrained */
 	if (imap.file_size > count) {
