@@ -352,6 +352,44 @@ tagfs_get_mpt_by_dev(const char *mtdev)
 	return NULL;
 }
 
+int
+tagfs_file_map_create(
+	const char *                path,
+	int                         fd,
+	size_t                      size,
+	int                         nextents,
+	struct tagfs_simple_extent *ext_list)
+{
+	struct tagfs_ioc_map filemap;
+	struct tagfs_extent *ext;
+	int rc;
+	int i;
+
+	assert(fd > 0);
+
+	ext = calloc(nextents, sizeof(struct tagfs_extent));
+	if (!ext)
+		return -ENOMEM;
+
+	filemap.file_size      = size;
+	filemap.extent_type    = FSDAX_EXTENT;
+	filemap.ext_list_count = nextents;
+	filemap.ext_list       = ext;
+
+	for (i=0; i<nextents; i++) {
+		ext[i].offset = ext_list[i].tagfs_extent_offset;
+		ext[i].len    = ext_list[i].tagfs_extent_len;
+	}
+
+	rc = ioctl(fd, TAGFSIOC_MAP_CREATE, &filemap);
+	if (rc)
+		fprintf(stderr, "%s: failed MAP_CREATE for file %s (errno %d)\n",
+			__func__, path, errno);
+
+	free(ext);
+	return rc;
+}
+
 /**
  * tagfs_mkmeta()
  *
@@ -370,6 +408,7 @@ tagfs_mkmeta(const char *devname)
 	struct tagfs_ioc_map log_map = {0};
 	struct tagfs_superblock *sb;
 	struct tagfs_log *logp;
+	struct tagfs_simple_extent ext;
 
 	dirpath[0] = 0;
 
@@ -416,21 +455,12 @@ tagfs_mkmeta(const char *devname)
 		fprintf(stderr, "%s: failed to create file %s\n", __func__, sb_file);
 		return -1;
 	}
-	sb_map.extent_type    = FSDAX_EXTENT;
-	sb_map.file_size      = TAGFS_SUPERBLOCK_SIZE;
-	sb_map.ext_list_count = 1;
 
-	sb_map.ext_list = calloc(1, sizeof(struct tagfs_extent));
-	sb_map.ext_list[0].offset = 0;
-	sb_map.ext_list[0].len = TAGFS_SUPERBLOCK_SIZE;
-
-	rc = ioctl(sbfd, TAGFSIOC_MAP_CREATE, &sb_map);
-	if (sbfd < 0) {
-		fprintf(stderr, "MAP_CREATE failed for %s; rc %d errno %d\n",
-			sb_file, rc, errno);
-		unlink(sb_file);
+	ext.tagfs_extent_offset = 0;
+	ext.tagfs_extent_len    = TAGFS_SUPERBLOCK_SIZE;
+	rc = tagfs_file_map_create(sb_file, sbfd, TAGFS_SUPERBLOCK_SIZE, 1, &ext);
+	if (rc)
 		return -1;
-	}
 
 	/* Create and allocate log file */
 	logfd = open(log_file, O_RDWR|O_CREAT, S_IRUSR|S_IWUSR);
@@ -439,20 +469,11 @@ tagfs_mkmeta(const char *devname)
 		return -1;
 	}
 
-	log_map.extent_type     = FSDAX_EXTENT;
-	log_map.file_size       = sb->ts_log_len;
-	log_map.ext_list_count  = 1;
-	log_map.ext_list = calloc(1, sizeof(struct tagfs_extent));
-	log_map.ext_list[0].offset = sb->ts_log_offset;
-	log_map.ext_list[0].len = sb->ts_log_len;
-
-	rc = ioctl(logfd, TAGFSIOC_MAP_CREATE, &log_map);
-	if (rc) {
-		fprintf(stderr, "MAP_CREATE failed for %s; rc %d errno %d\n",
-			sb_file, rc, errno);
-		unlink(log_file);
+	ext.tagfs_extent_offset = sb->ts_log_offset;
+	ext.tagfs_extent_len    = sb->ts_log_len;
+	rc = tagfs_file_map_create(log_file, logfd, sb->ts_log_len, 1, &ext);
+	if (rc)
 		return -1;
-	}
 
 	close(sbfd);
 	close(logfd);
@@ -984,43 +1005,6 @@ __file_not_tagfs(int fd)
 	return 0;
 }
 
-int
-tagfs_file_map_create(
-	int                         fd,
-	size_t                      size,
-	int                         nextents,
-	struct tagfs_simple_extent *ext_list)
-{
-	struct tagfs_ioc_map filemap;
-	struct tagfs_extent *ext;
-	int rc;
-	int i;
-
-	assert(fd > 0);
-
-	ext = calloc(nextents, sizeof(struct tagfs_extent));
-	if (!ext)
-		return -ENOMEM;
-
-	filemap.file_size      = size;
-	filemap.extent_type    = FSDAX_EXTENT;
-	filemap.ext_list_count = nextents;
-	filemap.ext_list       = ext;
-
-	for (i=0; i<nextents; i++) {
-		ext[i].offset = ext_list[i].tagfs_extent_offset;
-		ext[i].len    = ext_list[i].tagfs_extent_len;
-	}
-
-	rc = ioctl(fd, TAGFSIOC_MAP_CREATE, &filemap);
-	if (rc) {
-		printf("ioctl returned rc %d errno %d\n", rc, errno);
-		perror("ioctl");
-	}
-	free(ext);
-	return rc;
-}
-
 /**
  * tagfs_file_alloc()
  *
@@ -1073,7 +1057,7 @@ tagfs_file_alloc(
 	if (rc)
 		return rc;
 
-	return tagfs_file_map_create(fd, size, 1, &ext);
+	return tagfs_file_map_create(path, fd, size, 1, &ext);
 }
 
 /**
