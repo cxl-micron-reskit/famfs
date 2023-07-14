@@ -96,9 +96,6 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 	unsigned char *daxdev = NULL;
 	unsigned char *realdaxdev = NULL;
 
-	char *srcfile;
-	char *destfile;
-
 	/* XXX can't use any of the same strings as the global args! */
 	struct option map_options[] = {
 		/* These options set a */
@@ -154,7 +151,7 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 		fprintf(stderr, "%s: realpath(%s) returned %d\n", __func__, errno);
 		return -1;
 	}
-	//tagfs_logplay(realdaxdev);
+	tagfs_logplay(realdaxdev);
 	return 0;
 }
 
@@ -340,7 +337,7 @@ do_tagfs_cli_fsck(int argc, char *argv[])
 	}
 	/* TODO: multiple devices? */
 	daxdev = argv[optind++];
-	return tagfs_fsck(daxdev, 1 /* verbose */);
+	return tagfs_fsck(daxdev, verbose_flag);
 }
 
 
@@ -970,16 +967,6 @@ tagfs_cli_cmd tagfs_cli_cmds[] = {
 	{"mkmeta",  do_tagfs_cli_mkmeta,  tagfs_mkmeta_usage},
 	{"logplay", do_tagfs_cli_logplay, tagfs_logplay_usage},
 
-#if 0
-	{"snoop",   do_tagfs_cli_snoop,   help_tagfs_cli_snoop },
-	{"pagemap", do_tagfs_cli_pagemap, help_tagfs_cli_pagemap },
-	{"cread",   do_tagfs_cli_cread,   help_tagfs_cli_cread },
-	{"put",     do_tagfs_cli_put,     help_tagfs_cli_put },
-	{"mmdebug", do_tagfs_cli_mmdebug, help_tagfs_cli_mmdebug },
-	{"snorg",   do_tagfs_cli_snorg,   help_tagfs_cli_snorg },
-	{"foo",     do_tagfs_cli_foo,     help_tagfs_cli_foo   },
-	{"help",    tagfs_cli_help,       do_tagfs_cli_help },
-#endif
 	{NULL, NULL, NULL}
 };
 

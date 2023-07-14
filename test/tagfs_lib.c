@@ -104,7 +104,6 @@ tagfs_get_device_size(const char       *fname,
 
 	switch (st.st_mode & S_IFMT) {
 	case S_IFBLK:
-		printf("%s is a block device\n", fname);
 		if (type)
 			*type = FSDAX_EXTENT;
 		break;
@@ -165,23 +164,45 @@ print_fsinfo(const struct tagfs_superblock *sb,
 	     const struct tagfs_log        *logp,
 	     int                            verbose)
 {
-	size_t  total_log_size;
+	size_t total_log_size;
+	size_t effective_log_size;
+	size_t total_dev_size;
 	int i;
+	u64 errors = 0;
+	u8 *bitmap;
+
+	effective_log_size = sizeof(*logp) +
+		(logp->tagfs_log_next_index * sizeof(struct tagfs_log_entry));
+
+	printf("Tagfs Superblock:\n");
+	printf("  UUID:   ");
+	tagfs_print_uuid(&sb->ts_uuid);
+	printf("  sizeof superblock: %ld\n", sizeof(struct tagfs_superblock));
+	printf("  num_daxdevs:              %d\n", sb->ts_num_daxdevs);
+	for (i=0; i<sb->ts_num_daxdevs; i++) {
+		if (i==0)
+			printf("  primary: ");
+		else
+			printf("         %d: ");
+		printf("%s   %lld\n",
+		       sb->ts_devlist[i].dd_daxdev, sb->ts_devlist[i].dd_size);
+	}
+
+	printf("\nLog stats:\n");
+	printf("  # of log entriesi in use: %ld of %ld\n",
+	       logp->tagfs_log_next_index, logp->tagfs_log_last_index + 1);
+	printf("  Log size in use:          %ld\n", effective_log_size);
+
+	bitmap = tagfs_build_bitmap(sb, logp,  sb->ts_devlist[0].dd_size, NULL, &errors, 0);
+	if (errors)
+		printf("ERROR: %ld ALLOCATION COLLISIONS FOUND\n", errors);
+	else
+		printf("  No allocation errors found\n");
+
+	free(bitmap);
 
 	if (verbose) {
-		printf("sizeof superblock: %ld\n", sizeof(struct tagfs_superblock));
-		printf("Superblock UUID:   ");
-		tagfs_print_uuid(&sb->ts_uuid);
 
-		printf("num_daxdevs:       %d\n", sb->ts_num_daxdevs);
-		for (i=0; i<sb->ts_num_daxdevs; i++) {
-			if (i==0)
-				printf("primary: ");
-			else
-				printf("       %d: ");
-
-			printf("%s   %lld\n", sb->ts_devlist[i].dd_daxdev, sb->ts_devlist[i].dd_size);
-		}
 
 		printf("log_offset:        %ld\n", sb->ts_log_offset);
 		printf("log_len:           %ld\n", sb->ts_log_len);
@@ -191,7 +212,7 @@ print_fsinfo(const struct tagfs_superblock *sb,
 
 		printf("last_log_index:    %ld\n", logp->tagfs_log_last_index);
 		total_log_size = sizeof(struct tagfs_log)
-			+ (sizeof(struct tagfs_log_entry) * logp->tagfs_log_last_index);
+			+ (sizeof(struct tagfs_log_entry) * (1 + logp->tagfs_log_last_index));
 		printf("full log size:     %ld\n", total_log_size);
 		printf("TAGFS_LOG_LEN:     %ld\n", TAGFS_LOG_LEN);
 		printf("Remainder:         %ld\n", TAGFS_LOG_LEN - total_log_size);
@@ -283,8 +304,6 @@ tagfs_fsck(const char *devname,
 	if (rc < 0)
 		return -1;
 
-	printf("device: %s\n", devname);
-	printf("size:   %ld\n", size);
 	rc = tagfs_mmap_superblock_and_log_raw(devname, &sb, &logp, 1 /* read-only */);
 
 	if (tagfs_check_super(sb)) {
@@ -572,6 +591,7 @@ mmap_log_file_writable(const char *mpt)
 
 /******/
 
+/* this is by device; moving toward using the log file instead */
 int
 tagfs_logplay(const char *daxdev)
 {
@@ -852,45 +872,62 @@ tagfs_validate_superblock_by_path(const char *path)
 	return daxdevsize;
 }
 
-/**
- * tagfs_build_bitmap()
- *
- * XXX: this is only aware of the first daxdev in the superblock's list
- */
-u8 *
-tagfs_build_bitmap(const struct tagfs_superblock *sb,
-		   struct tagfs_log              *logp,
-		   u64                            size_in,
-		   u64                           *size_out)
+static inline void
+put_sb_log_into_bitmap(u8 *bitmap)
 {
-	int npages = (size_in - TAGFS_SUPERBLOCK_SIZE - TAGFS_LOG_LEN) / TAGFS_ALLOC_UNIT;
-	int bitmap_size = mu_bitmap_size(npages);
-	u8 *bitmap = calloc(1, bitmap_size);
-	int i, j;
-
-	if (!bitmap)
-		return NULL;
+	int i;
 
 	/* Mark superblock and log as allocated */
-	/* XXX: currently there are no log entries for superblock and log */
 	mu_bitmap_set(bitmap, 0);
 
 	for (i=1; i<((TAGFS_LOG_OFFSET + TAGFS_LOG_LEN) / TAGFS_ALLOC_UNIT); i++)
 		mu_bitmap_set(bitmap, i);
+}
+
+/**
+ * tagfs_build_bitmap()
+ *
+ * XXX: this is only aware of the first daxdev in the superblock's list
+ * @sb
+ * @logp
+ * @size_in   - total size of allocation space in bytes
+ * @size_out  - size of the bitmap
+ * @errors    - number of times a file referenced a bit that was already set
+ */
+u8 *
+tagfs_build_bitmap(const struct tagfs_superblock *sb,
+		   const struct tagfs_log        *logp,
+		   u64                            size_in,
+		   u64                           *size_out,
+		   u64                           *alloc_errors,
+		   int                            verbose)
+{
+	int npages = (size_in - TAGFS_SUPERBLOCK_SIZE - TAGFS_LOG_LEN) / TAGFS_ALLOC_UNIT;
+	int bitmap_size = mu_bitmap_size(npages);
+	u8 *bitmap = calloc(1, bitmap_size);
+	u64 errors = 0;
+	int i, j;
+	int rc;
+
+	if (!bitmap)
+		return NULL;
+
+	put_sb_log_into_bitmap(bitmap);
 
 	/* This loop is over all log entries */
 	for (i=0; i<logp->tagfs_log_next_index; i++) {
-		struct tagfs_log_entry *le = &logp->entries[i];
+		const struct tagfs_log_entry *le = &logp->entries[i];
 
 		/* TODO: validate log sequence number */
 
 		switch (le->tagfs_log_entry_type) {
 		case TAGFS_LOG_FILE: {
-			struct tagfs_file_creation *fc = &le->tagfs_fc;
-			struct tagfs_log_extent *ext = fc->tagfs_ext_list;
+			const struct tagfs_file_creation *fc = &le->tagfs_fc;
+			const struct tagfs_log_extent *ext = fc->tagfs_ext_list;
 
-			printf("%: file=%s size=%ld", __func__,
-			       fc->tagfs_relpath, fc->tagfs_fc_size);
+			if (verbose)
+				printf("%s: file=%s size=%ld\n", __func__,
+				       fc->tagfs_relpath, fc->tagfs_fc_size);
 
 			/* For each extent in this log entry, mark the bitmap as allocated */
 			for (j=0; j<fc->tagfs_nextents; j++) {
@@ -904,7 +941,9 @@ tagfs_build_bitmap(const struct tagfs_superblock *sb,
 					/ TAGFS_ALLOC_UNIT;
 
 				for (k=page_num; k<(page_num + np); k++) {
-					mu_bitmap_set(bitmap, k);
+					rc = mu_bitmap_test_and_set(bitmap, k);
+					if (rc == 0)
+						errors++; /* bit was already set */
 				}
 			}
 			break;
@@ -915,7 +954,10 @@ tagfs_build_bitmap(const struct tagfs_superblock *sb,
 			break;
 		}
 	}
-	*size_out = bitmap_size;
+	if (alloc_errors)
+		*alloc_errors = errors;
+	if (size_out)
+		*size_out = bitmap_size;
 	return bitmap;
 }
 
@@ -990,7 +1032,7 @@ tagfs_alloc_bypath(
 	if (daxdevsize < 0)
 		return daxdevsize;
 
-	bitmap = tagfs_build_bitmap(sb, logp, daxdevsize, &nbits);
+	bitmap = tagfs_build_bitmap(sb, logp, daxdevsize, &nbits, NULL, 0);
 	printf("\nbitmap before:\n");
 	mu_print_bitmap(bitmap, nbits);
 	offset = bitmap_alloc_contiguous(bitmap, nbits, size);

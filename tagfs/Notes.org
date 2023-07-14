@@ -9,15 +9,15 @@ TODO
 ** DONE Create log entry when allocating/creating a file
 ** TODO play log into file system
 ** TODO un-tar into file system
-** TODO Populate log
+** DONE Populate log
 ** DONE nop ioctl to verify that a file is in a tagfs fs
 ** TODO mkfs should fail if the device is not larger than the superblock + log
 ** TODO mkfs should make the log smaller if device is small?
 
 * Needed for testability
-** TODO create files of arbitrary sizes
+** DONE create files of arbitrary sizes
 tagfs creat -s <size>
-** TODO create files with arbitrary extent lists
+** TODO create files with arbitrary extent lists and warn if extent conflicts
 tagfs creat -n 2 --offset 0 --length 0x200000 --offset 0x400000 --length 0x200000
 
 ** DONE randomize file content based on supplied key (so files can be verified)
