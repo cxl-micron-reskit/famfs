@@ -52,7 +52,7 @@ int tagfs_logplay(const char *daxdev);
 int tagfs_file_create(const char *path, mode_t mode, uid_t uid, gid_t gid, size_t size);
 
 int tagfs_cp(char *srcfile, char *destfile);
-u8 *tagfs_build_bitmap(const struct tagfs_superblock *sb, const struct tagfs_log *logp, u64 size_in,
+u8 *tagfs_build_bitmap(const struct tagfs_log *logp, u64 size_in,
 		       u64 *size_out, u64 *errors, int verbose);
 
 #endif /* _H_TAGFS_LIB */

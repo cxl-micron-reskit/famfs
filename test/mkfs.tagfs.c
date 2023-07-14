@@ -24,7 +24,7 @@ void
 print_usage(int   argc,
 	    char *argv[])
 {
-	unsigned char *progname = argv[0];
+	char *progname = argv[0];
 
 	printf("\n"
 	       "Create one or more HPA based extent:\n"
@@ -53,21 +53,13 @@ int
 main(int argc,
      char *argv[])
 {
-	struct tagfs_extent *ext_list;
-	int c, i, rc, fd;
-	char *filename = NULL;
+	int c, rc;
 
-	int num_extents = 0;
-	int cur_extent  = 0;
-
-	size_t ext_size;
-	size_t fsize = 0;
 	int arg_ct = 0;
 	enum extent_type type = HPA_EXTENT;
-	unsigned char *daxdev = NULL;
+	char *daxdev = NULL;
 	int force = 0;
 
-	char *sb_buf;
 	struct tagfs_superblock *sb;
 	struct tagfs_log *tagfs_logp;
 	size_t devsize;
@@ -112,7 +104,7 @@ main(int argc,
 	if (rc)
 		return -1;
 
-	printf("devsize: %lld\n", devsize);
+	printf("devsize: %ld\n", devsize);
 
 	rc = tagfs_mmap_superblock_and_log_raw(daxdev, &sb, &tagfs_logp, 0 /* read/write */);
 	if (rc)

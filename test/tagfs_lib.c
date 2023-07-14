@@ -87,8 +87,7 @@ tagfs_get_device_size(const char       *fname,
 		      enum extent_type *type)
 {
 	char spath[PATH_MAX];
-	char npath[PATH_MAX];
-	char *rpath, *basename;
+	char *basename;
 	FILE *sfile;
 	u_int64_t size_i;
 	struct stat st;
@@ -166,7 +165,6 @@ print_fsinfo(const struct tagfs_superblock *sb,
 {
 	size_t total_log_size;
 	size_t effective_log_size;
-	size_t total_dev_size;
 	int i;
 	u64 errors = 0;
 	u8 *bitmap;
@@ -183,19 +181,19 @@ print_fsinfo(const struct tagfs_superblock *sb,
 		if (i==0)
 			printf("  primary: ");
 		else
-			printf("         %d: ");
-		printf("%s   %lld\n",
+			printf("         %d: ", i);
+		printf("%s   %ld\n",
 		       sb->ts_devlist[i].dd_daxdev, sb->ts_devlist[i].dd_size);
 	}
 
 	printf("\nLog stats:\n");
-	printf("  # of log entriesi in use: %ld of %ld\n",
+	printf("  # of log entriesi in use: %lld of %lld\n",
 	       logp->tagfs_log_next_index, logp->tagfs_log_last_index + 1);
 	printf("  Log size in use:          %ld\n", effective_log_size);
 
-	bitmap = tagfs_build_bitmap(sb, logp,  sb->ts_devlist[0].dd_size, NULL, &errors, 0);
+	bitmap = tagfs_build_bitmap(logp,  sb->ts_devlist[0].dd_size, NULL, &errors, 0);
 	if (errors)
-		printf("ERROR: %ld ALLOCATION COLLISIONS FOUND\n", errors);
+		printf("ERROR: %lld ALLOCATION COLLISIONS FOUND\n", errors);
 	else
 		printf("  No allocation errors found\n");
 
@@ -204,17 +202,17 @@ print_fsinfo(const struct tagfs_superblock *sb,
 	if (verbose) {
 
 
-		printf("log_offset:        %ld\n", sb->ts_log_offset);
-		printf("log_len:           %ld\n", sb->ts_log_len);
+		printf("log_offset:        %lld\n", sb->ts_log_offset);
+		printf("log_len:           %lld\n", sb->ts_log_len);
 
 		printf("sizeof(log header) %ld\n", sizeof(struct tagfs_log));
 		printf("sizeof(log_entry)  %ld\n", sizeof(struct tagfs_log_entry));
 
-		printf("last_log_index:    %ld\n", logp->tagfs_log_last_index);
+		printf("last_log_index:    %lld\n", logp->tagfs_log_last_index);
 		total_log_size = sizeof(struct tagfs_log)
 			+ (sizeof(struct tagfs_log_entry) * (1 + logp->tagfs_log_last_index));
 		printf("full log size:     %ld\n", total_log_size);
-		printf("TAGFS_LOG_LEN:     %ld\n", TAGFS_LOG_LEN);
+		printf("TAGFS_LOG_LEN:     %d\n", TAGFS_LOG_LEN);
 		printf("Remainder:         %ld\n", TAGFS_LOG_LEN - total_log_size);
 		printf("\nfc: %ld\n", sizeof(struct tagfs_file_creation));
 		printf("fa:   %ld\n", sizeof(struct tagfs_file_access));
@@ -243,7 +241,6 @@ tagfs_mmap_superblock_and_log_raw(const char *devname,
 {
 	int fd = 0;
 	void *sb_buf;
-	void *log_buf;
 	int rc = 0;
 	int openmode = (read_only) ? O_RDONLY : O_RDWR;
 	int mapmode  = (read_only) ? PROT_READ : PROT_READ | PROT_WRITE;
@@ -271,9 +268,6 @@ tagfs_mmap_superblock_and_log_raw(const char *devname,
 err_out:
 	if (sb_buf)
 		munmap(sb_buf, TAGFS_SUPERBLOCK_SIZE);
-
-	if (log_buf)
-		munmap(log_buf, TAGFS_LOG_LEN);
 
 	if (fd)
 		close(fd);
@@ -332,7 +326,6 @@ tagfs_get_mpt_by_dev(const char *mtdev)
 	char * line = NULL;
 	size_t len = 0;
 	ssize_t read;
-	char *devstr = 0;
 	int rc;
 	char *answer = NULL;
 
@@ -351,6 +344,8 @@ tagfs_get_mpt_by_dev(const char *mtdev)
 		if (strstr(line, "tagfs")) {
 			rc = sscanf(line, "%s %s %s %s %d %d",
 				    dev, mpt, fstype, args, &x0, &x1);
+			if (rc <= 0)
+				return NULL;
 			xmpt = realpath(mpt, NULL);
 			if (!xmpt) {
 				fprintf(stderr, "realpath(%s) errno %d\n", mpt, errno);
@@ -423,8 +418,6 @@ tagfs_mkmeta(const char *devname)
 	char dirpath[PATH_MAX];
 	char sb_file[PATH_MAX];
 	char log_file[PATH_MAX];
-	struct tagfs_ioc_map sb_map = {0};
-	struct tagfs_ioc_map log_map = {0};
 	struct tagfs_superblock *sb;
 	struct tagfs_log *logp;
 	struct tagfs_simple_extent ext;
@@ -583,11 +576,13 @@ mmap_log_file_read_only(const char *mpt)
 	return __mmap_log_file(mpt, 1);
 }
 
+#if 0
 static struct tagfs_log *
 mmap_log_file_writable(const char *mpt)
 {
 	return __mmap_log_file(mpt, 0);
 }
+#endif
 
 /******/
 
@@ -629,7 +624,7 @@ tagfs_logplay(const char *daxdev)
 		return -1;
 	}
 
-	printf("%s: log contains %ld entries\n", __func__, logp->tagfs_log_next_index);
+	printf("%s: log contains %lld entries\n", __func__, logp->tagfs_log_next_index);
 	for (i=0; i<logp->tagfs_log_next_index; i++) {
 		struct tagfs_log_entry le = logp->entries[i];
 
@@ -638,7 +633,7 @@ tagfs_logplay(const char *daxdev)
 		case TAGFS_LOG_FILE: {
 			struct tagfs_file_creation *fc = &le.tagfs_fc;
 
-			printf("%: file=%s size=%ld", __func__,
+			printf("%s: file=%s size=%lld", __func__,
 			       fc->tagfs_relpath, fc->tagfs_fc_size);
 			break;
 		}
@@ -713,7 +708,7 @@ tagfs_log_file_creation(
 	assert(nextents >= 1);
 
 	if (tagfs_log_full(logp)) {
-		fprintf(stderr, "%s: log full\n");
+		fprintf(stderr, "%s: log full\n", __func__);
 		return -ENOMEM;
 	}
 
@@ -723,7 +718,7 @@ tagfs_log_file_creation(
 	fc->tagfs_fc_size = size;
 	fc->tagfs_nextents = nextents;
 	fc->tagfs_fc_flags = TAGFS_FC_ALL_HOSTS_RW; /* XXX hard coded access for now */
-	strncpy(fc->tagfs_relpath, path, TAGFS_MAX_PATHLEN - 1);
+	strncpy((char *)fc->tagfs_relpath, path, TAGFS_MAX_PATHLEN - 1);
 
 	/* Copy extents into log entry */
 	for (i=0; i<nextents; i++) {
@@ -856,7 +851,7 @@ tagfs_validate_superblock_by_path(const char *path)
 	/* XXX should be read only, but that doesn't work */
 	addr = mmap(0, sb_size, O_RDWR, MAP_SHARED, sfd, 0);
 	if (addr == MAP_FAILED) {
-		fprintf(stderr, "Failed to mmap superblock file\n", __func__);
+		fprintf(stderr, "%s: Failed to mmap superblock file\n", __func__);
 		close(sfd);
 		return -1;
 	}
@@ -895,8 +890,7 @@ put_sb_log_into_bitmap(u8 *bitmap)
  * @errors    - number of times a file referenced a bit that was already set
  */
 u8 *
-tagfs_build_bitmap(const struct tagfs_superblock *sb,
-		   const struct tagfs_log        *logp,
+tagfs_build_bitmap(const struct tagfs_log        *logp,
 		   u64                            size_in,
 		   u64                           *size_out,
 		   u64                           *alloc_errors,
@@ -926,7 +920,7 @@ tagfs_build_bitmap(const struct tagfs_superblock *sb,
 			const struct tagfs_log_extent *ext = fc->tagfs_ext_list;
 
 			if (verbose)
-				printf("%s: file=%s size=%ld\n", __func__,
+				printf("%s: file=%s size=%lld\n", __func__,
 				       fc->tagfs_relpath, fc->tagfs_fc_size);
 
 			/* For each extent in this log entry, mark the bitmap as allocated */
@@ -1014,16 +1008,10 @@ tagfs_alloc_bypath(
 	const char       *path,
 	u64               size)
 {
-	char *mpt;
-	struct tagfs_superblock *sb;
 	ssize_t daxdevsize;
-	void *addr;
-	int nlog = 0;
 	u8 *bitmap;
 	u64 nbits;
 	u64 offset;
-	int sfd, lfd;
-	size_t log_size;
 
 	if (size <= 0)
 		return -1;
@@ -1032,7 +1020,7 @@ tagfs_alloc_bypath(
 	if (daxdevsize < 0)
 		return daxdevsize;
 
-	bitmap = tagfs_build_bitmap(sb, logp, daxdevsize, &nbits, NULL, 0);
+	bitmap = tagfs_build_bitmap(logp, daxdevsize, &nbits, NULL, 0);
 	printf("\nbitmap before:\n");
 	mu_print_bitmap(bitmap, nbits);
 	offset = bitmap_alloc_contiguous(bitmap, nbits, size);
@@ -1068,7 +1056,6 @@ tagfs_file_alloc(
 	gid_t       gid,
 	u64         size)
 {
-	struct tagfs_ioc_map filemap = {0};
 	struct tagfs_simple_extent ext = {0};
 	struct tagfs_log *logp;
 	size_t log_size;
@@ -1086,7 +1073,7 @@ tagfs_file_alloc(
 
 	addr = mmap(0, log_size, O_RDWR, MAP_SHARED, lfd, 0);
 	if (addr == MAP_FAILED) {
-		fprintf(stderr, "Failed to mmap log file", __func__);
+		fprintf(stderr, "%s: Failed to mmap log file", __func__);
 		close(lfd);
 		return -1;
 	}
@@ -1236,14 +1223,14 @@ tagfs_cp(char *srcfile,
 		bytes = read(srcfd, &destp[offset], cur_chunksize);
 		if (bytes < 0) {
 			fprintf(stderr, "%s: copy fail: "
-				"size %lld ofs %lld cur_chunksize %lld remainder %lld\n",
+				"ofs %ld cur_chunksize %ld remainder %ld\n",
 				__func__, offset, cur_chunksize, remainder);
-			printf("rc=%lld errno=%d\n", bytes, errno);
+			printf("rc=%ld errno=%d\n", bytes, errno);
 			return -1;
 		}
 		if (bytes < cur_chunksize) {
 			fprintf(stderr, "%s: short read: "
-				"size %lld ofs %lld cur_chunksize %lld remainder %lld\n",
+				"ofs %ld cur_chunksize %ld remainder %ld\n",
 				__func__, offset, cur_chunksize, remainder);
 		}
 

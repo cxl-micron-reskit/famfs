@@ -69,7 +69,7 @@ void
 tagfs_logplay_usage(int   argc,
 	    char *argv[])
 {
-	unsigned char *progname = argv[0];
+	char *progname = argv[0];
 
 	printf("\n"
 	       "Play the log into a tagfs file system\n"
@@ -81,23 +81,14 @@ tagfs_logplay_usage(int   argc,
 int
 do_tagfs_cli_logplay(int argc, char *argv[])
 {
-	struct tagfs_ioc_map filemap;
-	struct tagfs_extent *ext_list;
-	int c, i, rc, fd;
-	char *filename = NULL;
+	int c;
 
-	int num_extents = 0;
-	int cur_extent  = 0;
-
-	size_t ext_size;
-	size_t fsize = 0;
 	int arg_ct = 0;
-	enum extent_type type = HPA_EXTENT;
-	unsigned char *daxdev = NULL;
-	unsigned char *realdaxdev = NULL;
+	char *daxdev = NULL;
+	char *realdaxdev = NULL;
 
 	/* XXX can't use any of the same strings as the global args! */
-	struct option map_options[] = {
+	struct option logplay_options[] = {
 		/* These options set a */
 		{0, 0, 0, 0}
 	};
@@ -119,7 +110,7 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
 	while ((c = getopt_long(argc, argv, "+h?",
-				global_options, &optind)) != EOF) {
+				logplay_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
 		/* Detect the end of the options. */
@@ -148,7 +139,8 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 	daxdev = argv[optind++];
 	realdaxdev = realpath(daxdev, NULL);
 	if (!realdaxdev) {
-		fprintf(stderr, "%s: realpath(%s) returned %d\n", __func__, errno);
+		fprintf(stderr, "%s: realpath(%s) returned %d\n", __func__,
+			realdaxdev, errno);
 		return -1;
 	}
 	tagfs_logplay(realdaxdev);
@@ -161,7 +153,7 @@ void
 tagfs_mkmeta_usage(int   argc,
 	    char *argv[])
 {
-	unsigned char *progname = argv[0];
+	char *progname = argv[0];
 
 	printf("\n"
 	       "Expose the meta files of a tagfs file system\n"
@@ -173,26 +165,14 @@ tagfs_mkmeta_usage(int   argc,
 int
 do_tagfs_cli_mkmeta(int argc, char *argv[])
 {
-	struct tagfs_ioc_map filemap;
-	struct tagfs_extent *ext_list;
-	int c, i, rc, fd;
-	char *filename = NULL;
+	int c;
 
-	int num_extents = 0;
-	int cur_extent  = 0;
-
-	size_t ext_size;
-	size_t fsize = 0;
 	int arg_ct = 0;
-	enum extent_type type = HPA_EXTENT;
-	unsigned char *daxdev = NULL;
-	unsigned char *realdaxdev = NULL;
-
-	char *srcfile;
-	char *destfile;
+	char *daxdev = NULL;
+	char *realdaxdev = NULL;
 
 	/* XXX can't use any of the same strings as the global args! */
-	struct option map_options[] = {
+	struct option mkmeta_options[] = {
 		/* These options set a */
 		{0, 0, 0, 0}
 	};
@@ -214,7 +194,7 @@ do_tagfs_cli_mkmeta(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
 	while ((c = getopt_long(argc, argv, "+h?",
-				global_options, &optind)) != EOF) {
+				mkmeta_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
 		/* Detect the end of the options. */
@@ -243,7 +223,8 @@ do_tagfs_cli_mkmeta(int argc, char *argv[])
 	daxdev = argv[optind++];
 	realdaxdev = realpath(daxdev, NULL);
 	if (!realdaxdev) {
-		fprintf(stderr, "%s: realpath(%s) returned %d\n", __func__, errno);
+		fprintf(stderr, "%s: realpath(%s) returned %d\n",
+			__func__, realdaxdev, errno);
 		return -1;
 	}
 	tagfs_mkmeta(realdaxdev);
@@ -256,7 +237,7 @@ void
 tagfs_fsck_usage(int   argc,
 	    char *argv[])
 {
-	unsigned char *progname = argv[0];
+	char *progname = argv[0];
 
 	printf("\n"
 	       "Check a tagfs file system\n"
@@ -268,25 +249,13 @@ tagfs_fsck_usage(int   argc,
 int
 do_tagfs_cli_fsck(int argc, char *argv[])
 {
-	struct tagfs_ioc_map filemap;
-	struct tagfs_extent *ext_list;
-	int c, i, rc, fd;
-	char *filename = NULL;
+	int c;
 
-	int num_extents = 0;
-	int cur_extent  = 0;
-
-	size_t ext_size;
-	size_t fsize = 0;
 	int arg_ct = 0;
-	enum extent_type type = HPA_EXTENT;
-	unsigned char *daxdev = NULL;
-
-	char *srcfile;
-	char *destfile;
+	char *daxdev = NULL;
 
 	/* XXX can't use any of the same strings as the global args! */
-	struct option map_options[] = {
+	struct option fsck_options[] = {
 		/* These options set a */
 		{"daxdev",      required_argument,             0,  'D'},
 		{"fsdaxdev",    required_argument,             0,  'F'},
@@ -310,7 +279,7 @@ do_tagfs_cli_fsck(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
 	while ((c = getopt_long(argc, argv, "+h?",
-				global_options, &optind)) != EOF) {
+				fsck_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
 		/* Detect the end of the options. */
@@ -347,7 +316,7 @@ void
 tagfs_cp_usage(int   argc,
 	    char *argv[])
 {
-	unsigned char *progname = argv[0];
+	char *progname = argv[0];
 
 	printf("\n"
 	       "Copy a file into a tagfs file system\n"
@@ -362,28 +331,17 @@ tagfs_cp_usage(int   argc,
 int
 do_tagfs_cli_cp(int argc, char *argv[])
 {
-	struct tagfs_ioc_map filemap;
-	struct tagfs_extent *ext_list;
-	int c, i, rc, fd;
-	char *filename = NULL;
+	int c, rc;
 
-	int num_extents = 0;
-	int cur_extent  = 0;
-
-	size_t ext_size;
-	size_t fsize = 0;
 	int arg_ct = 0;
-	enum extent_type type = HPA_EXTENT;
-	unsigned char *daxdev = NULL;
 
 	char *srcfile;
 	char *destfile;
 
 	/* XXX can't use any of the same strings as the global args! */
-	struct option map_options[] = {
+	struct option cp_options[] = {
 		/* These options set a */
-		{"daxdev",      required_argument,             0,  'D'},
-		{"fsdaxdev",    required_argument,             0,  'F'},
+		{"filename",    required_argument,             0,  'f'},
 		{0, 0, 0, 0}
 	};
 
@@ -404,7 +362,7 @@ do_tagfs_cli_cp(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
 	while ((c = getopt_long(argc, argv, "+h?",
-				global_options, &optind)) != EOF) {
+				cp_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
 		/* Detect the end of the options. */
@@ -440,7 +398,7 @@ void
 tagfs_getmap_usage(int   argc,
 	    char *argv[])
 {
-	unsigned char *progname = argv[0];
+	char *progname = argv[0];
 
 	printf("\n"
 	       "Get the allocation map of a file:\n"
@@ -457,25 +415,18 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 {
 	struct tagfs_ioc_map filemap;
 	struct tagfs_extent *ext_list;
-	int c, i, rc, fd;
+	int c, i, fd;
+	int rc = 0;
 	char *filename = NULL;
 
-	int num_extents = 0;
-	int cur_extent  = 0;
-
-	size_t ext_size;
-	size_t fsize = 0;
 	int arg_ct = 0;
-	enum extent_type type = HPA_EXTENT;
-	unsigned char *daxdev = NULL;
-	int mode = O_RDWR;
 
 	/* XXX can't use any of the same strings as the global args! */
-	struct option map_options[] = {
-		/* These options set a */
-		{"filename",    required_argument,             0,  'f'},
-		{0, 0, 0, 0}
-	};
+       struct option cp_options[] = {
+               /* These options set a */
+               {"filename",    required_argument,             0,  'f'},
+               {0, 0, 0, 0}
+       };
 
 	if (optind >= argc) {
 		fprintf(stderr, "tagfs_cli map: no args\n");
@@ -494,7 +445,7 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
 	while ((c = getopt_long(argc, argv, "+f:h?",
-				global_options, &optind)) != EOF) {
+				cp_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
 		/* Detect the end of the options. */
@@ -545,8 +496,8 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 	}
 
 	printf("File:     %s\n",    filename);
-	printf("\tsize:   %lld\n",  filemap.file_size);
-	printf("\textents: %lld\n", filemap.ext_list_count);
+	printf("\tsize:   %ld\n",  filemap.file_size);
+	printf("\textents: %ld\n", filemap.ext_list_count);
 
 	for (i=0; i<filemap.ext_list_count; i++) {
 		printf("\t\t%llx\t%lld\n", ext_list[i].offset, ext_list[i].len);
@@ -562,7 +513,7 @@ void
 tagfs_creat_usage(int   argc,
 	    char *argv[])
 {
-	unsigned char *progname = argv[0];
+	char *progname = argv[0];
 
 	printf("\n"
 	       "Create a file backed by one or morespecified extents:\n"
@@ -591,8 +542,6 @@ do_tagfs_cli_creat(int argc, char *argv[])
 	size_t fsize = 0;
 	size_t ext_list_size = 0;
 	int arg_ct = 0;
-	enum extent_type type = HPA_EXTENT;
-	unsigned char *daxdev = NULL;
 	uid_t uid = geteuid();
 	gid_t gid = getegid();
 	s64 seed;
@@ -631,7 +580,7 @@ do_tagfs_cli_creat(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
 	while ((c = getopt_long(argc, argv, "+n:o:l:f:s:S:rh?",
-				global_options, &optind)) != EOF) {
+				creat_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
 		/* Detect the end of the options. */
@@ -735,12 +684,12 @@ do_tagfs_cli_creat(int argc, char *argv[])
 		printf("%d extents specified:\n", num_extents);
 		printf("Total size: %ld\n", fsize);
 		for (i=0; i<num_extents; i++)
-			printf("\t%p\t%ld\n", ext_list[i].tagfs_extent_offset,
+			printf("\t%p\t%lld\n", (void *)ext_list[i].tagfs_extent_offset,
 			       ext_list[i].tagfs_extent_len);
 	}
 	if (ext_list_size && fsize) {
 		if (fsize > ext_list_size) {
-			fprintf(stderr, "error: fsize(%lld) > ext_list_size (%lld)\n",
+			fprintf(stderr, "error: fsize(%ld) > ext_list_size (%ld)\n",
 				fsize, ext_list_size);
 			exit(-1);
 		}
@@ -764,7 +713,7 @@ do_tagfs_cli_creat(int argc, char *argv[])
 		lfd = open_log_file_writable(filename, &log_size);
 		addr = mmap(0, log_size, O_RDWR, MAP_SHARED, lfd, 0);
 		if (addr == MAP_FAILED) {
-			fprintf(stderr, "Failed to mmap log file", __func__);
+			fprintf(stderr, "%s: Failed to mmap log file", __func__);
 			close(lfd);
 			return -1;
 		}
@@ -823,7 +772,7 @@ void
 tagfs_verify_usage(int   argc,
 	    char *argv[])
 {
-	unsigned char *progname = argv[0];
+	char *progname = argv[0];
 
 	printf("\n"
 	       "Verify the contents of a file:\n"
@@ -834,23 +783,15 @@ tagfs_verify_usage(int   argc,
 int
 do_tagfs_cli_verify(int argc, char *argv[])
 {
-	struct tagfs_ioc_map filemap;
-	struct tagfs_extent *ext_list;
-	int c, i, rc, fd;
+	int c, fd;
 	char *filename = NULL;
 
-	int num_extents = 0;
-	int cur_extent  = 0;
-
-	size_t ext_size;
 	size_t fsize = 0;
 	int arg_ct = 0;
-	enum extent_type type = HPA_EXTENT;
-	unsigned char *daxdev = NULL;
-	int mode = O_RDWR;
 	s64 seed = 0;
 	void *addr;
 	char *buf;
+	int rc = 0;
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option map_options[] = {
@@ -877,7 +818,7 @@ do_tagfs_cli_verify(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
 	while ((c = getopt_long(argc, argv, "+f:S:h?",
-				global_options, &optind)) != EOF) {
+				map_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
 		/* Detect the end of the options. */
@@ -932,7 +873,7 @@ do_tagfs_cli_verify(int argc, char *argv[])
 	if (rc == -1) {
 		printf("Success: verified %ld bytes in file %s\n", fsize, filename);
 	} else {
-		fprintf(stderr, "Verify fail at offset %d of %d bytes\n", rc, fsize);
+		fprintf(stderr, "Verify fail at offset %d of %ld bytes\n", rc, fsize);
 		exit(-1);
 	}
 
@@ -950,11 +891,13 @@ struct tagfs_cli_cmd {
 
 static void do_tagfs_cli_help(int argc, char **argv);
 
+#if 0
 static int tagfs_cli_help(int argc, char **argv)
 {
 	do_tagfs_cli_help(argc, argv);
 	return 0;
 }
+#endif
 
 struct
 tagfs_cli_cmd tagfs_cli_cmds[] = {

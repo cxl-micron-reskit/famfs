@@ -22,8 +22,6 @@ void
 print_usage(int   argc,
 	    char *argv[])
 {
-	unsigned char *progname = argv[0];
-
 	printf("usage\n");
 }
 
@@ -42,19 +40,10 @@ int
 main(int argc,
      char *argv[])
 {
-	struct tagfs_ioc_map filemap;
-	struct tagfs_user_extent *ext_list;
-	int c, i, rc, fd;
+	int c, rc, fd;
 	char *filename = NULL;
 
-	int num_extents = 0;
-	int cur_extent  = 0;
-
-	size_t ext_size;
-	size_t fsize = 0;
 	int arg_ct = 0;
-	enum extent_type type = HPA_EXTENT;
-	unsigned char *daxdev = NULL;
 	struct stat statbuf;
 	char *buf;
 	
@@ -95,7 +84,7 @@ main(int argc,
 	}
 	rc = stat(filename, &statbuf);
 	if (rc) {
-		fprintf(stderr, "unable to stat file %s\n");
+		fprintf(stderr, "unable to stat file %s\n", filename);
 		exit(-1);
 	}
 	
