@@ -6,7 +6,7 @@ TODO
 ** mkfs.tagfs <dev>
 
 * Missing functionality
-** TODO Create log entry when allocating/creating a file
+** DONE Create log entry when allocating/creating a file
 ** TODO play log into file system
 ** TODO un-tar into file system
 ** TODO Populate log
@@ -16,7 +16,14 @@ TODO
 
 * Needed for testability
 ** TODO create files of arbitrary sizes
-** TODO randomize file content based on supplied key (so files can be verified)
+tagfs creat -s <size>
+** TODO create files with arbitrary extent lists
+tagfs creat -n 2 --offset 0 --length 0x200000 --offset 0x400000 --length 0x200000
+
+** DONE randomize file content based on supplied key (so files can be verified)
+tagfs write -s <seed> -r <file>
+** DONE Verify file contents
+tagfs verify
 ** TODO tool to write/read/verify flexibly with both mmap and posix write/read
 ** TODO Read log and build bitmap, detecting duplicate memory references
 ** TODO intentional creation of duplicate memory references (alloc with specific extents)
@@ -89,7 +96,7 @@ This is a derivative of csnoop, though the xarray conversion may change it.
 - Create file in <mount_pt>/.tmp
 - Set allocation and file size
 - Mv to intended path
-** TODO get size of pmem block device
+** DONE get size of pmem block device
 ** TODO Get size of dax character device
 ** TODO Get device size regardless of type
 ** TODO tagfs_setmode

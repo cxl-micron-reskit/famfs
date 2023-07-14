@@ -7,6 +7,33 @@
 #define SB_FILE_RELPATH    ".meta/.superblock"
 #define LOG_FILE_RELPATH   ".meta/.log"
 
+int open_log_file_writable(const char *path, size_t *sizep);
+int tagfs_log_file_creation(
+	struct tagfs_log           *logp,
+	u64                         nextents,
+	struct tagfs_simple_extent *ext_list,
+	const char                 *path,
+	mode_t                      mode,
+	uid_t                       uid,
+	gid_t                       gid,
+	size_t                      size);
+int
+tagfs_file_map_create(
+	const char *                path,
+	int                         fd,
+	size_t                      size,
+	int                         nextents,
+	struct tagfs_simple_extent *ext_list);
+int
+tagfs_file_alloc(
+	int         fd,
+	const char *path,
+	mode_t      mode,
+	uid_t       uid,
+	gid_t       gid,
+	u64         size);
+void *mmap_whole_file(const char *fname, int read_only, size_t *sizep);
+
 extern int tagfs_get_device_size(const char *fname, size_t *size, enum extent_type *type);
 int tagfs_mmap_superblock_and_log_raw(const char *devname, struct tagfs_superblock **sbp,
 				      struct tagfs_log **logp, int read_only);

@@ -13,7 +13,7 @@ message(STATUS "PROJECT_SOURCE_DIR=${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}../tagfs")
 
-add_library(libtagfs tagfs_lib.c )
+add_library(libtagfs tagfs_lib.c random_buffer.c xrand.c )
 
 add_executable(mkfile mmap_test.c )
 add_executable(mmap_test mmap_test.c )

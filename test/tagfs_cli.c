@@ -22,6 +22,7 @@ typedef __u64 u64;
 
 #include "../tagfs/tagfs_ioctl.h"
 #include "tagfs_lib.h"
+#include "random_buffer.h"
 
 /* maybe move to internal lib */
 
@@ -445,8 +446,8 @@ tagfs_getmap_usage(int   argc,
 	unsigned char *progname = argv[0];
 
 	printf("\n"
-	       "Mape one or more HPA based extent:\n"
-	       "    %s -n <num_extents> -o <hpa> -l <len> [-o <hpa> -l <len> ... ] <filename>\n"
+	       "Get the allocation map of a file:\n"
+	       "    %s <filename>\n"
 	       "\n", progname);
 	printf(
 	       "Mape one or more dax-based extents:"
@@ -470,6 +471,7 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 	int arg_ct = 0;
 	enum extent_type type = HPA_EXTENT;
 	unsigned char *daxdev = NULL;
+	int mode = O_RDWR;
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option map_options[] = {
@@ -538,7 +540,7 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 		return rc;
 	}
 	ext_list = calloc(filemap.ext_list_count, sizeof(struct tagfs_extent));
-	rc = ioctl(fd, TAGFSIOC_MAP_GETEXT, &ext_list);
+	rc = ioctl(fd, TAGFSIOC_MAP_GETEXT, ext_list);
 	if (rc) {
 		printf("ioctl returned rc %d errno %d\n", rc, errno);
 		perror("ioctl");
@@ -566,20 +568,22 @@ tagfs_creat_usage(int   argc,
 	unsigned char *progname = argv[0];
 
 	printf("\n"
-	       "Create one or more HPA based extent:\n"
+	       "Create a file backed by one or morespecified extents:\n"
 	       "    %s -n <num_extents> -o <hpa> -l <len> [-o <hpa> -l <len> ... ] <filename>\n"
-	       "\n", progname);
-	printf(
-	       "Create one or more dax-based extents:"
-	       "    %s --daxdev <daxdev> -n <num_extents> -o <offset> -l <len> [-o <offset> -l <len> ... ] <filename>\n"
-	       "\n", progname);
+	       "\n"
+	       "(the allocation will be logged without regard to whether the "
+	       "extents were available\n\n"
+	       "Create a file backed by free space:\n"
+	       "    %s -s <size> <filename>\n\n"
+	       "Create a file containing randomized data from a specific seed:\n"
+	       "    %s -s size --randomize --seed <myseed> <filename",
+	       progname, progname, progname);
 }
 
 int
 do_tagfs_cli_creat(int argc, char *argv[])
 {
-	struct tagfs_ioc_map filemap;
-	struct tagfs_extent *ext_list;
+	struct tagfs_simple_extent *ext_list;
 	int c, i, rc, fd;
 	char *filename = NULL;
 
@@ -588,9 +592,14 @@ do_tagfs_cli_creat(int argc, char *argv[])
 
 	size_t ext_size;
 	size_t fsize = 0;
+	size_t ext_list_size = 0;
 	int arg_ct = 0;
 	enum extent_type type = HPA_EXTENT;
 	unsigned char *daxdev = NULL;
+	uid_t uid = geteuid();
+	gid_t gid = getegid();
+	s64 seed;
+	int randomize = 0;
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option creat_options[] = {
@@ -599,6 +608,9 @@ do_tagfs_cli_creat(int argc, char *argv[])
 		{"length",      required_argument, &verbose_flag,  'l'},
 		{"num_extents", required_argument,             0,  'n'},
 		{"filename",    required_argument,             0,  'f'},
+		{"size",        required_argument,             0,  's'},
+		{"seed",        required_argument,             0,  'S'},
+		{"randomize",   no_argument,                   0,  'r'},
 		/* These options don't set a flag.
 		   We distinguish them by their indices. */
 		/*{"dryrun",       no_argument,       0, 'n'}, */
@@ -621,7 +633,7 @@ do_tagfs_cli_creat(int argc, char *argv[])
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
-	while ((c = getopt_long(argc, argv, "+n:o:l:f:h?",
+	while ((c = getopt_long(argc, argv, "+n:o:l:f:s:S:rh?",
 				global_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -636,8 +648,6 @@ do_tagfs_cli_creat(int argc, char *argv[])
 			num_extents = atoi(optarg);
 			if (num_extents > 0) {
 				ext_list = calloc(num_extents, sizeof(*ext_list));
-				filemap.ext_list = ext_list;
-				filemap.ext_list_count = num_extents;
 			} else {
 				fprintf(stderr, "Specify at least 1 extent\n");
 				exit(-1);
@@ -650,28 +660,30 @@ do_tagfs_cli_creat(int argc, char *argv[])
 					"Must specify num_extents before address or offset\n");
 				exit(-1);
 			}
-			ext_list[cur_extent].offset = strtoull(optarg, 0, 0);
+			ext_list[cur_extent].tagfs_extent_offset = strtoull(optarg, 0, 0);
 
 			/* update cur_extent if we already have len */
-			if (ext_list[cur_extent].len)
+			if (ext_list[cur_extent].tagfs_extent_len)
 				cur_extent++;
 			break;
 			
 		case 'l':
 			if (num_extents == 0) {
-				fprintf(stderr, "Must specify num_extents before length\n");
+				fprintf(stderr,
+					"Must specify num_extents before length\n");
 				exit(-1);
 			}
 			ext_size = strtoull(optarg, 0, 0);
 			if (ext_size <= 0) {
-				fprintf(stderr, "invalid extent size %ld\n", ext_size);
+				fprintf(stderr, "invalid extent size %ld\n",
+					ext_size);
 				exit(-1);
 			}
-			ext_list[cur_extent].len = ext_size;
-			fsize += ext_size;
+			ext_list[cur_extent].tagfs_extent_len = ext_size;
+			ext_list_size += ext_size;
 
 			/* update cur_extent if we already have offset */
-			if (ext_list[cur_extent].offset)
+			if (ext_list[cur_extent].tagfs_extent_offset)
 				cur_extent++;
 			break;
 
@@ -681,7 +693,32 @@ do_tagfs_cli_creat(int argc, char *argv[])
 			/* TODO: make sure filename is in a tagfs file system */
 			break;
 		}
+		case 's':
+			fsize = strtoull(optarg, 0, 0);
+			if (fsize <= 0) {
+				fprintf(stderr, "invalid file size %ld\n",
+					fsize);
+				exit(-1);
+			}
+			break;
+
+		case 'S':
+			seed = strtoull(optarg, 0, 0);
+			break;
+
+		case 'r':
+			randomize++;
+			break;
+
 		case 'h':
+			fsize = strtoull(optarg, 0, 0);
+			if (fsize <= 0) {
+				fprintf(stderr, "invalid file size %ld\n",
+					fsize);
+				exit(-1);
+			}
+			break;
+
 		case '?':
 			tagfs_creat_usage(argc, argv);
 			return 0;
@@ -692,28 +729,215 @@ do_tagfs_cli_creat(int argc, char *argv[])
 		}
 	}
 
-	printf("%d extents specified:\n", num_extents);
-	printf("Total size: %ld\n", fsize);
-	filemap.file_size   = fsize;
-	filemap.extent_type = type;
-	for (i=0; i<num_extents; i++)
-		printf("\t%p\t%ld\n", ext_list[i].offset, ext_list[i].len);
-
-
 	if (filename == NULL) {
 		fprintf(stderr, "Must supply filename\n");
 		exit(-1);
 	}
 
-	fd = tagfs_file_create(filename, S_IRUSR|S_IWUSR, 0, 0, fsize);
-
-	rc = ioctl(fd, TAGFSIOC_MAP_CREATE, &filemap);
-	if (rc) {
-		printf("ioctl returned rc %d errno %d\n", rc, errno);
-		perror("ioctl");
-		unlink(filename);
+	if (num_extents > 0) {
+		printf("%d extents specified:\n", num_extents);
+		printf("Total size: %ld\n", fsize);
+		for (i=0; i<num_extents; i++)
+			printf("\t%p\t%ld\n", ext_list[i].tagfs_extent_offset,
+			       ext_list[i].tagfs_extent_len);
 	}
-	close(rc);
+	if (ext_list_size && fsize) {
+		if (fsize > ext_list_size) {
+			fprintf(stderr, "error: fsize(%lld) > ext_list_size (%lld)\n",
+				fsize, ext_list_size);
+			exit(-1);
+		}
+	}
+	fd = tagfs_file_create(filename, S_IRUSR|S_IWUSR, uid, gid, fsize);
+	if (fd < 0) {
+		fprintf(stderr, "%s: failed to create file %s\n", __func__, filename);
+		exit(-1);
+	}
+
+	if (num_extents > 0) {
+		struct tagfs_log *logp;
+		size_t log_size;
+		void *addr;
+		int lfd;
+
+		/* Extent list was specified, so it's not coming from the official
+		 * allocator Log the allocation anyway, which can be used for
+		 * testing duplicate allocations, etc. */
+
+		lfd = open_log_file_writable(filename, &log_size);
+		addr = mmap(0, log_size, O_RDWR, MAP_SHARED, lfd, 0);
+		if (addr == MAP_FAILED) {
+			fprintf(stderr, "Failed to mmap log file", __func__);
+			close(lfd);
+			return -1;
+		}
+		close(lfd);
+		logp = (struct tagfs_log *)addr;
+
+		rc = tagfs_log_file_creation(logp, num_extents, ext_list,
+					     filename, O_RDWR, uid, gid, fsize);
+		if (rc) {
+			fprintf(stderr,
+				"%s: failed to log caller-specified allocation\n",
+				__func__);
+			exit(-1);
+		}
+		rc = tagfs_file_map_create(filename, fd, fsize, num_extents, ext_list);
+	} else {
+		rc = tagfs_file_alloc(fd, filename, O_RDWR, uid, gid, fsize);
+		if (rc) {
+			fprintf(stderr, "%s: tagfs_file_alloc(%s, size=%ld) failed\n",
+				__func__, filename, fsize);
+		}
+	}
+	if (randomize) {
+		struct stat st;
+		void *addr;
+		char *buf;
+
+		rc = stat(filename, &st);
+		if (rc) {
+			fprintf(stderr, "%s: failed to stat newly craeated file %s\n",
+				__func__, filename);
+			exit(-1);
+		}
+		if (st.st_size != fsize) {
+			fprintf(stderr, "%s: file size mismatch %ld/%ld\n",
+				__func__, fsize, st.st_size);
+		}
+		addr = mmap_whole_file(filename, 0, NULL);
+		if (!addr) {
+			fprintf(stderr,"%s: randomize mmap failed\n", __func__);
+			exit(-1);
+		}
+		buf = (char *)addr;
+
+		if (!seed)
+			printf("Randomizing buffer with random seed\n");
+		randomize_buffer(buf, fsize, seed);
+	}
+
+	close(fd);
+	return 0;
+}
+
+/********************************************************************/
+void
+tagfs_verify_usage(int   argc,
+	    char *argv[])
+{
+	unsigned char *progname = argv[0];
+
+	printf("\n"
+	       "Verify the contents of a file:\n"
+	       "    %s -S <seed> -f <filename>\n"
+	       "\n", progname);
+}
+
+int
+do_tagfs_cli_verify(int argc, char *argv[])
+{
+	struct tagfs_ioc_map filemap;
+	struct tagfs_extent *ext_list;
+	int c, i, rc, fd;
+	char *filename = NULL;
+
+	int num_extents = 0;
+	int cur_extent  = 0;
+
+	size_t ext_size;
+	size_t fsize = 0;
+	int arg_ct = 0;
+	enum extent_type type = HPA_EXTENT;
+	unsigned char *daxdev = NULL;
+	int mode = O_RDWR;
+	s64 seed = 0;
+	void *addr;
+	char *buf;
+
+	/* XXX can't use any of the same strings as the global args! */
+	struct option map_options[] = {
+		/* These options set a */
+		{"seed",        required_argument,             0,  'S'},
+		{"filename",    required_argument,             0,  'f'},
+		{0, 0, 0, 0}
+	};
+
+	if (optind >= argc) {
+		fprintf(stderr, "tagfs_cli map: no args\n");
+		tagfs_verify_usage(argc, argv);
+		return -1;
+	}
+
+	/* The next stuff on the command line is file names;
+	 * err if nothing is left */
+	if (optind >= argc) {
+		fprintf(stderr, "tagfs_cli map: no files\n");
+		tagfs_verify_usage(argc, argv);
+		return -1;
+	}
+	/* Note: the "+" at the beginning of the arg string tells getopt_long
+	 * to return -1 when it sees something that is not recognized option
+	 * (e.g. the command that will mux us off to the command handlers */
+	while ((c = getopt_long(argc, argv, "+f:S:h?",
+				global_options, &optind)) != EOF) {
+		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
+
+		/* Detect the end of the options. */
+		if (c == -1)
+			break;
+
+		arg_ct++;
+		switch (c) {
+
+		case 'S':
+			seed = strtoull(optarg, 0, 0);
+			break;
+
+		case 'f': {
+			filename = optarg;
+			printf("filename: %s\n", filename);
+			/* TODO: make sure filename is in a tagfs file system */
+			break;
+		}
+		case 'h':
+		case '?':
+			tagfs_verify_usage(argc, argv);
+			return 0;
+
+		default:
+			printf("default (%c)\n", c);
+			return -1;
+		}
+	}
+
+	if (filename == NULL) {
+		fprintf(stderr, "Must supply filename\n");
+		exit(-1);
+	}
+	if (!seed) {
+		fprintf(stderr, "Must specify random seed to verify file data\n");
+		exit(-1);
+	}
+	fd = open(filename, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
+	if (fd < 0) {
+		fprintf(stderr, "open/mape failed; rc %d errno %d\n", rc, errno);
+		exit(-1);
+	}
+
+	addr = mmap_whole_file(filename, 0, &fsize);
+	if (!addr) {
+		fprintf(stderr,"%s: randomize mmap failed\n", __func__);
+		exit(-1);
+	}
+	buf = (char *)addr;
+	rc = validate_random_buffer(buf, fsize, seed);
+	if (rc == -1) {
+		printf("Success: verified %ld bytes in file %s\n", fsize, filename);
+	} else {
+		fprintf(stderr, "Verify fail at offset %d of %d bytes\n", rc, fsize);
+		exit(-1);
+	}
 
 	return 0;
 }
@@ -739,6 +963,7 @@ struct
 tagfs_cli_cmd tagfs_cli_cmds[] = {
 
 	{"creat",   do_tagfs_cli_creat,   tagfs_creat_usage},
+	{"verify",  do_tagfs_cli_verify,  tagfs_verify_usage},
 	{"getmap",  do_tagfs_cli_getmap,  tagfs_getmap_usage},
 	{"cp",      do_tagfs_cli_cp,      tagfs_cp_usage},
 	{"fsck",    do_tagfs_cli_fsck,    tagfs_fsck_usage},

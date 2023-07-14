@@ -480,9 +480,18 @@ tagfs_mkmeta(const char *devname)
 	return 0;
 }
 
+/**
+ * map_whole_file()
+ *
+ * @fname
+ * @read_only - mmap will be read-only if true
+ * @size      - size will be stored if this pointer is non-NULL
+ */
 void *
-mmap_whole_file(const char *fname,
-		int read_only)
+mmap_whole_file(
+	const char *fname,
+	int         read_only,
+	size_t     *sizep)
 {
 	struct stat st;
 	void *addr;
@@ -496,14 +505,12 @@ mmap_whole_file(const char *fname,
 			__func__, fname, strerror(errno));
 		return NULL;
 	}
-	switch (st.st_mode & S_IFMT) {
-	case S_IFREG:
-		printf("regular file\n");
-		break;
-	default:
-		printf("unknown?\n");
-                break;
+	if ((st.st_mode & S_IFMT) != S_IFREG) {
+		fprintf(stderr, "%s: error %s is not a regular file\n", __func__, fname);
+		return NULL;
 	}
+	if (sizep)
+		*sizep = st.st_size;
 
 	fd = open(fname, openmode, 0);
 	if (fd < 0) {
@@ -533,7 +540,7 @@ mmap_superblock_file_read_only(const char *mpt)
 	strncat(sb_path, "/", PATH_MAX - 1);
 	strncat(sb_path, SB_FILE_RELPATH, PATH_MAX - 1);
 
-	return mmap_whole_file(sb_path, 1 /* superblock file always read-only */);
+	return mmap_whole_file(sb_path, 1 /* superblock file always read-only */, NULL);
 }
 
 static struct tagfs_log *
@@ -548,7 +555,7 @@ __mmap_log_file(const char *mpt,
 	strncat(log_path, "/", PATH_MAX - 1);
 	strncat(log_path, LOG_FILE_RELPATH, PATH_MAX - 1);
 
-	return mmap_whole_file(log_path, read_only);
+	return mmap_whole_file(log_path, read_only, NULL);
 }
 
 static struct tagfs_log *
@@ -666,7 +673,7 @@ tagfs_log_full(struct tagfs_log *logp)
 	return (logp->tagfs_log_next_index > logp->tagfs_log_last_index);
 }
 
-static int
+int
 tagfs_log_file_creation(
 	struct tagfs_log           *logp,
 	u64                         nextents,
@@ -1120,7 +1127,6 @@ tagfs_cp(char *srcfile,
 	size_t chunksize, remainder, offset;
 	ssize_t bytes;
 
-
 	/**
 	 * Check the destination file first, since that is constrained in several ways:
 	 * * Dest must be in a tagfs file system
@@ -1160,6 +1166,7 @@ tagfs_cp(char *srcfile,
 		return rc;
 	}
 
+	/* TODO: consistent arg order fd, name */
 	rc = tagfs_file_alloc(destfd, destfile, srcstat.st_mode, srcstat.st_uid, srcstat.st_gid,
 			      srcstat.st_size);
 	if (rc) {
