@@ -37,6 +37,7 @@ print_usage(int   argc,
 }
 
 int verbose_flag = 0;
+int kill_super = 0;
 
 struct option global_options[] = {
 	/* These options set a flag. */
@@ -45,7 +46,7 @@ struct option global_options[] = {
 	{"force",       no_argument,                   0,  'f'},
 	/* These options don't set a flag.
 	   We distinguish them by their indices. */
-	/*{"dryrun",       no_argument,       0, 'n'}, */
+	{"kill",        no_argument,       &kill_super,    'k'},
 	{0, 0, 0, 0}
 };
 
@@ -68,7 +69,7 @@ main(int argc,
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
-	while ((c = getopt_long(argc, argv, "+fh?",
+	while ((c = getopt_long(argc, argv, "+fkh?",
 				global_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -78,6 +79,11 @@ main(int argc,
 
 		arg_ct++;
 		switch (c) {
+		case 'k':
+			/* kill the superblock on the device */
+			kill_super++;
+			printf("kill_super: %d\n", kill_super);
+			break;
 		case 'f':
 			force++;
 			break;
@@ -117,7 +123,14 @@ main(int argc,
 
 	memset(sb, 0, TAGFS_SUPERBLOCK_SIZE); /* Zero the memory up to the log */
 
-	sb->ts_magic      = TAGFS_SUPER_MAGIC;
+	if (kill_super) {
+		printf("Tagfs superblock killed\n");
+		sb->ts_magic      = 0;
+		return 0;
+	} else {
+		sb->ts_magic      = TAGFS_SUPER_MAGIC;
+	}
+
 	sb->ts_version    = TAGFS_CURRENT_VERSION;
 	sb->ts_log_offset = TAGFS_LOG_OFFSET;
 	sb->ts_log_len    = TAGFS_LOG_LEN;
@@ -139,6 +152,7 @@ main(int argc,
 		((TAGFS_LOG_LEN
 		  - offsetof(struct tagfs_log, entries)) /sizeof(struct tagfs_log_entry)) ;
 
-	print_fsinfo(sb, tagfs_logp, 1);
+	print_fsinfo(sb, tagfs_logp, 0);
 	close(rc);
+	return 0;
 }
