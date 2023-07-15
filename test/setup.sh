@@ -27,3 +27,4 @@ sudo mkdir -p $MOUNT_PT        || fail "mkdir"
 sudo insmod ../tagfs/tagfs.ko  || fail "insmod"
 sudo mount -t tagfs -o noatime -o dax=always -o rootdev=/dev/pmem0 /dev/pmem0 $MOUNT_PT || fail "mount"
 grep tagfs /proc/mounts        || fail "/proc/mounts"
+sudo debug/tagfs mkmeta /dev/pmem0
