@@ -82,14 +82,18 @@ int
 do_tagfs_cli_logplay(int argc, char *argv[])
 {
 	int c;
-
 	int arg_ct = 0;
-	char *daxdev = NULL;
-	char *realdaxdev = NULL;
+	struct tagfs_log *logp;
+	char mpt[PATH_MAX];
+	size_t log_size;
+	void *addr;
+	char *filename;
+	int lfd;
 
-	/* XXX can't use any of the same strings as the global args! */
+/* XXX can't use any of the same strings as the global args! */
 	struct option logplay_options[] = {
 		/* These options set a */
+		{"filename",    required_argument,             0,  'f'},
 		{0, 0, 0, 0}
 	};
 
@@ -109,7 +113,7 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
-	while ((c = getopt_long(argc, argv, "+h?",
+	while ((c = getopt_long(argc, argv, "+f:h?",
 				logplay_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -120,6 +124,12 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 		arg_ct++;
 		switch (c) {
 
+		case 'f': {
+			filename = optarg;
+			printf("filename: %s\n", filename);
+			/* TODO: make sure filename is in a tagfs file system */
+			break;
+		}
 		case 'h':
 		case '?':
 			tagfs_logplay_usage(argc, argv);
@@ -135,15 +145,18 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 		fprintf(stderr, "Must specify at least one dax device\n");
 		return -1;
 	}
-	/* TODO: multiple devices? */
-	daxdev = argv[optind++];
-	realdaxdev = realpath(daxdev, NULL);
-	if (!realdaxdev) {
-		fprintf(stderr, "%s: realpath(%s) returned %d\n", __func__,
-			realdaxdev, errno);
+
+	lfd = open_log_file_writable(filename, &log_size, mpt);
+	addr = mmap(0, log_size, O_RDWR, MAP_SHARED, lfd, 0);
+	if (addr == MAP_FAILED) {
+		fprintf(stderr, "%s: Failed to mmap log file", __func__);
+		close(lfd);
 		return -1;
 	}
-	tagfs_logplay(realdaxdev);
+	close(lfd);
+	logp = (struct tagfs_log *)addr;
+
+	tagfs_logplay(logp, mpt);
 	return 0;
 }
 
@@ -710,7 +723,7 @@ do_tagfs_cli_creat(int argc, char *argv[])
 		 * allocator Log the allocation anyway, which can be used for
 		 * testing duplicate allocations, etc. */
 
-		lfd = open_log_file_writable(filename, &log_size);
+		lfd = open_log_file_writable(filename, &log_size, NULL);
 		addr = mmap(0, log_size, O_RDWR, MAP_SHARED, lfd, 0);
 		if (addr == MAP_FAILED) {
 			fprintf(stderr, "%s: Failed to mmap log file", __func__);
@@ -857,9 +870,9 @@ do_tagfs_cli_verify(int argc, char *argv[])
 		fprintf(stderr, "Must specify random seed to verify file data\n");
 		exit(-1);
 	}
-	fd = open(filename, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
+	fd = open(filename, O_RDWR, S_IRUSR|S_IWUSR);
 	if (fd < 0) {
-		fprintf(stderr, "open/mape failed; rc %d errno %d\n", rc, errno);
+		fprintf(stderr, "open %s failed; rc %d errno %d\n", filename, rc, errno);
 		exit(-1);
 	}
 

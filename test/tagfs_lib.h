@@ -7,7 +7,7 @@
 #define SB_FILE_RELPATH    ".meta/.superblock"
 #define LOG_FILE_RELPATH   ".meta/.log"
 
-int open_log_file_writable(const char *path, size_t *sizep);
+int open_log_file_writable(const char *path, size_t *sizep, char *mpt_out);
 int tagfs_log_file_creation(
 	struct tagfs_log           *logp,
 	u64                         nextents,
@@ -47,7 +47,7 @@ void tagfs_uuidgen(uuid_le *uuid);
 void tagfs_print_uuid(const uuid_le *uuid);
 int tagfs_mkmeta(const char *devname);
 u64 tagfs_alloc(const char *devname, u64 size);
-int tagfs_logplay(const char *daxdev);
+int tagfs_logplay(const struct tagfs_log *logp, const char *mpt);
 
 int tagfs_file_create(const char *path, mode_t mode, uid_t uid, gid_t gid, size_t size);
 

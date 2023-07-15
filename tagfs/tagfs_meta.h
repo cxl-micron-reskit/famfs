@@ -142,10 +142,15 @@ enum tagfs_log_entry_type {
 
 /* This log entry creates a file */
 struct tagfs_file_creation {
+	/* TODO: consistent field naming */
 	u64     tagfs_fc_size;
 	u32     tagfs_nextents;
 	u32     tagfs_fc_flags;
-	
+
+	uid_t   fc_uid;
+	gid_t   fc_gid;
+	mode_t  fc_mode;
+
 	u8      tagfs_relpath[TAGFS_MAX_PATHLEN];
 	struct  tagfs_log_extent tagfs_ext_list[TAGFS_FC_MAX_EXTENTS];
 };

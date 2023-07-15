@@ -126,11 +126,11 @@ tagfs_get_device_size(const char       *fname,
 		//basename = get_basename()
 		snprintf(spath, PATH_MAX, "/sys/dev/char/%d:%d/size",
 			 major(st.st_rdev), minor(st.st_rdev));
+		printf("checking for size in %s\n", spath);
 	} else {
 		/* It's a block device */
 		snprintf(spath, PATH_MAX, "/sys/class/block/%s/size", basename);
 	}
-	printf("checking for size in %s\n", spath);
 
 	sfile = fopen(spath, "r");
 	if (!sfile) {
@@ -555,6 +555,7 @@ mmap_superblock_file_read_only(const char *mpt)
 	return mmap_whole_file(sb_path, 1 /* superblock file always read-only */, NULL);
 }
 
+#if 0
 static struct tagfs_log *
 __mmap_log_file(const char *mpt,
 		int read_only)
@@ -576,7 +577,6 @@ mmap_log_file_read_only(const char *mpt)
 	return __mmap_log_file(mpt, 1);
 }
 
-#if 0
 static struct tagfs_log *
 mmap_log_file_writable(const char *mpt)
 {
@@ -586,6 +586,7 @@ mmap_log_file_writable(const char *mpt)
 
 /******/
 
+#if 0
 /* this is by device; moving toward using the log file instead */
 int
 tagfs_logplay(const char *daxdev)
@@ -635,12 +636,92 @@ tagfs_logplay(const char *daxdev)
 
 			printf("%s: file=%s size=%lld", __func__,
 			       fc->tagfs_relpath, fc->tagfs_fc_size);
+
+			rc = stat(destfile, &st);
+			if (!rc) {
+				fprintf(stderr, "%s: error: dest destfile (%s) exists\n",
+					__func__, destfile);
+				return rc;
+			}
 			break;
 		}
 		case TAGFS_LOG_ACCESS:
 		default:
 			printf("%s: invalid log entry\n", __func__);
 			break;
+		}
+	}
+	printf("%s: processed %d log entries\n", __func__, nlog);
+	return 0;
+}
+#endif
+
+int
+tagfs_logplay(const struct tagfs_log *logp,
+	      const char *mpt)
+{
+	int nlog = 0;
+	int i;
+	int rc;
+
+	assert(mpt);
+	assert(strlen(mpt) > 0);
+	assert(mpt[0] == '/');
+
+	if (logp->tagfs_log_next_index == 0) {
+		fprintf(stderr, "%s: log is empty (mpt=%s)\n",
+			__func__, mpt);
+		return -1;
+	}
+
+	printf("%s: log contains %lld entries\n", __func__, logp->tagfs_log_next_index);
+	for (i=0; i<logp->tagfs_log_next_index; i++) {
+		struct tagfs_log_entry le = logp->entries[i];
+
+		nlog++;
+		switch (le.tagfs_log_entry_type) {
+		case TAGFS_LOG_FILE: {
+			const struct tagfs_file_creation *fc = &le.tagfs_fc;
+			char fullpath[PATH_MAX];
+			char rpath[PATH_MAX];
+			struct stat st;
+			int fd;
+
+			printf("%s: file=%s size=%lld", __func__,
+			       fc->tagfs_relpath, fc->tagfs_fc_size);
+			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, fc->tagfs_relpath);
+			realpath(fullpath, rpath);
+
+			rc = stat(rpath, &st);
+			if (!rc) {
+				fprintf(stderr, "%s: File (%s) already exists\n",
+					__func__, rpath);
+				continue;
+			}
+			printf("%s: creating file %s\n", __func__, fc->tagfs_relpath);
+			fd = tagfs_file_create(rpath, fc->fc_mode,
+					       fc->fc_uid, fc->fc_gid,
+					       fc->tagfs_fc_size);
+			if (fd < 0) {
+				if (fd < 0)
+					fprintf(stderr,
+						"%s: unable to create destfile (%s)\n",
+						__func__, fc->tagfs_relpath);
+
+				unlink(rpath);
+				continue;
+			}
+			tagfs_file_map_create(rpath, fd, fc->tagfs_fc_size,
+					      fc->tagfs_nextents,
+					      (struct tagfs_simple_extent *)
+					      fc->tagfs_ext_list);
+			close(fd);
+			break;
+		}
+		case TAGFS_LOG_ACCESS:
+		default:
+			printf("%s: invalid log entry\n", __func__);
+			break;/
 		}
 	}
 	printf("%s: processed %d log entries\n", __func__, nlog);
@@ -720,6 +801,10 @@ tagfs_log_file_creation(
 	fc->tagfs_fc_flags = TAGFS_FC_ALL_HOSTS_RW; /* XXX hard coded access for now */
 	strncpy((char *)fc->tagfs_relpath, path, TAGFS_MAX_PATHLEN - 1);
 
+	fc->fc_mode = mode;
+	fc->fc_uid  = uid;
+	fc->fc_gid  = gid;
+
 	/* Copy extents into log entry */
 	for (i=0; i<nextents; i++) {
 		struct tagfs_log_extent *ext = &fc->tagfs_ext_list[i];
@@ -732,11 +817,23 @@ tagfs_log_file_creation(
 	return tagfs_append_log(logp, &le);
 }
 
+/**
+ * __open_relpath()
+ *
+ * @path       - any path within a tagfs file system
+ * @relpath    - the relative path to open (relative to the mount point)
+ * @read_only
+ * @size_out   - File size will be returned if this pointer is non-NULL
+ * @mpt_out    - Mount point will be returned if this pointer is non-NULL
+ *               (the string space is assumed to be of size PATH_MAX)
+ */
 int
-__open_relpath(const char *path,
-	       const char *relpath,
-	       int         read_only,
-	       size_t     *size)
+__open_relpath(
+	const char *path,
+	const char *relpath,
+	int         read_only,
+	size_t     *size_out,
+	char       *mpt_out)
 {
 	int openmode = (read_only) ? O_RDONLY : O_RDWR;
 	char *rpath = realpath(path, NULL);
@@ -758,7 +855,10 @@ __open_relpath(const char *path,
 			rc = stat(log_path, &st);
 			if ((rc == 0) && ((st.st_mode & S_IFMT) == S_IFREG)) {
 				/* yes */
-				*size = st.st_size;
+				if (size_out)
+					*size_out = st.st_size;
+				if (mpt_out)
+					strncpy(mpt_out, rpath, PATH_MAX - 1);
 				fd = open(log_path, openmode, 0);
 				return fd;
 			}
@@ -784,47 +884,59 @@ __open_relpath(const char *path,
  * If found, it opens the log.
  */
 static int
-__open_log_file(const char *path,
-	      int         read_only,
-	      size_t     *size)
+__open_log_file(
+	const char *path,
+	int         read_only,
+	size_t     *sizep,
+	char       *mpt_out)
 {
-	return __open_relpath(path, LOG_FILE_RELPATH, read_only, size);
+	return __open_relpath(path, LOG_FILE_RELPATH, read_only, sizep, mpt_out);
 }
 
 int
-open_log_file_read_only(const char *path,
-			size_t     *sizep)
+open_log_file_read_only(
+	const char *path,
+	size_t     *sizep,
+	char       *mpt_out)
 {
-	return __open_log_file(path, 1, sizep);
+	return __open_log_file(path, 1, sizep, mpt_out);
 }
 
 int
-open_log_file_writable(const char *path,
-		       size_t     *sizep)
+open_log_file_writable(
+	const char *path,
+	size_t     *sizep,
+	char       *mpt_out)
 {
-	return __open_log_file(path, 0, sizep);
+	return __open_log_file(path, 0, sizep, mpt_out);
 }
 
 static int
-__open_superblock_file(const char *path,
-		       int         read_only,
-		       size_t     *sizep)
+__open_superblock_file(
+	const char *path,
+	int         read_only,
+	size_t     *sizep,
+	char       *mpt_out)
 {
-	return __open_relpath(path, SB_FILE_RELPATH, read_only, sizep);
+	return __open_relpath(path, SB_FILE_RELPATH, read_only, sizep, mpt_out);
 }
 
 int
-open_superblock_file_read_only(const char *path,
-				size_t     *sizep)
+open_superblock_file_read_only(
+	const char *path,
+	size_t     *sizep,
+	char       *mpt_out)
 {
-	return __open_superblock_file(path, 1, sizep);
+	return __open_superblock_file(path, 1, sizep, mpt_out);
 }
 
 int
-open_superblock_file_writable(const char *path,
-			      size_t     *sizep)
+open_superblock_file_writable(
+	const char *path,
+	size_t     *sizep,
+	char       *mpt_out)
 {
-	return __open_superblock_file(path, 0, sizep);
+	return __open_superblock_file(path, 0, sizep, mpt_out);
 }
 
 /**
@@ -844,7 +956,7 @@ tagfs_validate_superblock_by_path(const char *path)
 	struct tagfs_superblock *sb;
 
 	/* XXX should be read only, but that doesn't work */
-	sfd = open_superblock_file_writable(path, &sb_size);
+	sfd = open_superblock_file_writable(path, &sb_size, NULL);
 	if (sfd < 0)
 		return sfd;
 
@@ -1067,7 +1179,7 @@ tagfs_file_alloc(
 	assert(fd > 0);
 
 	/* Log file */
-	lfd = open_log_file_writable(path, &log_size);
+	lfd = open_log_file_writable(path, &log_size, NULL);
 	if (lfd < 0)
 		return lfd;
 
