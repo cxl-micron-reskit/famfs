@@ -586,87 +586,16 @@ mmap_log_file_writable(const char *mpt)
 
 /******/
 
-#if 0
-/* this is by device; moving toward using the log file instead */
 int
-tagfs_logplay(const char *daxdev)
-{
-	char *mpt;
-	struct tagfs_superblock *sb;
-	struct tagfs_log *logp;
-	int nlog = 0;
-	int i;
-
-	mpt = tagfs_get_mpt_by_dev(daxdev);
-	if (!mpt) {
-		fprintf(stderr, "%s: unable to resolve mount point path from dev %s\n",
-			__func__, mpt);
-		return -1;
-	}
-
-	sb = mmap_superblock_file_read_only(mpt);
-	if (sb == MAP_FAILED) {
-		fprintf(stderr, "%s: failed to mmap superblock file\n", __func__);
-		return -1;
-	}
-	logp = mmap_log_file_read_only(mpt);
-	if (sb == MAP_FAILED) {
-		fprintf(stderr, "%s: failed to mmap log file\n", __func__);
-		return -1;
-	}
-
-	if (tagfs_check_super(sb)) {
-		fprintf(stderr, "%s: no valid superblock on device %s\n", __func__, daxdev);
-		return -1;
-	}
-
-	if (logp->tagfs_log_next_index == 0) {
-		fprintf(stderr, "%s: log is empty (dev=%s, mpt=%s)\n", __func__, daxdev, mpt);
-		return -1;
-	}
-
-	printf("%s: log contains %lld entries\n", __func__, logp->tagfs_log_next_index);
-	for (i=0; i<logp->tagfs_log_next_index; i++) {
-		struct tagfs_log_entry le = logp->entries[i];
-
-		nlog++;
-		switch (le.tagfs_log_entry_type) {
-		case TAGFS_LOG_FILE: {
-			struct tagfs_file_creation *fc = &le.tagfs_fc;
-
-			printf("%s: file=%s size=%lld", __func__,
-			       fc->tagfs_relpath, fc->tagfs_fc_size);
-
-			rc = stat(destfile, &st);
-			if (!rc) {
-				fprintf(stderr, "%s: error: dest destfile (%s) exists\n",
-					__func__, destfile);
-				return rc;
-			}
-			break;
-		}
-		case TAGFS_LOG_ACCESS:
-		default:
-			printf("%s: invalid log entry\n", __func__);
-			break;
-		}
-	}
-	printf("%s: processed %d log entries\n", __func__, nlog);
-	return 0;
-}
-#endif
-
-int
-tagfs_logplay(const struct tagfs_log *logp,
-	      const char *mpt)
+tagfs_logplay(
+	const struct tagfs_log *logp,
+	const char             *mpt,
+	int                     dry_run)
 {
 	int nlog = 0;
 	int i;
 	int rc;
 
-	assert(mpt);
-	assert(strlen(mpt) > 0);
-	assert(mpt[0] == '/');
 
 	if (logp->tagfs_log_next_index == 0) {
 		fprintf(stderr, "%s: log is empty (mpt=%s)\n",
@@ -687,10 +616,13 @@ tagfs_logplay(const struct tagfs_log *logp,
 			struct stat st;
 			int fd;
 
-			printf("%s: file=%s size=%lld", __func__,
+			printf("%s: %d file=%s size=%lld\n", __func__, i,
 			       fc->tagfs_relpath, fc->tagfs_fc_size);
+
 			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, fc->tagfs_relpath);
 			realpath(fullpath, rpath);
+			if (dry_run)
+				continue;
 
 			rc = stat(rpath, &st);
 			if (!rc) {
@@ -721,7 +653,7 @@ tagfs_logplay(const struct tagfs_log *logp,
 		case TAGFS_LOG_ACCESS:
 		default:
 			printf("%s: invalid log entry\n", __func__);
-			break;/
+			break;
 		}
 	}
 	printf("%s: processed %d log entries\n", __func__, nlog);
@@ -868,7 +800,7 @@ __open_relpath(
 	next:
 		/* pop up one level */
 		rpath = dirname(rpath);
-		if (strcmp(rpath, ".") == 0)
+		if (strcmp(rpath, "/") == 0)
 			break;
 	}
 	return -1;
@@ -1288,10 +1220,12 @@ tagfs_cp(char *srcfile,
 				   srcstat.st_size);
 	if (destfd < 0) {
 		if (destfd == -EBADF)
-			fprintf(stderr, "Destination file %s is not in a tagfs file system\n",
+			fprintf(stderr,
+				"Destination file %s is not in a tagfs file system\n",
 				destfile);
 		else
-			fprintf(stderr, "%s: unable to create destfile (%s)\n", __func__, destfile);
+			fprintf(stderr, "%s: unable to create destfile (%s)\n",
+				__func__, destfile);
 
 		unlink(destfile);
 		return destfd;
@@ -1308,8 +1242,8 @@ tagfs_cp(char *srcfile,
 	}
 
 	/* TODO: consistent arg order fd, name */
-	rc = tagfs_file_alloc(destfd, destfile, srcstat.st_mode, srcstat.st_uid, srcstat.st_gid,
-			      srcstat.st_size);
+	rc = tagfs_file_alloc(destfd, destfile, srcstat.st_mode, srcstat.st_uid,
+			      srcstat.st_gid, srcstat.st_size);
 	if (rc) {
 		fprintf(stderr, "%s: failed to allocate size %ld for file %s\n",
 			__func__, srcstat.st_size, destfile);

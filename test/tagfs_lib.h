@@ -47,7 +47,7 @@ void tagfs_uuidgen(uuid_le *uuid);
 void tagfs_print_uuid(const uuid_le *uuid);
 int tagfs_mkmeta(const char *devname);
 u64 tagfs_alloc(const char *devname, u64 size);
-int tagfs_logplay(const struct tagfs_log *logp, const char *mpt);
+int tagfs_logplay(const struct tagfs_log *logp, const char *mpt, int dry_run);
 
 int tagfs_file_create(const char *path, mode_t mode, uid_t uid, gid_t gid, size_t size);
 

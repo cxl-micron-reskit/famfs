@@ -89,19 +89,14 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 	void *addr;
 	char *filename;
 	int lfd;
+	int dry_run = 0;
 
 /* XXX can't use any of the same strings as the global args! */
 	struct option logplay_options[] = {
 		/* These options set a */
-		{"filename",    required_argument,             0,  'f'},
+		{"dryrun",      required_argument,             0,  'n'},
 		{0, 0, 0, 0}
 	};
-
-	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli map: no args\n");
-		tagfs_logplay_usage(argc, argv);
-		return -1;
-	}
 
 	/* The next stuff on the command line is file names;
 	 * err if nothing is left */
@@ -113,7 +108,7 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
-	while ((c = getopt_long(argc, argv, "+f:h?",
+	while ((c = getopt_long(argc, argv, "+nh?",
 				logplay_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -123,13 +118,10 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 
 		arg_ct++;
 		switch (c) {
-
-		case 'f': {
-			filename = optarg;
-			printf("filename: %s\n", filename);
-			/* TODO: make sure filename is in a tagfs file system */
+		case 'n':
+			dry_run++;
+			printf("dry_run selected\n");
 			break;
-		}
 		case 'h':
 		case '?':
 			tagfs_logplay_usage(argc, argv);
@@ -145,18 +137,24 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 		fprintf(stderr, "Must specify at least one dax device\n");
 		return -1;
 	}
+	filename = argv[optind++];
 
 	lfd = open_log_file_writable(filename, &log_size, mpt);
+	if (lfd < 0) {
+		fprintf(stderr, "%s: failed to open log file for filesystem %s\n",
+			__func__, filename);
+		return -1;
+	}
 	addr = mmap(0, log_size, O_RDWR, MAP_SHARED, lfd, 0);
 	if (addr == MAP_FAILED) {
-		fprintf(stderr, "%s: Failed to mmap log file", __func__);
+		fprintf(stderr, "%s: Failed to mmap log file %s", __func__, filename);
 		close(lfd);
 		return -1;
 	}
 	close(lfd);
 	logp = (struct tagfs_log *)addr;
 
-	tagfs_logplay(logp, mpt);
+	tagfs_logplay(logp, mpt, dry_run);
 	return 0;
 }
 
