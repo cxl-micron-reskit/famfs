@@ -586,6 +586,19 @@ mmap_log_file_writable(const char *mpt)
 
 /******/
 
+static inline int
+tagfs_log_full(const struct tagfs_log *logp)
+{
+	return (logp->tagfs_log_next_index > logp->tagfs_log_last_index);
+}
+
+static inline int
+tagfs_log_entry_fc_path_is_relative(const struct tagfs_file_creation *fc)
+{
+	return ((strlen((char *)fc->tagfs_relpath) >= 1)
+		&& (fc->tagfs_relpath[0] != '/'));
+}
+
 int
 tagfs_logplay(
 	const struct tagfs_log *logp,
@@ -597,7 +610,7 @@ tagfs_logplay(
 	int rc;
 
 
-	if (logp->tagfs_log_next_index == 0) {
+	if (tagfs_log_full(logp)) {
 		fprintf(stderr, "%s: log is empty (mpt=%s)\n",
 			__func__, mpt);
 		return -1;
@@ -619,6 +632,12 @@ tagfs_logplay(
 			printf("%s: %d file=%s size=%lld\n", __func__, i,
 			       fc->tagfs_relpath, fc->tagfs_fc_size);
 
+			if (!tagfs_log_entry_fc_path_is_relative(fc)) {
+				fprintf(stderr,
+					"%s: ignoring log entry; path is not relative\n",
+					__func__);
+				continue;
+			}
 			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, fc->tagfs_relpath);
 			realpath(fullpath, rpath);
 			if (dry_run)
@@ -695,30 +714,71 @@ tagfs_append_log(struct tagfs_log       *logp,
 	return 0;
 }
 
-static inline int
-tagfs_log_full(struct tagfs_log *logp)
+#if 0
+/* TODO */
+int
+tagfs_validate_fullpath(const char *fullpath)
 {
-	return (logp->tagfs_log_next_index > logp->tagfs_log_last_index);
+}
+#endif
+
+/**
+ * tagfs_relpath_from_fullpath()
+ *
+ * Returns a pointer to the relpath. This pointer points within the fullpath string
+ *
+ * @mpt - mount point string (rationalized by realpath())
+ * @fullpath
+ */
+char *
+tagfs_relpath_from_fullpath(
+	const char *mpt,
+	char       *fullpath)
+{
+	char *relpath;
+
+	assert(mpt);
+	assert(fullpath);
+	assert(strlen(fullpath) > strlen(mpt));
+
+	if (strstr(fullpath, mpt) != fullpath) {
+		/* mpt path should be a substring starting at the beginning of fullpath*/
+		fprintf(stderr, "%s: failed to get relpath from mpt=%s fullpath=%s\n",
+			__func__, mpt, fullpath);
+		return NULL;
+	}
+
+	/* This assumes relpath() removed any duplicate '/' characters: */
+	relpath = &fullpath[strlen(mpt) + 1];
+	printf("%s: mpt=%s, fullpath=%s relpath=%s\n", __func__, mpt, fullpath, relpath);
+	return relpath;
 }
 
+/**
+ * tagfs_log_file_creation()
+ */
+/* TODO: UI would be cleaner if this accepted a fullpath and the mpt, and did the
+ * conversion itself. Then pretty much all calls would use the same stuff.
+ */
 int
 tagfs_log_file_creation(
 	struct tagfs_log           *logp,
 	u64                         nextents,
 	struct tagfs_simple_extent *ext_list,
-	const char                 *path,
+	const char                 *relpath,
 	mode_t                      mode,
 	uid_t                       uid,
 	gid_t                       gid,
 	size_t                      size)
 {
-	struct tagfs_log_entry le;
+	struct tagfs_log_entry le = {0};
 	struct tagfs_file_creation *fc = &le.tagfs_fc;
 	int i;
 
 	assert(logp);
 	assert(ext_list);
 	assert(nextents >= 1);
+	assert(relpath[0] != '/');
 
 	if (tagfs_log_full(logp)) {
 		fprintf(stderr, "%s: log full\n", __func__);
@@ -731,7 +791,8 @@ tagfs_log_file_creation(
 	fc->tagfs_fc_size = size;
 	fc->tagfs_nextents = nextents;
 	fc->tagfs_fc_flags = TAGFS_FC_ALL_HOSTS_RW; /* XXX hard coded access for now */
-	strncpy((char *)fc->tagfs_relpath, path, TAGFS_MAX_PATHLEN - 1);
+
+	strncpy((char *)fc->tagfs_relpath, relpath, TAGFS_MAX_PATHLEN - 1);
 
 	fc->fc_mode = mode;
 	fc->fc_uid  = uid;
@@ -1090,6 +1151,12 @@ __file_not_tagfs(int fd)
  * tagfs_file_alloc()
  *
  * Alllocate space for a file, making it ready to use
+ *
+ * @fd
+ * @path - full path of file to allocate
+ * @mode -
+ * @uid
+ * @size - size to alloacte
  */
 int
 tagfs_file_alloc(
@@ -1102,7 +1169,10 @@ tagfs_file_alloc(
 {
 	struct tagfs_simple_extent ext = {0};
 	struct tagfs_log *logp;
+	char mpt[PATH_MAX];
 	size_t log_size;
+	char *relpath;
+	char *rpath;
 	s64 offset;
 	void *addr;
 	int lfd;
@@ -1110,8 +1180,9 @@ tagfs_file_alloc(
 
 	assert(fd > 0);
 
+	rpath = realpath(path, NULL);
 	/* Log file */
-	lfd = open_log_file_writable(path, &log_size, NULL);
+	lfd = open_log_file_writable(rpath, &log_size, mpt);
 	if (lfd < 0)
 		return lfd;
 
@@ -1124,16 +1195,23 @@ tagfs_file_alloc(
 	close(lfd);
 	logp = (struct tagfs_log *)addr;
 
+	/* For the log, we need the path relative to the mount point.
+	 * getting this before we allocate is cleaner if the path is sombhow bogus
+	 */
+	relpath = tagfs_relpath_from_fullpath(mpt, rpath);
+	if (!relpath)
+		return -EINVAL;
+
 	/* Allocation is always contiguous initially */
-	offset = tagfs_alloc_bypath(logp, path, size);
+	offset = tagfs_alloc_bypath(logp, rpath, size);
 	if (offset < 0)
-		return -1;
+		return -ENOMEM;
 
 	ext.tagfs_extent_len    = round_size_to_alloc_unit(size);
 	ext.tagfs_extent_offset = offset;
 
 	rc = tagfs_log_file_creation(logp, 1, &ext,
-				     path, mode, uid, gid, size);
+				     relpath, mode, uid, gid, size);
 	if (rc)
 		return rc;
 
@@ -1164,7 +1242,7 @@ tagfs_file_create(const char *path,
 	int fd = open(path, O_RDWR | O_CREAT, mode);
 
 	if (fd < 0)
-		return rc;
+		return fd;
 
 	if (__file_not_tagfs(fd)) {
 		close(fd);

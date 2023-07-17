@@ -84,7 +84,7 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 	int c;
 	int arg_ct = 0;
 	struct tagfs_log *logp;
-	char mpt[PATH_MAX];
+	char mpt_out[PATH_MAX];
 	size_t log_size;
 	void *addr;
 	char *filename;
@@ -139,7 +139,7 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 	}
 	filename = argv[optind++];
 
-	lfd = open_log_file_writable(filename, &log_size, mpt);
+	lfd = open_log_file_writable(filename, &log_size, mpt_out);
 	if (lfd < 0) {
 		fprintf(stderr, "%s: failed to open log file for filesystem %s\n",
 			__func__, filename);
@@ -154,7 +154,7 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 	close(lfd);
 	logp = (struct tagfs_log *)addr;
 
-	tagfs_logplay(logp, mpt, dry_run);
+	tagfs_logplay(logp, mpt_out, dry_run);
 	return 0;
 }
 
@@ -545,6 +545,7 @@ do_tagfs_cli_creat(int argc, char *argv[])
 	struct tagfs_simple_extent *ext_list;
 	int c, i, rc, fd;
 	char *filename = NULL;
+	char fullpath[PATH_MAX];
 
 	int num_extents = 0;
 	int cur_extent  = 0;
@@ -707,13 +708,21 @@ do_tagfs_cli_creat(int argc, char *argv[])
 	}
 	fd = tagfs_file_create(filename, S_IRUSR|S_IWUSR, uid, gid, fsize);
 	if (fd < 0) {
-		fprintf(stderr, "%s: failed to create file %s\n", __func__, filename);
+		fprintf(stderr, "%s: failed to create file %s\n", __func__, fullpath);
 		exit(-1);
+	}
+
+	/* Clean up the filename path. (Can't call realpath until the file exists) */
+	if (realpath(filename, fullpath) == NULL) {
+		fprintf(stderr, "realpath() unable to rationalize filename %s\n",
+			filename);
 	}
 
 	if (num_extents > 0) {
 		struct tagfs_log *logp;
+		char mpt_out[PATH_MAX];
 		size_t log_size;
+		char *relpath;
 		void *addr;
 		int lfd;
 
@@ -721,7 +730,7 @@ do_tagfs_cli_creat(int argc, char *argv[])
 		 * allocator Log the allocation anyway, which can be used for
 		 * testing duplicate allocations, etc. */
 
-		lfd = open_log_file_writable(filename, &log_size, NULL);
+		lfd = open_log_file_writable(fullpath, &log_size, mpt_out);
 		addr = mmap(0, log_size, O_RDWR, MAP_SHARED, lfd, 0);
 		if (addr == MAP_FAILED) {
 			fprintf(stderr, "%s: Failed to mmap log file", __func__);
@@ -731,20 +740,29 @@ do_tagfs_cli_creat(int argc, char *argv[])
 		close(lfd);
 		logp = (struct tagfs_log *)addr;
 
+		relpath = tagfs_relpath_from_fullpath(mpt_out, fullpath);
+		if (!relpath)
+			return -EINVAL;
+
+		/* XXX - tagfs_log_file_creation should only be called outside
+		 * tagfs_lib.c if we are intentionally doing extent list allocation
+		 * bypassing tagfs_lib. This is useful for testing, by generating
+		 * problematic extent lists on purpoose...
+		 */
 		rc = tagfs_log_file_creation(logp, num_extents, ext_list,
-					     filename, O_RDWR, uid, gid, fsize);
+					     relpath, O_RDWR, uid, gid, fsize);
 		if (rc) {
 			fprintf(stderr,
 				"%s: failed to log caller-specified allocation\n",
 				__func__);
 			exit(-1);
 		}
-		rc = tagfs_file_map_create(filename, fd, fsize, num_extents, ext_list);
+		rc = tagfs_file_map_create(fullpath, fd, fsize, num_extents, ext_list);
 	} else {
-		rc = tagfs_file_alloc(fd, filename, O_RDWR, uid, gid, fsize);
+		rc = tagfs_file_alloc(fd, fullpath, O_RDWR, uid, gid, fsize);
 		if (rc) {
 			fprintf(stderr, "%s: tagfs_file_alloc(%s, size=%ld) failed\n",
-				__func__, filename, fsize);
+				__func__, fullpath, fsize);
 		}
 	}
 	if (randomize) {
@@ -752,17 +770,17 @@ do_tagfs_cli_creat(int argc, char *argv[])
 		void *addr;
 		char *buf;
 
-		rc = stat(filename, &st);
+		rc = stat(fullpath, &st);
 		if (rc) {
 			fprintf(stderr, "%s: failed to stat newly craeated file %s\n",
-				__func__, filename);
+				__func__, fullpath);
 			exit(-1);
 		}
 		if (st.st_size != fsize) {
 			fprintf(stderr, "%s: file size mismatch %ld/%ld\n",
 				__func__, fsize, st.st_size);
 		}
-		addr = mmap_whole_file(filename, 0, NULL);
+		addr = mmap_whole_file(fullpath, 0, NULL);
 		if (!addr) {
 			fprintf(stderr,"%s: randomize mmap failed\n", __func__);
 			exit(-1);
