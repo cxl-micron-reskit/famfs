@@ -186,6 +186,7 @@ main(int argc,
 
 	printf("%d extents specified:\n", num_extents);
 	printf("Total size: %ld\n", fsize);
+	filemap.file_type   = TAGFS_REG;
 	filemap.file_size   = fsize;
 	filemap.extent_type = type;
 	for (i=0; i<num_extents; i++)

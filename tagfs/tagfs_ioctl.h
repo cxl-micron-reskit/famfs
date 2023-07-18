@@ -21,6 +21,11 @@ struct tagfs_extent {
 	u64              len;
 };
 
+enum tagfs_file_type {
+	TAGFS_REG,
+	TAGFS_SUPERBLOCK,
+	TAGFS_LOG,
+};
 
 #define TAGFS_DEVNAME_LEN 32
 /**
@@ -30,6 +35,7 @@ struct tagfs_extent {
  */
 struct tagfs_ioc_map {
 	enum extent_type          extent_type;
+	enum tagfs_file_type      file_type;
 	size_t                    file_size;
 	size_t                    ext_list_count;
 	struct tagfs_extent      *ext_list;

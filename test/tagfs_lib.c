@@ -366,18 +366,30 @@ tagfs_get_mpt_by_dev(const char *mtdev)
 	return NULL;
 }
 
+/**
+ * tagfs_file_map_create()
+ *
+ * This function allocates free space in a tagfs file system and associates it
+ * with a file.
+ *
+ * @path
+ * @fd
+ * @size
+ * @nextents
+ * @extent_list
+ */
 int
 tagfs_file_map_create(
 	const char *                path,
 	int                         fd,
 	size_t                      size,
 	int                         nextents,
-	struct tagfs_simple_extent *ext_list)
+	struct tagfs_simple_extent *ext_list,
+	enum tagfs_file_type        type)
 {
 	struct tagfs_ioc_map filemap;
 	struct tagfs_extent *ext;
 	int rc;
-	int i;
 
 	assert(fd > 0);
 
@@ -385,16 +397,18 @@ tagfs_file_map_create(
 	if (!ext)
 		return -ENOMEM;
 
+	filemap.file_type      = type;
 	filemap.file_size      = size;
 	filemap.extent_type    = FSDAX_EXTENT;
 	filemap.ext_list_count = nextents;
-	filemap.ext_list       = ext;
+	filemap.ext_list       = (struct tagfs_extent *)ext_list;
 
+#if 0
 	for (i=0; i<nextents; i++) {
 		ext[i].offset = ext_list[i].tagfs_extent_offset;
 		ext[i].len    = ext_list[i].tagfs_extent_len;
 	}
-
+#endif
 	rc = ioctl(fd, TAGFSIOC_MAP_CREATE, &filemap);
 	if (rc)
 		fprintf(stderr, "%s: failed MAP_CREATE for file %s (errno %d)\n",
@@ -450,6 +464,25 @@ tagfs_mkmeta(const char *devname)
 	strncat(sb_file, "/.superblock", PATH_MAX - 1);
 	strncat(log_file, "/.log", PATH_MAX - 1);
 
+	/* Check if superblock file already exists, and cleanup of bad */
+	rc = stat(sb_file, &st);
+	if (rc == 0) {
+		if ((st.st_mode & S_IFMT) == S_IFREG) {
+			/* Superblock file exists */
+			if (st.st_size != TAGFS_SUPERBLOCK_SIZE) {
+				fprintf(stderr, "%s: unlinking bad superblock file\n",
+					__func__);
+				unlink(sb_file);
+			}
+		}
+		else {
+			fprintf(stderr,
+				"%s: non-regular file found where superblock expected\n",
+				__func__);
+			return -EINVAL;
+		}
+	}
+
 	rc = tagfs_mmap_superblock_and_log_raw(devname, &sb, &logp, 1);
 	if (rc) {
 		fprintf(stderr, "%s: superblock/log accessfailed\n", __func__);
@@ -470,9 +503,27 @@ tagfs_mkmeta(const char *devname)
 
 	ext.tagfs_extent_offset = 0;
 	ext.tagfs_extent_len    = TAGFS_SUPERBLOCK_SIZE;
-	rc = tagfs_file_map_create(sb_file, sbfd, TAGFS_SUPERBLOCK_SIZE, 1, &ext);
+	rc = tagfs_file_map_create(sb_file, sbfd, TAGFS_SUPERBLOCK_SIZE, 1, &ext,
+				   TAGFS_SUPERBLOCK);
 	if (rc)
 		return -1;
+
+	/* Check if log file already exists, and cleanup of bad */
+	rc = stat(log_file, &st);
+	if (rc == 0) {
+		if ((st.st_mode & S_IFMT) == S_IFREG) {
+			/* Log file exists; is it the right size? */
+			if (st.st_size != sb->ts_log_len) {
+				fprintf(stderr, "%s: unlinking bad log file\n", __func__);
+				unlink(log_file);
+			}
+		}
+		else {
+			fprintf(stderr, "%s: non-regular file found where superblock expected\n",
+				__func__);
+			return -EINVAL;
+		}
+	}
 
 	/* Create and allocate log file */
 	logfd = open(log_file, O_RDWR|O_CREAT, S_IRUSR|S_IWUSR);
@@ -483,7 +534,7 @@ tagfs_mkmeta(const char *devname)
 
 	ext.tagfs_extent_offset = sb->ts_log_offset;
 	ext.tagfs_extent_len    = sb->ts_log_len;
-	rc = tagfs_file_map_create(log_file, logfd, sb->ts_log_len, 1, &ext);
+	rc = tagfs_file_map_create(log_file, logfd, sb->ts_log_len, 1, &ext, TAGFS_LOG);
 	if (rc)
 		return -1;
 
@@ -606,7 +657,7 @@ tagfs_logplay(
 	int                     dry_run)
 {
 	int nlog = 0;
-	int i;
+	int i, j;
 	int rc;
 
 
@@ -624,9 +675,11 @@ tagfs_logplay(
 		switch (le.tagfs_log_entry_type) {
 		case TAGFS_LOG_FILE: {
 			const struct tagfs_file_creation *fc = &le.tagfs_fc;
+			struct tagfs_simple_extent *el;
 			char fullpath[PATH_MAX];
 			char rpath[PATH_MAX];
 			struct stat st;
+			int skip_file = 0;
 			int fd;
 
 			printf("%s: %d file=%s size=%lld\n", __func__, i,
@@ -636,8 +689,25 @@ tagfs_logplay(
 				fprintf(stderr,
 					"%s: ignoring log entry; path is not relative\n",
 					__func__);
-				continue;
+				skip_file++;
 			}
+
+			/* The only file that should have an extent with offset 0
+			 * is the superblock, which is not in the log. Check for files with
+			 * null offset... */
+			for (j=0; j<fc->tagfs_nextents; j++) {
+				const struct tagfs_simple_extent *se = &fc->tagfs_ext_list[j].se;
+				if (se->tagfs_extent_offset == 0) {
+					fprintf(stderr,
+						"%s: ERROR file %s has extent with 0 offset\n",
+						__func__, fc->tagfs_relpath);
+					skip_file++;
+				}
+			}
+
+			if (skip_file)
+				continue;
+
 			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, fc->tagfs_relpath);
 			realpath(fullpath, rpath);
 			if (dry_run)
@@ -662,10 +732,17 @@ tagfs_logplay(
 				unlink(rpath);
 				continue;
 			}
+
+			/* build extent list of tagfs_simple_extent; the log entry has a
+			 * different kind of extent list...*/
+			el = calloc(fc->tagfs_nextents, sizeof(*el));
+			for (j=0; j<fc->tagfs_nextents; j++) {
+				const struct tagfs_log_extent *tle = &fc->tagfs_ext_list[j];
+				el[j].tagfs_extent_offset = tle[j].se.tagfs_extent_offset;
+				el[j].tagfs_extent_len    = tle[j].se.tagfs_extent_len;
+			}
 			tagfs_file_map_create(rpath, fd, fc->tagfs_fc_size,
-					      fc->tagfs_nextents,
-					      (struct tagfs_simple_extent *)
-					      fc->tagfs_ext_list);
+					      fc->tagfs_nextents, el, TAGFS_REG);
 			close(fd);
 			break;
 		}
@@ -1215,7 +1292,7 @@ tagfs_file_alloc(
 	if (rc)
 		return rc;
 
-	return tagfs_file_map_create(path, fd, size, 1, &ext);
+	return tagfs_file_map_create(path, fd, size, 1, &ext, TAGFS_REG);
 }
 
 /**

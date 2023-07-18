@@ -33,6 +33,7 @@ extern const struct inode_operations tagfs_file_inode_operations;
  */
 struct tagfs_file_meta {
 	enum extent_type     tfs_extent_type;
+	enum tagfs_file_type file_type;
 	size_t               tfs_extent_ct;
 	char                *dax_devname;
 	struct dax_device   *daxdev;

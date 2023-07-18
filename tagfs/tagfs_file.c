@@ -110,11 +110,29 @@ tagfs_meta_to_dax_offset(struct inode *inode,
 	loff_t local_offset = offset;
 	struct tagfs_fs_info  *fsi = inode->i_sb->s_fs_info;
 
-	printk(KERN_NOTICE "%s: offset %llx len %lld\n", __func__, offset, len);
+	switch (meta->file_type) {
+	case TAGFS_SUPERBLOCK:
+		printk(KERN_NOTICE "%s: SUPERBLOCK\n", __func__);
+		break;
+	case TAGFS_LOG:
+		printk(KERN_NOTICE "%s: LOG\n", __func__);
+		break;
+	case TAGFS_REG:
+		printk(KERN_NOTICE "%s: REGULAR FILE\n", __func__);
+		break;
+	default:
+		printk(KERN_ERR "%s: bad file type\n", __func__);
+		break;
+	}
+	printk(KERN_NOTICE "%s: File offset %llx len %lld\n", __func__, offset, len);
 	for (i=0; i<meta->tfs_extent_ct; i++) {
 		loff_t dax_ext_offset = meta->tfs_extents[i].offset;
 		loff_t dax_ext_len    = meta->tfs_extents[i].len;
 
+		if ((dax_ext_offset == 0)
+		    && (meta->file_type != TAGFS_SUPERBLOCK)) {
+			printk(KERN_ERR "%s: zero offset on non-superblock file!!\n", __func__);
+		}
 		printk(KERN_NOTICE "%s: ofs %llx len %llx tagfs: ext %d ofs %llx len %llx\n",
 		       __func__, local_offset, len, i, dax_ext_offset, dax_ext_len);
 
@@ -139,7 +157,7 @@ tagfs_meta_to_dax_offset(struct inode *inode,
 			//iomap->bdev    = fsi->bdevp;
 			printk(KERN_NOTICE "%s: --> ext %d daxdev offset %llx len %lld\n",
 			       __func__, i,
-			       iomap->offset, iomap->length);
+			       iomap->addr, iomap->length);
 			return 0;
 		}
 		local_offset -= dax_ext_len; /* Get ready for the next extent */
@@ -201,6 +219,7 @@ tagfs_file_ioctl(
 		struct tagfs_file_meta *meta = inode->i_private;
 		struct tagfs_ioc_map umeta;
 
+
 		memset(&umeta, 0, sizeof(umeta));
 
 		if (meta) {
@@ -211,7 +230,8 @@ tagfs_file_ioctl(
 
 			rc = copy_to_user((void __user *)arg, &umeta, sizeof(umeta));
 			if (rc) {
-				printk(KERN_NOTICE "%s: copy_to_user returned %ld\n", __func__, rc);
+				printk(KERN_NOTICE "%s: copy_to_user returned %ld\n",
+				       __func__, rc);
 			}
 		} else {
 			rc = -EINVAL;

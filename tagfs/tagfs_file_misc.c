@@ -157,13 +157,30 @@ tagfs_file_create(
 		goto errout;
 	}
 
+	meta->file_type = imap.file_type;
+
+	if (meta->file_type == TAGFS_SUPERBLOCK)
+		printk(KERN_INFO "%s: superblock\n", __func__);
+	else if (meta->file_type == TAGFS_LOG)
+		printk(KERN_INFO "%s: log\n", __func__);
+	else
+		printk(KERN_INFO "%s: NOT superblock\n", __func__);
+
 	/* Fill in the internal file metadata structure */
 	for (i=0; i<imap.ext_list_count; i++) {
 		size_t len;
 		off_t offset;
 
-		len    = imap.ext_list[i].len;
 		offset = imap.ext_list[i].offset;
+		len    = imap.ext_list[i].len;
+
+		printk(KERN_INFO "%s: ext %d ofs=%lx len=%lx\n", __func__, i, offset, len);
+
+		if (offset == 0 && meta->file_type != TAGFS_SUPERBLOCK) {
+			printk(KERN_ERR "%s: zero offset on non-superblock file!!\n", __func__);
+			rc = -EINVAL;
+			goto errout;
+		}
 
 		/* TODO: get HPA from Tag DAX device. Hmmm. */
 		meta->tfs_extents[i].offset = offset;

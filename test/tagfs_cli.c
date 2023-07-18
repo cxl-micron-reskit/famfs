@@ -487,9 +487,10 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 		fprintf(stderr, "Must supply filename\n");
 		exit(-1);
 	}
-	fd = open(filename, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
+	fd = open(filename, O_RDONLY, 0);
 	if (fd < 0) {
-		fprintf(stderr, "open/mape failed; rc %d errno %d\n", rc, errno);
+		fprintf(stderr, "open failed: %s rc %d errno %d\n",
+			filename, rc, errno);
 		exit(-1);
 	}
 	rc = ioctl(fd, TAGFSIOC_MAP_GET, &filemap);
@@ -757,7 +758,8 @@ do_tagfs_cli_creat(int argc, char *argv[])
 				__func__);
 			exit(-1);
 		}
-		rc = tagfs_file_map_create(fullpath, fd, fsize, num_extents, ext_list);
+		rc = tagfs_file_map_create(fullpath, fd, fsize, num_extents,
+					   ext_list, TAGFS_REG);
 	} else {
 		rc = tagfs_file_alloc(fd, fullpath, O_RDWR, uid, gid, fsize);
 		if (rc) {

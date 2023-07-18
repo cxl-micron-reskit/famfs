@@ -23,7 +23,8 @@ tagfs_file_map_create(
 	int                         fd,
 	size_t                      size,
 	int                         nextents,
-	struct tagfs_simple_extent *ext_list);
+	struct tagfs_simple_extent *ext_list,
+	enum tagfs_file_type        type);
 int
 tagfs_file_alloc(
 	int         fd,
