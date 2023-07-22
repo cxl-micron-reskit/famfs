@@ -30,7 +30,7 @@ sudo debug/mkfs.tagfs  $DEV         && fail "mkfs redo" # fail, fs exists
 #debug/tagfs mkmeta /dev/pmem0                  || fail "mkmeta"
 sudo debug/tagfs fsck $DEV          || fail "fsck"
 
-sudo insmod ../tagfs/tagfs.ko       || fail "insmod"
+sudo insmod ../kmod/tagfs.ko       || fail "insmod"
 sudo mount -t tagfs -o noatime -o dax=always -o rootdev=/dev/pmem0 /dev/pmem0 $MPT \
     || fail "mount"
 

@@ -17,7 +17,7 @@
 
 typedef __u64 u64;
 
-#include "../tagfs/tagfs_ioctl.h"
+#include "tagfs_ioctl.h"
 #include "tagfs_lib.h"
 
 void

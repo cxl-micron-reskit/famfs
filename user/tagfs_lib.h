@@ -1,8 +1,8 @@
 #ifndef _H_TAGFS_LIB
 #define _H_TAGFS_LIB
 
-#include "../tagfs/tagfs.h"
-#include "../tagfs/tagfs_meta.h"
+#include "tagfs.h"
+#include "tagfs_meta.h"
 
 #define SB_FILE_RELPATH    ".meta/.superblock"
 #define LOG_FILE_RELPATH   ".meta/.log"

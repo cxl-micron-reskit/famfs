@@ -8,6 +8,7 @@ set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -ggdb -Wall ")
 project(tagfs_test)
 
 include_directories("${PROJECT_SOURCE_DIR}")
+include_directories("${PROJECT_SOURCE_DIR}/../kmod")
 include_directories("${PROJECT_SOURCE_DIR}/testlib")
 
 

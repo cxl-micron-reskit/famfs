@@ -23,9 +23,9 @@
 #include <assert.h>
 #include <sys/param.h> /* MIN()/MAX() */
 
-#include "../tagfs/tagfs.h"
-#include "../tagfs/tagfs_ioctl.h"
-#include "../tagfs/tagfs_meta.h"
+#include "tagfs.h"
+#include "tagfs_ioctl.h"
+#include "tagfs_meta.h"
 
 #include "tagfs_lib.h"
 #include "bitmap.h"
