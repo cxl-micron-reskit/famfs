@@ -7,7 +7,8 @@ TODO
 
 * Missing functionality
 ** DONE Create log entry when allocating/creating a file
-** TODO play log into file system
+** DONE play log into file system
+'tagfs logplay <mpt>'
 ** TODO un-tar into file system
 ** DONE Populate log
 ** DONE nop ioctl to verify that a file is in a tagfs fs
@@ -82,7 +83,7 @@ would have to be totally embargoed during this process.
 ** Scan hidden file and generate allocation bitmapp
 
 * Kernel fs features
-** TODO decouple size from extent list
+** DONE decouple size from extent list
 i.e. size can be <= extent list length
 ** TODO Dump the user-space file metadata (for cloning)
 This will return a tagfs_ioc_map and an array of tagfs_user_extent structs
@@ -98,21 +99,36 @@ This is a derivative of csnoop, though the xarray conversion may change it.
 - Mv to intended path
 ** DONE get size of pmem block device
 ** TODO Get size of dax character device
+Done but need to test
 ** TODO Get device size regardless of type
+Done but char device not tested yet
 ** TODO tagfs_setmode
 ** TODO tagfs_clone
+Create another file referencing the same data. This should cause an fsck error, because
+fsck will notice allocated blocks that are referenced by more than one file.
 
 * Tagfs cli
-** TODO tagfs map
+** TODO tagfs getmap
 Dump the file map, optionally in the form of a command line that can be used to create a
-clone of the file.
+clone of the file. The dump works, but not in command line format.
 ** TODO tagfs cp
-Copy a file to tagfs. Source can be in tagfs, or separate.
-
-This requires the allocator.
+Copy a file to tagfs. Source can be in tagfs, or separate. This requires the allocator.
+Basically working, but not fully tested
 ** TODO tagfs create
 ** TODO tagfs clone
 ** TODO tagfs setmode
+
+
+* 7/21 debuggingg files > 1 page
+Mission accomplished...
+** iomap_begin()
+*** xfs iomap begin funcs that call xfs_bmbt_to_iomapp()
+**** xfs_direct_write_iomap_begin()
+**** xfs_buffered_write_iomap_begin()
+This one is complicated due to delayed allocations
+**** xfs_read_iomap_begin()
+**** xfs_seek_iomap_begin()
+**** xfs_xattr_iomap_begin()
 
 
 
