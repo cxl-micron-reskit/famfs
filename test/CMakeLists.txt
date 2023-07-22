@@ -28,20 +28,20 @@ target_link_libraries(mkfile libtagfs uuid)
 
 
 
-##
-### Test definitions ###
-##
+#
+## Test definitions ###
+#
 
-#configure_file(CMakeLists.txt.in
-#        googletest-download/CMakeLists.txt)
-#execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
-#        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/googletest-download )
-#execute_process(COMMAND ${CMAKE_COMMAND} --build .
-#        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/googletest-download )
-#
-#add_subdirectory(${CMAKE_BINARY_DIR}/googletest-src
-#        ${CMAKE_BINARY_DIR}/googletest-build)
-#
-#enable_testing()
+configure_file(CMakeLists.txt.in
+        googletest-download/CMakeLists.txt)
+execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/googletest-download )
+execute_process(COMMAND ${CMAKE_COMMAND} --build .
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/googletest-download )
+
+add_subdirectory(${CMAKE_BINARY_DIR}/googletest-src
+        ${CMAKE_BINARY_DIR}/googletest-build)
+
+enable_testing()
 
 
