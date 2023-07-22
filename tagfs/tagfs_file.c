@@ -110,6 +110,8 @@ tagfs_meta_to_dax_offset(struct inode *inode,
 	loff_t local_offset = offset;
 	struct tagfs_fs_info  *fsi = inode->i_sb->s_fs_info;
 
+	iomap->offset = offset; /* file offset */
+
 	switch (meta->file_type) {
 	case TAGFS_SUPERBLOCK:
 		printk(KERN_NOTICE "%s: SUPERBLOCK\n", __func__);
@@ -136,19 +138,20 @@ tagfs_meta_to_dax_offset(struct inode *inode,
 		printk(KERN_NOTICE "%s: ofs %llx len %llx tagfs: ext %d ofs %llx len %llx\n",
 		       __func__, local_offset, len, i, dax_ext_offset, dax_ext_len);
 
+		/* local_offset is the offset minus the size of extents skipped so far;
+		 * If local_offset < dax_ext_len, the data of interest starts in this extent
+		 */
 		if (local_offset < dax_ext_len) {
 			loff_t ext_len_remainder = dax_ext_len - local_offset;
 
 			/*+
 			 * OK, we found the file metadata extent where this data begins
 			 * @local_offset      - The offset within the current extent
-			 *                      (if local_offset > ext_len, skip to next extent
-			 *                       and try again)
 			 * @ext_len_remainder - Remaining length of ext after skipping local_offset
 			 *
 			 * iomap->addr is the offset within the dax device where that data
 			 * starts */
-			iomap->addr    = dax_ext_offset + local_offset;
+			iomap->addr    = dax_ext_offset + local_offset; /* "disk offset" */
 			iomap->length  = min_t(loff_t, len, ext_len_remainder);
 			iomap->dax_dev = fsi->dax_devp;
 			iomap->type    = IOMAP_MAPPED;
