@@ -80,17 +80,17 @@ tagfs_file_create(
 	void __user    *arg)
 {
 	struct tagfs_file_meta *meta;
-	struct tagfs_fs_info  *fsi;
+	struct tagfs_fs_info   *fsi;
 	struct tagfs_ioc_map    imap;
-	struct inode           *inode;
+	struct tagfs_extent    *tfs_extents = NULL;
 	struct super_block     *sb;
+	struct inode           *inode;
 
-	struct tagfs_extent *tfs_extents = NULL;
 	size_t  ext_count;
+	size_t  count = 0;
 	int     rc = 0;
 	int     i;
-	size_t  count = 0;
-	int alignment_errs = 0;
+	int     alignment_errs = 0;
 
 	tfs_extents = NULL;
 	meta = NULL;
@@ -147,15 +147,15 @@ tagfs_file_create(
 
 	/* File size can be <= ext list size, since extent sizes are constrained */
 	if (imap.file_size > count) {
+		printk(KERN_ERR "%s: file size %ld larger than ext list count %ld\n",
+		       __func__, imap.file_size, count);
 		rc = -EINVAL;
 		goto errout;
 	}
-	/* TODO: if imap.file_size exceeds ext list count by a full extent, should at leasst warn */
 
 	rc = tagfs_meta_alloc(&meta, ext_count);
-	if (rc) {
+	if (rc)
 		goto errout;
-	}
 
 	meta->file_type = imap.file_type;
 
@@ -164,12 +164,12 @@ tagfs_file_create(
 	else if (meta->file_type == TAGFS_LOG)
 		printk(KERN_INFO "%s: log\n", __func__);
 	else
-		printk(KERN_INFO "%s: NOT superblock\n", __func__);
+		printk(KERN_INFO "%s: Regular file\n", __func__);
 
 	/* Fill in the internal file metadata structure */
 	for (i=0; i<imap.ext_list_count; i++) {
 		size_t len;
-		off_t offset;
+		off_t  offset;
 
 		offset = imap.ext_list[i].offset;
 		len    = imap.ext_list[i].len;
@@ -184,7 +184,7 @@ tagfs_file_create(
 
 		/* TODO: get HPA from Tag DAX device. Hmmm. */
 		meta->tfs_extents[i].offset = offset;
-		meta->tfs_extents[i].len = len;
+		meta->tfs_extents[i].len    = len;
 		printk(KERN_INFO "%s: offset %lx len %ld\n", __func__, offset, len);
 
 		/* All extent addresses/offsets must be 2MiB aligned,
@@ -215,7 +215,6 @@ tagfs_file_create(
 		rc = -EEXIST;
 	} else {
 		inode->i_private = meta;
-		//rc = -ENXIO; /* Don't save metadata when we don't use it yet */
 		i_size_write(inode, imap.file_size);
 		inode->i_flags |= S_DAX;
 	}

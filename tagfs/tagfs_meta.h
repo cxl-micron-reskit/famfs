@@ -79,7 +79,7 @@ struct tagfs_superblock {
 	u64                 ts_log_offset;  /* offset to the start of the log file */
 	u64                 ts_log_len;
 	uuid_le             ts_uuid;
-	u64                 ts_crc;         /* Coves all fields prior to this one */
+	u64                 ts_crc;         /* Covers all fields prior to this one */
 	u32                 ts_num_daxdevs; /* limit is TAGFS_MAX_DAXDEVS */
 	u32                 ts_sb_flags;
 	struct tagfs_daxdev ts_devlist[TAGFS_SUPERBLOCK_MAX_DAXDEVS];
@@ -95,7 +95,7 @@ struct tagfs_log_cb {
 /* Extent types */
 
 enum tagfs_log_ext_type {
-  TAGFS_EXT_SIMPLE,
+	TAGFS_EXT_SIMPLE,
 };
 
 struct tagfs_simple_extent {
@@ -158,19 +158,17 @@ struct tagfs_file_creation {
 /* A log entry of type TAGFS_LOG_ACCESS contains a struct tagfs_file_access entry.
  */
 struct tagfs_file_access {
-	char fa_hostname[TAGFS_MAX_HOSTNAME_LEN];
-	uid_t fa_uid;
-	gid_t fa_gid;
-	u8  fa_owner_perm;
-	u8  fa_group_perm;
-	u8  fa_other_perm;
+	char    fa_hostname[TAGFS_MAX_HOSTNAME_LEN];
+	uid_t   fa_uid;
+	gid_t   fa_gid;
+	u8      fa_owner_perm;
+	u8      fa_group_perm;
+	u8      fa_other_perm;
 };
 
 struct tagfs_log_entry {
-	//u64 tagfs_log_entry_len; /* all log entries currently the same size */
-	u64 tagfs_log_entry_seqnum;
-	u32 tagfs_log_entry_type; /* TAGFS_LOG_FILE_CREATION or TAGFS_LOG_ACCESS */
-	//uuid_le tagfs_file_uuid;  /* TODO: use this, which I think is needed */
+	u64     tagfs_log_entry_seqnum;
+	u32     tagfs_log_entry_type; /* TAGFS_LOG_FILE_CREATION or TAGFS_LOG_ACCESS */
 	union {
 		struct tagfs_file_creation tagfs_fc;
 		struct tagfs_file_access   tagfs_fa;
@@ -180,11 +178,11 @@ struct tagfs_log_entry {
 #define TAGFS_LOG_MAGIC 0xbadcafef00d
 
 struct tagfs_log {
-	u64 tagfs_log_magic;
-	u64 tagfs_log_len;
-	u64 tagfs_log_next_seqnum;
-	u64 tagfs_log_next_index;
-	u64 tagfs_log_last_index; /* Log would overflow if we write past here */
+	u64     tagfs_log_magic;
+	u64     tagfs_log_len;
+	u64     tagfs_log_next_seqnum;
+	u64     tagfs_log_next_index;
+	u64     tagfs_log_last_index; /* Log would overflow if we write past here */
 	struct tagfs_log_entry entries[];
 };
 

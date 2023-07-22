@@ -51,8 +51,11 @@
 static const struct super_operations tagfs_ops;
 static const struct inode_operations tagfs_dir_inode_operations;
 
-struct inode *tagfs_get_inode(struct super_block *sb,
-				const struct inode *dir, umode_t mode, dev_t dev)
+struct inode *tagfs_get_inode(
+	struct super_block *sb,
+	const struct inode *dir,
+	umode_t             mode,
+	dev_t               dev)
 {
 	struct inode * inode = new_inode(sb);
 
@@ -92,11 +95,15 @@ struct inode *tagfs_get_inode(struct super_block *sb,
  */
 /* SMP-safe */
 static int
-tagfs_mknod(struct mnt_idmap *idmap, struct inode *dir,
-	    struct dentry *dentry, umode_t mode, dev_t dev)
+tagfs_mknod(
+	struct mnt_idmap *idmap,
+	struct inode     *dir,
+	struct dentry    *dentry,
+	umode_t           mode,
+	dev_t             dev)
 {
-	struct inode * inode = tagfs_get_inode(dir->i_sb, dir, mode, dev);
-	int error = -ENOSPC;
+	struct inode *inode = tagfs_get_inode(dir->i_sb, dir, mode, dev);
+	int error           = -ENOSPC;
 
 	if (inode) {
 		d_instantiate(dentry, inode);
@@ -107,23 +114,35 @@ tagfs_mknod(struct mnt_idmap *idmap, struct inode *dir,
 	return error;
 }
 
-static int tagfs_mkdir(struct mnt_idmap *idmap, struct inode *dir,
-		       struct dentry *dentry, umode_t mode)
+static int tagfs_mkdir(
+	struct mnt_idmap *idmap,
+	struct inode     *dir,
+	struct dentry    *dentry,
+	umode_t           mode)
 {
 	int retval = tagfs_mknod(&nop_mnt_idmap, dir, dentry, mode | S_IFDIR, 0);
+
 	if (!retval)
 		inc_nlink(dir);
+
 	return retval;
 }
 
-static int tagfs_create(struct mnt_idmap *idmap, struct inode *dir,
-			struct dentry *dentry, umode_t mode, bool excl)
+static int tagfs_create(
+	struct mnt_idmap *idmap,
+	struct inode     *dir,
+	struct dentry    *dentry,
+	umode_t           mode,
+	bool              excl)
 {
 	return tagfs_mknod(&nop_mnt_idmap, dir, dentry, mode | S_IFREG, 0);
 }
 
-static int tagfs_symlink(struct mnt_idmap *idmap, struct inode *dir,
-			 struct dentry *dentry, const char *symname)
+static int tagfs_symlink(
+	struct mnt_idmap *idmap,
+	struct inode     *dir,
+	struct dentry    *dentry,
+	const char       *symname)
 {
 	struct inode *inode;
 	int error = -ENOSPC;
@@ -142,14 +161,18 @@ static int tagfs_symlink(struct mnt_idmap *idmap, struct inode *dir,
 	return error;
 }
 
-static int tagfs_tmpfile(struct mnt_idmap *idmap,
-			 struct inode *dir, struct file *file, umode_t mode)
+static int tagfs_tmpfile(
+	struct mnt_idmap *idmap,
+	struct inode     *dir,
+	struct file      *file,
+	umode_t           mode)
 {
 	struct inode *inode;
 
 	inode = tagfs_get_inode(dir->i_sb, dir, mode, 0);
 	if (!inode)
 		return -ENOSPC;
+
 	d_tmpfile(file, inode);
 	return finish_open_simple(file, 0);
 }
@@ -170,12 +193,15 @@ static const struct inode_operations tagfs_dir_inode_operations = {
 /*
  * Display the mount options in /proc/mounts.
  */
-static int tagfs_show_options(struct seq_file *m, struct dentry *root)
+static int tagfs_show_options(
+	struct seq_file *m,
+	struct dentry   *root)
 {
 	struct tagfs_fs_info *fsi = root->d_sb->s_fs_info;
 
 	if (fsi->mount_opts.mode != TAGFS_DEFAULT_MODE)
 		seq_printf(m, ",mode=%o", fsi->mount_opts.mode);
+
 	return 0;
 }
 
@@ -198,10 +224,12 @@ const struct fs_parameter_spec tagfs_fs_parameters[] = {
 	{}
 };
 
-static int tagfs_parse_param(struct fs_context *fc, struct fs_parameter *param)
+static int tagfs_parse_param(
+	struct fs_context   *fc,
+	struct fs_parameter *param)
 {
-	struct fs_parse_result result;
 	struct tagfs_fs_info *fsi = fc->s_fs_info;
+	struct fs_parse_result result;
 	int opt;
 
 	opt = fs_parse(fc, tagfs_fs_parameters, param, &result);
@@ -225,15 +253,14 @@ static int tagfs_parse_param(struct fs_context *fc, struct fs_parameter *param)
 		fsi->mount_opts.mode = result.uint_32 & S_IALLUGO;
 		break;
 	case Opt_dax:
-		if (strcmp(param->string, "always")) {
+		if (strcmp(param->string, "always"))
 			printk(KERN_NOTICE "%s: invalid dax mode %s\n",
 			       __func__, param->string);
-			//return -EINVAL;
-		}
+
 		break;
 	case Opt_rootdev: {
 		struct block_device *bdevp;
-		struct dax_device *dax_devp;
+		struct dax_device   *dax_devp;
 		u64 start_off = 0;
 
 		kfree(fsi->root_daxdev);
@@ -249,8 +276,8 @@ static int tagfs_parse_param(struct fs_context *fc, struct fs_parameter *param)
 		 * (less effective error checking perhaps) */
 		bdevp = blkdev_get_by_path(fsi->root_daxdev, tagfs_blkdev_mode, fsi);
 		if (IS_ERR(bdevp)) {
-			printk(KERN_ERR "%s: failed to open block device (%s)\n"
-			       , __func__, fsi->root_daxdev);
+			printk(KERN_ERR "%s: failed to open block device (%s)\n",
+			       __func__, fsi->root_daxdev);
 			return -ENODEV;
 		}
 
@@ -264,7 +291,7 @@ static int tagfs_parse_param(struct fs_context *fc, struct fs_parameter *param)
 			return -ENODEV;
 		}
 		printk(KERN_INFO "%s: dax_devp %llx\n", __func__, (u64)dax_devp);
-		fsi->bdevp = bdevp;
+		fsi->bdevp    = bdevp;
 		fsi->dax_devp = dax_devp;
 	}
 
@@ -274,7 +301,9 @@ static int tagfs_parse_param(struct fs_context *fc, struct fs_parameter *param)
 	return 0;
 }
 
-static int tagfs_fill_super(struct super_block *sb, struct fs_context *fc)
+static int tagfs_fill_super(
+	struct super_block *sb,
+	struct fs_context  *fc)
 {
 	struct tagfs_fs_info *fsi = sb->s_fs_info;
 	struct inode *inode;
@@ -320,8 +349,8 @@ int tagfs_init_fs_context(struct fs_context *fc)
 
 	mutex_init(&fsi->fsi_mutex);
 	fsi->mount_opts.mode = TAGFS_DEFAULT_MODE;
-	fc->s_fs_info = fsi;
-	fc->ops = &tagfs_context_ops;
+	fc->s_fs_info        = fsi;
+	fc->ops              = &tagfs_context_ops;
 	return 0;
 }
 
@@ -334,16 +363,17 @@ static void tagfs_kill_sb(struct super_block *sb)
 		blkdev_put(fsi->bdevp, tagfs_blkdev_mode);
 	if (fsi->dax_devp)
 		fs_put_dax(fsi->dax_devp, fsi);
+
 	kfree(sb->s_fs_info);
 	kill_litter_super(sb);
 }
 
 static struct file_system_type tagfs_fs_type = {
-	.name		= "tagfs",
-	.init_fs_context = tagfs_init_fs_context,
-	.parameters	= tagfs_fs_parameters,
-	.kill_sb	= tagfs_kill_sb,
-	.fs_flags	= FS_USERNS_MOUNT,
+	.name		  = "tagfs",
+	.init_fs_context  = tagfs_init_fs_context,
+	.parameters	  = tagfs_fs_parameters,
+	.kill_sb	  = tagfs_kill_sb,
+	.fs_flags	  = FS_USERNS_MOUNT,
 };
 
 static int __init init_tagfs_fs(void)

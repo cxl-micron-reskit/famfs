@@ -55,8 +55,6 @@ MODULE_LICENSE("GPL v2");
 
 int tagfs_blkdev_mode = FMODE_READ|FMODE_WRITE|FMODE_EXCL;
 
-
-
 /* Debug stuff */
 
 static void
@@ -99,11 +97,12 @@ tagfs_get_iomap_flags_str(char *flag_str, unsigned flags)
  * @flags
  */
 static int
-tagfs_meta_to_dax_offset(struct inode *inode,
-			 struct iomap *iomap,
-			 loff_t        offset,
-			 loff_t        len,
-			 unsigned      flags)
+tagfs_meta_to_dax_offset(
+	struct inode *inode,
+	struct iomap *iomap,
+	loff_t        offset,
+	loff_t        len,
+	unsigned      flags)
 {
 	struct tagfs_file_meta *meta = (struct tagfs_file_meta *)inode->i_private;
 	int i;
@@ -126,15 +125,15 @@ tagfs_meta_to_dax_offset(struct inode *inode,
 		printk(KERN_ERR "%s: bad file type\n", __func__);
 		break;
 	}
+
 	printk(KERN_NOTICE "%s: File offset %llx len %lld\n", __func__, offset, len);
 	for (i=0; i<meta->tfs_extent_ct; i++) {
 		loff_t dax_ext_offset = meta->tfs_extents[i].offset;
 		loff_t dax_ext_len    = meta->tfs_extents[i].len;
 
-		if ((dax_ext_offset == 0)
-		    && (meta->file_type != TAGFS_SUPERBLOCK)) {
+		if ((dax_ext_offset == 0) && (meta->file_type != TAGFS_SUPERBLOCK))
 			printk(KERN_ERR "%s: zero offset on non-superblock file!!\n", __func__);
-		}
+
 		printk(KERN_NOTICE "%s: ofs %llx len %llx tagfs: ext %d ofs %llx len %llx\n",
 		       __func__, local_offset, len, i, dax_ext_offset, dax_ext_len);
 
@@ -157,7 +156,6 @@ tagfs_meta_to_dax_offset(struct inode *inode,
 			iomap->type    = IOMAP_MAPPED;
 			iomap->flags   = flags;
 
-			//iomap->bdev    = fsi->bdevp;
 			printk(KERN_NOTICE "%s: --> ext %d daxdev offset %llx len %lld\n",
 			       __func__, i,
 			       iomap->addr, iomap->length);
@@ -232,10 +230,10 @@ tagfs_file_ioctl(
 			umeta.ext_list_count = meta->tfs_extent_ct;
 
 			rc = copy_to_user((void __user *)arg, &umeta, sizeof(umeta));
-			if (rc) {
+			if (rc)
 				printk(KERN_NOTICE "%s: copy_to_user returned %ld\n",
 				       __func__, rc);
-			}
+
 		} else {
 			rc = -EINVAL;
 		}
@@ -261,9 +259,12 @@ tagfs_file_ioctl(
 }
 
 static unsigned long
-tagfs_mmu_get_unmapped_area(struct file *file,
-		unsigned long addr, unsigned long len, unsigned long pgoff,
-		unsigned long flags)
+tagfs_mmu_get_unmapped_area(
+	struct file    *file,
+	unsigned long   addr,
+	unsigned long   len,
+	unsigned long   pgoff,
+	unsigned long   flags)
 {
 	return current->mm->get_unmapped_area(file, addr, len, pgoff, flags);
 }
@@ -306,12 +307,13 @@ tagfs_dax_read_iter(
  * We need our own write-iter in order to prevent append
  */
 ssize_t
-tagfs_dax_write_iter(struct kiocb *iocb,
-		     struct iov_iter *from)
+tagfs_dax_write_iter(
+	struct kiocb    *iocb,
+	struct iov_iter *from)
 {
-	struct inode		*inode = iocb->ki_filp->f_mapping->host;
-	size_t count = iov_iter_count(from);
-	size_t max_count = i_size_read(inode) - iocb->ki_pos;
+	struct inode *inode = iocb->ki_filp->f_mapping->host;
+	size_t max_count    = i_size_read(inode) - iocb->ki_pos;
+	size_t count        = iov_iter_count(from);
 
 	if (!IS_DAX(inode)) {
 		printk(KERN_ERR "%s: inode %llx IS_DAX is false\n", __func__, (u64)inode);
@@ -351,15 +353,6 @@ tagfs_file_mmap(
 		return 0;
 	}
 
-#if 0
-	/*
-	 * We don't support synchronous mappings for non-DAX files and
-	 * for DAX files if underneath dax_device is not synchronous.
-	 */
-	if (!daxdev_mapping_supported(vma, target->bt_daxdev))
-		return -EOPNOTSUPP;
-#endif
-
 	file_accessed(file);
 	vma->vm_ops = &tagfs_file_vm_ops;
 	vm_flags_set(vma, VM_HUGEPAGE);
@@ -375,16 +368,16 @@ const struct file_operations tagfs_file_operations = {
 	.mmap		   = tagfs_file_mmap,
 
 	/* Generic Operations */
-	.fsync		= noop_fsync, /* TODO: could to wbinv on range :-/ */
-	.splice_read	= generic_file_splice_read,
-	.splice_write	= iter_file_splice_write,
-	.llseek		= generic_file_llseek,
+	.fsync		   = noop_fsync, /* TODO: could to wbinv on range :-/ */
+	.splice_read	   = generic_file_splice_read,
+	.splice_write	   = iter_file_splice_write,
+	.llseek		   = generic_file_llseek,
 };
 
 const struct inode_operations tagfs_file_inode_operations = {
 	/* All generic */
-	.setattr	= simple_setattr,
-	.getattr	= simple_getattr,
+	.setattr	   = simple_setattr,
+	.getattr	   = simple_getattr,
 };
 
 /*********************************************************************
@@ -393,6 +386,7 @@ const struct inode_operations tagfs_file_inode_operations = {
  * This stuff uses the iomap (dax-related) helpers to resolve file offsets to
  * offsets within a dax device.
  */
+
 /**
  * tagfs_read_iomap_begin()
  *
@@ -403,12 +397,12 @@ const struct inode_operations tagfs_file_inode_operations = {
  */
 static int
 tagfs_iomap_begin(
-	struct inode		*inode,
+	struct inode	       *inode,
 	loff_t			offset,
 	loff_t			length,
 	unsigned		flags,
-	struct iomap		*iomap,
-	struct iomap		*srcmap)
+	struct iomap	       *iomap,
+	struct iomap	       *srcmap)
 {
 	char flag_str[200];
 	int rc;
@@ -450,8 +444,8 @@ tagfs_dax_fault(
 	bool			write_fault,
 	pfn_t			*pfn)
 {
-	/* We never need a special set of write_iomap_ops becuase we never have to
-	 * perform allocation on write.
+	/* We never need a special set of write_iomap_ops becuase tagfs never
+	 * performs allocation on write.
 	 */
 	return dax_iomap_fault(vmf, pe_size, pfn, NULL, &tagfs_iomap_ops);
 }
@@ -484,6 +478,7 @@ __tagfs_filemap_fault(
 
 	if (write_fault)
 		sb_end_pagefault(inode->i_sb);
+
 	return ret;
 }
 
@@ -492,6 +487,7 @@ tagfs_is_write_fault(
 	struct vm_fault		*vmf)
 {
 	printk(KERN_NOTICE "%s\n", __func__);
+
 	return (vmf->flags & FAULT_FLAG_WRITE) &&
 	       (vmf->vma->vm_flags & VM_SHARED);
 }
@@ -501,15 +497,15 @@ tagfs_filemap_fault(
 	struct vm_fault		*vmf)
 {
 	printk(KERN_NOTICE "%s\n", __func__);
+
 	/* DAX can shortcut the normal fault path on write faults! */
 	return __tagfs_filemap_fault(vmf, PE_SIZE_PTE,
-			IS_DAX(file_inode(vmf->vma->vm_file)) &&
-			tagfs_is_write_fault(vmf));
+			IS_DAX(file_inode(vmf->vma->vm_file)) && tagfs_is_write_fault(vmf));
 }
 
 static vm_fault_t
 tagfs_filemap_huge_fault(
-	struct vm_fault		*vmf,
+	struct vm_fault	       *vmf,
 	enum page_entry_size	pe_size)
 {
 	printk(KERN_NOTICE "%s\n", __func__);
@@ -547,7 +543,7 @@ tagfs_filemap_pfn_mkwrite(
 
 static vm_fault_t
 tagfs_filemap_map_pages(
-	struct vm_fault		*vmf,
+	struct vm_fault	       *vmf,
 	pgoff_t			start_pgoff,
 	pgoff_t			end_pgoff)
 {
