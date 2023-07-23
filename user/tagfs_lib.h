@@ -40,7 +40,8 @@ int tagfs_mmap_superblock_and_log_raw(const char *devname, struct tagfs_superblo
 				      struct tagfs_log **logp, int read_only);
 extern int tagfs_append_log(struct tagfs_log *logp, struct tagfs_log_entry *e);
 
-extern void print_fsinfo(const struct tagfs_superblock *sb, const struct tagfs_log *logp, int verbose);
+extern void tagfs_fsck_scan(const struct tagfs_superblock *sb, const struct tagfs_log *logp,
+			    int verbose);
 int tagfs_check_super(const struct tagfs_superblock *sb);
 int tagfs_fsck(const char *devname, int verbose);
 

@@ -158,10 +158,18 @@ tagfs_get_device_size(const char       *fname,
 
 }
 
+/**
+ * tagfs_fsck_scan()
+ *
+ * * Print info from the superblock
+ * * Print log stats
+ * * build the log bitmap (which scans the log) and check for errors
+ */
 void
-print_fsinfo(const struct tagfs_superblock *sb,
-	     const struct tagfs_log        *logp,
-	     int                            verbose)
+tagfs_fsck_scan(
+	const struct tagfs_superblock *sb,
+	const struct tagfs_log        *logp,
+	int                            verbose)
 {
 	size_t total_log_size;
 	size_t effective_log_size;
@@ -172,6 +180,9 @@ print_fsinfo(const struct tagfs_superblock *sb,
 	effective_log_size = sizeof(*logp) +
 		(logp->tagfs_log_next_index * sizeof(struct tagfs_log_entry));
 
+	/*
+	 * Print superblock info
+	 */
 	printf("Tagfs Superblock:\n");
 	printf("  UUID:   ");
 	tagfs_print_uuid(&sb->ts_uuid);
@@ -182,15 +193,22 @@ print_fsinfo(const struct tagfs_superblock *sb,
 			printf("  primary: ");
 		else
 			printf("         %d: ", i);
+
 		printf("%s   %ld\n",
 		       sb->ts_devlist[i].dd_daxdev, sb->ts_devlist[i].dd_size);
 	}
 
+	/*
+	 * print log info
+	 */
 	printf("\nLog stats:\n");
 	printf("  # of log entriesi in use: %lld of %lld\n",
 	       logp->tagfs_log_next_index, logp->tagfs_log_last_index + 1);
 	printf("  Log size in use:          %ld\n", effective_log_size);
 
+	/*
+	 * Build the log bitmap to scan for errors
+	 */
 	bitmap = tagfs_build_bitmap(logp,  sb->ts_devlist[0].dd_size, NULL, &errors, 0);
 	if (errors)
 		printf("ERROR: %lld ALLOCATION COLLISIONS FOUND\n", errors);
@@ -200,8 +218,6 @@ print_fsinfo(const struct tagfs_superblock *sb,
 	free(bitmap);
 
 	if (verbose) {
-
-
 		printf("log_offset:        %lld\n", sb->ts_log_offset);
 		printf("log_len:           %lld\n", sb->ts_log_len);
 
@@ -305,7 +321,7 @@ tagfs_fsck(const char *devname,
 		return -1;
 	}
 
-	print_fsinfo(sb, logp, verbose);
+	tagfs_fsck_scan(sb, logp, verbose);
 	return 0;
 }
 
@@ -1049,6 +1065,12 @@ tagfs_validate_superblock_by_path(const char *path)
 	return daxdevsize;
 }
 
+/**
+ * put sb_log_into_bitmap()
+ *
+ * The two files that are not in the log are the superblock and the log. So these
+ * files need to be manually added to the allocation bitmap. This function does that.
+ */
 static inline void
 put_sb_log_into_bitmap(u8 *bitmap)
 {
@@ -1318,12 +1340,17 @@ tagfs_file_create(const char *path,
 	int rc = 0;
 	int fd = open(path, O_RDWR | O_CREAT, mode);
 
-	if (fd < 0)
+	if (fd < 0) {
+		fprintf(stderr, "%s: open/creat %s failed fd %d\n",
+			__func__, path, fd);
 		return fd;
+	}
 
 	if (__file_not_tagfs(fd)) {
 		close(fd);
 		unlink(path);
+		fprintf(stderr, "%s: file %s not in a tagfs mount\n",
+			__func__, path);
 		return -EBADF;
 	}
 

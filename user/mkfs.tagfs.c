@@ -149,10 +149,10 @@ main(int argc,
 	tagfs_logp->tagfs_log_next_seqnum    = 99;
 	tagfs_logp->tagfs_log_next_index = 0;
 	tagfs_logp->tagfs_log_last_index =
-		((TAGFS_LOG_LEN
-		  - offsetof(struct tagfs_log, entries)) /sizeof(struct tagfs_log_entry)) ;
+		((TAGFS_LOG_LEN - offsetof(struct tagfs_log, entries))
+		 / sizeof(struct tagfs_log_entry)) ;
 
-	print_fsinfo(sb, tagfs_logp, 0);
+	tagfs_fsck_scan(sb, tagfs_logp, 0);
 	close(rc);
 	return 0;
 }
