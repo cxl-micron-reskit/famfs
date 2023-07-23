@@ -84,7 +84,7 @@ sudo debug/tagfs verify -S 3 -f $MPT/test3 || fail "verify test3 after replay"
 
 set +x
 echo "*************************************************************************************"
-echo "Test completed successfully"
+echo "Test0 completed successfully"
 echo "*************************************************************************************"
 
 
