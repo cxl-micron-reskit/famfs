@@ -331,7 +331,7 @@ tagfs_cp_usage(int   argc,
 
 	printf("\n"
 	       "Copy a file into a tagfs file system\n"
-	       "    %s <srcfile> <destfile>\n"
+	       "    %s cp <srcfile> <destfile>\n"
 	       "\n"
 	       "NOTE: you need this tool to copy a file into a tagfs file system,\n"
 	       "but the standard \'cp\' can be used to copy FROM a tagfs file system.\n",
