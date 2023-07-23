@@ -58,4 +58,6 @@ int tagfs_cp(char *srcfile, char *destfile);
 u8 *tagfs_build_bitmap(const struct tagfs_log *logp, u64 size_in,
 		       u64 *size_out, u64 *errors, int verbose);
 
+int __file_not_tagfs(int fd);
+struct tagfs_simple_extent *tagfs_ext_to_simple_ext(struct tagfs_extent *te_list, size_t ext_count);
 #endif /* _H_TAGFS_LIB */

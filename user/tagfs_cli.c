@@ -516,6 +516,223 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 /********************************************************************/
 
 void
+tagfs_clone_usage(int   argc,
+	    char *argv[])
+{
+	char *progname = argv[0];
+
+	printf("\n"
+	       "Clone a file, creating a second file with the same extent list:\n"
+	       "    %s <src_file> <dest_file>\n"
+	       "\nNOTE: this creates a file system error and is for tesstsing only!!\n"
+	       "\n", progname);
+}
+
+int
+do_tagfs_cli_clone(int argc, char *argv[])
+{
+	struct tagfs_ioc_map filemap;
+	struct tagfs_extent *ext_list;
+	int c;
+	int rc = 0;
+	int arg_ct = 0;
+
+	char *srcfile = NULL;
+	char *destfile = NULL;
+	char srcfullpath[PATH_MAX];
+	char destfullpath[PATH_MAX];
+	int lfd = 0;
+	int sfd = 0;
+	int dfd = 0;
+	char mpt_out[PATH_MAX];
+	char *relpath;
+	struct tagfs_log *logp;
+	void *addr;
+	size_t log_size;
+	struct tagfs_simple_extent *se;
+	uid_t uid = geteuid();
+	gid_t gid = getegid();
+	mode_t mode = S_IRUSR|S_IWUSR;
+
+	/* XXX can't use any of the same strings as the global args! */
+       struct option cp_options[] = {
+               /* These options set a */
+               {0, 0, 0, 0}
+       };
+
+	if (optind >= argc) {
+		fprintf(stderr, "tagfs_cli map: no args\n");
+		tagfs_clone_usage(argc, argv);
+		return -1;
+	}
+
+	/* The next stuff on the command line is file names;
+	 * err if nothing is left */
+	if (optind >= argc) {
+		fprintf(stderr, "tagfs_cli map: no files\n");
+		tagfs_clone_usage(argc, argv);
+		return -1;
+	}
+	/* Note: the "+" at the beginning of the arg string tells getopt_long
+	 * to return -1 when it sees something that is not recognized option
+	 * (e.g. the command that will mux us off to the command handlers */
+	while ((c = getopt_long(argc, argv, "+h?",
+				cp_options, &optind)) != EOF) {
+		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
+
+		/* Detect the end of the options. */
+		if (c == -1)
+			break;
+
+		arg_ct++;
+		switch (c) {
+
+		case 'h':
+		case '?':
+			tagfs_clone_usage(argc, argv);
+			return 0;
+
+		default:
+			printf("default (%c)\n", c);
+			return -1;
+		}
+	}
+
+	/* There should be 2 more arguments */
+	if (optind > (argc - 1)) {
+		fprintf(stderr, "%s: too few arguents\n", __func__);
+		tagfs_clone_usage(argc, argv);
+		return -1;
+	}
+	srcfile  = argv[optind++];
+	destfile = argv[optind++];
+	if (realpath(srcfile, srcfullpath) == NULL) {
+		fprintf(stderr, "%s: bad source path %s\n", __func__, srcfile);
+		return -1;
+	}
+
+	/*
+	 * Open source file and make sure it's a tagfs file
+	 */
+	sfd = open(srcfile, O_RDONLY, 0);
+	if (sfd < 0) {
+		fprintf(stderr, "%s: failed to open source file %s\n",
+			__func__, srcfile);
+		return -1;
+	}
+	if (__file_not_tagfs(sfd)) {
+		fprintf(stderr, "%s: source file %s is not a tagfs file\n",
+			__func__, srcfile);
+		return -1;
+	}
+
+	/*
+	 * Get map for source file
+	 */
+	rc = ioctl(sfd, TAGFSIOC_MAP_GET, &filemap);
+	if (rc) {
+		fprintf(stderr, "%s: MAP_GET returned %d errno %d\n", __func__, rc, errno);
+		goto err_out;
+	}
+	ext_list = calloc(filemap.ext_list_count, sizeof(struct tagfs_extent));
+	rc = ioctl(sfd, TAGFSIOC_MAP_GETEXT, ext_list);
+	if (rc) {
+		fprintf(stderr, "%s: GETEXT returned %d errno %d\n", __func__, rc, errno);
+		goto err_out;
+	}
+
+	/*
+	 * For this operation we need to open the log file, which also gets us
+	 * the mount point path
+	 */
+	lfd = open_log_file_writable(srcfullpath, &log_size, mpt_out);
+	addr = mmap(0, log_size, O_RDWR, MAP_SHARED, lfd, 0);
+	if (addr == MAP_FAILED) {
+		fprintf(stderr, "%s: Failed to mmap log file", __func__);
+		rc = -1;
+		goto err_out;
+	}
+	close(lfd);
+	lfd = 0;
+	logp = (struct tagfs_log *)addr;
+
+	/* Create the destination file. This will be unlinked later if we don't get all
+	 * the way through the operation.
+	 */
+	dfd = tagfs_file_create(destfile, mode, uid, gid, filemap.file_size);
+	if (dfd < 0) {
+		fprintf(stderr, "%s: failed to create file %s\n", __func__, destfile);
+		rc = -1;
+		goto err_out;
+	}
+
+	/*
+	 * Create the file before logging, so we can avoid a BS log entry if the
+	 * kernel rejects the caller-supplied allocation ext list
+	 */
+	/* Ugh need to unify extent types... XXX */
+	se = tagfs_ext_to_simple_ext(ext_list, filemap.ext_list_count);
+	if (!se) {
+		rc = -ENOMEM;
+		goto err_out;
+	}
+	rc = tagfs_file_map_create(destfile, dfd, filemap.file_size, filemap.ext_list_count,
+				   se, TAGFS_REG);
+	if (rc) {
+		fprintf(stderr, "%s: failed to create destination file\n", __func__);
+		exit(-1);
+	}
+
+	/* Now have created the destionation file (and therefore we know it is in a tagfs
+	 * mount, we need its relative path of
+	 */
+	if (realpath(destfile, destfullpath) == NULL) {
+		close(dfd);
+		unlink(destfullpath);
+		return -1;
+	}
+	relpath = tagfs_relpath_from_fullpath(mpt_out, destfullpath);
+	if (!relpath) {
+		rc = -1;
+		unlink(destfullpath);
+		goto err_out;
+	}
+
+	/* XXX - tagfs_log_file_creation should only be called outside
+	 * tagfs_lib.c if we are intentionally doing extent list allocation
+	 * bypassing tagfs_lib. This is useful for testing, by generating
+	 * problematic extent lists on purpoose...
+	 */
+	rc = tagfs_log_file_creation(logp, filemap.ext_list_count, se,
+				     relpath, O_RDWR, uid, gid, filemap.file_size);
+	if (rc) {
+		fprintf(stderr,
+			"%s: failed to log caller-specified allocation\n",
+			__func__);
+		rc = -1;
+		unlink(destfullpath);
+		goto err_out;
+	}
+	/***************/
+
+	close(rc);
+
+	return 0;
+err_out:
+	if (lfd > 0)
+		close(lfd);
+	if (sfd > 0)
+		close(sfd);
+	if (lfd > 0)
+		close(lfd);
+	if (dfd > 0)
+		close(dfd);
+	return rc;
+}
+
+/********************************************************************/
+
+void
 tagfs_creat_usage(int   argc,
 	    char *argv[])
 {
@@ -943,6 +1160,7 @@ tagfs_cli_cmd tagfs_cli_cmds[] = {
 	{"creat",   do_tagfs_cli_creat,   tagfs_creat_usage},
 	{"verify",  do_tagfs_cli_verify,  tagfs_verify_usage},
 	{"getmap",  do_tagfs_cli_getmap,  tagfs_getmap_usage},
+	{"clone",   do_tagfs_cli_clone,   tagfs_clone_usage},
 	{"cp",      do_tagfs_cli_cp,      tagfs_cp_usage},
 	{"fsck",    do_tagfs_cli_fsck,    tagfs_fsck_usage},
 	{"mkmeta",  do_tagfs_cli_mkmeta,  tagfs_mkmeta_usage},

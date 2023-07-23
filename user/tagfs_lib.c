@@ -383,13 +383,38 @@ tagfs_get_mpt_by_dev(const char *mtdev)
 }
 
 /**
+ * tagfs_ext_to_simple_ext()
+ *
+ * Convert a struct tagfs_extent list to struct tagfs_simple_extent.
+ * The output list comes from malloc() and must be freed by the caller after use.
+ */
+struct tagfs_simple_extent *
+tagfs_ext_to_simple_ext(
+	struct tagfs_extent *te_list,
+	size_t               ext_count)
+{
+	struct tagfs_simple_extent *se = calloc(ext_count, sizeof(*se));
+	int i;
+
+	assert(te_list);
+	if (!se)
+		return NULL;
+
+	for (i=0; i<ext_count; i++) {
+		se[i].tagfs_extent_offset = te_list[i].offset;
+		se[i].tagfs_extent_len    = te_list[i].len;
+	}
+	return se;
+}
+
+/**
  * tagfs_file_map_create()
  *
  * This function allocates free space in a tagfs file system and associates it
  * with a file.
  *
  * @path
- * @fd
+ * @fd           - file descriptor for the file whose map will be created (already open)
  * @size
  * @nextents
  * @extent_list
