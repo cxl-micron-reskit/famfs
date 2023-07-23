@@ -415,10 +415,6 @@ tagfs_getmap_usage(int   argc,
 	       "Get the allocation map of a file:\n"
 	       "    %s <filename>\n"
 	       "\n", progname);
-	printf(
-	       "Mape one or more dax-based extents:"
-	       "    %s --daxdev <daxdev> -n <num_extents> -o <offset> -l <len> [-o <offset> -l <len> ... ] <filename>\n"
-	       "\n", progname);
 }
 
 int
@@ -435,7 +431,6 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 	/* XXX can't use any of the same strings as the global args! */
        struct option cp_options[] = {
                /* These options set a */
-               {"filename",    required_argument,             0,  'f'},
                {0, 0, 0, 0}
        };
 
@@ -455,7 +450,7 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
-	while ((c = getopt_long(argc, argv, "+f:h?",
+	while ((c = getopt_long(argc, argv, "+h?",
 				cp_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -466,12 +461,6 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 		arg_ct++;
 		switch (c) {
 
-		case 'f': {
-			filename = optarg;
-			printf("filename: %s\n", filename);
-			/* TODO: make sure filename is in a tagfs file system */
-			break;
-		}
 		case 'h':
 		case '?':
 			tagfs_getmap_usage(argc, argv);
@@ -483,6 +472,11 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 		}
 	}
 
+	if (optind >= argc) {
+		fprintf(stderr, "Must specify filename\n");
+		return -1;
+	}
+	filename = argv[optind++];
 	if (filename == NULL) {
 		fprintf(stderr, "Must supply filename\n");
 		exit(-1);
