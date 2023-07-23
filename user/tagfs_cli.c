@@ -721,9 +721,11 @@ do_tagfs_cli_creat(int argc, char *argv[])
 		void *addr;
 		int lfd;
 
-		/* Extent list was specified, so it's not coming from the official
+		/*
+		 * Extent list was specified, so it's not coming from the official
 		 * allocator Log the allocation anyway, which can be used for
-		 * testing duplicate allocations, etc. */
+		 * testing duplicate allocations, etc.  So we need to do this manually.
+		 */
 
 		lfd = open_log_file_writable(fullpath, &log_size, mpt_out);
 		addr = mmap(0, log_size, O_RDWR, MAP_SHARED, lfd, 0);
@@ -739,6 +741,19 @@ do_tagfs_cli_creat(int argc, char *argv[])
 		if (!relpath)
 			return -EINVAL;
 
+		/*
+		 * Create the file before logging, so we can avoid a BS log entry if the
+		 * kernel rejects the caller-supplied allocation ext list
+		 */
+		rc = tagfs_file_map_create(fullpath, fd, fsize, num_extents,
+					   ext_list, TAGFS_REG);
+		if (rc) {
+			fprintf(stderr,
+				"%s: failed to create file with caller-specified allocation\n",
+				__func__);
+			exit(-1);
+		}
+
 		/* XXX - tagfs_log_file_creation should only be called outside
 		 * tagfs_lib.c if we are intentionally doing extent list allocation
 		 * bypassing tagfs_lib. This is useful for testing, by generating
@@ -752,8 +767,6 @@ do_tagfs_cli_creat(int argc, char *argv[])
 				__func__);
 			exit(-1);
 		}
-		rc = tagfs_file_map_create(fullpath, fd, fsize, num_extents,
-					   ext_list, TAGFS_REG);
 	} else {
 		rc = tagfs_file_alloc(fd, fullpath, O_RDWR, uid, gid, fsize);
 		if (rc) {
