@@ -739,15 +739,15 @@ tagfs_creat_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
-	       "Create a file backed by one or morespecified extents:\n"
+	       "Create a file backed by free space:\n"
+	       "    %s -s <size> <filename>\n\n"
+	       "\nCreate a file containing randomized data from a specific seed:\n"
+	       "    %s -s size --randomize --seed <myseed> <filename"
+	       "\nCreate a file backed by one or morespecified extents:\n"
 	       "    %s -n <num_extents> -o <hpa> -l <len> [-o <hpa> -l <len> ... ] <filename>\n"
 	       "\n"
 	       "(the allocation will be logged without regard to whether the "
-	       "extents were available\n\n"
-	       "Create a file backed by free space:\n"
-	       "    %s -s <size> <filename>\n\n"
-	       "Create a file containing randomized data from a specific seed:\n"
-	       "    %s -s size --randomize --seed <myseed> <filename",
+	       "extents were available\n\n",
 	       progname, progname, progname);
 }
 
@@ -768,8 +768,11 @@ do_tagfs_cli_creat(int argc, char *argv[])
 	int arg_ct = 0;
 	uid_t uid = geteuid();
 	gid_t gid = getegid();
+	mode_t mode = S_IRUSR|S_IWUSR;
 	s64 seed;
 	int randomize = 0;
+
+	/* TODO: allow passing in uid/gid/mode on command line*/
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option creat_options[] = {
@@ -918,7 +921,7 @@ do_tagfs_cli_creat(int argc, char *argv[])
 			exit(-1);
 		}
 	}
-	fd = tagfs_file_create(filename, S_IRUSR|S_IWUSR, uid, gid, fsize);
+	fd = tagfs_file_create(filename, mode, uid, gid, fsize);
 	if (fd < 0) {
 		fprintf(stderr, "%s: failed to create file %s\n", __func__, fullpath);
 		exit(-1);
@@ -926,8 +929,8 @@ do_tagfs_cli_creat(int argc, char *argv[])
 
 	/* Clean up the filename path. (Can't call realpath until the file exists) */
 	if (realpath(filename, fullpath) == NULL) {
-		fprintf(stderr, "realpath() unable to rationalize filename %s\n",
-			filename);
+		fprintf(stderr, "%s: realpath() unable to rationalize filename %s\n",
+			__func__, filename);
 	}
 
 	if (num_extents > 0) {
