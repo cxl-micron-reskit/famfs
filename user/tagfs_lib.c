@@ -165,7 +165,7 @@ tagfs_get_device_size(const char       *fname,
  * * Print log stats
  * * build the log bitmap (which scans the log) and check for errors
  */
-void
+int
 tagfs_fsck_scan(
 	const struct tagfs_superblock *sb,
 	const struct tagfs_log        *logp,
@@ -233,7 +233,7 @@ tagfs_fsck_scan(
 		printf("\nfc: %ld\n", sizeof(struct tagfs_file_creation));
 		printf("fa:   %ld\n", sizeof(struct tagfs_file_access));
 	}
-
+	return errors;
 }
 
 /**
@@ -321,8 +321,8 @@ tagfs_fsck(const char *devname,
 		return -1;
 	}
 
-	tagfs_fsck_scan(sb, logp, verbose);
-	return 0;
+	rc = tagfs_fsck_scan(sb, logp, verbose);
+	return rc;
 }
 
 #define XLEN 256
