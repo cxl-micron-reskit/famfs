@@ -176,6 +176,7 @@ tagfs_fsck_scan(
 	int i;
 	u64 errors = 0;
 	u8 *bitmap;
+	u64 alloc_total, size_total;
 
 	effective_log_size = sizeof(*logp) +
 		(logp->tagfs_log_next_index * sizeof(struct tagfs_log_entry));
@@ -209,11 +210,17 @@ tagfs_fsck_scan(
 	/*
 	 * Build the log bitmap to scan for errors
 	 */
-	bitmap = tagfs_build_bitmap(logp,  sb->ts_devlist[0].dd_size, NULL, &errors, 0);
+	bitmap = tagfs_build_bitmap(logp,  sb->ts_devlist[0].dd_size, NULL, &errors,
+				    &size_total, &alloc_total, 0);
 	if (errors)
 		printf("ERROR: %lld ALLOCATION COLLISIONS FOUND\n", errors);
-	else
+	else {
+		float space_amp = (float)alloc_total / (float)size_total;
+
 		printf("  No allocation errors found\n");
+		printf("  alloc_total=%lld size_total=%lld space_amplification=%.2f\n",
+		       alloc_total, size_total, space_amp);
+	}
 
 	free(bitmap);
 
@@ -1112,23 +1119,32 @@ put_sb_log_into_bitmap(u8 *bitmap)
  * tagfs_build_bitmap()
  *
  * XXX: this is only aware of the first daxdev in the superblock's list
- * @sb
  * @logp
- * @size_in   - total size of allocation space in bytes
- * @size_out  - size of the bitmap
- * @errors    - number of times a file referenced a bit that was already set
+ * @size_in          - total size of allocation space in bytes
+ * @bitmap_size_out  - output: size of the bitmap
+ * @alloc_errors_out - output: number of times a file referenced a bit that was already set
+ * @size_total_out   - output: if ptr non-null, this is the sum of the file sizes
+ * @alloc_total_out  - output: if ptr non-null, this is the sum of all allocation sizes
+ *                    (excluding double-allocations; space amplification is
+ *                     @alloc_total / @size_total provided there are no double allocations,
+ *                     b/c those will increase size_total but not alloc_total)
+ * @verbose
  */
 u8 *
-tagfs_build_bitmap(const struct tagfs_log        *logp,
-		   u64                            size_in,
-		   u64                           *size_out,
-		   u64                           *alloc_errors,
-		   int                            verbose)
+tagfs_build_bitmap(const struct tagfs_log   *logp,
+		   u64                       bitmap_size_in,
+		   u64                      *bitmap_size_out,
+		   u64                      *alloc_errors_out,
+		   u64                      *size_total_out,
+		   u64                      *alloc_total_out,
+		   int                       verbose)
 {
-	int npages = (size_in - TAGFS_SUPERBLOCK_SIZE - TAGFS_LOG_LEN) / TAGFS_ALLOC_UNIT;
+	int npages = (bitmap_size_in - TAGFS_SUPERBLOCK_SIZE - TAGFS_LOG_LEN) / TAGFS_ALLOC_UNIT;
 	int bitmap_size = mu_bitmap_size(npages);
 	u8 *bitmap = calloc(1, bitmap_size);
 	u64 errors = 0;
+	size_t alloc_sum = 0;
+	size_t size_sum  = 0;
 	int i, j;
 	int rc;
 
@@ -1148,6 +1164,7 @@ tagfs_build_bitmap(const struct tagfs_log        *logp,
 			const struct tagfs_file_creation *fc = &le->tagfs_fc;
 			const struct tagfs_log_extent *ext = fc->tagfs_ext_list;
 
+			size_sum += fc->tagfs_fc_size;
 			if (verbose)
 				printf("%s: file=%s size=%lld\n", __func__,
 				       fc->tagfs_relpath, fc->tagfs_fc_size);
@@ -1165,8 +1182,12 @@ tagfs_build_bitmap(const struct tagfs_log        *logp,
 
 				for (k=page_num; k<(page_num + np); k++) {
 					rc = mu_bitmap_test_and_set(bitmap, k);
-					if (rc == 0)
+					if (rc == 0) {
 						errors++; /* bit was already set */
+					} else {
+						/* Don't count double allocations */
+						alloc_sum += TAGFS_ALLOC_UNIT;
+					}
 				}
 			}
 			break;
@@ -1177,10 +1198,14 @@ tagfs_build_bitmap(const struct tagfs_log        *logp,
 			break;
 		}
 	}
-	if (alloc_errors)
-		*alloc_errors = errors;
-	if (size_out)
-		*size_out = bitmap_size;
+	if (bitmap_size_out)
+		*bitmap_size_out = bitmap_size;
+	if (alloc_errors_out)
+		*alloc_errors_out = errors;
+	if (size_total_out)
+		*size_total_out = size_sum;
+	if (alloc_total_out)
+		*alloc_total_out = alloc_sum;
 	return bitmap;
 }
 
@@ -1249,7 +1274,7 @@ tagfs_alloc_bypath(
 	if (daxdevsize < 0)
 		return daxdevsize;
 
-	bitmap = tagfs_build_bitmap(logp, daxdevsize, &nbits, NULL, 0);
+	bitmap = tagfs_build_bitmap(logp, daxdevsize, &nbits, NULL, NULL, NULL, 0);
 	printf("\nbitmap before:\n");
 	mu_print_bitmap(bitmap, nbits);
 	offset = bitmap_alloc_contiguous(bitmap, nbits, size);

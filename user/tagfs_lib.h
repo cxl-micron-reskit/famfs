@@ -56,7 +56,8 @@ int tagfs_file_create(const char *path, mode_t mode, uid_t uid, gid_t gid, size_
 
 int tagfs_cp(char *srcfile, char *destfile);
 u8 *tagfs_build_bitmap(const struct tagfs_log *logp, u64 size_in,
-		       u64 *size_out, u64 *errors, int verbose);
+		       u64 *size_out, u64 *alloc_errors,
+		       u64 *size_total, u64 *alloc_total, int verbose);
 
 int __file_not_tagfs(int fd);
 struct tagfs_simple_extent *tagfs_ext_to_simple_ext(struct tagfs_extent *te_list, size_t ext_count);
