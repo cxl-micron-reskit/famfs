@@ -5,6 +5,28 @@ TODO
 ** tagfs fsck
 ** mkfs.tagfs <dev>
 
+* Known bugs
+** DONE tagfs creat: manually creating a cross-linked-file fails
+File has no extents, is 0 size, and does not get unlinked
+see test_corruption0.sh
+Dropped manual extents. Just use clone instead.
+** DONE tagfs creat: extents out of order when creating with manual extents
+When I create a zero-based extent followed by a non-zero-based extent, I see them
+out of order in getmap
+Moot now that manual extents are dropped. (use clone instead)
+** TODO linux "cmp" comparisons fail even when "tagfs verify" succeeds
+There is something wrong with posix read. tagfs verify uses mmap, and verifies the
+file againsts same-seed data.
+** TODO tagfs fsck: does not detect cloned files
+Now it returns the error count
+Hmm: I saw it work, but it's failing with the current test2.sh.
+** DONE tagfs creat: mode is all 000
+Looks like the mode string passed into open/creat is not 000
+
+
+* Tests
+
+
 * Missing functionality
 ** DONE Create log entry when allocating/creating a file
 ** DONE play log into file system
@@ -60,7 +82,7 @@ The file gets truncated to zero-length, but then no writing happens
 * TODO Each file creation log entry needs a UUID (i.e. a file UUID)
 
 * Design and implement MVP allocator
-** Generate a hidden allocation log file
+** DONE Generate a hidden allocation log file
 Format: superblock, allocation log, superblock crc
 Superblock: magic #, format version, offset to start of log, offset to next free log space
 Each log entry: relpath, ext list, size, crc
@@ -79,8 +101,10 @@ would have to be totally embargoed during this process.
 *** Main log gets file creation entries when committed
 
 
-** Scan all files and create allocation bitmap
-** Scan hidden file and generate allocation bitmapp
+** DONE Scan log and create allocation bitmap
+All allocations work this way now (except the explicit ones via tagfs creat)
+** TODO Scan all files and create allocation bitmap
+
 
 * Kernel fs features
 ** DONE decouple size from extent list
@@ -108,18 +132,30 @@ Create another file referencing the same data. This should cause an fsck error, 
 fsck will notice allocated blocks that are referenced by more than one file.
 
 * Tagfs cli
+** TODO tagfs fsck: check for double allocations and return err if there are errs
+This can be marked done when there is a test
+** TODO tagfs fsck: measure space amplification
+count the amount by which extent list sizes exceed i_size
+If verbose, list each file that has (-v) over 2MiB of space amp (-vv) any space amp at all
+** TODO tagfs fsck should check for non-DAX files
+This would be files that were not created through the proper procedure. Need to figure out
+the right way to do this.
 ** TODO tagfs getmap
 Dump the file map, optionally in the form of a command line that can be used to create a
 clone of the file. The dump works, but not in command line format.
 ** TODO tagfs cp
 Copy a file to tagfs. Source can be in tagfs, or separate. This requires the allocator.
 Basically working, but not fully tested
-** TODO tagfs create
+** TODO tagfs creat
 ** TODO tagfs clone
+Create a second file referenceing the same memory. This is for testing - two files referencing
+the same data will cause errors from fsck.
+
+This should be a command that only works if you set a "testing" option (TBD)
 ** TODO tagfs setmode
 
 
-* 7/21 debuggingg files > 1 page
+* 7/21 debugging files > 1 page
 Mission accomplished...
 ** iomap_begin()
 *** xfs iomap begin funcs that call xfs_bmbt_to_iomapp()
