@@ -38,6 +38,9 @@
 
 MODULE_LICENSE("GPL v2");
 
+static int iomap_verbose=0;
+module_param(iomap_verbose, int, 0660);
+
 #ifndef CONFIG_MMU
 #error "Tagfs requires a kernel with CONFIG_MMU enabled"
 #endif
@@ -111,7 +114,7 @@ tagfs_meta_to_dax_offset(
 
 	iomap->offset = offset; /* file offset */
 
-	switch (meta->file_type) {
+	if (iomap_verbose) switch (meta->file_type) {
 	case TAGFS_SUPERBLOCK:
 		printk(KERN_NOTICE "%s: SUPERBLOCK\n", __func__);
 		break;
@@ -126,7 +129,8 @@ tagfs_meta_to_dax_offset(
 		break;
 	}
 
-	printk(KERN_NOTICE "%s: File offset %llx len %lld\n", __func__, offset, len);
+	if (iomap_verbose)
+		printk(KERN_NOTICE "%s: File offset %llx len %lld\n", __func__, offset, len);
 	for (i=0; i<meta->tfs_extent_ct; i++) {
 		loff_t dax_ext_offset = meta->tfs_extents[i].offset;
 		loff_t dax_ext_len    = meta->tfs_extents[i].len;
@@ -134,8 +138,10 @@ tagfs_meta_to_dax_offset(
 		if ((dax_ext_offset == 0) && (meta->file_type != TAGFS_SUPERBLOCK))
 			printk(KERN_ERR "%s: zero offset on non-superblock file!!\n", __func__);
 
-		printk(KERN_NOTICE "%s: ofs %llx len %llx tagfs: ext %d ofs %llx len %llx\n",
-		       __func__, local_offset, len, i, dax_ext_offset, dax_ext_len);
+		if (iomap_verbose)
+			printk(KERN_NOTICE
+			       "%s: ofs %llx len %llx tagfs: ext %d ofs %llx len %llx\n",
+			       __func__, local_offset, len, i, dax_ext_offset, dax_ext_len);
 
 		/* local_offset is the offset minus the size of extents skipped so far;
 		 * If local_offset < dax_ext_len, the data of interest starts in this extent
@@ -156,14 +162,14 @@ tagfs_meta_to_dax_offset(
 			iomap->type    = IOMAP_MAPPED;
 			iomap->flags   = flags;
 
-			printk(KERN_NOTICE "%s: --> ext %d daxdev offset %llx len %lld\n",
-			       __func__, i,
-			       iomap->addr, iomap->length);
+			if (iomap_verbose)
+				printk(KERN_NOTICE "%s: --> ext %d daxdev offset %llx len %lld\n",
+				       __func__, i, iomap->addr, iomap->length);
 			return 0;
 		}
 		local_offset -= dax_ext_len; /* Get ready for the next extent */
 	}
-	printk(KERN_NOTICE "%s: Failed to resolve\n", __func__);
+	printk(KERN_ERR "%s: Failed to resolve offset %lld len %lld\n", __func__, offset, len);
 	return 1; /* What is correct error to return? */
 }
 
@@ -407,11 +413,14 @@ tagfs_iomap_begin(
 	char flag_str[200];
 	int rc;
 
-	printk(KERN_NOTICE "%s: offset %lld length %lld\n", __func__, offset, length);
+	if (iomap_verbose)
+		printk(KERN_NOTICE "%s: offset %lld length %lld\n", __func__, offset, length);
 
 	/* Dump flags */
-	tagfs_get_iomap_flags_str(flag_str, flags);
-	printk(KERN_NOTICE "        iomap flags: %s\n", flag_str);
+	if (iomap_verbose) {
+		tagfs_get_iomap_flags_str(flag_str, flags);
+		printk(KERN_NOTICE "        iomap flags: %s\n", flag_str);
+	}
 
 	if ((offset + length) > i_size_read(inode)) {
 		printk(KERN_ERR "%s: ofs + length exceeds file size; append not allowed\n",
@@ -486,7 +495,8 @@ static inline bool
 tagfs_is_write_fault(
 	struct vm_fault		*vmf)
 {
-	printk(KERN_NOTICE "%s\n", __func__);
+	if (iomap_verbose)
+		printk(KERN_NOTICE "%s\n", __func__);
 
 	return (vmf->flags & FAULT_FLAG_WRITE) &&
 	       (vmf->vma->vm_flags & VM_SHARED);
@@ -496,7 +506,8 @@ static vm_fault_t
 tagfs_filemap_fault(
 	struct vm_fault		*vmf)
 {
-	printk(KERN_NOTICE "%s\n", __func__);
+	if (iomap_verbose)
+		printk(KERN_NOTICE "%s\n", __func__);
 
 	/* DAX can shortcut the normal fault path on write faults! */
 	return __tagfs_filemap_fault(vmf, PE_SIZE_PTE,
@@ -549,7 +560,9 @@ tagfs_filemap_map_pages(
 {
 	vm_fault_t ret;
 
-	printk(KERN_INFO "%s\n", __func__);
+	if (iomap_verbose)
+		printk(KERN_INFO "%s\n", __func__);
+
 	ret = filemap_map_pages(vmf, start_pgoff, end_pgoff);
 	return ret;
 }
