@@ -19,14 +19,8 @@ set -x
 
 # Try to create a file that is not in a tagfs file system (assume relative path not in one)
 NOT_IN_TAGFS=no_leading_slash
-sudo debug/tagfs creat -n 2 -s 0x400000 -o 0 -l 0x200000 -o 0x200000 -l 0x200000 -f $NOT_IN_TAGFS \
+sudo debug/tagfs creat -s 0x400000 -f $NOT_IN_TAGFS \
      && fail "creating file not in tagfs file system should fail"
-
-
-# Try to create a file that is cross linked with the superblock (offset 0)
-F=$MPT/cross-linked-file
-sudo debug/tagfs creat -n 2 -s 0x400000 -o 0 -l 0x200000 -o 0x200000 -l 0x200000 -f $F \
-     && fail "creating file cross-linked with superblock should fail"
 
 # Tagfs getmap should succeed on a file that exists
 LOG=$MPT/.meta/.log
@@ -39,6 +33,22 @@ sudo debug/tagfs getmap $NOT_EXIST && fail "getmap should fail non nonexistent f
 
 # tagfs getmap should fail on a file that is not in a tagfs file system
 sudo debug/tagfs getmap $NOT_IN_TAGFS && fail "getmap should fail if file not in tagfs"
+
+F=bigtest2
+sudo debug/tagfs creat -r -S 42 -s 0x8000000 -f $MPT/$F   || fail "creat $F"
+sudo debug/tagfs verify -S 42 -f $MPT/$F                  || fail "$F mismatch"
+
+sudo debug/tagfs fsck $DEV || fail "fsck should not fail when nothing cloned"
+
+sudo debug/tagfs clone $MPT/${F} $MPT/${F}_clone        || fail "clone $F "
+sudo debug/tagfs verify -S 42 -f $MPT/${F}_clone || fail "${F}_clone mismatch"
+
+sudo debug/tagfs fsck $DEV && fail "fsck should fail after cloning $F "
+
+sudo rm $MPT/${F}_clone || fail "should be able to rm $MPT/$F"
+
+sudo debug/tagfs fsck $DEV || fail "fsck should succeed after removing clone ${F}_clone"
+
 
 set +x
 echo "*************************************************************************************"
