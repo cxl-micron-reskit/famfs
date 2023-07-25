@@ -5,16 +5,35 @@ TODO
 ** tagfs fsck
 ** mkfs.tagfs <dev>
 
+* Testing plans
+** TODO test files in non-root directory
+and complex paths...
+** TODO test filling up a tagfs file system
+Need some intelligence to figure out when a create should fail based on size
+of the FS.
+
 * Known bugs
-** TODO tagfs fsck: sees empty log via /dev/pmem0
+** DONE tagfs fsck: should fail by dev when mounted
+Should be able to accomplish this via exclusive open in the driver...?
+Fixed in tagfs_lib.c:tagfs_fsck, which new checks if mounted if invoked
+by device.
+** DONE tagfs fsck: sees empty log via /dev/pmem0
 This worries me a bit. tagfs logplay via the file interface sees log entries, but
 when the log is mmapped via /dev/pmem0, the log looks legit but empty. WTF?!
-** TODO fsck via the meta files (rather than via pmem device) segfaults
+OK: this behavior happens when the file system is mounted and the log gets accessed
+via the pmem device rather than the log file. Yeah, same memory, differnet method and
+result. Solution: don't allow fsck via blkdev while the FS is mounted (which is a normal
+limitation)
+** DONE fsck via the meta files (rather than via pmem device) segfaults
 If pass in a mount point or tagfs path, fsck now finds the meta files, but it
 segfaults when checking the superblock magic #, even though in gdb I can dup the
 contents of the superblock. Weird...
+Solution: for some reason this didn't work via mmap (segfault when dereferencing
+sb-> or logp-> even though gdb could dereference them. But allocating space and doing
+a posix read into it solves that problem.
 ** TODO the 'tagfs creat' invocations in test0.sh have 000 permissions
 ...even though that's not the mode they're created under.
+But 'tagfs cp' seems to get it right. Should be an easy fix...
 ** DONE tagfs creat: manually creating a cross-linked-file fails
 File has no extents, is 0 size, and does not get unlinked
 see test_corruption0.sh
@@ -29,6 +48,8 @@ file againsts same-seed data.
 ** TODO tagfs fsck: does not detect cloned files
 Now it returns the error count
 Hmm: I saw it work, but it's failing with the current test2.sh.
+Answer: that was almost certainly because fsck accessed /dev/pmem0 while the FS
+was mounted, which somehow saw a stale log.
 ** DONE tagfs creat: mode is all 000
 Looks like the mode string passed into open/creat is not 000
 
@@ -45,6 +66,7 @@ Looks like the mode string passed into open/creat is not 000
 ** DONE nop ioctl to verify that a file is in a tagfs fs
 ** TODO mkfs should fail if the device is not larger than the superblock + log
 ** TODO mkfs should make the log smaller if device is small?
+** TODO Need a logplay variant that finds files that don't match logged size
 
 * Needed for testability
 ** DONE create files of arbitrary sizes
