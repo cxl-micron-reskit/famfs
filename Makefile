@@ -10,3 +10,6 @@ clean:
 	cd kmod; make clean
 	-rm -rf user/debug user/release
 
+doxygen:
+	doxygen Doxyfile
+
