@@ -1,5 +1,5 @@
-#/usr/bin/bash
-
+  usr/bin/bash
+ 
 fail () {
     set +x
     echo
@@ -19,6 +19,9 @@ CLI="sudo debug/tagfs"
 
 set -x
 
+verify_mounted $DEV $MPT "test2.sh"
+${CLI} fsck $MPT || fail "fsck should succeed"
+
 # Try to create a file that is not in a tagfs file system (assume relative path not in one)
 NOT_IN_TAGFS=no_leading_slash
 ${CLI} creat -s 0x400000 -f $NOT_IN_TAGFS \
@@ -36,21 +39,40 @@ ${CLI} getmap $NOT_EXIST && fail "getmap should fail non nonexistent file in tag
 # tagfs getmap should fail on a file that is not in a tagfs file system
 ${CLI} getmap $NOT_IN_TAGFS && fail "getmap should fail if file not in tagfs"
 
-F=bigtest2
-${CLI} creat -r -S 42 -s 0x8000000 -f $MPT/$F   || fail "creat $F"
-${CLI} verify -S 42 -f $MPT/$F                  || fail "$F mismatch"
 
-${CLI} fsck $DEV || fail "fsck should not fail when nothing cloned"
+F=bigtest
+SIZE=0x4000000
+for N in 10 11 12 13 14 15 16
+do
+    FILE=${F}${N}
+    ${CLI} creat -r -S $N -s $SIZE -f $MPT/$FILE || fail "creat $FILE"
+    ${CLI} verify -S $N -f $MPT/$FILE                || fail "$FILE mismatch"
+done
 
-${CLI} clone $MPT/${F} $MPT/${F}_clone        || fail "clone $F "
-${CLI} clone $MPT/${F} $MPT/${F}_clone1        || fail "clone $F "
+for N in 10 11 12 13 14 15 16
+do
+    FILE=${F}${N}
+    ${CLI} verify -S $N -f $MPT/$FILE                || fail "$FILE mismatch"
+done
 
-${CLI} fsck $DEV && fail "fsck should fail after cloning $F "
-${CLI} verify -S 42 -f $MPT/${F}_clone || fail "${F}_clone mismatch"
+${CLI} fsck $MPT || fail "fsck should not fail when nothing cloned"
 
-sudo rm $MPT/${F}_clone || fail "should be able to rm $MPT/$F"
+${CLI} clone $MPT/${FILE} $MPT/${FILE}_clone         || fail "clone $F "
+${CLI} clone $MPT/${FILE} $MPT/${FILE}_clone1        || fail "clone $F "
 
-${CLI} fsck $DEV || fail "fsck should succeed after removing clone ${F}_clone"
+${CLI} fsck $MPT && fail "fsck should fail after cloning "
+${CLI} verify -S $N -f $MPT/${FILE}_clone  || fail "${FILE}_clone mismatch"
+${CLI} verify -S $N -f $MPT/${FILE}_clone1 || fail "${FILE}_clone1 mismatch"
+
+sudo umount $MPT || fail "umount"
+verify_not_mounted $DEV $MPT "test1.sh"
+full_mount $DEV $MPT "test1.sh"
+verify_mounted $DEV $MPT "test1.sh"
+
+# TODO: make logplay drop files that have allocation collisions
+#test -f $MPT/bigtest0_clone && fail "cloned file should disappear after remount"
+
+${CLI} fsck $MPT && fail "fsck if a clone has ever happened should fail"
 
 
 set +x

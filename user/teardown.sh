@@ -16,5 +16,5 @@ if [ ! -d $MOUNT_PT ]; then
     exit -1
 fi
 
-sudo umount $MOUNT_PT || fail "umount"
+sudo umount $MOUNT_PT
 sudo rmmod tagfs      || fail "rmmod"
