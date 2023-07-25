@@ -24,7 +24,7 @@ ndctl list  || fail " need ndctl"
 #sudo ndctl create-namespace -f -e namespace0.0 --mode=fsdax
 sudo mkdir -p $MOUNT_PT        || fail "mkdir"
 #sudo chown $OWNER $MOUNT_PT
-sudo insmod ../tagfs/tagfs.ko  || fail "insmod"
+sudo insmod ../kmod/tagfs.ko  || fail "insmod"
 sudo mount -t tagfs -o noatime -o dax=always -o rootdev=/dev/pmem0 /dev/pmem0 $MOUNT_PT || fail "mount"
 grep tagfs /proc/mounts        || fail "/proc/mounts"
 sudo debug/tagfs mkmeta /dev/pmem0
