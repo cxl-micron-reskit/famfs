@@ -11,8 +11,11 @@ and complex paths...
 ** TODO test filling up a tagfs file system
 Need some intelligence to figure out when a create should fail based on size
 of the FS.
+** TODO Need test that attempts to write past EOF
+Should fail to append file past allocation, but succeed *to* allocation
 
 * Known bugs
+** TODO tagfs logplay: if relpath contains subdir, it gets created as a file
 ** DONE tagfs fsck: should fail by dev when mounted
 Should be able to accomplish this via exclusive open in the driver...?
 Fixed in tagfs_lib.c:tagfs_fsck, which new checks if mounted if invoked
@@ -86,7 +89,7 @@ tagfs verify
 ** DONE primary dax dev
 
 * TODO Integrate wtih googletest and automate baseline set of tests
-* TODO Debug "tagfs cp" cli functionality
+* DONE Debug "tagfs cp" cli functionality
 * DONE Need uuid_gen() function in tagfs_lib
 * TODO How will the kernel module read/access the superblock and log?
 The superblock has the list of dax devices. The primary superblock has the TAGFS_PRIMARY_SB
@@ -99,7 +102,7 @@ devices. Reference can be by index into teh ts_devlist[] on the primary superblo
 and the tagfs_daxdev needs the uuid for each device.
 * TODO Create file ioctl must inherit dax device from superblock (if there is only one)
 Oof, this requires a persistent mmap of the superblock and log from the in-memory sb. Hmm.
-* TODO generate some proper mmap test cases
+* DONE generate some proper mmap test cases
 * TODO generate proper buffered I/O test cases
 * TODO Generate tools for a recursive copy into tagfs file system
 * DONE top level makefile that builds everything

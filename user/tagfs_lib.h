@@ -61,4 +61,9 @@ u8 *tagfs_build_bitmap(const struct tagfs_log *logp, u64 size_in,
 
 int __file_not_tagfs(int fd);
 struct tagfs_simple_extent *tagfs_ext_to_simple_ext(struct tagfs_extent *te_list, size_t ext_count);
+
+int tagfs_dir_create(const char *mpt, const char *path, mode_t mode, uid_t uid, gid_t gid);
+int tagfs_log_dir_creation(struct tagfs_log *logp, const char *relpath,	mode_t mode,
+			   uid_t uid, gid_t gid);
+
 #endif /* _H_TAGFS_LIB */

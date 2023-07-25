@@ -127,6 +127,7 @@ struct tagfs_log_extent {
 
 enum tagfs_log_entry_type {
 	TAGFS_LOG_FILE,    /* This type of log entry creates a file */
+	TAGFS_LOG_MKDIR,
 	TAGFS_LOG_ACCESS,  /* This type of log entry gives a host access to a file */
 };
 
@@ -139,6 +140,16 @@ enum tagfs_log_entry_type {
 
 /* Maximum number of extents in a FC extent list */
 #define TAGFS_FC_MAX_EXTENTS 8
+
+/* This log entry creates a directory */
+struct tagfs_mkdir {
+	/* TODO: consistent field naming */
+	uid_t   fc_uid;
+	gid_t   fc_gid;
+	mode_t  fc_mode;
+
+	u8      tagfs_relpath[TAGFS_MAX_PATHLEN];
+};
 
 /* This log entry creates a file */
 struct tagfs_file_creation {
@@ -171,6 +182,7 @@ struct tagfs_log_entry {
 	u32     tagfs_log_entry_type; /* TAGFS_LOG_FILE_CREATION or TAGFS_LOG_ACCESS */
 	union {
 		struct tagfs_file_creation tagfs_fc;
+		struct tagfs_mkdir         tagfs_md;
 		struct tagfs_file_access   tagfs_fa;
 	};
 };

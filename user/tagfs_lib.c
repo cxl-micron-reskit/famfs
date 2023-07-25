@@ -674,6 +674,13 @@ tagfs_log_entry_fc_path_is_relative(const struct tagfs_file_creation *fc)
 		&& (fc->tagfs_relpath[0] != '/'));
 }
 
+static inline int
+tagfs_log_entry_md_path_is_relative(const struct tagfs_mkdir *md)
+{
+	return ((strlen((char *)md->tagfs_relpath) >= 1)
+		&& (md->tagfs_relpath[0] != '/'));
+}
+
 int
 tagfs_logplay(
 	const struct tagfs_log *logp,
@@ -732,6 +739,8 @@ tagfs_logplay(
 			if (skip_file)
 				continue;
 
+			/* tagfs_mkdirs(mpt, fc->tagfs_relpath); */
+
 			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, fc->tagfs_relpath);
 			realpath(fullpath, rpath);
 			if (dry_run)
@@ -748,10 +757,9 @@ tagfs_logplay(
 					       fc->fc_uid, fc->fc_gid,
 					       fc->tagfs_fc_size);
 			if (fd < 0) {
-				if (fd < 0)
-					fprintf(stderr,
-						"%s: unable to create destfile (%s)\n",
-						__func__, fc->tagfs_relpath);
+				fprintf(stderr,
+					"%s: unable to create destfile (%s)\n",
+					__func__, fc->tagfs_relpath);
 
 				unlink(rpath);
 				continue;
@@ -768,6 +776,64 @@ tagfs_logplay(
 			tagfs_file_map_create(rpath, fd, fc->tagfs_fc_size,
 					      fc->tagfs_nextents, el, TAGFS_REG);
 			close(fd);
+			break;
+		}
+		case TAGFS_LOG_MKDIR: {
+			const struct tagfs_mkdir *md = &le.tagfs_md;
+			char fullpath[PATH_MAX];
+			char rpath[PATH_MAX];
+			int skip_dir = 0;
+			struct stat st;
+
+			printf("%s: %d mkdir=%s\n", __func__, i, md->tagfs_relpath);
+
+			if (!tagfs_log_entry_md_path_is_relative(md)) {
+				fprintf(stderr,
+					"%s: ignoring log mkdir entry; path is not relative\n",
+					__func__);
+				skip_dir++;
+			}
+
+			if (skip_dir)
+				continue;
+
+			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, md->tagfs_relpath);
+			realpath(fullpath, rpath);
+			if (dry_run)
+				continue;
+
+			rc = stat(rpath, &st);
+			if (!rc) {
+				switch (st.st_mode & S_IFMT) {
+				case S_IFDIR:
+					fprintf(stderr, "%s: directory (%s) already exists\n",
+						__func__, rpath);
+					break;
+
+				case S_IFREG:
+					fprintf(stderr,
+						"%s: file (%s) exists where dir should be\n",
+						__func__, rpath);
+					break;
+
+				default:
+					fprintf(stderr,
+						"%s: something (%s) exists where dir should be\n",
+						__func__, rpath);
+					break;
+				}
+				continue;
+			}
+
+			printf("%s: creating directory %s\n", __func__, md->tagfs_relpath);
+			rc = tagfs_dir_create(mpt, (char *)md->tagfs_relpath, md->fc_mode,
+					      md->fc_uid, md->fc_gid);
+			if (rc) {
+				fprintf(stderr,
+					"%s: error: unable to create directory (%s)\n",
+					__func__, md->tagfs_relpath);
+			}
+
 			break;
 		}
 		case TAGFS_LOG_ACCESS:
@@ -907,6 +973,42 @@ tagfs_log_file_creation(
 		ext->se.tagfs_extent_offset = ext_list[i].tagfs_extent_offset;
 		ext->se.tagfs_extent_len    = ext_list[i].tagfs_extent_len;
 	}
+
+	return tagfs_append_log(logp, &le);
+}
+
+/**
+ * tagfs_log_dir_creation()
+ */
+/* TODO: UI would be cleaner if this accepted a fullpath and the mpt, and did the
+ * conversion itself. Then pretty much all calls would use the same stuff.
+ */
+int
+tagfs_log_dir_creation(
+	struct tagfs_log           *logp,
+	const char                 *relpath,
+	mode_t                      mode,
+	uid_t                       uid,
+	gid_t                       gid)
+{
+	struct tagfs_log_entry le = {0};
+	struct tagfs_mkdir *md = &le.tagfs_md;
+
+	assert(logp);
+	assert(relpath[0] != '/');
+
+	if (tagfs_log_full(logp)) {
+		fprintf(stderr, "%s: log full\n", __func__);
+		return -ENOMEM;
+	}
+
+	le.tagfs_log_entry_type = TAGFS_LOG_MKDIR;
+
+	strncpy((char *)md->tagfs_relpath, relpath, TAGFS_MAX_PATHLEN - 1);
+
+	md->fc_mode = mode;
+	md->fc_uid  = uid;
+	md->fc_gid  = gid;
 
 	return tagfs_append_log(logp, &le);
 }
@@ -1547,7 +1649,8 @@ tagfs_file_create(const char *path,
 		  size_t      size)
 {
 	int rc = 0;
-	int fd = open(path, O_RDWR | O_CREAT, mode); /* TODO: open as temp file, move into place after alloc */
+	int fd = open(path, O_RDWR | O_CREAT, mode); /* TODO: open as temp file,
+						      * move into place after alloc */
 
 	if (fd < 0) {
 		fprintf(stderr, "%s: open/creat %s failed fd %d\n",
@@ -1572,6 +1675,49 @@ tagfs_file_create(const char *path,
 	return fd;
 }
 
+/**
+ * tagfs_dir_create()
+ *
+ * Create a directory
+ *
+ * @mpt
+ * @path
+ * @mode
+ * @uid  - used if both uid and gid are non-null
+ * @gid  - used if both uid and gid are non-null
+ * @size
+ *
+ *
+ */
+int
+tagfs_dir_create(
+	const char *mpt,
+	const char *rpath,
+	mode_t      mode,
+	uid_t       uid,
+	gid_t       gid)
+{
+	int rc = 0;
+	char fullpath[PATH_MAX];
+
+	snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, rpath);
+	rc = mkdir(fullpath, mode);
+	if (rc) {
+		fprintf(stderr, "%s: failed to mkdir %s\n", __func__, fullpath);
+		return -1;
+	}
+
+	/* Check if dir is in tagfs mount? */
+
+	if (uid && gid) {
+		rc = chown(fullpath, uid, gid);
+		if (rc)
+			fprintf(stderr, "%s: chown returned %d errno %d\n",
+				__func__, rc, errno);
+		return -1;
+	}
+	return 0;
+}
 
 /**
  * libtagfs:
