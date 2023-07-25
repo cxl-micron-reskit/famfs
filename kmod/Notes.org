@@ -6,6 +6,13 @@ TODO
 ** mkfs.tagfs <dev>
 
 * Known bugs
+** TODO tagfs fsck: sees empty log via /dev/pmem0
+This worries me a bit. tagfs logplay via the file interface sees log entries, but
+when the log is mmapped via /dev/pmem0, the log looks legit but empty. WTF?!
+** TODO fsck via the meta files (rather than via pmem device) segfaults
+If pass in a mount point or tagfs path, fsck now finds the meta files, but it
+segfaults when checking the superblock magic #, even though in gdb I can dup the
+contents of the superblock. Weird...
 ** TODO the 'tagfs creat' invocations in test0.sh have 000 permissions
 ...even though that's not the mode they're created under.
 ** DONE tagfs creat: manually creating a cross-linked-file fails
