@@ -7,7 +7,7 @@ EXTRA_CFLAGS += -g -DDEBUG -O1
 
 obj-m += tagfs.o
 
-tagfs-objs += tagfs_inode.o tagfs_file.o tagfs_file_misc.o
+tagfs-objs += tagfs_inode.o tagfs_file.o
 
 KHOME = ~/w/linux-debug
 
