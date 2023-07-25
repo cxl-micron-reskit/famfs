@@ -127,7 +127,7 @@ tagfs_meta_alloc(
 	return 0;
 }
 
-void
+static void
 tagfs_meta_free(
 	struct tagfs_file_meta *map)
 {
@@ -135,15 +135,15 @@ tagfs_meta_free(
 }
 
 /**
- * tagfs_file_create() - TAGFSIOC_MAP_CREATE ioctl handler
+ * tagfs_file_init_dax() - TAGFSIOC_MAP_CREATE ioctl handler
  * @file:
  * @arg:        ptr to struct mcioc_map in user space
  *
  * Setup the dax mapping for a file. Files are created empty, and then function is aclled
  * (by tagfs_file_ioctl()) to setup the mapping and set the file size.
  */
-int
-tagfs_file_create(
+static int
+tagfs_file_init_dax(
 	struct file    *file,
 	void __user    *arg)
 {
@@ -434,7 +434,7 @@ tagfs_file_ioctl(
 		break;
 
 	case TAGFSIOC_MAP_CREATE:
-		rc = tagfs_file_create(file, (void *)arg);
+		rc = tagfs_file_init_dax(file, (void *)arg);
 		break;
 
 	case TAGFSIOC_MAP_GET: {
