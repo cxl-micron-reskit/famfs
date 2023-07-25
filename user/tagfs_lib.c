@@ -1111,7 +1111,17 @@ tagfs_fsck(const char *path,
 
 	switch (st.st_mode & S_IFMT) {
 	case S_IFBLK:
-	case S_IFCHR:
+	case S_IFCHR: {
+		char *mpt;
+		/* Check if there is a mounted tagfs file system on this device;
+		 * fail if so - if mounted, have to fsck by mount pt rather than device */
+		mpt = tagfs_get_mpt_by_dev(path);
+		if (mpt) {
+			fprintf(stderr, "%s: error - cannot fsck by device (%s) when mounted\n",
+				__func__, path);
+			free(mpt);
+			return -EBUSY;
+		}
 		/* If it's a device, we'll try to mmap superblock and log from the device */
 		rc = tagfs_get_device_size(path, &size, NULL);
 		if (rc < 0)
@@ -1119,7 +1129,7 @@ tagfs_fsck(const char *path,
 
 		rc = tagfs_mmap_superblock_and_log_raw(path, &sb, &logp, 1 /* read-only */);
 		break;
-
+	}
 	case S_IFREG:
 	case S_IFDIR: {
 #if 0
