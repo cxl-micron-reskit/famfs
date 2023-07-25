@@ -308,30 +308,6 @@ tagfs_check_super(const struct tagfs_superblock *sb)
 	return 0;
 }
 
-int
-tagfs_fsck(const char *devname,
-	   int verbose)
-{
-	struct tagfs_superblock *sb;
-	struct tagfs_log *logp;
-	size_t size;
-	int rc;
-
-	rc = tagfs_get_device_size(devname, &size, NULL);
-	if (rc < 0)
-		return -1;
-
-	rc = tagfs_mmap_superblock_and_log_raw(devname, &sb, &logp, 1 /* read-only */);
-
-	if (tagfs_check_super(sb)) {
-		fprintf(stderr, "%s: no tagfs superblock on device %s\n", __func__, devname);
-		return -1;
-	}
-
-	rc = tagfs_fsck_scan(sb, logp, verbose);
-	return rc;
-}
-
 #define XLEN 256
 
 /**
@@ -938,7 +914,7 @@ tagfs_log_file_creation(
 /**
  * __open_relpath()
  *
- * @path       - any path within a tagfs file system
+ * @path       - any path within a tagfs file system (from mount pt on down)
  * @relpath    - the relative path to open (relative to the mount point)
  * @read_only
  * @size_out   - File size will be returned if this pointer is non-NULL
@@ -996,7 +972,7 @@ __open_relpath(
 /**
  * open_log_file(path)
  *
- * @path - a path within a tagfs file system
+ * @path - any path within a tagfs file system (from mount pt on down)
  *
  * This will traverse upward from path, looking for a directory containing a .meta/.log
  * If found, it opens the log.
@@ -1055,6 +1031,179 @@ open_superblock_file_writable(
 	char       *mpt_out)
 {
 	return __open_superblock_file(path, 0, sizep, mpt_out);
+}
+
+struct tagfs_superblock *
+tagfs_map_superblock_by_path(
+	const char *path,
+	int         read_only)
+{
+	struct tagfs_superblock *sb;
+	int prot = (read_only) ? O_RDONLY : O_RDWR;
+	size_t sb_size;
+	void *addr;
+	int fd;
+
+	fd = __open_superblock_file(path, 1 /* read only */,
+				    &sb_size, NULL);
+	if (fd < 0) {
+		fprintf(stderr, "%s: failed to open log file for filesystem %s\n",
+			__func__, path);
+		return NULL;
+	}
+	addr = mmap(0, sb_size, prot, MAP_SHARED, fd, 0);
+	close(fd);
+	if (addr == MAP_FAILED) {
+		fprintf(stderr, "%s: Failed to mmap log file %s", __func__, path);
+		return NULL;
+	}
+	sb = (struct tagfs_superblock *)addr;
+	return sb;
+}
+
+struct tagfs_log *
+tagfs_map_log_by_path(
+	const char *path,
+	int         read_only)
+{
+	struct tagfs_log *logp;
+	int prot = (read_only) ? O_RDONLY : O_RDWR;
+	size_t log_size;
+	void *addr;
+	int fd;
+
+	fd = __open_log_file(path, 1 /* read only */, &log_size, NULL);
+	if (fd < 0) {
+		fprintf(stderr, "%s: failed to open log file for filesystem %s\n",
+			__func__, path);
+		return NULL;
+	}
+	addr = mmap(0, log_size, prot, MAP_SHARED, fd, 0);
+	close(fd);
+	if (addr == MAP_FAILED) {
+		fprintf(stderr, "%s: Failed to mmap log file %s", __func__, path);
+		return NULL;
+	}
+	logp = (struct tagfs_log *)addr;
+	return logp;
+}
+
+int
+tagfs_fsck(const char *path,
+	   int verbose)
+{
+	struct tagfs_superblock *sb;
+	struct tagfs_log *logp;
+	struct stat st;
+	int malloc_sb_log = 0;
+	size_t size;
+	int rc;
+
+	assert(path);
+	assert(strlen(path) > 1);
+
+	rc = stat(path, &st);
+	if (rc < 0) {
+		fprintf(stderr, "%s: failed to stat path %s (%s)\n",
+			__func__, path, strerror(errno));
+		return -errno;
+	}
+
+	switch (st.st_mode & S_IFMT) {
+	case S_IFBLK:
+	case S_IFCHR:
+		/* If it's a device, we'll try to mmap superblock and log from the device */
+		rc = tagfs_get_device_size(path, &size, NULL);
+		if (rc < 0)
+			return -1;
+
+		rc = tagfs_mmap_superblock_and_log_raw(path, &sb, &logp, 1 /* read-only */);
+		break;
+
+	case S_IFREG:
+	case S_IFDIR: {
+#if 0
+		/* If it's a file or directory, we'll try to mmap the sb and log from their files */
+		sb =   tagfs_map_superblock_by_path(path, 1 /* read only */);
+		if (!sb) {
+			fprintf(stderr, "%s: failed to map superblock from file %s\n",
+				__func__, path);
+			return -1;
+		}
+		logp = tagfs_map_log_by_path(path, 1 /* read only */);
+		if (!logp) {
+			fprintf(stderr, "%s: failed to map log from file %s\n",
+				__func__, path);
+			return -1;
+		}
+		break;
+#else
+		int sfd = open_superblock_file_read_only(path, NULL, NULL);
+		int lfd = open_log_file_read_only(path, NULL, NULL);
+		char *buf;
+		int resid;
+		int total = 0;
+
+		if (sfd < 0) {
+			fprintf(stderr, "%s: failed to open superblock file\n", __func__);
+			return -1;
+		}
+		if (lfd < 0) {
+			fprintf(stderr, "%s: failed to open log file\n", __func__);
+			return -1;
+		}
+
+		sb = calloc(1, sizeof(*sb));
+		assert(sb);
+		malloc_sb_log = 1;
+
+		/* Read a copy of the superblock */
+		rc = read(sfd, sb, sizeof(*sb));
+		if (rc < 0) {
+			fprintf(stderr, "%s: error %d reading superblock file\n", __func__, errno);
+			return -errno;
+		} else if (rc < sizeof(*sb)) {
+			fprintf(stderr, "%s: error: short read of superblock %d/%ld\n",
+				__func__, rc, sizeof(*sb));
+			return -1;
+		}
+
+		logp = calloc(1, sb->ts_log_len);
+		assert(logp);
+
+		/* Read a copy of the log */
+		resid = sb->ts_log_len;
+		buf = (char *)logp;
+		do {
+			rc = read(lfd, &buf[total], resid);
+			if (rc < 0) {
+				fprintf(stderr, "%s: error %d reading log file\n",
+					__func__, errno);
+				free(sb);
+				return -errno;
+			}
+			printf("%s: read %d bytes of log\n", __func__, rc);
+			resid -= rc;
+			total += rc;
+		} while (resid > 0);
+#endif
+	}
+		break;
+	default:
+		fprintf(stderr, "invalid path or dax device: %s\n", path);
+		return -EINVAL;
+	}
+
+	if (tagfs_check_super(sb)) {
+		fprintf(stderr, "%s: no tagfs superblock on device %s\n", __func__, path);
+		return -1;
+	}
+	rc = tagfs_fsck_scan(sb, logp, verbose);
+	if (malloc_sb_log) {
+		free(sb);
+		free(logp);
+	}
+	return rc;
 }
 
 /**
@@ -1388,7 +1537,7 @@ tagfs_file_create(const char *path,
 		  size_t      size)
 {
 	int rc = 0;
-	int fd = open(path, O_RDWR | O_CREAT, mode);
+	int fd = open(path, O_RDWR | O_CREAT, mode); /* TODO: open as temp file, move into place after alloc */
 
 	if (fd < 0) {
 		fprintf(stderr, "%s: open/creat %s failed fd %d\n",
