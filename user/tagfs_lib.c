@@ -1453,6 +1453,10 @@ tagfs_build_bitmap(const struct tagfs_log   *logp,
 			}
 			break;
 		}
+		case TAGFS_LOG_MKDIR:
+			/* Ignore directory log entries - no space is used */
+
+			break;
 		case TAGFS_LOG_ACCESS:
 		default:
 			printf("%s: invalid log entry\n", __func__);
