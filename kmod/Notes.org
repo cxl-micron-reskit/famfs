@@ -6,16 +6,27 @@ TODO
 ** mkfs.tagfs <dev>
 
 * Testing plans
-** TODO test files in non-root directory
+** DONE test files in non-root directory
 and complex paths...
+Had to add 'tagfs mkdir', which is now working.
 ** TODO test filling up a tagfs file system
 Need some intelligence to figure out when a create should fail based on size
 of the FS.
 ** TODO Need test that attempts to write past EOF
 Should fail to append file past allocation, but succeed *to* allocation
+** TODO Need test that overflows the log
+** TODO Need test that mounts the same memory/pmem device from mulltiple VMs
+...and verifies that they see the same stuff
+...and explores whether mutations are immediately visible
 
 * Known bugs
 ** TODO tagfs logplay: if relpath contains subdir, it gets created as a file
+** TODO the 'tagfs creat' invocations in test0.sh have 000 permissions
+...even though that's not the mode they're created under.
+But 'tagfs cp' seems to get it right. Should be an easy fix...
+** TODO linux "cmp" comparisons fail even when "tagfs verify" succeeds
+There is something wrong with posix read. tagfs verify uses mmap, and verifies the
+file againsts same-seed data.
 ** DONE tagfs fsck: should fail by dev when mounted
 Should be able to accomplish this via exclusive open in the driver...?
 Fixed in tagfs_lib.c:tagfs_fsck, which new checks if mounted if invoked
@@ -34,9 +45,6 @@ contents of the superblock. Weird...
 Solution: for some reason this didn't work via mmap (segfault when dereferencing
 sb-> or logp-> even though gdb could dereference them. But allocating space and doing
 a posix read into it solves that problem.
-** TODO the 'tagfs creat' invocations in test0.sh have 000 permissions
-...even though that's not the mode they're created under.
-But 'tagfs cp' seems to get it right. Should be an easy fix...
 ** DONE tagfs creat: manually creating a cross-linked-file fails
 File has no extents, is 0 size, and does not get unlinked
 see test_corruption0.sh
@@ -45,10 +53,7 @@ Dropped manual extents. Just use clone instead.
 When I create a zero-based extent followed by a non-zero-based extent, I see them
 out of order in getmap
 Moot now that manual extents are dropped. (use clone instead)
-** TODO linux "cmp" comparisons fail even when "tagfs verify" succeeds
-There is something wrong with posix read. tagfs verify uses mmap, and verifies the
-file againsts same-seed data.
-** TODO tagfs fsck: does not detect cloned files
+** DONE tagfs fsck: does not detect cloned files
 Now it returns the error count
 Hmm: I saw it work, but it's failing with the current test2.sh.
 Answer: that was almost certainly because fsck accessed /dev/pmem0 while the FS
@@ -61,6 +66,9 @@ Looks like the mode string passed into open/creat is not 000
 
 
 * Missing functionality
+** DONE Tagfs mkdir
+Done woohoo
+** TODO Tagfs 'mkdir -p' ?
 ** DONE Create log entry when allocating/creating a file
 ** DONE play log into file system
 'tagfs logplay <mpt>'
@@ -74,8 +82,9 @@ Looks like the mode string passed into open/creat is not 000
 * Needed for testability
 ** DONE create files of arbitrary sizes
 tagfs creat -s <size>
-** TODO create files with arbitrary extent lists and warn if extent conflicts
+** DONE create files with arbitrary extent lists and warn if extent conflicts
 tagfs creat -n 2 --offset 0 --length 0x200000 --offset 0x400000 --length 0x200000
+Dropped: clone provides collisions for testability. M
 
 ** DONE randomize file content based on supplied key (so files can be verified)
 tagfs write -s <seed> -r <file>
@@ -147,10 +156,11 @@ bitmap
 * Kernel fs features
 ** DONE decouple size from extent list
 i.e. size can be <= extent list length
-** TODO Dump the user-space file metadata (for cloning)
+** DONE Dump the user-space file metadata (for cloning)
 This will return a tagfs_ioc_map and an array of tagfs_user_extent structs
 (might be 2 ioctls, one for tagfs_ioc_map - which will indicate how many extents - and a
 second for the array of extents)
+Have clone now, and have getmap. Calling this done.
 ** TODO dump the xarray of which pages are currently populated
 This is a derivative of csnoop, though the xarray conversion may change it.
 
@@ -165,15 +175,18 @@ Done but need to test
 ** TODO Get device size regardless of type
 Done but char device not tested yet
 ** TODO tagfs_setmode
-** TODO tagfs_clone
+** DONE tagfs_clone
 Create another file referencing the same data. This should cause an fsck error, because
 fsck will notice allocated blocks that are referenced by more than one file.
 
 * Tagfs cli
-** TODO tagfs fsck: check for double allocations and return err if there are errs
+** DONE tagfs fsck: check for double allocations and return err if there are errs
 This can be marked done when there is a test.
 This was working, but now test1.sh is failing because it's not working.
-** TODO tagfs fsck: measure space amplification
+(the issue was related to acessing the log & superblock via the pmem device vs. via the
+.superblock and .log files. Now I only allow using the files while the FS is mounted, and
+it works.)
+** DONE tagfs fsck: measure space amplification
 count the amount by which extent list sizes exceed i_size
 If verbose, list each file that has (-v) over 2MiB of space amp (-vv) any space amp at all
 ** TODO tagfs fsck should check for non-DAX files
