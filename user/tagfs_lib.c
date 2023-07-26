@@ -330,7 +330,7 @@ tagfs_get_mpt_by_dev(const char *mtdev)
 
 	fp = fopen("/proc/mounts", "r");
 	if (fp == NULL)
-		exit(EXIT_FAILURE);
+		return NULL;
 
 	while ((read = getline(&line, &len, fp)) != -1) {
 		char dev[XLEN];
@@ -344,7 +344,8 @@ tagfs_get_mpt_by_dev(const char *mtdev)
 			rc = sscanf(line, "%s %s %s %s %d %d",
 				    dev, mpt, fstype, args, &x0, &x1);
 			if (rc <= 0)
-				return NULL;
+				goto out;
+
 			xmpt = realpath(mpt, NULL);
 			if (!xmpt) {
 				fprintf(stderr, "realpath(%s) errno %d\n", mpt, errno);
@@ -352,13 +353,17 @@ tagfs_get_mpt_by_dev(const char *mtdev)
 			}
 			if (strcmp(dev, mtdev) == 0) {
 				answer = strdup(xmpt);
+				free(xmpt);
 				free(line);
 				return answer;
 			}
 		}
+		if (xmpt)
+			free(xmpt);
 
 	}
 
+out:
 	fclose(fp);
 	if (line)
 		free(line);
@@ -472,6 +477,8 @@ tagfs_mkmeta(const char *devname)
 	strncat(dirpath, mpt,     PATH_MAX - 1);
 	strncat(dirpath, "/",     PATH_MAX - 1);
 	strncat(dirpath, ".meta", PATH_MAX - 1);
+	free(mpt);
+	mpt = NULL;
 
 	/* Create the meta directory */
 	if (stat(dirpath, &st) == -1) {
@@ -776,6 +783,7 @@ tagfs_logplay(
 			tagfs_file_map_create(rpath, fd, fc->tagfs_fc_size,
 					      fc->tagfs_nextents, el, TAGFS_REG);
 			close(fd);
+			free(el);
 			break;
 		}
 		case TAGFS_LOG_MKDIR: {
@@ -1056,17 +1064,19 @@ __open_relpath(
 				if (mpt_out)
 					strncpy(mpt_out, rpath, PATH_MAX - 1);
 				fd = open(log_path, openmode, 0);
+				free(rpath);
 				return fd;
 			}
 			/* no */
 		}
 
 	next:
-		/* pop up one level */
+		/* Pop up one level; exit if we're at the top */
 		rpath = dirname(rpath);
 		if (strcmp(rpath, "/") == 0)
 			break;
 	}
+	free(rpath);
 	return -1;
 }
 
@@ -1551,6 +1561,7 @@ tagfs_alloc_bypath(
 	printf("\nbitmap after:\n");
 	mu_print_bitmap(bitmap, nbits);
 	printf("\nAllocated offset: %lld\n", offset);
+	free(bitmap);
 	return offset;
 }
 
@@ -1602,8 +1613,10 @@ tagfs_file_alloc(
 	rpath = realpath(path, NULL);
 	/* Log file */
 	lfd = open_log_file_writable(rpath, &log_size, mpt);
-	if (lfd < 0)
+	if (lfd < 0) {
+		free(rpath);
 		return lfd;
+	}
 
 	addr = mmap(0, log_size, O_RDWR, MAP_SHARED, lfd, 0);
 	if (addr == MAP_FAILED) {
@@ -1612,6 +1625,7 @@ tagfs_file_alloc(
 		return -1;
 	}
 	close(lfd);
+	lfd = 0;
 	logp = (struct tagfs_log *)addr;
 
 	/* For the log, we need the path relative to the mount point.
@@ -1623,8 +1637,10 @@ tagfs_file_alloc(
 
 	/* Allocation is always contiguous initially */
 	offset = tagfs_alloc_bypath(logp, rpath, size);
-	if (offset < 0)
-		return -ENOMEM;
+	if (offset < 0) {
+		rc = -ENOMEM;
+		goto out;
+	}
 
 	ext.tagfs_extent_len    = round_size_to_alloc_unit(size);
 	ext.tagfs_extent_offset = offset;
@@ -1632,9 +1648,15 @@ tagfs_file_alloc(
 	rc = tagfs_log_file_creation(logp, 1, &ext,
 				     relpath, mode, uid, gid, size);
 	if (rc)
-		return rc;
+		goto out;
 
-	return tagfs_file_map_create(path, fd, size, 1, &ext, TAGFS_REG);
+	rc =  tagfs_file_map_create(path, fd, size, 1, &ext, TAGFS_REG);
+out:
+	if (lfd > 0)
+		close(lfd);
+	if (rpath)
+		free(rpath);
+	return rc;
 }
 
 /**

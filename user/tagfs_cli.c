@@ -237,9 +237,11 @@ do_tagfs_cli_mkmeta(int argc, char *argv[])
 	if (!realdaxdev) {
 		fprintf(stderr, "%s: realpath(%s) returned %d\n",
 			__func__, realdaxdev, errno);
+		free(realdaxdev);
 		return -1;
 	}
 	tagfs_mkmeta(realdaxdev);
+	free(realdaxdev);
 	return 0;
 }
 
