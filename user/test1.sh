@@ -44,7 +44,10 @@ ${CLI} verify -S 42 -f $MPT/$F                 || fail "$F mismatch"
 ${CLI} cp $MPT/$F $MPT/${F}_cp      || fail "cp $F"
 ${CLI} verify -S 42 -f $MPT/${F}_cp || fail "verify ${F}_cp"
 
-sudo mkdir $MPT/subdir || fail "failed to create subdir"
+${CLI} mkdir $MPT/subdir || fail "failed to create subdir"
+${CLI} mkdir $MPT/subdir && fail "creating existing subdir should fail"
+${CLI} mkdir $MPT/$F && fail "mkdir that collides with existing file should fail"
+
 
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp0      || fail "cp0 $F"
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp1      || fail "cp1 $F"
@@ -56,6 +59,8 @@ ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp6      || fail "cp6 $F"
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp7      || fail "cp7 $F"
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp8      || fail "cp8 $F"
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp9      || fail "cp9 $F"
+
+${CLI} logplay -n $MPT
 
 ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp0 || fail "verify ${F}_cp0"
 ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp1 || fail "verify ${F}_cp1"
