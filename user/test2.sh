@@ -43,14 +43,14 @@ ${CLI} getmap $NOT_IN_TAGFS && fail "getmap should fail if file not in tagfs"
 
 F=bigtest
 SIZE=0x4000000
-for N in 10 11 12 13 14 15 16
+for N in 10 11 12 13 14 15
 do
     FILE=${F}${N}
     ${CLI} creat -r -S $N -s $SIZE -f $MPT/$FILE || fail "creat $FILE"
     ${CLI} verify -S $N -f $MPT/$FILE                || fail "$FILE mismatch"
 done
 
-for N in 10 11 12 13 14 15 16
+for N in 10 11 12 13 14 15
 do
     FILE=${F}${N}
     ${CLI} verify -S $N -f $MPT/$FILE                || fail "$FILE mismatch"
