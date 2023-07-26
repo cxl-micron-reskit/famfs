@@ -1485,12 +1485,17 @@ bitmap_alloc_contiguous(u8 *bitmap,
 			u64 size)
 {
 	int i, j;
-
 	int alloc_bits = (size + TAGFS_ALLOC_UNIT - 1) /  TAGFS_ALLOC_UNIT;
+	int bitmap_remainder;
+
 	for (i=0; i<nbits; i++) {
 		/* Skip bits that are set... */
 		if (mu_bitmap_test(bitmap, i))
 			continue;
+
+		bitmap_remainder = nbits - i;
+		if (alloc_bits > bitmap_remainder) /* Remaining space is not enough */
+			return 0;
 
 		for (j=i; j<(i+alloc_bits); j++) {
 			if (mse_bitmap_test32(bitmap, j))
