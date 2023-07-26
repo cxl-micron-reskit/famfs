@@ -17,6 +17,7 @@ MPT=/mnt/tagfs
 
 CLI="sudo debug/tagfs"
 
+source test_funcs.sh
 set -x
 
 verify_mounted $DEV $MPT "test2.sh"
