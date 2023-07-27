@@ -20,7 +20,7 @@ Should fail to append file past allocation, but succeed *to* allocation
 ...and explores whether mutations are immediately visible
 
 * Known bugs
-** TODO tagfs logplay: if relpath contains subdir, it gets created as a file
+** DONE tagfs logplay: if relpath contains subdir, it gets created as a file
 ** TODO the 'tagfs creat' invocations in test0.sh have 000 permissions
 ...even though that's not the mode they're created under.
 But 'tagfs cp' seems to get it right. Should be an easy fix...
@@ -60,6 +60,18 @@ Answer: that was almost certainly because fsck accessed /dev/pmem0 while the FS
 was mounted, which somehow saw a stale log.
 ** DONE tagfs creat: mode is all 000
 Looks like the mode string passed into open/creat is not 000
+
+* Valgrind checking
+** DONE tagfs verify
+** DONE tagfs mkdir
+** DONE tagfs logplay
+** DONE tagfs creat
+** DONE tagfs cp
+** DONE tagfs fsck on fs
+** TODO tagfs fsck on device
+** TODO tagfs mkmeta
+There is a minor leak in tagfs_get_mpt_by_dev() still
+
 
 
 * Tests
