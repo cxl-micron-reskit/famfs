@@ -1,4 +1,9 @@
 
+converting between character dax and block pmem:
+
+sudo ndctl create-namespace --force --mode=fsdax --reconfig=namespace0.0
+sudo ndctl create-namespace --force --mode=devdax --reconfig=namespace0.0
+
 Mount & preparation:
   ./setup.sh
   mkfs.tagfs [-f] /dev/pmem0
