@@ -8,6 +8,7 @@
 #define LOG_FILE_RELPATH   ".meta/.log"
 
 int open_log_file_writable(const char *path, size_t *sizep, char *mpt_out);
+int open_log_file_read_only(const char *path, size_t *sizep, char *mpt_out);
 int tagfs_log_file_creation(
 	struct tagfs_log           *logp,
 	u64                         nextents,

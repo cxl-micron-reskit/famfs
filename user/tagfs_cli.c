@@ -83,14 +83,17 @@ int
 do_tagfs_cli_logplay(int argc, char *argv[])
 {
 	int c;
+	int rc;
 	int arg_ct = 0;
 	struct tagfs_log *logp;
 	char mpt_out[PATH_MAX];
 	size_t log_size;
-	void *addr;
 	char *filename;
 	int lfd;
 	int dry_run = 0;
+	int resid = 0;
+	int total = 0;
+	char *buf = NULL;
 
 /* XXX can't use any of the same strings as the global args! */
 	struct option logplay_options[] = {
@@ -140,21 +143,33 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 	}
 	filename = argv[optind++];
 
-	lfd = open_log_file_writable(filename, &log_size, mpt_out);
+	lfd = open_log_file_read_only(filename, &log_size, mpt_out);
 	if (lfd < 0) {
 		fprintf(stderr, "%s: failed to open log file for filesystem %s\n",
 			__func__, filename);
 		return -1;
 	}
-	addr = mmap(0, log_size, O_RDWR, MAP_SHARED, lfd, 0);
-	if (addr == MAP_FAILED) {
-		fprintf(stderr, "%s: Failed to mmap log file %s\n", __func__, filename);
-		close(lfd);
-		return -1;
-	}
-	close(lfd);
-	logp = (struct tagfs_log *)addr;
 
+	logp = malloc(log_size);
+	if (!logp) {
+		fprintf(stderr, "%s: malloc %ld failed for log\n", __func__, log_size);
+		return -ENOMEM;
+	}
+	resid = log_size;
+	buf = (char *)logp;
+	do {
+		rc = read(lfd, &buf[total], resid);
+		if (rc < 0) {
+			fprintf(stderr, "%s: error %d reading log file\n",
+				__func__, errno);
+			return -errno;
+		}
+		printf("%s: read %d bytes of log\n", __func__, rc);
+		resid -= rc;
+		total += rc;
+	} while (resid > 0);
+
+	close(lfd);
 	tagfs_logplay(logp, mpt_out, dry_run);
 	return 0;
 }
