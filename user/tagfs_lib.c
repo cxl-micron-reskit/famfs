@@ -1275,12 +1275,12 @@ tagfs_fsck(const char *path,
 			return -1;
 		}
 
-		sb = calloc(1, sizeof(*sb));
+		sb = calloc(1, TAGFS_LOG_OFFSET); /* Over-allocate so we can read 2MiB multiple */
 		assert(sb);
 		malloc_sb_log = 1;
 
 		/* Read a copy of the superblock */
-		rc = read(sfd, sb, sizeof(*sb));
+		rc = read(sfd, sb, TAGFS_LOG_OFFSET); /* 2MiB multiple */
 		if (rc < 0) {
 			fprintf(stderr, "%s: error %d reading superblock file\n", __func__, errno);
 			return -errno;
