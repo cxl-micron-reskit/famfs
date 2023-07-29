@@ -1,30 +1,32 @@
 #!/usr/bin/bash
 
-fail () {
-    set +x
-    echo
-    echo "*** Fail ***"
-    echo "$1"
-    echo
-    exit 1
-}
+cwd=$(pwd)
+export PATH=cwd/debug:$PATH
 
-MOUNT_PT="/mnt/tagfs"
-OWNER="jgroves.jgroves"
 
-if [ ! -d $MOUNT_PT ]; then
-    echo "Error MOUNT_PT ($MOUNT_PT) is not a directory"
-    exit -1
-fi
+MPT="/mnt/tagfs"
+#OWNER="jgroves.jgroves"
+CLI="sudo debug/tagfs"
+
+source test_funcs.sh
+
+test -f $MPT || test -D $MPT && fail "mount point $MPT is not a directory"
 
 set -x
 daxctl list || fail "need daxctl"
-ndctl list  || fail " need ndctl"
+ndctl list  || fail "need ndctl"
 
 #sudo ndctl create-namespace -f -e namespace0.0 --mode=fsdax
-sudo mkdir -p $MOUNT_PT        || fail "mkdir"
-#sudo chown $OWNER $MOUNT_PT
+sudo mkdir -p $MPT        || fail "mkdir"
+#sudo chown $OWNER $MPT
 sudo insmod ../kmod/tagfs.ko  || fail "insmod"
-sudo mount -t tagfs -o noatime -o dax=always -o rootdev=/dev/pmem0 /dev/pmem0 $MOUNT_PT || fail "mount"
-grep tagfs /proc/mounts        || fail "/proc/mounts"
-sudo debug/tagfs mkmeta /dev/pmem0
+
+verify_not_mounted $DEV $MPT "Already mounted"
+full_mount $DEV $MPT "setup: mount"
+#sudo mount -t tagfs -o noatime -o dax=always -o rootdev=/dev/pmem0 /dev/pmem0 $MPT || fail "mount"
+verify_mounted $DEV $MPT "mount failed"
+
+set +x
+echo "*************************************************************************************"
+echo " Setup completed successfully"
+echo "*************************************************************************************"

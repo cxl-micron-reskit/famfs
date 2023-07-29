@@ -3,7 +3,6 @@
 cwd=$(pwd)
 export PATH=cwd/debug:$PATH
 
-DEV=/dev/pmem0
 MPT=/mnt/tagfs
 
 CLI="sudo debug/tagfs"
