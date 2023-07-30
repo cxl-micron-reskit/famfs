@@ -42,9 +42,14 @@
 #include <linux/hugetlb.h>
 #include <linux/uio.h>
 #include <linux/iomap.h>
+#include <linux/path.h>
+#include <linux/namei.h>
 
 #include "tagfs.h"
 #include "tagfs_internal.h"
+
+/* Because this is exported but only prototyped in dax-private.h: */
+struct dax_device *inode_dax(struct inode *inode);
 
 #define TAGFS_DEFAULT_MODE	0755
 
@@ -215,12 +220,14 @@ enum tagfs_param {
 	Opt_mode,
 	Opt_dax,
 	Opt_rootdev,
+	Opt_daxdev,
 };
 
 const struct fs_parameter_spec tagfs_fs_parameters[] = {
 	fsparam_u32oct("mode",	  Opt_mode),
 	fsparam_string("dax",     Opt_dax),
 	fsparam_string("rootdev", Opt_rootdev),
+	fsparam_string("daxdev",  Opt_daxdev),
 	{}
 };
 
@@ -256,13 +263,18 @@ static int tagfs_parse_param(
 		if (strcmp(param->string, "always"))
 			printk(KERN_NOTICE "%s: invalid dax mode %s\n",
 			       __func__, param->string);
-
 		break;
+
+#if 0
 	case Opt_rootdev: {
 		struct block_device *bdevp;
 		struct dax_device   *dax_devp;
 		u64 start_off = 0;
 
+		if (fsi->dax_devp) {
+			printk(KERN_ERR "%s: already mounted\n", __func__);
+			return -EALREADY;
+		}
 		kfree(fsi->root_daxdev);
 		fsi->root_daxdev = kstrdup(param->string, GFP_KERNEL);
 		printk(KERN_NOTICE "%s: root_daxdev=%s\n", __func__, param->string);
@@ -294,6 +306,39 @@ static int tagfs_parse_param(
 		fsi->bdevp    = bdevp;
 		fsi->dax_devp = dax_devp;
 	}
+		break;
+
+	case Opt_daxdev: {
+		struct inode       *daxdev_inode;
+		struct dax_device  *dax_devp;
+		struct path         path;
+
+		if (fsi->dax_devp) {
+			printk(KERN_ERR "%s: already mounted\n", __func__);
+			return -EALREADY;
+		}
+		kfree(fsi->root_daxdev);
+		fsi->root_daxdev = kstrdup(param->string, GFP_KERNEL);
+		printk(KERN_NOTICE "%s: root_daxdev=%s\n", __func__, param->string);
+		if (!fsi->root_daxdev)
+			return -ENOMEM;
+
+		printk(KERN_INFO "%s: opening dax char device (%s)\n",
+		       __func__, fsi->root_daxdev);
+
+		kern_path(fsi->root_daxdev, LOOKUP_FOLLOW, &path);
+		daxdev_inode = path.dentry->d_inode;
+
+		dax_devp = inode_dax(daxdev_inode);
+		if (IS_ERR(dax_devp)) {
+			printk(KERN_ERR "%s: unable to get daxdev from inode\n",
+			       __func__);
+			return -ENODEV;
+		}
+		printk(KERN_INFO "%s: dax_devp %llx\n", __func__, (u64)dax_devp);
+		fsi->dax_devp = dax_devp;
+	}
+#endif
 
 		break;
 	}
@@ -301,12 +346,78 @@ static int tagfs_parse_param(
 	return 0;
 }
 
-static int tagfs_fill_super(
+static int
+tagfs_open_device(
+	struct super_block *sb,
+	struct fs_context  *fc)
+{
+	struct tagfs_fs_info *fsi = sb->s_fs_info;
+	struct block_device  *bdevp;
+	struct dax_device    *dax_devp;
+	u64 start_off = 0;
+	struct inode       *daxdev_inode;
+
+	if (fsi->dax_devp) {
+		printk(KERN_ERR "%s: already mounted\n", __func__);
+		return -EALREADY;
+	}
+	printk("%s: Root device is %s\n", __func__, fc->source);
+
+	/* Is this a block device? Find out by trying */
+	bdevp = blkdev_get_by_path(fc->source, tagfs_blkdev_mode, fsi);
+	if (IS_ERR(bdevp)) {
+		printk(KERN_ERR "%s: Not a block device; trying character dax\n", __func__);
+	} else {
+		dax_devp = fs_dax_get_by_bdev(bdevp, &start_off,
+					      fsi  /* holder */,
+					      &tagfs_dax_holder_operations);
+		if (IS_ERR(dax_devp)) {
+			printk(KERN_ERR "%s: unable to get daxdev from bdevp\n",
+			       __func__);
+			blkdev_put(bdevp, tagfs_blkdev_mode);
+			return -ENODEV;
+		}
+		printk(KERN_INFO "%s: dax_devp %llx\n", __func__, (u64)dax_devp);
+		fsi->bdevp    = bdevp;
+		fsi->dax_devp = dax_devp;
+
+		printk(KERN_NOTICE "%s: root device is block dax (%s)\n", __func__, fc->source);
+		return 0;
+	}
+
+	/* It's not a block device; see if it's a character dax device */
+
+	fsi->dax_filp = filp_open(fc->source, O_RDWR, 0);
+	printk(KERN_INFO "%s: dax_filp=%llx\n", __func__, (u64)fsi->dax_filp);
+        if (IS_ERR(fsi->dax_filp)) {
+		printk(KERN_ERR "%s: failed to open dax device\n", __func__);
+		fsi->dax_filp = NULL;
+		return PTR_ERR(fsi->dax_filp);
+	}
+	daxdev_inode = file_inode(fsi->dax_filp);
+
+	dax_devp = inode_dax(daxdev_inode);
+	if (IS_ERR(dax_devp)) {
+		printk(KERN_ERR "%s: unable to get daxdev from inode\n",
+		       __func__);
+		return -ENODEV;
+	}
+	printk(KERN_INFO "%s: root dev is character dax (%s) dax_devp (%llx)\n",
+	       __func__, fc->source, (u64)dax_devp);
+	fsi->bdevp    = NULL;
+	fsi->dax_devp = dax_devp;
+
+	return 0;
+}
+
+static int
+tagfs_fill_super(
 	struct super_block *sb,
 	struct fs_context  *fc)
 {
 	struct tagfs_fs_info *fsi = sb->s_fs_info;
 	struct inode *inode;
+	int rc = 0;
 
 	sb->s_maxbytes		= MAX_LFS_FILESIZE;
 	sb->s_blocksize		= PAGE_SIZE;
@@ -315,12 +426,17 @@ static int tagfs_fill_super(
 	sb->s_op		= &tagfs_ops;
 	sb->s_time_gran		= 1;
 
+	rc = tagfs_open_device(sb, fc);
+	if (rc)
+		goto out;
+
 	inode = tagfs_get_inode(sb, NULL, S_IFDIR | fsi->mount_opts.mode, 0);
 	sb->s_root = d_make_root(inode);
 	if (!sb->s_root)
-		return -ENOMEM;
+		rc = -ENOMEM;
 
-	return 0;
+out:
+	return rc;
 }
 
 static int tagfs_get_tree(struct fs_context *fc)
@@ -361,6 +477,8 @@ static void tagfs_kill_sb(struct super_block *sb)
 	mutex_destroy(&fsi->fsi_mutex);
 	if (fsi->bdevp)
 		blkdev_put(fsi->bdevp, tagfs_blkdev_mode);
+	if (fsi->dax_filp)
+		filp_close(fsi->dax_filp, NULL);
 	if (fsi->dax_devp)
 		fs_put_dax(fsi->dax_devp, fsi);
 
@@ -400,6 +518,9 @@ __exit tagfs_exit(void)
 	unregister_filesystem(&tagfs_fs_type);
 	printk("%s: unregistered\n", __func__);
 }
+
+MODULE_AUTHOR("John Groves, Micron Technology");
+MODULE_LICENSE("GPL v2");
 
 fs_initcall(init_tagfs_fs);
 module_exit(tagfs_exit);
