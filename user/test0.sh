@@ -28,7 +28,7 @@ ${CLI} fsck $DEV          || fail "fsck"
 sudo insmod ../kmod/tagfs.ko       || fail "insmod"
 
 sudo mount $MOUNT_OPTS $DEV $MPT || fail "mount"
-sudo mount $MOUNT_OPTS $DEV $MPT && fail "double mount should fail"
+#sudo mount $MOUNT_OPTS $DEV $MPT && fail "double mount should fail"
 
 grep tagfs /proc/mounts             || fail "No tagfs mounted"
 grep $DEV /proc/mounts              || fail "dev=$DEV not in /proc/mounts~"

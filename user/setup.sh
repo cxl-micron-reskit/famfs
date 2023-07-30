@@ -23,7 +23,7 @@ sudo insmod ../kmod/tagfs.ko  || fail "insmod"
 
 verify_not_mounted $DEV $MPT "Already mounted"
 full_mount $DEV $MPT "setup: mount"
-#sudo mount -t tagfs -o noatime -o dax=always -o rootdev=/dev/pmem0 /dev/pmem0 $MPT || fail "mount"
+#sudo mount -t tagfs -o noatime -o dax=always /dev/pmem0 $MPT || fail "mount"
 verify_mounted $DEV $MPT "mount failed"
 
 set +x

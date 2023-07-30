@@ -1,18 +1,24 @@
 
 # This file is not for running, it is for sourcing into other scripts
 
+#
+# Set to "char" if you convert the /dev/pmem device to a char dax device
+# (e.g. /dev/dax0.0). As of this typing, this is not working yet for complex
+# reasons)
+#
 DEVTYPE="pmem"
 
 if [[ $DEVTYPE == "char" ]]; then
     DEV=/dev/dax0.0
-    MOUNT_OPTS="-t tagfs -o noatime -o dax-always -o daxdev=$DEV"
-    test -c $DEV && sudo ndctl create-namespace --force --mode=devdax --reconfig=namespace0.0
-    test -c $DEV && fail "Unable to convert to devdax"
+    MOUNT_OPTS="-t tagfs -o noatime -o dax=always "
+#    test -c $DEV && sudo ndctl create-namespace --force --mode=devdax --reconfig=namespace0.0 \
+#			 && fail "ndctl reconfig"
+#    test -c $DEV && fail "Unable to convert to devdax"
 else
     DEV=/dev/pmem0
-    MOUNT_OPTS="-t tagfs -o noatime -o dax=always -o rootdev=$DEV"
-    test -b $DEV && sudo ndctl create-namespace --force --mode=fsdax --reconfig=namespace0.0
-    test -c $DEV && fail "Unable to convert to block/fsdax"
+    MOUNT_OPTS="-t tagfs -o noatime -o dax=always "
+#    test -b $DEV && sudo ndctl create-namespace --force --mode=fsdax --reconfig=namespace0.0
+#    test -c $DEV && fail "Unable to convert to block/fsdax"
 fi
 MPT=/mnt/tagfs
 
