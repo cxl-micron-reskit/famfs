@@ -36,8 +36,6 @@
 #include "tagfs_internal.h"
 #include "tagfs_ioctl.h"
 
-MODULE_LICENSE("GPL v2");
-
 static int iomap_verbose=0;
 module_param(iomap_verbose, int, 0660);
 
@@ -627,6 +625,7 @@ tagfs_iomap_begin(
 	struct iomap	       *srcmap)
 {
 	char flag_str[200];
+	size_t size;
 	int rc;
 
 	if (iomap_verbose)
@@ -638,11 +637,20 @@ tagfs_iomap_begin(
 		printk(KERN_NOTICE "        iomap flags: %s\n", flag_str);
 	}
 
+#if 0
 	if ((offset + length) > i_size_read(inode)) {
 		printk(KERN_ERR "%s: ofs + length exceeds file size; append not allowed\n",
 		       __func__);
 		return -EINVAL;
 	}
+#else
+	/* If length overhangs i_size, truncate it to i_size */
+	size = i_size_read(inode);
+	if (offset > size)
+		return -EINVAL;
+	else
+		length = min_t(size_t, length, (i_size_read(inode) - offset));
+#endif
 
 	/* Need to lock inode? */
 
