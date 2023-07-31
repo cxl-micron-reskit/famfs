@@ -264,87 +264,17 @@ static int tagfs_parse_param(
 			printk(KERN_NOTICE "%s: invalid dax mode %s\n",
 			       __func__, param->string);
 		break;
-
-#if 0
-	case Opt_rootdev: {
-		struct block_device *bdevp;
-		struct dax_device   *dax_devp;
-		u64 start_off = 0;
-
-		if (fsi->dax_devp) {
-			printk(KERN_ERR "%s: already mounted\n", __func__);
-			return -EALREADY;
-		}
-		kfree(fsi->root_daxdev);
-		fsi->root_daxdev = kstrdup(param->string, GFP_KERNEL);
-		printk(KERN_NOTICE "%s: root_daxdev=%s\n", __func__, param->string);
-		if (!fsi->root_daxdev)
-			return -ENOMEM;
-
-		printk(KERN_INFO "%s: opening dax block device (%s)\n",
-		       __func__, fsi->root_daxdev);
-
-		/* TODO: open by devno instead?
-		 * (less effective error checking perhaps) */
-		bdevp = blkdev_get_by_path(fsi->root_daxdev, tagfs_blkdev_mode, fsi);
-		if (IS_ERR(bdevp)) {
-			printk(KERN_ERR "%s: failed to open block device (%s)\n",
-			       __func__, fsi->root_daxdev);
-			return -ENODEV;
-		}
-
-		dax_devp = fs_dax_get_by_bdev(bdevp, &start_off,
-					      fsi  /* holder */,
-					      &tagfs_dax_holder_operations);
-		if (IS_ERR(dax_devp)) {
-			printk(KERN_ERR "%s: unable to get daxdev from bdevp\n",
-			       __func__);
-			blkdev_put(bdevp, tagfs_blkdev_mode);
-			return -ENODEV;
-		}
-		printk(KERN_INFO "%s: dax_devp %llx\n", __func__, (u64)dax_devp);
-		fsi->bdevp    = bdevp;
-		fsi->dax_devp = dax_devp;
-	}
-		break;
-
-	case Opt_daxdev: {
-		struct inode       *daxdev_inode;
-		struct dax_device  *dax_devp;
-		struct path         path;
-
-		if (fsi->dax_devp) {
-			printk(KERN_ERR "%s: already mounted\n", __func__);
-			return -EALREADY;
-		}
-		kfree(fsi->root_daxdev);
-		fsi->root_daxdev = kstrdup(param->string, GFP_KERNEL);
-		printk(KERN_NOTICE "%s: root_daxdev=%s\n", __func__, param->string);
-		if (!fsi->root_daxdev)
-			return -ENOMEM;
-
-		printk(KERN_INFO "%s: opening dax char device (%s)\n",
-		       __func__, fsi->root_daxdev);
-
-		kern_path(fsi->root_daxdev, LOOKUP_FOLLOW, &path);
-		daxdev_inode = path.dentry->d_inode;
-
-		dax_devp = inode_dax(daxdev_inode);
-		if (IS_ERR(dax_devp)) {
-			printk(KERN_ERR "%s: unable to get daxdev from inode\n",
-			       __func__);
-			return -ENODEV;
-		}
-		printk(KERN_INFO "%s: dax_devp %llx\n", __func__, (u64)dax_devp);
-		fsi->dax_devp = dax_devp;
-	}
-#endif
-
-		break;
 	}
 
 	return 0;
 }
+
+
+static const struct dax_operations pmem_dax_ops = {
+	.direct_access = pmem_dax_direct_access,
+	.zero_page_range = pmem_dax_zero_page_range,
+	.recovery_write = pmem_recovery_write,
+};
 
 static int
 tagfs_open_device(
@@ -503,11 +433,7 @@ static int __init init_tagfs_fs(void)
 	printk(KERN_NOTICE   "%s: KERN_NOTICE \n", __func__);
 	printk(KERN_WARNING  "%s: KERN_WARNING \n", __func__);
 	printk(KERN_ERR      "%s: KERN_ERR \n", __func__);
-#if 0
-	printk(KERN_CRIT     "%s: KERN_CRIT \n", __func__);
-	printk(KERN_ALERT    "%s: KERN_ALERT \n", __func__);
-	printk(KERN_EMERG    "%s: KERN_EMERG \n", __func__);
-#endif
+
 	return register_filesystem(&tagfs_fs_type);
 }
 
