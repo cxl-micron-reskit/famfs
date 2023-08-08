@@ -5,6 +5,13 @@ TODO
 ** tagfs fsck
 ** mkfs.tagfs <dev>
 
+* char DAX key questions
+** How to attach struct dax_operations to struct dax_device
+This is done by drivers/nvdimm/pmem.c
+** How to get from a daxdev and offset to a kaddr and pfn
+Somehow devm_memremap_pages() is invovled
+
+
 * Testing plans
 ** DONE test files in non-root directory
 and complex paths...
@@ -27,6 +34,12 @@ But 'tagfs cp' seems to get it right. Should be an easy fix...
 ** TODO linux "cmp" comparisons fail even when "tagfs verify" succeeds
 There is something wrong with posix read. tagfs verify uses mmap, and verifies the
 file againsts same-seed data.
+** TODO Should flush cache when writing log
+This includes initialization as well as writing log entries
+** TODO Should invalidate cache prior to reading log
+** TODO Should flush cache when writing superblock
+** TODO Should invalidate cache prior to reading superblock
+Invalidate header and entire log before reading
 ** DONE tagfs fsck: should fail by dev when mounted
 Should be able to accomplish this via exclusive open in the driver...?
 Fixed in tagfs_lib.c:tagfs_fsck, which new checks if mounted if invoked
@@ -606,6 +619,5 @@ intervals anyway - undoubtedly a subject for debate), but I'd love to get
 this working initially sans poison handling.
 
 Any suggestions? Happy to discuss if this is too arcane for typing
-
 
 
