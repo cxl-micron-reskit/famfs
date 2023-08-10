@@ -580,6 +580,8 @@ tagfs_file_mmap(
 }
 
 const struct file_operations tagfs_file_operations = {
+	.owner             = THIS_MODULE,
+
 	/* Custom tagfs operations */
 	.write_iter	   = tagfs_dax_write_iter,
 	.read_iter	   = tagfs_dax_read_iter,
@@ -613,7 +615,7 @@ const struct inode_operations tagfs_file_inode_operations = {
  * This function is pretty simple because files are
  * * never partially allocated
  * * never have holes (never sparse)
- *
+ * * never "allocate on write"
  */
 static int
 tagfs_iomap_begin(
@@ -637,6 +639,9 @@ tagfs_iomap_begin(
 		printk(KERN_NOTICE "        iomap flags: %s\n", flag_str);
 	}
 
+	/* TODO: find the right way to trim a write if it overflows the file's allocation
+	 * This isn't quite right yet, and it's reproducible by comparing files with "cmp"
+	 */
 #if 0
 	if ((offset + length) > i_size_read(inode)) {
 		printk(KERN_ERR "%s: ofs + length exceeds file size; append not allowed\n",
@@ -667,21 +672,10 @@ const struct iomap_ops tagfs_iomap_ops = {
 
 /*********************************************************************
  * vm_operations
+ *
+ * Note: We never need a special set of write_iomap_ops becuase tagfs never
+ * performs allocation on write.
  */
-/* TODO: drop this function and just call dax_iomap_fault() directly from
- * __tagfs_filemap_fault() */
-static inline vm_fault_t
-tagfs_dax_fault(
-	struct vm_fault		*vmf,
-	enum page_entry_size	pe_size,
-	bool			write_fault,
-	pfn_t			*pfn)
-{
-	/* We never need a special set of write_iomap_ops becuase tagfs never
-	 * performs allocation on write.
-	 */
-	return dax_iomap_fault(vmf, pe_size, pfn, NULL, &tagfs_iomap_ops);
-}
 
 static vm_fault_t
 __tagfs_filemap_fault(
@@ -701,12 +695,13 @@ __tagfs_filemap_fault(
 	if (IS_DAX(inode)) {
 		pfn_t pfn;
 
-		ret = tagfs_dax_fault(vmf, pe_size, write_fault, &pfn);
+		ret = dax_iomap_fault(vmf, pe_size, &pfn, NULL, &tagfs_iomap_ops);
 		if (ret & VM_FAULT_NEEDDSYNC)
 			ret = dax_finish_sync_fault(vmf, pe_size, pfn);
 	} else {
 		/* All tagfs faults will be dax... */
 		printk(KERN_ERR "%s: oops, non-dax fault\n", __func__);
+		ret = VM_FAULT_SIGBUS;
 	}
 
 	if (write_fault)
@@ -719,9 +714,6 @@ static inline bool
 tagfs_is_write_fault(
 	struct vm_fault		*vmf)
 {
-	if (iomap_verbose)
-		printk(KERN_NOTICE "%s\n", __func__);
-
 	return (vmf->flags & FAULT_FLAG_WRITE) &&
 	       (vmf->vma->vm_flags & VM_SHARED);
 }

@@ -44,6 +44,8 @@
 #include <linux/iomap.h>
 #include <linux/path.h>
 #include <linux/namei.h>
+#include <linux/pfn_t.h>
+#include <linux/dax.h>
 
 #include "tagfs.h"
 #include "tagfs_internal.h"
@@ -270,30 +272,50 @@ static int tagfs_parse_param(
 }
 
 /**************************************************************************************/
+
+#if 0
+/* From struct pmem_device */
+struct tagfs_device {
+	/* One contiguous memory region per device */
+	phys_addr_t		phys_addr;
+	/* when non-zero this device is hosting a 'pfn' instance */
+	phys_addr_t		data_offset;
+	u64			pfn_flags;
+	void			*virt_addr;
+	/* immutable base size of the namespace */
+	size_t			size;
+#if 0
+	/* trim size when namespace capacity has been section aligned */
+	u32			pfn_pad;
+	struct kernfs_node	*bb_state;
+	struct badblocks	bb;
+	struct dax_device	*dax_dev;
+	struct gendisk		*disk;
+	struct dev_pagemap	pgmap;
+#endif
+};
+
 /**
  * @tagfs_dax_operations
  */
 long
 __tagfs_direct_access(
-	struct pmem_device    *pmem,
+	struct tagfs_device   *tagfs_dev,
 	pgoff_t                pgoff,
 	long                   nr_pages,
 	enum dax_access_mode   mode,
 	void                 **kaddr,
 	pfn_t                 *pfn)
 {
-	resource_size_t offset = PFN_PHYS(pgoff) + pmem->data_offset;
-	sector_t sector = PFN_PHYS(pgoff) >> SECTOR_SHIFT;
-	unsigned int num = PFN_PHYS(nr_pages) >> SECTOR_SHIFT;
-	struct badblocks *bb = &pmem->bb;
-	sector_t first_bad;
-	int num_bad;
+	resource_size_t offset = PFN_PHYS(pgoff) + tagfs_dev->data_offset;
+	//struct badblocks *bb = &tagfs_dev->bb;
 
 	if (kaddr)
-		*kaddr = pmem->virt_addr + offset;
+		*kaddr = tagfs_dev->virt_addr + offset;
 	if (pfn)
-		*pfn = phys_to_pfn_t(pmem->phys_addr + offset, pmem->pfn_flags);
+		*pfn = phys_to_pfn_t(tagfs_dev->phys_addr + offset, tagfs_dev->pfn_flags);
 
+#if 0
 	if (bb->count &&
 	    badblocks_check(bb, sector, num, &first_bad, &num_bad)) {
 		long actual_nr;
@@ -308,8 +330,9 @@ __tagfs_direct_access(
 		 */
 		actual_nr = PHYS_PFN(
 			PAGE_ALIGN((first_bad - sector) << SECTOR_SHIFT));
-		dev_dbg(pmem->bb.dev, "start sector(%llu), nr_pages(%ld), first_bad(%llu), actual_nr(%ld)\n",
-				sector, nr_pages, first_bad, actual_nr);
+		dev_dbg(tagfs_dev->bb.dev,
+			"start sector(%llu), nr_pages(%ld), first_bad(%llu), actual_nr(%ld)\n",
+			sector, nr_pages, first_bad, actual_nr);
 		if (actual_nr)
 			return actual_nr;
 		return 1;
@@ -321,16 +344,17 @@ __tagfs_direct_access(
 	 */
 	if (bb->count)
 		return nr_pages;
-	return PHYS_PFN(pmem->size - pmem->pfn_pad - offset);
+#endif
+	return PHYS_PFN(tagfs_dev->size - offset);
 }
 
 static long tagfs_dax_direct_access(struct dax_device *dax_dev,
 		pgoff_t pgoff, long nr_pages, enum dax_access_mode mode,
 		void **kaddr, pfn_t *pfn)
 {
-	struct pmem_device *pmem = dax_get_private(dax_dev);
+	struct tagfs_device *tfs = dax_get_private(dax_dev);
 
-	return __pmem_direct_access(pmem, pgoff, nr_pages, mode, kaddr, pfn);
+	return __tagfs_direct_access(tfs, pgoff, nr_pages, mode, kaddr, pfn);
 }
 
 
@@ -340,9 +364,9 @@ tagfs_dax_zero_page_range(
 	pgoff_t            pgoff,
 	size_t             nr_pages)
 {
-	struct pmem_device *pmem = dax_get_private(dax_dev);
+	struct tagfs_device *tfs = dax_get_private(dax_dev);
 
-	return blk_status_to_errno(pmem_do_write(pmem, ZERO_PAGE(0), 0,
+	return blk_status_to_errno(pmem_do_write(tfs, ZERO_PAGE(0), 0,
 				   PFN_PHYS(pgoff) >> SECTOR_SHIFT,
 				   PAGE_SIZE));
 }
@@ -368,15 +392,15 @@ tagfs_recovery_write(
 	size_t             bytes,
 	struct iov_iter   *i)
 {
-	struct pmem_device *pmem = dax_get_private(dax_dev);
+	struct tagfs_device *tfs = dax_get_private(dax_dev);
 	size_t olen, len, off;
 	phys_addr_t pmem_off;
-	struct device *dev = pmem->bb.dev;
+	struct device *dev = tfs->bb.dev;
 	long cleared;
 
 	off = offset_in_page(addr);
 	len = PFN_PHYS(PFN_UP(off + bytes));
-	if (!is_bad_pmem(&pmem->bb, PFN_PHYS(pgoff) >> SECTOR_SHIFT, len))
+	if (!is_bad_pmem(&tfs->bb, PFN_PHYS(pgoff) >> SECTOR_SHIFT, len))
 		return _copy_from_iter_flushcache(addr, bytes, i);
 
 	/*
@@ -389,8 +413,8 @@ tagfs_recovery_write(
 		return 0;
 	}
 
-	pmem_off = PFN_PHYS(pgoff) + pmem->data_offset;
-	cleared = __pmem_clear_poison(pmem, pmem_off, len);
+	pmem_off = PFN_PHYS(pgoff) + tfs->data_offset;
+	cleared = __pmem_clear_poison(tfs, pmem_off, len);
 	if (cleared > 0 && cleared < len) {
 		dev_dbg(dev, "poison cleared only %ld out of %zu bytes\n",
 			cleared, len);
@@ -402,19 +426,100 @@ tagfs_recovery_write(
 	}
 
 	olen = _copy_from_iter_flushcache(addr, bytes, i);
-	pmem_clear_bb(pmem, to_sect(pmem, pmem_off), cleared >> SECTOR_SHIFT);
+	pmem_clear_bb(tfs, to_sect(tfs, pmem_off), cleared >> SECTOR_SHIFT);
 
 	return olen;
 }
 
-
-static const struct dax_operations pmem_dax_ops = {
+static const struct dax_operations tagfs_dax_ops = {
 	.direct_access =   tagfs_dax_direct_access,
 	.zero_page_range = tagfs_dax_zero_page_range,
 	.recovery_write =  tagfs_recovery_write,
 };
 
+#else
+static const struct dax_operations tagfs_dax_ops = {
+	.direct_access =   dax_direct_access,
+	.zero_page_range = dax_zero_page_range,
+	.recovery_write =  dax_recovery_write,
+};
+#endif
+
 /**************************************************************************************/
+
+//struct dev_dax;
+int add_dax_ops(struct dax_device *dax_dev,
+		const struct dax_operations *ops);
+
+static int
+tagfs_open_char_device(
+	struct super_block *sb,
+	struct fs_context  *fc)
+{
+	struct tagfs_fs_info *fsi = sb->s_fs_info;
+	struct dax_device    *dax_devp;
+	struct inode         *daxdev_inode;
+	//struct dev_dax *dev_dax = filp->private_data;
+
+	int rc = 0;
+
+	printk(KERN_ERR "%s: Not a block device; trying character dax\n", __func__);
+	fsi->dax_filp = filp_open(fc->source, O_RDWR, 0);
+	printk(KERN_INFO "%s: dax_filp=%llx\n", __func__, (u64)fsi->dax_filp);
+        if (IS_ERR(fsi->dax_filp)) {
+		printk(KERN_ERR "%s: failed to open dax device\n", __func__);
+		fsi->dax_filp = NULL;
+		return PTR_ERR(fsi->dax_filp);
+	}
+
+	daxdev_inode = file_inode(fsi->dax_filp);
+	dax_devp     = inode_dax(daxdev_inode);
+	if (IS_ERR(dax_devp)) {
+		printk(KERN_ERR "%s: unable to get daxdev from inode\n",
+		       __func__);
+		rc = -ENODEV;
+		goto char_err;
+	}
+	//dev_dax = dax_get_private(dax_dev);
+	printk(KERN_INFO "%s: root dev is character dax (%s) dax_devp (%llx)\n",
+	       __func__, fc->source, (u64)dax_devp);
+
+#if 0
+	tagfs_dev = kzalloc(sizeof(*tagfs_dev));
+	if (IS_ERR(tagfs_dev)) {
+		rc = -ENOMEM;
+		goto char_err;
+	}
+
+	/* XXX need to get the phys_addr and some other stuff to store in struct tagfs_device
+	 */
+	/* Get phys_addr from dax somehow */
+	tagfs_dev->phys_addr = dax_pgoff_to_phys(dev_dax, 0, PAGE_SIZE);
+	tagfs_dev->pfn_flags = PFN_DEV;
+	
+	addr = devm_memremap(dev, pmem->phys_addr,
+				pmem->size, ARCH_MEMREMAP_PMEM);
+		bb_range.start =  res->start;
+		bb_range.end = res->end;
+		printk(KERN_NOTICE "%s: is_nd_pfn addr %llx\n",
+		       __func__, (u64)addr);
+#endif
+	/* JG: I aded this function to drivers/dax/super.c */
+	rc = add_dax_ops(dax_devp, &tagfs_dax_ops);
+	if (rc) {
+		printk(KERN_INFO "%s: err attaching tagfs_dax_ops\n", __func__);
+		goto char_err;
+	}
+
+	fsi->bdevp    = NULL;
+	fsi->dax_devp = dax_devp;
+
+	return 0;
+
+char_err:
+	filp_close(fsi->dax_filp, NULL);
+	return rc;
+}
 
 static int
 tagfs_open_device(
@@ -424,8 +529,8 @@ tagfs_open_device(
 	struct tagfs_fs_info *fsi = sb->s_fs_info;
 	struct block_device  *bdevp;
 	struct dax_device    *dax_devp;
+
 	u64 start_off = 0;
-	struct inode       *daxdev_inode;
 
 	if (fsi->dax_devp) {
 		printk(KERN_ERR "%s: already mounted\n", __func__);
@@ -433,50 +538,28 @@ tagfs_open_device(
 	}
 	printk("%s: Root device is %s\n", __func__, fc->source);
 
+	if (strstr(fc->source, "/dev/dax"))
+		return tagfs_open_char_device(sb, fc);
+		
 	/* Is this a block device? Find out by trying */
 	bdevp = blkdev_get_by_path(fc->source, tagfs_blkdev_mode, fsi);
-	if (IS_ERR(bdevp)) {
-		printk(KERN_ERR "%s: Not a block device; trying character dax\n", __func__);
-	} else {
-		dax_devp = fs_dax_get_by_bdev(bdevp, &start_off,
-					      fsi  /* holder */,
-					      &tagfs_dax_holder_operations);
-		if (IS_ERR(dax_devp)) {
-			printk(KERN_ERR "%s: unable to get daxdev from bdevp\n",
-			       __func__);
-			blkdev_put(bdevp, tagfs_blkdev_mode);
-			return -ENODEV;
-		}
-		printk(KERN_INFO "%s: dax_devp %llx\n", __func__, (u64)dax_devp);
-		fsi->bdevp    = bdevp;
-		fsi->dax_devp = dax_devp;
+	if (!bdevp || !IS_ERR(bdevp))
+		return tagfs_open_char_device(sb, fc);
 
-		printk(KERN_NOTICE "%s: root device is block dax (%s)\n", __func__, fc->source);
-		return 0;
-	}
-
-	/* It's not a block device; see if it's a character dax device */
-
-	fsi->dax_filp = filp_open(fc->source, O_RDWR, 0);
-	printk(KERN_INFO "%s: dax_filp=%llx\n", __func__, (u64)fsi->dax_filp);
-        if (IS_ERR(fsi->dax_filp)) {
-		printk(KERN_ERR "%s: failed to open dax device\n", __func__);
-		fsi->dax_filp = NULL;
-		return PTR_ERR(fsi->dax_filp);
-	}
-	daxdev_inode = file_inode(fsi->dax_filp);
-
-	dax_devp = inode_dax(daxdev_inode);
+	dax_devp = fs_dax_get_by_bdev(bdevp, &start_off,
+				      fsi  /* holder */,
+				      &tagfs_dax_holder_operations);
 	if (IS_ERR(dax_devp)) {
-		printk(KERN_ERR "%s: unable to get daxdev from inode\n",
+		printk(KERN_ERR "%s: unable to get daxdev from bdevp\n",
 		       __func__);
+		blkdev_put(bdevp, tagfs_blkdev_mode);
 		return -ENODEV;
 	}
-	printk(KERN_INFO "%s: root dev is character dax (%s) dax_devp (%llx)\n",
-	       __func__, fc->source, (u64)dax_devp);
-	fsi->bdevp    = NULL;
+	printk(KERN_INFO "%s: dax_devp %llx\n", __func__, (u64)dax_devp);
+	fsi->bdevp    = bdevp;
 	fsi->dax_devp = dax_devp;
 
+	printk(KERN_NOTICE "%s: root device is block dax (%s)\n", __func__, fc->source);
 	return 0;
 }
 
