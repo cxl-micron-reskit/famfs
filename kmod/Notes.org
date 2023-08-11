@@ -27,6 +27,7 @@ Should fail to append file past allocation, but succeed *to* allocation
 ...and explores whether mutations are immediately visible
 
 * Known bugs
+** TODO Char device not cleaned up properly on umount
 ** DONE tagfs logplay: if relpath contains subdir, it gets created as a file
 ** TODO the 'tagfs creat' invocations in test0.sh have 000 permissions
 ...even though that's not the mode they're created under.
@@ -504,6 +505,39 @@ enum page_entry_size {
 };
 
 * debugging character dax
+
+** Working notes
+
+*** Copying to dax mem
+
+mem = kmap_atomic(struct page) // the source memory
+memcopy_flushcache(pmem_addr, mem + offset_into_page, size)
+kunmap_atomic(page)
+
+The pmem is always assumed to be contiguous
+
+*** Notes on drivers/dax vm_operations
+**** dev_dax->align is the pagesize/alignment required
+**** has a vm_operation "pagesize"
+...which apears to support both 2MiB and 1GiB
+**** also has a "may_split" vm_operation
+which returns NULL or -EINVAL
+
+*** Notes on dax_mmap() & fault handlers from drivers/dax/device.c
+
+**** fault handlers call dax_pgoff_to_phys()
+         pgoff = linear_page_index(vmf->vma, pmd_addr);
+         phys = dax_pgoff_to_phys(dev_dax, pgoff, PMD_SIZE);
+         if (phys == -1) {
+                 dev_dbg(dev, "pgoff_to_phys(%#lx) failed\n", pgoff);
+                 return VM_FAULT_SIGBUS;
+         }
+ 
+         pfn = phys_to_pfn_t(phys, PFN_DEV|PFN_MAP);
+ 
+         dax_set_mapping(vmf, pfn, fault_size);
+ 
+         return vmf_insert_pfn_pmd(vmf, pfn, vmf->flags & FAULT_FLAG_WRITE);
 
 ** First posix read (from logplay)
 ul 30 10:57:57 dev1 kernel: tagfs_open_device: Root device is /dev/dax0.0
