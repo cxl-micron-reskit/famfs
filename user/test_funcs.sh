@@ -6,7 +6,8 @@
 # (e.g. /dev/dax0.0). As of this typing, this is not working yet for complex
 # reasons)
 #
-DEVTYPE="pmem"
+
+# DEVTYPE should be set by the script that sources this one
 
 if [[ $DEVTYPE == "char" ]]; then
     DEV=/dev/dax0.0

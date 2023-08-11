@@ -4,6 +4,8 @@
 cwd=$(pwd)
 export PATH=cwd/debug:$PATH
 
+DEVTYPE="$1"
+echo "DEVTYPE=$DEVTYPE"
 
 MKFS="sudo debug/mkfs.tagfs"
 CLI="sudo debug/tagfs"
@@ -40,6 +42,7 @@ ${CLI} mkmeta $DEV        || fail "mkmeta"
 sudo test -f $MPT/.meta/.superblock || fail "no superblock file after mkmeta"
 sudo test -f $MPT/.meta/.log        || fail "no log file after mkmeta"
 
+#exit
 
 # Create 1 file and verify
 ${CLI} creat -r -s 4096 -S 1 -f $MPT/test1   || fail "creat test1"
