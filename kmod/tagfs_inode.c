@@ -269,13 +269,6 @@ static int tagfs_parse_param(
 	return 0;
 }
 
-
-static const struct dax_operations pmem_dax_ops = {
-	.direct_access = pmem_dax_direct_access,
-	.zero_page_range = pmem_dax_zero_page_range,
-	.recovery_write = pmem_recovery_write,
-};
-
 static int
 tagfs_open_device(
 	struct super_block *sb,
