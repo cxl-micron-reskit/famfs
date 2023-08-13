@@ -1151,7 +1151,7 @@ tagfs_map_superblock_by_path(
 	int         read_only)
 {
 	struct tagfs_superblock *sb;
-	int prot = (read_only) ? O_RDONLY : O_RDWR;
+	int prot = (read_only) ? PROT_READ : PROT_READ | PROT_WRITE;
 	size_t sb_size;
 	void *addr;
 	int fd;
@@ -1179,7 +1179,7 @@ tagfs_map_log_by_path(
 	int         read_only)
 {
 	struct tagfs_log *logp;
-	int prot = (read_only) ? O_RDONLY : O_RDWR;
+	int prot = (read_only) ? PROT_READ : PROT_READ | PROT_WRITE;
 	size_t log_size;
 	void *addr;
 	int fd;
@@ -1350,7 +1350,7 @@ tagfs_validate_superblock_by_path(const char *path)
 		return sfd;
 
 	/* XXX should be read only, but that doesn't work */
-	addr = mmap(0, sb_size, O_RDWR, MAP_SHARED, sfd, 0);
+	addr = mmap(0, sb_size, PROT_READ, MAP_SHARED, sfd, 0);
 	if (addr == MAP_FAILED) {
 		fprintf(stderr, "%s: Failed to mmap superblock file\n", __func__);
 		close(sfd);
@@ -1618,7 +1618,7 @@ tagfs_file_alloc(
 		return lfd;
 	}
 
-	addr = mmap(0, log_size, O_RDWR, MAP_SHARED, lfd, 0);
+	addr = mmap(0, log_size, PROT_READ | PROT_WRITE, MAP_SHARED, lfd, 0);
 	if (addr == MAP_FAILED) {
 		fprintf(stderr, "%s: Failed to mmap log file", __func__);
 		close(lfd);

@@ -664,7 +664,7 @@ do_tagfs_cli_clone(int argc, char *argv[])
 	 * the mount point path
 	 */
 	lfd = open_log_file_writable(srcfullpath, &log_size, mpt_out);
-	addr = mmap(0, log_size, O_RDWR, MAP_SHARED, lfd, 0);
+	addr = mmap(0, log_size, PROT_READ | PROT_WRITE, MAP_SHARED, lfd, 0);
 	if (addr == MAP_FAILED) {
 		fprintf(stderr, "%s: Failed to mmap log file\n", __func__);
 		rc = -1;
@@ -1064,7 +1064,7 @@ do_tagfs_cli_mkdir(int argc, char *argv[])
 	 * the mount point path
 	 */
 	lfd  = open_log_file_writable(realparent, &log_size, mpt_out);
-	addr = mmap(0, log_size, O_RDWR, MAP_SHARED, lfd, 0);
+	addr = mmap(0, log_size, PROT_READ | PROT_WRITE, MAP_SHARED, lfd, 0);
 	if (addr == MAP_FAILED) {
 		fprintf(stderr, "%s: Failed to mmap log file\n", __func__);
 		rc = -1;
