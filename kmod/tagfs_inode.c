@@ -447,7 +447,7 @@ static const struct dax_operations tagfs_dax_ops = {
 
 /**************************************************************************************/
 
-//struct dev_dax;
+#ifdef CONFIG_TAGFS_CHAR_DAX
 int add_dax_ops(struct dax_device *dax_dev,
 		const struct dax_operations *ops);
 
@@ -496,8 +496,8 @@ tagfs_open_char_device(
 	/* Get phys_addr from dax somehow */
 	tagfs_dev->phys_addr = dax_pgoff_to_phys(dev_dax, 0, PAGE_SIZE);
 	tagfs_dev->pfn_flags = PFN_DEV;
-	
-	addr = devm_memremap(dev, pmem->phys_addr,
+
+	xaddr = devm_memremap(dev, pmem->phys_addr,
 				pmem->size, ARCH_MEMREMAP_PMEM);
 		bb_range.start =  res->start;
 		bb_range.end = res->end;
@@ -520,6 +520,7 @@ char_err:
 	filp_close(fsi->dax_filp, NULL);
 	return rc;
 }
+#endif
 
 static int
 tagfs_open_device(
@@ -538,14 +539,24 @@ tagfs_open_device(
 	}
 	printk("%s: Root device is %s\n", __func__, fc->source);
 
+#ifdef CONFIG_TAGFS_CHAR_DAX
 	if (strstr(fc->source, "/dev/dax"))
 		return tagfs_open_char_device(sb, fc);
-		
-	/* Is this a block device? Find out by trying */
-	bdevp = blkdev_get_by_path(fc->source, tagfs_blkdev_mode, fsi);
-	if (!bdevp || !IS_ERR(bdevp))
-		return tagfs_open_char_device(sb, fc);
+#endif
 
+	if (!strstr(fc->source, "/dev/pmem")) {
+		printk(KERN_ERR "%s: primary backing dev (%s) is not pmem\n",
+		       __func__, fc->source);
+		return -EINVAL;
+	}
+
+	/* Open block/dax backing device */
+	bdevp = blkdev_get_by_path(fc->source, tagfs_blkdev_mode, fsi);
+	if (IS_ERR(bdevp)) {
+		printk(KERN_ERR "%s: failed blkdev_get_by_path(%s)\n",
+		       __func__, fc->source);
+		return PTR_ERR(bdevp);
+        }
 	dax_devp = fs_dax_get_by_bdev(bdevp, &start_off,
 				      fsi  /* holder */,
 				      &tagfs_dax_holder_operations);
