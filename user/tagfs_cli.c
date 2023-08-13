@@ -282,12 +282,14 @@ do_tagfs_cli_fsck(int argc, char *argv[])
 
 	int arg_ct = 0;
 	char *daxdev = NULL;
+	int use_mmap = 0;
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option fsck_options[] = {
 		/* These options set a */
 		{"daxdev",      required_argument,             0,  'D'},
 		{"fsdaxdev",    required_argument,             0,  'F'},
+		{"mmap",        required_argument,             0,  'm'},
 		{0, 0, 0, 0}
 	};
 
@@ -307,7 +309,7 @@ do_tagfs_cli_fsck(int argc, char *argv[])
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers */
-	while ((c = getopt_long(argc, argv, "+h?",
+	while ((c = getopt_long(argc, argv, "+h?m",
 				fsck_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -317,7 +319,9 @@ do_tagfs_cli_fsck(int argc, char *argv[])
 
 		arg_ct++;
 		switch (c) {
-
+		case 'm':
+			use_mmap = 1;
+			break;
 		case 'h':
 		case '?':
 			tagfs_fsck_usage(argc, argv);
@@ -335,7 +339,7 @@ do_tagfs_cli_fsck(int argc, char *argv[])
 	}
 	/* TODO: multiple devices? */
 	daxdev = argv[optind++];
-	return tagfs_fsck(daxdev, verbose_flag);
+	return tagfs_fsck(daxdev, use_mmap, verbose_flag);
 }
 
 

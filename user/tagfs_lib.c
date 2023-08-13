@@ -1201,8 +1201,10 @@ tagfs_map_log_by_path(
 }
 
 int
-tagfs_fsck(const char *path,
-	   int verbose)
+tagfs_fsck(
+	const char *path,
+	int use_mmap,
+	int verbose)
 {
 	struct tagfs_superblock *sb;
 	struct tagfs_log *logp;
@@ -1244,71 +1246,92 @@ tagfs_fsck(const char *path,
 	}
 	case S_IFREG:
 	case S_IFDIR: {
-#if 0
-		/* If it's a file or directory, we'll try to mmap the sb and log from their files */
-		sb =   tagfs_map_superblock_by_path(path, 1 /* read only */);
-		if (!sb) {
-			fprintf(stderr, "%s: failed to map superblock from file %s\n",
-				__func__, path);
-			return -1;
-		}
-		logp = tagfs_map_log_by_path(path, 1 /* read only */);
-		if (!logp) {
-			fprintf(stderr, "%s: failed to map log from file %s\n",
-				__func__, path);
-			return -1;
-		}
-		break;
-#else
-		int sfd = open_superblock_file_read_only(path, NULL, NULL);
-		int lfd = open_log_file_read_only(path, NULL, NULL);
-		char *buf;
-		int resid;
-		int total = 0;
-
-		if (sfd < 0) {
-			fprintf(stderr, "%s: failed to open superblock file\n", __func__);
-			return -1;
-		}
-		if (lfd < 0) {
-			fprintf(stderr, "%s: failed to open log file\n", __func__);
-			return -1;
-		}
-
-		sb = calloc(1, TAGFS_LOG_OFFSET); /* Over-allocate so we can read 2MiB multiple */
-		assert(sb);
-		malloc_sb_log = 1;
-
-		/* Read a copy of the superblock */
-		rc = read(sfd, sb, TAGFS_LOG_OFFSET); /* 2MiB multiple */
-		if (rc < 0) {
-			fprintf(stderr, "%s: error %d reading superblock file\n", __func__, errno);
-			return -errno;
-		} else if (rc < sizeof(*sb)) {
-			fprintf(stderr, "%s: error: short read of superblock %d/%ld\n",
-				__func__, rc, sizeof(*sb));
-			return -1;
-		}
-
-		logp = calloc(1, sb->ts_log_len);
-		assert(logp);
-
-		/* Read a copy of the log */
-		resid = sb->ts_log_len;
-		buf = (char *)logp;
-		do {
-			rc = read(lfd, &buf[total], resid);
-			if (rc < 0) {
-				fprintf(stderr, "%s: error %d reading log file\n",
-					__func__, errno);
-				free(sb);
-				return -errno;
+		if (use_mmap) {
+			/* If it's a file or directory, we'll try to mmap the sb and
+			 * log from their files
+			 *
+			 * Note that this tends to fail
+			 */
+			sb =   tagfs_map_superblock_by_path(path, 1 /* read only */);
+			if (!sb) {
+				fprintf(stderr, "%s: failed to map superblock from file %s\n",
+					__func__, path);
+				return -1;
 			}
-			printf("%s: read %d bytes of log\n", __func__, rc);
-			resid -= rc;
-			total += rc;
-		} while (resid > 0);
-#endif
+
+			logp = tagfs_map_log_by_path(path, 1 /* read only */);
+			if (!logp) {
+				fprintf(stderr, "%s: failed to map log from file %s\n",
+					__func__, path);
+				return -1;
+			}
+			break;
+		} else {
+			int sfd;
+			int lfd;
+			char *buf;
+			int resid;
+			int total = 0;
+
+			malloc_sb_log = 1;
+
+			sfd = open_superblock_file_read_only(path, NULL, NULL);
+			if (sfd < 0) {
+				fprintf(stderr, "%s: failed to open superblock file\n", __func__);
+				return -1;
+			}
+			/* Over-allocate so we can read 2MiB multiple */
+			sb = calloc(1, TAGFS_LOG_OFFSET);
+			assert(sb);
+
+			/* Read a copy of the superblock */
+			rc = read(sfd, sb, TAGFS_LOG_OFFSET); /* 2MiB multiple */
+			if (rc < 0) {
+				free(sb);
+				close(sfd);
+				fprintf(stderr, "%s: error %d reading superblock file\n",
+					__func__, errno);
+				return -errno;
+			} else if (rc < sizeof(*sb)) {
+				free(sb);
+				close(sfd);
+				fprintf(stderr, "%s: error: short read of superblock %d/%ld\n",
+					__func__, rc, sizeof(*sb));
+				return -1;
+			}
+			close(sfd);
+
+			lfd = open_log_file_read_only(path, NULL, NULL);
+			if (lfd < 0) {
+				free(sb);
+				close(sfd);
+				fprintf(stderr, "%s: failed to open log file\n", __func__);
+				return -1;
+			}
+
+			logp = calloc(1, sb->ts_log_len);
+			assert(logp);
+
+			/* Read a copy of the log */
+			resid = sb->ts_log_len;
+			buf = (char *)logp;
+			do {
+				rc = read(lfd, &buf[total], resid);
+				if (rc < 0) {
+					free(sb);
+					free(logp);
+					close(lfd);
+					fprintf(stderr, "%s: error %d reading log file\n",
+						__func__, errno);
+					return -errno;
+				}
+				printf("%s: read %d bytes of log\n", __func__, rc);
+				resid -= rc;
+				total += rc;
+			} while (resid > 0);
+
+			close(lfd);
+		}
 	}
 		break;
 	default:
