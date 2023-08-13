@@ -273,177 +273,20 @@ static int tagfs_parse_param(
 
 /**************************************************************************************/
 
-#if 0
-/* From struct pmem_device */
-struct tagfs_device {
-	/* One contiguous memory region per device */
-	phys_addr_t		phys_addr;
-	/* when non-zero this device is hosting a 'pfn' instance */
-	phys_addr_t		data_offset;
-	u64			pfn_flags;
-	void			*virt_addr;
-	/* immutable base size of the namespace */
-	size_t			size;
-#if 0
-	/* trim size when namespace capacity has been section aligned */
-	u32			pfn_pad;
-	struct kernfs_node	*bb_state;
-	struct badblocks	bb;
-	struct dax_device	*dax_dev;
-	struct gendisk		*disk;
-	struct dev_pagemap	pgmap;
-#endif
-};
 
 /**
- * @tagfs_dax_operations
- */
-long
-__tagfs_direct_access(
-	struct tagfs_device   *tagfs_dev,
-	pgoff_t                pgoff,
-	long                   nr_pages,
-	enum dax_access_mode   mode,
-	void                 **kaddr,
-	pfn_t                 *pfn)
-{
-	resource_size_t offset = PFN_PHYS(pgoff) + tagfs_dev->data_offset;
-	//struct badblocks *bb = &tagfs_dev->bb;
-
-	if (kaddr)
-		*kaddr = tagfs_dev->virt_addr + offset;
-	if (pfn)
-		*pfn = phys_to_pfn_t(tagfs_dev->phys_addr + offset, tagfs_dev->pfn_flags);
-
-#if 0
-	if (bb->count &&
-	    badblocks_check(bb, sector, num, &first_bad, &num_bad)) {
-		long actual_nr;
-
-		if (mode != DAX_RECOVERY_WRITE)
-			return -EIO;
-
-		/*
-		 * Set the recovery stride is set to kernel page size because
-		 * the underlying driver and firmware clear poison functions
-		 * don't appear to handle large chunk(such as 2MiB) reliably.
-		 */
-		actual_nr = PHYS_PFN(
-			PAGE_ALIGN((first_bad - sector) << SECTOR_SHIFT));
-		dev_dbg(tagfs_dev->bb.dev,
-			"start sector(%llu), nr_pages(%ld), first_bad(%llu), actual_nr(%ld)\n",
-			sector, nr_pages, first_bad, actual_nr);
-		if (actual_nr)
-			return actual_nr;
-		return 1;
-	}
-
-	/*
-	 * If badblocks are present but not in the range, limit known good range
-	 * to the requested range.
-	 */
-	if (bb->count)
-		return nr_pages;
-#endif
-	return PHYS_PFN(tagfs_dev->size - offset);
-}
-
-static long tagfs_dax_direct_access(struct dax_device *dax_dev,
-		pgoff_t pgoff, long nr_pages, enum dax_access_mode mode,
-		void **kaddr, pfn_t *pfn)
-{
-	struct tagfs_device *tfs = dax_get_private(dax_dev);
-
-	return __tagfs_direct_access(tfs, pgoff, nr_pages, mode, kaddr, pfn);
-}
-
-
-static int
-tagfs_dax_zero_page_range(
-	struct dax_device *dax_dev,
-	pgoff_t            pgoff,
-	size_t             nr_pages)
-{
-	struct tagfs_device *tfs = dax_get_private(dax_dev);
-
-	return blk_status_to_errno(pmem_do_write(tfs, ZERO_PAGE(0), 0,
-				   PFN_PHYS(pgoff) >> SECTOR_SHIFT,
-				   PAGE_SIZE));
-}
-
-/*
- * The recovery write thread started out as a normal pwrite thread and
- * when the filesystem was told about potential media error in the
- * range, filesystem turns the normal pwrite to a dax_recovery_write.
+ * struct @dax_operations
  *
- * The recovery write consists of clearing media poison, clearing page
- * HWPoison bit, reenable page-wide read-write permission, flush the
- * caches and finally write.  A competing pread thread will be held
- * off during the recovery process since data read back might not be
- * valid, and this is achieved by clearing the badblock records after
- * the recovery write is complete. Competing recovery write threads
- * are already serialized by writer lock held by dax_iomap_rw().
+ * /dev/pmem driver has its own dax operation handers, but since any given operation
+ * is just a contiguous map-through to a dax device, the "standard" ones in
+ * drivers/dax/super.c should be sufficient. 
  */
-static size_t
-tagfs_recovery_write(
-	struct dax_device *dax_dev,
-	pgoff_t            pgoff,
-	void              *addr,
-	size_t             bytes,
-	struct iov_iter   *i)
-{
-	struct tagfs_device *tfs = dax_get_private(dax_dev);
-	size_t olen, len, off;
-	phys_addr_t pmem_off;
-	struct device *dev = tfs->bb.dev;
-	long cleared;
-
-	off = offset_in_page(addr);
-	len = PFN_PHYS(PFN_UP(off + bytes));
-	if (!is_bad_pmem(&tfs->bb, PFN_PHYS(pgoff) >> SECTOR_SHIFT, len))
-		return _copy_from_iter_flushcache(addr, bytes, i);
-
-	/*
-	 * Not page-aligned range cannot be recovered. This should not
-	 * happen unless something else went wrong.
-	 */
-	if (off || !PAGE_ALIGNED(bytes)) {
-		dev_dbg(dev, "Found poison, but addr(%p) or bytes(%#zx) not page aligned\n",
-			addr, bytes);
-		return 0;
-	}
-
-	pmem_off = PFN_PHYS(pgoff) + tfs->data_offset;
-	cleared = __pmem_clear_poison(tfs, pmem_off, len);
-	if (cleared > 0 && cleared < len) {
-		dev_dbg(dev, "poison cleared only %ld out of %zu bytes\n",
-			cleared, len);
-		return 0;
-	}
-	if (cleared < 0) {
-		dev_dbg(dev, "poison clear failed: %ld\n", cleared);
-		return 0;
-	}
-
-	olen = _copy_from_iter_flushcache(addr, bytes, i);
-	pmem_clear_bb(tfs, to_sect(tfs, pmem_off), cleared >> SECTOR_SHIFT);
-
-	return olen;
-}
-
-static const struct dax_operations tagfs_dax_ops = {
-	.direct_access =   tagfs_dax_direct_access,
-	.zero_page_range = tagfs_dax_zero_page_range,
-	.recovery_write =  tagfs_recovery_write,
-};
-
-#else
 static const struct dax_operations tagfs_dax_ops = {
 	.direct_access =   dax_direct_access,
 	.zero_page_range = dax_zero_page_range,
 	.recovery_write =  dax_recovery_write,
 };
-#endif
+
 
 /**************************************************************************************/
 
