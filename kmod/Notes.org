@@ -28,7 +28,6 @@ Should fail to append file past allocation, but succeed *to* allocation
 
 * Known bugs
 ** TODO Char device not cleaned up properly on umount
-** DONE tagfs logplay: if relpath contains subdir, it gets created as a file
 ** TODO the 'tagfs creat' invocations in test0.sh have 000 permissions
 ...even though that's not the mode they're created under.
 But 'tagfs cp' seems to get it right. Should be an easy fix...
@@ -41,39 +40,6 @@ This includes initialization as well as writing log entries
 ** TODO Should flush cache when writing superblock
 ** TODO Should invalidate cache prior to reading superblock
 Invalidate header and entire log before reading
-** DONE tagfs fsck: should fail by dev when mounted
-Should be able to accomplish this via exclusive open in the driver...?
-Fixed in tagfs_lib.c:tagfs_fsck, which new checks if mounted if invoked
-by device.
-** DONE tagfs fsck: sees empty log via /dev/pmem0
-This worries me a bit. tagfs logplay via the file interface sees log entries, but
-when the log is mmapped via /dev/pmem0, the log looks legit but empty. WTF?!
-OK: this behavior happens when the file system is mounted and the log gets accessed
-via the pmem device rather than the log file. Yeah, same memory, differnet method and
-result. Solution: don't allow fsck via blkdev while the FS is mounted (which is a normal
-limitation)
-** DONE fsck via the meta files (rather than via pmem device) segfaults
-If pass in a mount point or tagfs path, fsck now finds the meta files, but it
-segfaults when checking the superblock magic #, even though in gdb I can dup the
-contents of the superblock. Weird...
-Solution: for some reason this didn't work via mmap (segfault when dereferencing
-sb-> or logp-> even though gdb could dereference them. But allocating space and doing
-a posix read into it solves that problem.
-** DONE tagfs creat: manually creating a cross-linked-file fails
-File has no extents, is 0 size, and does not get unlinked
-see test_corruption0.sh
-Dropped manual extents. Just use clone instead.
-** DONE tagfs creat: extents out of order when creating with manual extents
-When I create a zero-based extent followed by a non-zero-based extent, I see them
-out of order in getmap
-Moot now that manual extents are dropped. (use clone instead)
-** DONE tagfs fsck: does not detect cloned files
-Now it returns the error count
-Hmm: I saw it work, but it's failing with the current test2.sh.
-Answer: that was almost certainly because fsck accessed /dev/pmem0 while the FS
-was mounted, which somehow saw a stale log.
-** DONE tagfs creat: mode is all 000
-Looks like the mode string passed into open/creat is not 000
 
 * Valgrind checking
 ** DONE tagfs verify
@@ -234,24 +200,11 @@ This should be a command that only works if you set a "testing" option (TBD)
 ** TODO tagfs setmode
 
 
-* 7/21 debugging files > 1 page
-Mission accomplished...
-** iomap_begin()
-*** xfs iomap begin funcs that call xfs_bmbt_to_iomapp()
-**** xfs_direct_write_iomap_begin()
-**** xfs_buffered_write_iomap_begin()
-This one is complicated due to delayed allocations
-**** xfs_read_iomap_begin()
-**** xfs_seek_iomap_begin()
-**** xfs_xattr_iomap_begin()
-
-
-
 * Page fault debug plan
 
 * Notes on mmap / fault code flow
 
-* current bug 
+* current bug (fixed)
 ** Intended breakpoints
 
 Num Type       Disp Enb Addr               Hits What
@@ -508,7 +461,26 @@ enum page_entry_size {
 
 ** Working notes
 
-*** Copying to dax mem
+*** Alternate strategy: wrap dax mmap, and hack memcpy
+**** tagfs_mmap() calls dax_mmap()
+Problem: if the file is not contiguous, we won't be able to map more than one ext at a time
+But: Currently files only have one extent.
+
+**** tagfs_dax_rw()
+
+
+
+*** The pmem strategy: Using iomap for rw/mmap of char dax device
+Pro: would work just like /dev/pmem fsdax
+Con: currently requires a kernel patch
+The iomap handlers don't work (simplest failure cause) because in a char dax device,
+'struct dax_device' has a NULL 'struct dax_operations'
+
+drivers/dax/bus.c has this comment:
+         * No dax_operations since there is no access to this device outside of
+	 * mmap of the resulting character device.
+
+**** Copying to dax mem
 
 mem = kmap_atomic(struct page) // the source memory
 memcopy_flushcache(pmem_addr, mem + offset_into_page, size)
@@ -538,120 +510,4 @@ which returns NULL or -EINVAL
          dax_set_mapping(vmf, pfn, fault_size);
  
          return vmf_insert_pfn_pmd(vmf, pfn, vmf->flags & FAULT_FLAG_WRITE);
-
-** First posix read (from logplay)
-ul 30 10:57:57 dev1 kernel: tagfs_open_device: Root device is /dev/dax0.0
-Jul 30 10:57:57 dev1 kernel: tagfs_open_device: Not a block device; trying character dax
-Jul 30 10:57:57 dev1 kernel: tagfs_open_device: dax_filp=ffff88800cda3700
-Jul 30 10:57:57 dev1 kernel: tagfs_open_device: root dev is character dax (/dev/dax0.0) dax_devp (ffff888005024340)
-Jul 30 10:58:41 dev1 kernel: clocksource: timekeeping watchdog on CPU0: Marking clocksource 'tsc' as unstable because the skew is too large:
-Jul 30 10:58:41 dev1 kernel: clocksource:                       'kvm-clock' wd_nsec: 495992656 wd_now: 2a313881043d wd_last: 2a311af0c4ed mask: ffffffffffffffff
-Jul 30 10:58:41 dev1 kernel: clocksource:                       'tsc' cs_nsec: 17816562990 cs_now: a2db2714b1 cs_last: 981215ba3f mask: ffffffffffffffff
-Jul 30 10:58:41 dev1 kernel: clocksource:                       Clocksource 'tsc' skewed 17320570334 ns (17320 ms) over watchdog 'kvm-clock' interval of 495992656 ns (495 ms)
-Jul 30 10:58:41 dev1 kernel: clocksource:                       'kvm-clock' (not 'tsc') is current clocksource.
-Jul 30 10:58:41 dev1 kernel: tsc: Marking TSC unstable due to clocksource watchdog
-Jul 30 11:01:32 dev1 kernel: tagfs_file_init_dax: there are 1 extents
-Jul 30 11:01:32 dev1 kernel: tagfs_file_init_dax: superblock
-Jul 30 11:01:32 dev1 kernel: tagfs_file_init_dax: ext 0 ofs=0 len=200000
-Jul 30 11:01:32 dev1 kernel: tagfs_file_init_dax: offset 0 len 2097152
-Jul 30 11:01:32 dev1 kernel: tagfs_file_init_dax: there are 1 extents
-Jul 30 11:01:32 dev1 kernel: tagfs_file_init_dax: log
-Jul 30 11:01:32 dev1 kernel: tagfs_file_init_dax: ext 0 ofs=200000 len=800000
-Jul 30 11:01:32 dev1 kernel: tagfs_file_init_dax: offset 200000 len 8388608
-Jul 30 11:04:14 dev1 kernel: BUG: kernel NULL pointer dereference, address: 0000000000000000
-Jul 30 11:04:14 dev1 kernel: #PF: supervisor read access in kernel mode
-Jul 30 11:04:14 dev1 kernel: #PF: error_code(0x0000) - not-present page
-Jul 30 11:04:14 dev1 kernel: PGD 800000000fad0067 P4D 800000000fad0067 PUD d278067 PMD 0 
-Jul 30 11:04:14 dev1 kernel: Oops: 0000 [#1] PREEMPT SMP PTI
-Jul 30 11:04:14 dev1 kernel: CPU: 0 PID: 1947 Comm: tagfs Tainted: G           OE      6.3.1-cxl4+ #17
-Jul 30 11:04:14 dev1 kernel: Hardware name: QEMU Standard PC (Q35 + ICH9, 2009), BIOS 1.16.2-1.fc38 04/01/2014
-Jul 30 11:04:14 dev1 kernel: RIP: 0010:dax_direct_access+0x29/0x80
-Jul 30 11:04:14 dev1 kernel: Code: 90 0f 1f 44 00 00 48 85 ff 74 5b 48 8b 87 e8 02 00 00 a8 01 74 32 55 48 89 e5 53 48 89 d3 48 85 d2 78 3a 48 8b 87 f0 02 00 00 <48> 8b 00 e8 bf 8d 4c 00 48 85 c0 74 1d 48 39 c3 48 0f 4e c3>
-Jul 30 11:04:14 dev1 kernel: RSP: 0018:ffffc900007bbc28 EFLAGS: 00010206
-Jul 30 11:04:14 dev1 kernel: RAX: 0000000000000000 RBX: 0000000000000800 RCX: 0000000000000000
-Jul 30 11:04:14 dev1 kernel: RDX: 0000000000000800 RSI: 0000000000000200 RDI: ffff888005024340
-Jul 30 11:04:14 dev1 kernel: RBP: ffffc900007bbc30 R08: ffffc900007bbca0 R09: 0000000000000000
-Jul 30 11:04:14 dev1 kernel: R10: 0000000000000000 R11: 0000000000000000 R12: 0000000000000000
-Jul 30 11:04:14 dev1 kernel: R13: 0000000000000200 R14: 0000000000000000 R15: 0000000000000800
-Jul 30 11:04:14 dev1 kernel: FS:  00007f6178e89780(0000) GS:ffff88807dc00000(0000) knlGS:0000000000000000
-Jul 30 11:04:14 dev1 kernel: CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
-Jul 30 11:04:14 dev1 kernel: CR2: 0000000000000000 CR3: 000000000b4ea001 CR4: 0000000000170ef0
-Jul 30 11:04:14 dev1 kernel: Call Trace:
-Jul 30 11:04:14 dev1 kernel:  <TASK>
-Jul 30 11:04:14 dev1 kernel:  dax_iomap_rw+0x3ae/0x7a0
-Jul 30 11:04:14 dev1 kernel:  ? debug_smp_processor_id+0x17/0x20
-Jul 30 11:04:14 dev1 kernel:  tagfs_dax_read_iter+0x34/0x50 [tagfs]
-Jul 30 11:04:14 dev1 kernel:  vfs_read+0x23e/0x320
-Jul 30 11:04:14 dev1 kernel:  ksys_read+0x73/0xf0
-Jul 30 11:04:14 dev1 kernel:  __x64_sys_read+0x19/0x20
-Jul 30 11:04:14 dev1 kernel:  do_syscall_64+0x5c/0x90
-Jul 30 11:04:14 dev1 kernel:  ? irqentry_exit_to_user_mode+0x9/0x30
-Jul 30 11:04:14 dev1 kernel:  ? irqentry_exit+0x3b/0x50
-Jul 30 11:04:14 dev1 kernel:  ? exc_page_fault+0x8e/0x190
-Jul 30 11:04:14 dev1 kernel:  entry_SYSCALL_64_after_hwframe+0x72/0xdc
-Jul 30 11:04:14 dev1 kernel: RIP: 0033:0x7f6178f8d291
-Jul 30 11:04:14 dev1 kernel: Code: d5 fe ff ff 55 48 8d 3d 45 55 0a 00 48 89 e5 e8 95 18 02 00 0f 1f 44 00 00 f3 0f 1e fa 80 3d 4d c3 0d 00 00 74 13 31 c0 0f 05 <48> 3d 00 f0 ff ff 77 4f c3 66 0f 1f 44 00 00 55 48 89 e5 48>
-Jul 30 11:04:14 dev1 kernel: RSP: 002b:00007ffccefbd3a8 EFLAGS: 00000246 ORIG_RAX: 0000000000000000
-Jul 30 11:04:14 dev1 kernel: RAX: ffffffffffffffda RBX: 00007ffccefbe5a8 RCX: 00007f6178f8d291
-Jul 30 11:04:14 dev1 kernel: RDX: 0000000000800000 RSI: 00007f6178688010 RDI: 0000000000000003
-Jul 30 11:04:14 dev1 kernel: RBP: 00007ffccefbe450 R08: 00000000ffffffff R09: 0000000000000000
-Jul 30 11:04:14 dev1 kernel: R10: 00007f6178e9bb28 R11: 0000000000000246 R12: 0000000000000003
-Jul 30 11:04:14 dev1 kernel: R13: 0000000000000000 R14: 00007f61790b4000 R15: 000000000040edf0
-Jul 30 11:04:14 dev1 kernel:  </TASK>
-Jul 30 11:04:14 dev1 kernel: Modules linked in: tagfs(OE) rpcsec_gss_krb5 auth_rpcgss nfsv4 dns_resolver nfs lockd grace fscache netfs nft_fib_inet nft_fib_ipv4 nft_fib_ipv6 nft_fib nft_reject_inet nf_reject_ipv4 nf_reject>
-Jul 30 11:04:14 dev1 kernel: CR2: 0000000000000000
-Jul 30 11:04:14 dev1 kernel: ---[ end trace 0000000000000000 ]---
-Jul 30 11:04:14 dev1 kernel: RIP: 0010:dax_direct_access+0x29/0x80
-Jul 30 11:04:14 dev1 kernel: Code: 90 0f 1f 44 00 00 48 85 ff 74 5b 48 8b 87 e8 02 00 00 a8 01 74 32 55 48 89 e5 53 48 89 d3 48 85 d2 78 3a 48 8b 87 f0 02 00 00 <48> 8b 00 e8 bf 8d 4c 00 48 85 c0 74 1d 48 39 c3 48 0f 4e c3>
-Jul 30 11:04:14 dev1 kernel: RSP: 0018:ffffc900007bbc28 EFLAGS: 00010206
-Jul 30 11:04:14 dev1 kernel: RAX: 0000000000000000 RBX: 0000000000000800 RCX: 0000000000000000
-Jul 30 11:04:14 dev1 kernel: RDX: 0000000000000800 RSI: 0000000000000200 RDI: ffff888005024340
-Jul 30 11:04:14 dev1 kernel: RBP: ffffc900007bbc30 R08: ffffc900007bbca0 R09: 0000000000000000
-Jul 30 11:04:14 dev1 kernel: R10: 0000000000000000 R11: 0000000000000000 R12: 0000000000000000
-Jul 30 11:04:14 dev1 kernel: R13: 0000000000000200 R14: 0000000000000000 R15: 0000000000000800
-Jul 30 11:04:14 dev1 kernel: FS:  00007f6178e89780(0000) GS:ffff88807dc00000(0000) knlGS:0000000000000000
-Jul 30 11:04:14 dev1 kernel: CS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033
-Jul 30 11:04:14 dev1 kernel: CR2: 0000000000000000 CR3: 000000000b4ea001 CR4: 0000000000170ef0
-
-dax_dev->ops is NULL
-
-
-* Note to Dan Williams
-
-To resume on the fsdax conversation.
-
-First, in the near term I do think there is real value in making it possible to
-convert dax dram to a /dev/pmem block device, so that current-generation fsdax
-file systems can be created in it. That differs from [tpmfs or ramfs] with
-node allocation policies because the file system could be umounted and remounted,
-including by a different host (sequential sharing), if that host has access to the
-memory device.
-
-Long term, I agree with you that dropping the block device personality makes
-sense, homing a shared memory file system directly on the char devices (which will
-be "tagged capacity" in the cxl 3 time frame). But right now there are problems with
-iomap*() mapping of char dax, so one more reason I lobby for supporting converting
-dax dram to block/pmem near term.
-
-I have hacked a version of ramfs that can convert ramfs files into dax files that
-map to specified dax memory. This pattern is well established if the device
-is /dev/pmem, and I have this working with /dev/pmem. 
-
-But if the device is /dev/dax, there are a bunch of problems that I haven't figured
-out yet - and I find no evidence that this has been done yet.
-
-My FS can open the /dev/dax device and get the 'struct dax_device' which is needed
-for using iomap* to resolve stuff, but this 'struct dax_device' gets initialized
-without a struct dax_operations (which is put there by drivers/nvdimm/pmem.c in
-the pmem case) - so it does not work with dax_iomap_rw() and dax_iomap_fault().
-My head is hurting at this point, but I'm thinking about adding non-poison-handling
-dax_operations to see what blows up next.
-
-A shared "famdisk" file system may have to punt on poison handling (no good
-way to distribute that info, but OTH data probably shouldn't live there for long
-intervals anyway - undoubtedly a subject for debate), but I'd love to get
-this working initially sans poison handling.
-
-Any suggestions? Happy to discuss if this is too arcane for typing
-
 
