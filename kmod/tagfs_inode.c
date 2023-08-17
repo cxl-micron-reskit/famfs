@@ -481,6 +481,9 @@ static void tagfs_kill_sb(struct super_block *sb)
 {
 	struct tagfs_fs_info *fsi = sb->s_fs_info;
 
+#ifdef CONFIG_TAGFS_CHAR_DAX
+	kill_dax(fsi->dax_devp);
+#endif
 	mutex_destroy(&fsi->fsi_mutex);
 	if (fsi->bdevp)
 		blkdev_put(fsi->bdevp, tagfs_blkdev_mode);
