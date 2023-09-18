@@ -64,7 +64,7 @@ struct inode *tagfs_get_inode(
 	umode_t             mode,
 	dev_t               dev)
 {
-	struct inode * inode = new_inode(sb);
+	struct inode *inode = new_inode(sb);
 
 	if (inode) {
 		inode->i_ino = get_next_ino();
@@ -157,6 +157,7 @@ static int tagfs_symlink(
 	inode = tagfs_get_inode(dir->i_sb, dir, S_IFLNK|S_IRWXUGO, 0);
 	if (inode) {
 		int l = strlen(symname)+1;
+
 		error = page_symlink(inode, symname, l);
 		if (!error) {
 			d_instantiate(dentry, inode);
@@ -263,8 +264,8 @@ static int tagfs_parse_param(
 		break;
 	case Opt_dax:
 		if (strcmp(param->string, "always"))
-			printk(KERN_NOTICE "%s: invalid dax mode %s\n",
-			       __func__, param->string);
+			pr_notice("%s: invalid dax mode %s\n",
+				  __func__, param->string);
 		break;
 	}
 
@@ -279,7 +280,7 @@ static int tagfs_parse_param(
  *
  * /dev/pmem driver has its own dax operation handers, but since any given operation
  * is just a contiguous map-through to a dax device, the "standard" ones in
- * drivers/dax/super.c should be sufficient. 
+ * drivers/dax/super.c should be sufficient.
  */
 static const struct dax_operations tagfs_dax_ops = {
 	.direct_access =   dax_direct_access,
@@ -306,11 +307,11 @@ tagfs_open_char_device(
 
 	int rc = 0;
 
-	printk(KERN_ERR "%s: Not a block device; trying character dax\n", __func__);
+	pr_err("%s: Not a block device; trying character dax\n", __func__);
 	fsi->dax_filp = filp_open(fc->source, O_RDWR, 0);
-	printk(KERN_INFO "%s: dax_filp=%llx\n", __func__, (u64)fsi->dax_filp);
-        if (IS_ERR(fsi->dax_filp)) {
-		printk(KERN_ERR "%s: failed to open dax device\n", __func__);
+	pr_info(KERN_INFO "%s: dax_filp=%llx\n", __func__, (u64)fsi->dax_filp);
+	if (IS_ERR(fsi->dax_filp)) {
+		pr_err("%s: failed to open dax device\n", __func__);
 		fsi->dax_filp = NULL;
 		return PTR_ERR(fsi->dax_filp);
 	}
@@ -318,13 +319,12 @@ tagfs_open_char_device(
 	daxdev_inode = file_inode(fsi->dax_filp);
 	dax_devp     = inode_dax(daxdev_inode);
 	if (IS_ERR(dax_devp)) {
-		printk(KERN_ERR "%s: unable to get daxdev from inode\n",
-		       __func__);
+		pr_err("%s: unable to get daxdev from inode\n", __func__);
 		rc = -ENODEV;
 		goto char_err;
 	}
 	//dev_dax = dax_get_private(dax_dev);
-	printk(KERN_INFO "%s: root dev is character dax (%s) dax_devp (%llx)\n",
+	pr_info("%s: root dev is character dax (%s) dax_devp (%llx)\n",
 	       __func__, fc->source, (u64)dax_devp);
 
 #if 0
@@ -350,7 +350,7 @@ tagfs_open_char_device(
 	/* JG: I aded this function to drivers/dax/super.c */
 	rc = add_dax_ops(dax_devp, &tagfs_dax_ops);
 	if (rc) {
-		printk(KERN_INFO "%s: err attaching tagfs_dax_ops\n", __func__);
+		pr_info("%s: err attaching tagfs_dax_ops\n", __func__);
 		goto char_err;
 	}
 
@@ -377,10 +377,10 @@ tagfs_open_device(
 	u64 start_off = 0;
 
 	if (fsi->dax_devp) {
-		printk(KERN_ERR "%s: already mounted\n", __func__);
+		pr_err("%s: already mounted\n", __func__);
 		return -EALREADY;
 	}
-	printk("%s: Root device is %s\n", __func__, fc->source);
+	pr_info("%s: Root device is %s\n", __func__, fc->source);
 
 #ifdef CONFIG_TAGFS_CHAR_DAX
 	if (strstr(fc->source, "/dev/dax"))
@@ -388,7 +388,7 @@ tagfs_open_device(
 #endif
 
 	if (!strstr(fc->source, "/dev/pmem")) {
-		printk(KERN_ERR "%s: primary backing dev (%s) is not pmem\n",
+		pr_err("%s: primary backing dev (%s) is not pmem\n",
 		       __func__, fc->source);
 		return -EINVAL;
 	}
@@ -396,24 +396,23 @@ tagfs_open_device(
 	/* Open block/dax backing device */
 	bdevp = blkdev_get_by_path(fc->source, tagfs_blkdev_mode, fsi);
 	if (IS_ERR(bdevp)) {
-		printk(KERN_ERR "%s: failed blkdev_get_by_path(%s)\n",
-		       __func__, fc->source);
+		pr_err("%s: failed blkdev_get_by_path(%s)\n", __func__, fc->source);
 		return PTR_ERR(bdevp);
-        }
+	}
+
 	dax_devp = fs_dax_get_by_bdev(bdevp, &start_off,
 				      fsi  /* holder */,
 				      &tagfs_dax_holder_operations);
 	if (IS_ERR(dax_devp)) {
-		printk(KERN_ERR "%s: unable to get daxdev from bdevp\n",
-		       __func__);
+		pr_err("%s: unable to get daxdev from bdevp\n", __func__);
 		blkdev_put(bdevp, tagfs_blkdev_mode);
 		return -ENODEV;
 	}
-	printk(KERN_INFO "%s: dax_devp %llx\n", __func__, (u64)dax_devp);
+	pr_info("%s: dax_devp %llx\n", __func__, (u64)dax_devp);
 	fsi->bdevp    = bdevp;
 	fsi->dax_devp = dax_devp;
 
-	printk(KERN_NOTICE "%s: root device is block dax (%s)\n", __func__, fc->source);
+	pr_notice("%s: root device is block dax (%s)\n", __func__, fc->source);
 	return 0;
 }
 
@@ -506,13 +505,13 @@ static struct file_system_type tagfs_fs_type = {
 
 static int __init init_tagfs_fs(void)
 {
-	printk("%s\n", __func__);
+	pr_info("%s\n", __func__);
 	/* See what the different log levels do */
-	printk(KERN_DEBUG    "%s: KERN_DEBUG \n", __func__);
-	printk(KERN_INFO     "%s: KERN_INFO \n", __func__);
-	printk(KERN_NOTICE   "%s: KERN_NOTICE \n", __func__);
-	printk(KERN_WARNING  "%s: KERN_WARNING \n", __func__);
-	printk(KERN_ERR      "%s: KERN_ERR \n", __func__);
+	pr_debug(  "%s: KERN_DEBUG \n", __func__);
+	pr_info(   "%s: KERN_INFO \n", __func__);
+	pr_notice( "%s: KERN_NOTICE \n", __func__);
+	pr_warning("%s: KERN_WARNING \n", __func__);
+	pr_err(    "%s: KERN_ERR \n", __func__);
 
 	return register_filesystem(&tagfs_fs_type);
 }

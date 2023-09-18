@@ -76,3 +76,20 @@ verify_mounted () {
     grep -c $MPT /proc/mounts || fail "verify_mounted: $MPT not in /proc/mounts ($MSG)"
 }
 
+
+get_device_size () {
+    DEV=$1
+    BASENAME=$(basename $DEV)
+    if [[ "$BASENAME" == *"pmem"* ]]; then
+	raw_size=$("sudo cat /sys/class/block/$BASENAME/size")
+    elif [[ "$BASENAME" == *"dax"* ]]; then
+	majorno=$(stat -c %Ld $DEV)
+	minorno=$(stat -c %Hd $DEV)
+	raw_size=$("cat /sys/dev/char/$majorno:$minorno/size")
+	raw_size=$((raw_size * 512))
+    else
+	echo "Failed to get device size for $DEV"
+	exit -1
+    fi
+    echo "$DEV size: $raw_size"
+}

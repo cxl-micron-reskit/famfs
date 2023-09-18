@@ -55,7 +55,8 @@ struct tagfs_fs_info {
 	struct file             *dax_filp;
 	struct dax_device       *dax_devp; /* TODO: indexed list of dax_devp's */
 	struct block_device     *bdevp;    /* TODO: indexed list of bdevp's (if usigng bdevs)
-					   * (extents would index into the device list) */
+					    * (extents would index into the device list)
+					    */
 };
 
 #endif

@@ -36,7 +36,7 @@
 #include "tagfs_internal.h"
 #include "tagfs_ioctl.h"
 
-static int iomap_verbose=0;
+static int iomap_verbose = 0;
 module_param(iomap_verbose, int, 0660);
 
 #ifndef CONFIG_MMU
@@ -539,7 +539,7 @@ tagfs_dax_write_iter(
 		printk(KERN_ERR "%s: inode %llx IS_DAX is false\n", __func__, (u64)inode);
 		return 0;
 	}
-	/* starting offsset of write is: ioct->ki_pos
+	/* starting offset of write is: ioct->ki_pos
 	 * length is iov_iter_count(from)  */
 	/* TODO: truncate "from" if necessary so that
 	 * (ki_pos + from_length) <= i_size

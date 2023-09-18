@@ -106,14 +106,16 @@ struct tagfs_simple_extent {
 
 struct tagfs_spanning_extent {
 	/* This extent may span dax devices (tagged capacity instances) and
-	 * therefore each extent must include a dax device uuid */
+	 * therefore each extent must include a dax device uuid
+	 */
 	/* TODO  */
 };
 
 struct tagfs_stripe_extent {
 	/* This extent will specfy an ordered set of dax devices, a chunk size,
 	 * and a length (which multiple of (ndevices * chunksize) so there is
-	 * an integer number of full stripes */
+	 * an integer number of full stripes
+	 */
 	/* TODO  */
 };
 

@@ -13,3 +13,6 @@ clean:
 doxygen:
 	doxygen Doxyfile
 
+checkfiles:
+	@./checkfiles
+

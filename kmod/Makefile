@@ -3,7 +3,7 @@
 # Makefile for the linux ramfs routines.
 #
 
-EXTRA_CFLAGS += -g -DDEBUG -O1
+EXTRA_CFLAGS += -g -DDEBUG -O1 -DCONFIG_TAGFS_CHAR_DAX=y
 
 obj-m += tagfs.o
 
@@ -17,6 +17,7 @@ clean:
 all:
 	make -k -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 	cp tagfs.ko $(KHOME)/fs/tagfs/
+
 
 #
 # This is a little hinky, but it works for now. The chardax build

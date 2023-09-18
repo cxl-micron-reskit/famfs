@@ -120,10 +120,6 @@ tagfs_get_device_size(const char       *fname,
 	basename = strrchr(fname, '/');
 	if (is_char) {
 		/* character device */
-		snprintf(spath, PATH_MAX, "/sys/dev/char/%d:%d/subsystem",
-			 major(st.st_rdev), minor(st.st_rdev));
-
-		//basename = get_basename()
 		snprintf(spath, PATH_MAX, "/sys/dev/char/%d:%d/size",
 			 major(st.st_rdev), minor(st.st_rdev));
 		printf("checking for size in %s\n", spath);
@@ -270,7 +266,8 @@ tagfs_mmap_superblock_and_log_raw(const char *devname,
 
 	fd = open(devname, openmode, 0);
 	if (fd < 0) {
-		fprintf(stderr, "open/create failed; rc %d errno %d\n", rc, errno);
+		fprintf(stderr, "%s: open %s failed; rc %d errno %d\n",
+			__func__, devname, rc, errno);
 		rc = -1;
 		goto err_out;
 	}
