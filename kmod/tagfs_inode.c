@@ -510,7 +510,7 @@ static int __init init_tagfs_fs(void)
 	pr_debug(  "%s: KERN_DEBUG \n", __func__);
 	pr_info(   "%s: KERN_INFO \n", __func__);
 	pr_notice( "%s: KERN_NOTICE \n", __func__);
-	pr_warning("%s: KERN_WARNING \n", __func__);
+	pr_warn("%s: KERN_WARNING \n", __func__);
 	pr_err(    "%s: KERN_ERR \n", __func__);
 
 	return register_filesystem(&tagfs_fs_type);

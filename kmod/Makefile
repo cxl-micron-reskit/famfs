@@ -3,7 +3,7 @@
 # Makefile for the linux ramfs routines.
 #
 
-EXTRA_CFLAGS += -g -DDEBUG -O1 -DCONFIG_TAGFS_CHAR_DAX=y
+EXTRA_CFLAGS += -g -DDEBUG -O1
 
 obj-m += tagfs.o
 
@@ -16,7 +16,7 @@ clean:
 
 all:
 	make -k -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
-	cp tagfs.ko $(KHOME)/fs/tagfs/
+#	cp tagfs.ko $(KHOME)/fs/tagfs/
 
 
 #
