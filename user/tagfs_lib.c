@@ -92,7 +92,7 @@ tagfs_get_device_size(const char       *fname,
 	u_int64_t size_i;
 	struct stat st;
 	int rc;
-	int is_char = 0;
+	int is_blk = 0;
 
 	rc = stat(fname, &st);
 	if (rc < 0) {
@@ -101,33 +101,22 @@ tagfs_get_device_size(const char       *fname,
 		return -errno;
 	}
 
+	basename = strrchr(fname, '/');
 	switch (st.st_mode & S_IFMT) {
 	case S_IFBLK:
-		if (type)
-			*type = FSDAX_EXTENT;
+		is_blk = 1;
+		snprintf(spath, PATH_MAX, "/sys/class/block%s/size", basename);
 		break;
 	case S_IFCHR:
-		printf("%s character device\n", fname);
-		is_char = 1;
-		if (type)
-			*type = DAX_EXTENT;
+		snprintf(spath, PATH_MAX, "/sys/dev/char/%d:%d/size",
+			 major(st.st_rdev), minor(st.st_rdev));
 		break;
 	default:
 		fprintf(stderr, "invalid dax device %s\n", fname);
 		return -EINVAL;
 	}
 
-	basename = strrchr(fname, '/');
-	if (is_char) {
-		/* character device */
-		snprintf(spath, PATH_MAX, "/sys/dev/char/%d:%d/size",
-			 major(st.st_rdev), minor(st.st_rdev));
-		printf("checking for size in %s\n", spath);
-	} else {
-		/* It's a block device */
-		snprintf(spath, PATH_MAX, "/sys/class/block/%s/size", basename);
-	}
-
+	printf("%s: getting daxdev size from file %s\n", __func__, spath);
 	sfile = fopen(spath, "r");
 	if (!sfile) {
 		fprintf(stderr, "%s: fopen on %s failed (%s)\n",
@@ -145,13 +134,12 @@ tagfs_get_device_size(const char       *fname,
 
 	fclose(sfile);
 
-	if (!is_char)
-		size_i *= 512; /* Is this always correct?! */
+	if (is_blk)
+		size_i *= 512; /* blkdev size is in 512b blocks */
 
 	printf("%s: size=%ld\n", __func__, size_i);
 	*size = (size_t)size_i;
 	return 0;
-
 }
 
 /**
