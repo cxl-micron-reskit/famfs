@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Resizable simple ram filesystem for Linux.
  *
@@ -309,7 +310,7 @@ tagfs_open_char_device(
 
 	pr_err("%s: Not a block device; trying character dax\n", __func__);
 	fsi->dax_filp = filp_open(fc->source, O_RDWR, 0);
-	pr_info(KERN_INFO "%s: dax_filp=%llx\n", __func__, (u64)fsi->dax_filp);
+	pr_info("%s: dax_filp=%llx\n", __func__, (u64)fsi->dax_filp);
 	if (IS_ERR(fsi->dax_filp)) {
 		pr_err("%s: failed to open dax device\n", __func__);
 		fsi->dax_filp = NULL;
@@ -344,7 +345,7 @@ tagfs_open_char_device(
 				pmem->size, ARCH_MEMREMAP_PMEM);
 		bb_range.start =  res->start;
 		bb_range.end = res->end;
-		printk(KERN_NOTICE "%s: is_nd_pfn addr %llx\n",
+		pr_notice("%s: is_nd_pfn addr %llx\n",
 		       __func__, (u64)addr);
 #endif
 	/* JG: I aded this function to drivers/dax/super.c */
@@ -507,11 +508,11 @@ static int __init init_tagfs_fs(void)
 {
 	pr_info("%s\n", __func__);
 	/* See what the different log levels do */
-	pr_debug(  "%s: KERN_DEBUG \n", __func__);
-	pr_info(   "%s: KERN_INFO \n", __func__);
-	pr_notice( "%s: KERN_NOTICE \n", __func__);
+	pr_debug("%s: KERN_DEBUG \n", __func__);
+	pr_info("%s: KERN_INFO \n", __func__);
+	pr_notice("%s: KERN_NOTICE \n", __func__);
 	pr_warn("%s: KERN_WARNING \n", __func__);
-	pr_err(    "%s: KERN_ERR \n", __func__);
+	pr_err("%s: KERN_ERR \n", __func__);
 
 	return register_filesystem(&tagfs_fs_type);
 }
@@ -519,9 +520,9 @@ static int __init init_tagfs_fs(void)
 void
 __exit tagfs_exit(void)
 {
-	printk("%s\n", __func__);
+	pr_info("%s\n", __func__);
 	unregister_filesystem(&tagfs_fs_type);
-	printk("%s: unregistered\n", __func__);
+	pr_info("%s: unregistered\n", __func__);
 }
 
 MODULE_AUTHOR("John Groves, Micron Technology");

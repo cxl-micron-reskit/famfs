@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _H_TAGFS_LIB
 #define _H_TAGFS_LIB
 
@@ -20,7 +21,7 @@ int tagfs_log_file_creation(
 	size_t                      size);
 int
 tagfs_file_map_create(
-	const char *                path,
+	const char                 *path,
 	int                         fd,
 	size_t                      size,
 	int                         nextents,

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 
 #include <stdio.h>
 #include <unistd.h>
@@ -30,19 +31,19 @@ typedef __u64 u64;
 char *
 xbasename(char *str)
 {
-        char *s;
+	char *s;
 
-        if (!strstr(str, "/"))
-                return str;
+	if (!strstr(str, "/"))
+		return str;
 
-        s = strrchr(str, '/');
-        return s+1;
+	s = strrchr(str, '/');
+	return s+1;
 }
 
 
 /* Global option related stuff */
 
-int verbose_flag = 0;  /* JG: ignored at the moment */
+int verbose_flag;  /* JG: ignored at the moment */
 static int dry_run;
 
 struct option global_options[] = {
@@ -50,7 +51,8 @@ struct option global_options[] = {
 	{"verbose",          no_argument, &verbose_flag,  1 },
 	{"brief",            no_argument, &verbose_flag,  0 },
 	/* These options don't set a flag.
-	   We distinguish them by their indices. */
+	 * We distinguish them by their indices.
+	 */
 	{"dryrun",       no_argument,       0, 'n'},
 	{0, 0, 0, 0}
 };
@@ -103,7 +105,8 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 	};
 
 	/* The next stuff on the command line is file names;
-	 * err if nothing is left */
+	 * err if nothing is left
+	 */
 	if (optind >= argc) {
 		fprintf(stderr, "tagfs_cli map: no files\n");
 		tagfs_logplay_usage(argc, argv);
@@ -111,7 +114,8 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
-	 * (e.g. the command that will mux us off to the command handlers */
+	 * (e.g. the command that will mux us off to the command handlers
+	 */
 	while ((c = getopt_long(argc, argv, "+nh?",
 				logplay_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
@@ -211,7 +215,8 @@ do_tagfs_cli_mkmeta(int argc, char *argv[])
 	}
 
 	/* The next stuff on the command line is file names;
-	 * err if nothing is left */
+	 * err if nothing is left
+	 */
 	if (optind >= argc) {
 		fprintf(stderr, "tagfs_cli map: no files\n");
 		tagfs_mkmeta_usage(argc, argv);
@@ -219,7 +224,8 @@ do_tagfs_cli_mkmeta(int argc, char *argv[])
 	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
-	 * (e.g. the command that will mux us off to the command handlers */
+	 * (e.g. the command that will mux us off to the command handlers
+	 */
 	while ((c = getopt_long(argc, argv, "+h?",
 				mkmeta_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
@@ -300,7 +306,8 @@ do_tagfs_cli_fsck(int argc, char *argv[])
 	}
 
 	/* The next stuff on the command line is file names;
-	 * err if nothing is left */
+	 * err if nothing is left
+	 */
 	if (optind >= argc) {
 		fprintf(stderr, "tagfs_cli map: no files\n");
 		tagfs_fsck_usage(argc, argv);
@@ -308,7 +315,8 @@ do_tagfs_cli_fsck(int argc, char *argv[])
 	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
-	 * (e.g. the command that will mux us off to the command handlers */
+	 * (e.g. the command that will mux us off to the command handlers
+	 */
 	while ((c = getopt_long(argc, argv, "+h?m",
 				fsck_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
@@ -385,7 +393,8 @@ do_tagfs_cli_cp(int argc, char *argv[])
 	}
 
 	/* The next stuff on the command line is file names;
-	 * err if nothing is left */
+	 * err if nothing is left
+	 */
 	if (optind >= argc) {
 		fprintf(stderr, "tagfs_cli map: no files\n");
 		tagfs_cp_usage(argc, argv);
@@ -393,7 +402,8 @@ do_tagfs_cli_cp(int argc, char *argv[])
 	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
-	 * (e.g. the command that will mux us off to the command handlers */
+	 * (e.g. the command that will mux us off to the command handlers
+	 */
 	while ((c = getopt_long(argc, argv, "+h?",
 				cp_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
@@ -451,10 +461,10 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 	int arg_ct = 0;
 
 	/* XXX can't use any of the same strings as the global args! */
-       struct option cp_options[] = {
-               /* These options set a */
-               {0, 0, 0, 0}
-       };
+	struct option cp_options[] = {
+		/* These options set a */
+		{0, 0, 0, 0}
+	};
 
 	if (optind >= argc) {
 		fprintf(stderr, "tagfs_cli map: no args\n");
@@ -463,7 +473,8 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 	}
 
 	/* The next stuff on the command line is file names;
-	 * err if nothing is left */
+	 * err if nothing is left
+	 */
 	if (optind >= argc) {
 		fprintf(stderr, "tagfs_cli map: no files\n");
 		tagfs_getmap_usage(argc, argv);
@@ -471,7 +482,8 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
-	 * (e.g. the command that will mux us off to the command handlers */
+	 * (e.g. the command that will mux us off to the command handlers
+	 */
 	while ((c = getopt_long(argc, argv, "+h?",
 				cp_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
@@ -527,7 +539,7 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 	printf("\tsize:   %ld\n",  filemap.file_size);
 	printf("\textents: %ld\n", filemap.ext_list_count);
 
-	for (i=0; i<filemap.ext_list_count; i++) {
+	for (i = 0; i < filemap.ext_list_count; i++) {
 		printf("\t\t%llx\t%lld\n", ext_list[i].offset, ext_list[i].len);
 	}
 	close(rc);
@@ -577,10 +589,10 @@ do_tagfs_cli_clone(int argc, char *argv[])
 	mode_t mode = S_IRUSR|S_IWUSR;
 
 	/* XXX can't use any of the same strings as the global args! */
-       struct option cp_options[] = {
-               /* These options set a */
-               {0, 0, 0, 0}
-       };
+	struct option cp_options[] = {
+		/* These options set a */
+		{0, 0, 0, 0}
+	};
 
 	if (optind >= argc) {
 		fprintf(stderr, "tagfs_cli map: no args\n");
@@ -589,7 +601,8 @@ do_tagfs_cli_clone(int argc, char *argv[])
 	}
 
 	/* The next stuff on the command line is file names;
-	 * err if nothing is left */
+	 * err if nothing is left
+	 */
 	if (optind >= argc) {
 		fprintf(stderr, "tagfs_cli map: no files\n");
 		tagfs_clone_usage(argc, argv);
@@ -597,7 +610,8 @@ do_tagfs_cli_clone(int argc, char *argv[])
 	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
-	 * (e.g. the command that will mux us off to the command handlers */
+	 * (e.g. the command that will mux us off to the command handlers
+	 */
 	while ((c = getopt_long(argc, argv, "+h?",
 				cp_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
@@ -799,7 +813,8 @@ do_tagfs_cli_creat(int argc, char *argv[])
 		{"seed",        required_argument,             0,  'S'},
 		{"randomize",   no_argument,                   0,  'r'},
 		/* These options don't set a flag.
-		   We distinguish them by their indices. */
+		 * We distinguish them by their indices.
+		 */
 		/*{"dryrun",       no_argument,       0, 'n'}, */
 		{0, 0, 0, 0}
 	};
@@ -811,7 +826,8 @@ do_tagfs_cli_creat(int argc, char *argv[])
 	}
 
 	/* The next stuff on the command line is file names;
-	 * err if nothing is left */
+	 * err if nothing is left
+	 */
 	if (optind >= argc) {
 		fprintf(stderr, "tagfs_cli creat: no files\n");
 		tagfs_creat_usage(argc, argv);
@@ -819,7 +835,8 @@ do_tagfs_cli_creat(int argc, char *argv[])
 	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
-	 * (e.g. the command that will mux us off to the command handlers */
+	 * (e.g. the command that will mux us off to the command handlers
+	 */
 	while ((c = getopt_long(argc, argv, "+f:s:S:rh?",
 				creat_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
@@ -898,10 +915,9 @@ do_tagfs_cli_creat(int argc, char *argv[])
 	}
 
 	rc = tagfs_file_alloc(fd, fullpath, O_RDWR, uid, gid, fsize);
-	if (rc) {
-	  fprintf(stderr, "%s: tagfs_file_alloc(%s, size=%ld) failed\n",
+	if (rc)
+		fprintf(stderr, "%s: tagfs_file_alloc(%s, size=%ld) failed\n",
 		  __func__, fullpath, fsize);
-	}
 
 	if (randomize) {
 		struct stat st;
@@ -920,7 +936,7 @@ do_tagfs_cli_creat(int argc, char *argv[])
 		}
 		addr = mmap_whole_file(fullpath, 0, NULL);
 		if (!addr) {
-			fprintf(stderr,"%s: randomize mmap failed\n", __func__);
+			fprintf(stderr, "%s: randomize mmap failed\n", __func__);
 			exit(-1);
 		}
 		buf = (char *)addr;
@@ -981,7 +997,8 @@ do_tagfs_cli_mkdir(int argc, char *argv[])
 		/* These options set a flag. */
 
 		/* These options don't set a flag.
-		   We distinguish them by their indices. */
+		 * We distinguish them by their indices.
+		 */
 		/*{"dryrun",       no_argument,       0, 'n'}, */
 		{0, 0, 0, 0}
 	};
@@ -993,7 +1010,8 @@ do_tagfs_cli_mkdir(int argc, char *argv[])
 	}
 
 	/* The next stuff on the command line is file names;
-	 * err if nothing is left */
+	 * err if nothing is left
+	 */
 	if (optind >= argc) {
 		fprintf(stderr, "tagfs_cli mkdir: no files\n");
 		tagfs_mkdir_usage(argc, argv);
@@ -1001,7 +1019,8 @@ do_tagfs_cli_mkdir(int argc, char *argv[])
 	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
-	 * (e.g. the command that will mux us off to the command handlers */
+	 * (e.g. the command that will mux us off to the command handlers
+	 */
 	while ((c = getopt_long(argc, argv, "+h?",
 				mkdir_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
@@ -1142,7 +1161,8 @@ do_tagfs_cli_verify(int argc, char *argv[])
 	}
 
 	/* The next stuff on the command line is file names;
-	 * err if nothing is left */
+	 * err if nothing is left
+	 */
 	if (optind >= argc) {
 		fprintf(stderr, "tagfs_cli map: no files\n");
 		tagfs_verify_usage(argc, argv);
@@ -1150,7 +1170,8 @@ do_tagfs_cli_verify(int argc, char *argv[])
 	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
-	 * (e.g. the command that will mux us off to the command handlers */
+	 * (e.g. the command that will mux us off to the command handlers
+	 */
 	while ((c = getopt_long(argc, argv, "+f:S:h?",
 				map_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
@@ -1199,7 +1220,7 @@ do_tagfs_cli_verify(int argc, char *argv[])
 
 	addr = mmap_whole_file(filename, 0, &fsize);
 	if (!addr) {
-		fprintf(stderr,"%s: randomize mmap failed\n", __func__);
+		fprintf(stderr, "%s: randomize mmap failed\n", __func__);
 		exit(-1);
 	}
 	buf = (char *)addr;
@@ -1282,7 +1303,8 @@ main(int argc, char **argv)
 	/* Process global options, if any */
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
-	 * (e.g. the command that will mux us off to the command handlers */
+	 * (e.g. the command that will mux us off to the command handlers
+	 */
 	while ((c = getopt_long(argc, argv, "+nh?d:",
 				global_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */

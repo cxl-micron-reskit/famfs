@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef TAGFS_IOCTL_H
 #define TAGFS_IOCTL_H
 

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 
 #include <stdio.h>
 #include <fcntl.h>
@@ -33,7 +34,7 @@ print_usage(int   argc,
 	       "\n", progname);
 }
 
-int verbose_flag = 0;
+int verbose_flag;
 
 struct option global_options[] = {
 	/* These options set a flag. */
@@ -44,7 +45,8 @@ struct option global_options[] = {
 	{"daxdev",      required_argument,             0,  'D'},
 	{"fsdaxdev",    required_argument,             0,  'F'},
 	/* These options don't set a flag.
-	   We distinguish them by their indices. */
+	 * We distinguish them by their indices.
+	 */
 	/*{"dryrun",       no_argument,       0, 'n'}, */
 	{0, 0, 0, 0}
 };
@@ -70,7 +72,8 @@ main(int argc,
 	/* Process global options, if any */
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
-	 * (e.g. the command that will mux us off to the command handlers */
+	 * (e.g. the command that will mux us off to the command handlers
+	 */
 	while ((c = getopt_long(argc, argv, "+n:o:l:f:D:F:h?",
 				global_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
@@ -111,8 +114,7 @@ main(int argc,
 						daxdev);
 				}
 				type = FSDAX_EXTENT;
-			}
-			else if (c == 'D') {
+			} else if (c == 'D') {
 				if (!S_ISCHR(devstat.st_mode)) {
 					fprintf(stderr,
 						"FSDAX special file (%s) is not a block device\n",
@@ -148,7 +150,7 @@ main(int argc,
 			if (ext_list[cur_extent].len)
 				cur_extent++;
 			break;
-			
+
 		case 'l':
 			if (num_extents == 0) {
 				fprintf(stderr, "Must specify num_extents before length\n");
@@ -189,7 +191,7 @@ main(int argc,
 	filemap.file_type   = TAGFS_REG;
 	filemap.file_size   = fsize;
 	filemap.extent_type = type;
-	for (i=0; i<num_extents; i++)
+	for (i = 0; i < num_extents; i++)
 		printf("\t%p\t%ld\n", ext_list[i].offset, ext_list[i].len);
 
 

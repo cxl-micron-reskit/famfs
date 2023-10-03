@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef TAGFS_META_H
 #define TAGFS_META_H
 

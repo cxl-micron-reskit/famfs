@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 
 #include <stdio.h>
 #include <fcntl.h>
@@ -36,8 +37,8 @@ print_usage(int   argc,
 	       "\n", progname);
 }
 
-int verbose_flag = 0;
-int kill_super = 0;
+int verbose_flag;
+int kill_super;
 
 struct option global_options[] = {
 	/* These options set a flag. */
@@ -45,7 +46,8 @@ struct option global_options[] = {
 	{"fsdaxdev",    required_argument,             0,  'F'},
 	{"force",       no_argument,                   0,  'f'},
 	/* These options don't set a flag.
-	   We distinguish them by their indices. */
+	 * We distinguish them by their indices.
+	 */
 	{"kill",        no_argument,       &kill_super,    'k'},
 	{0, 0, 0, 0}
 };
@@ -68,7 +70,8 @@ main(int argc,
 	/* Process global options, if any */
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
-	 * (e.g. the command that will mux us off to the command handlers */
+	 * (e.g. the command that will mux us off to the command handlers
+	 */
 	while ((c = getopt_long(argc, argv, "+fkh?",
 				global_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
@@ -127,9 +130,8 @@ main(int argc,
 		printf("Tagfs superblock killed\n");
 		sb->ts_magic      = 0;
 		return 0;
-	} else {
+	} else
 		sb->ts_magic      = TAGFS_SUPER_MAGIC;
-	}
 
 	sb->ts_version    = TAGFS_CURRENT_VERSION;
 	sb->ts_log_offset = TAGFS_LOG_OFFSET;
@@ -150,7 +152,7 @@ main(int argc,
 	tagfs_logp->tagfs_log_next_index = 0;
 	tagfs_logp->tagfs_log_last_index =
 		((TAGFS_LOG_LEN - offsetof(struct tagfs_log, entries))
-		 / sizeof(struct tagfs_log_entry)) ;
+		 / sizeof(struct tagfs_log_entry));
 
 	tagfs_fsck_scan(sb, tagfs_logp, 0);
 	close(rc);

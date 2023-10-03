@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 
 #define _GNU_SOURCE
 
@@ -33,29 +34,29 @@
 void
 make_bit_string(u8 byte, char *str)
 {
-        str[0] = (byte & 0x80) ? '1':'0';
-        str[1] = (byte & 0x40) ? '1':'0';
-        str[2] = (byte & 0x20) ? '1':'0';
-        str[3] = (byte & 0x10) ? '1':'0';
-        str[4] = (byte & 0x08) ? '1':'0';
-        str[5] = (byte & 0x04) ? '1':'0';
-        str[6] = (byte & 0x02) ? '1':'0';
-        str[7] = (byte & 0x01) ? '1':'0';
-        str[8] = 0;
+	str[0] = (byte & 0x80) ? '1':'0';
+	str[1] = (byte & 0x40) ? '1':'0';
+	str[2] = (byte & 0x20) ? '1':'0';
+	str[3] = (byte & 0x10) ? '1':'0';
+	str[4] = (byte & 0x08) ? '1':'0';
+	str[5] = (byte & 0x04) ? '1':'0';
+	str[6] = (byte & 0x02) ? '1':'0';
+	str[7] = (byte & 0x01) ? '1':'0';
+	str[8] = 0;
 }
 
 void
 mu_print_bitmap(u8 *bitmap, int num_bits)
 {
-        int i, val;
+	int i, val;
 
-        mu_bitmap_foreach(bitmap, num_bits, i, val) {
-                if (!(i%64))
-                        printf("\n%4d: ", i);
+	mu_bitmap_foreach(bitmap, num_bits, i, val) {
+		if (!(i%64))
+			printf("\n%4d: ", i);
 
-                printf("%d", val);
-        }
-        printf("\n");
+		printf("%d", val);
+	}
+	printf("\n");
 }
 
 
@@ -173,8 +174,8 @@ tagfs_fsck_scan(
 	tagfs_print_uuid(&sb->ts_uuid);
 	printf("  sizeof superblock: %ld\n", sizeof(struct tagfs_superblock));
 	printf("  num_daxdevs:              %d\n", sb->ts_num_daxdevs);
-	for (i=0; i<sb->ts_num_daxdevs; i++) {
-		if (i==0)
+	for (i = 0; i < sb->ts_num_daxdevs; i++) {
+		if (i == 0)
 			printf("  primary: ");
 		else
 			printf("         %d: ", i);
@@ -306,8 +307,8 @@ tagfs_check_super(const struct tagfs_superblock *sb)
 static char *
 tagfs_get_mpt_by_dev(const char *mtdev)
 {
-	FILE * fp;
-	char * line = NULL;
+	FILE *fp;
+	char *line = NULL;
 	size_t len = 0;
 	ssize_t read;
 	int rc;
@@ -373,7 +374,7 @@ tagfs_ext_to_simple_ext(
 	if (!se)
 		return NULL;
 
-	for (i=0; i<ext_count; i++) {
+	for (i = 0; i < ext_count; i++) {
 		se[i].tagfs_extent_offset = te_list[i].offset;
 		se[i].tagfs_extent_len    = te_list[i].len;
 	}
@@ -394,7 +395,7 @@ tagfs_ext_to_simple_ext(
  */
 int
 tagfs_file_map_create(
-	const char *                path,
+	const char                 *path,
 	int                         fd,
 	size_t                      size,
 	int                         nextents,
@@ -418,7 +419,7 @@ tagfs_file_map_create(
 	filemap.ext_list       = (struct tagfs_extent *)ext_list;
 
 #if 0
-	for (i=0; i<nextents; i++) {
+	for (i = 0; i < nextents; i++) {
 		ext[i].offset = ext_list[i].tagfs_extent_offset;
 		ext[i].len    = ext_list[i].tagfs_extent_len;
 	}
@@ -441,7 +442,7 @@ int
 tagfs_mkmeta(const char *devname)
 {
 	struct stat st = {0};
-	int rc, sbfd, logfd;;
+	int rc, sbfd, logfd;
 	char *mpt = NULL;
 	char dirpath[PATH_MAX];
 	char sb_file[PATH_MAX];
@@ -468,9 +469,9 @@ tagfs_mkmeta(const char *devname)
 	/* Create the meta directory */
 	if (stat(dirpath, &st) == -1) {
 		rc = mkdir(dirpath, 0700);
-		if (rc) {
-			fprintf(stderr, "%s: error creating directory %s\n", __func__, dirpath);
-		}
+		if (rc)
+			fprintf(stderr, "%s: error creating directory %s\n",
+				__func__, dirpath);
 	}
 
 	/* Create the superblock file */
@@ -490,8 +491,7 @@ tagfs_mkmeta(const char *devname)
 					__func__);
 				unlink(sb_file);
 			}
-		}
-		else {
+		} else {
 			fprintf(stderr,
 				"%s: non-regular file found where superblock expected\n",
 				__func__);
@@ -533,9 +533,9 @@ tagfs_mkmeta(const char *devname)
 				fprintf(stderr, "%s: unlinking bad log file\n", __func__);
 				unlink(log_file);
 			}
-		}
-		else {
-			fprintf(stderr, "%s: non-regular file found where superblock expected\n",
+		} else {
+			fprintf(stderr,
+				"%s: non-regular file found where superblock expected\n",
 				__func__);
 			return -EINVAL;
 		}
@@ -599,7 +599,7 @@ mmap_whole_file(
 	}
 
 	addr = mmap(0, st.st_size, mapmode, MAP_SHARED, fd, 0);
-	if (addr== MAP_FAILED) {
+	if (addr == MAP_FAILED) {
 		fprintf(stderr, "Failed to mmap file %s\n", fname);
 		rc = -1;
 		close(fd);
@@ -691,7 +691,7 @@ tagfs_logplay(
 	}
 
 	printf("%s: log contains %lld entries\n", __func__, logp->tagfs_log_next_index);
-	for (i=0; i<logp->tagfs_log_next_index; i++) {
+	for (i = 0; i < logp->tagfs_log_next_index; i++) {
 		struct tagfs_log_entry le = logp->entries[i];
 
 		nlog++;
@@ -717,9 +717,11 @@ tagfs_logplay(
 
 			/* The only file that should have an extent with offset 0
 			 * is the superblock, which is not in the log. Check for files with
-			 * null offset... */
-			for (j=0; j<fc->tagfs_nextents; j++) {
+			 * null offset...
+			 */
+			for (j = 0; j < fc->tagfs_nextents; j++) {
 				const struct tagfs_simple_extent *se = &fc->tagfs_ext_list[j].se;
+
 				if (se->tagfs_extent_offset == 0) {
 					fprintf(stderr,
 						"%s: ERROR file %s has extent with 0 offset\n",
@@ -757,11 +759,13 @@ tagfs_logplay(
 				continue;
 			}
 
-			/* build extent list of tagfs_simple_extent; the log entry has a
-			 * different kind of extent list...*/
+			/* Build extent list of tagfs_simple_extent; the log entry has a
+			 * different kind of extent list...
+			 */
 			el = calloc(fc->tagfs_nextents, sizeof(*el));
-			for (j=0; j<fc->tagfs_nextents; j++) {
+			for (j = 0; j < fc->tagfs_nextents; j++) {
 				const struct tagfs_log_extent *tle = &fc->tagfs_ext_list[j];
+
 				el[j].tagfs_extent_offset = tle[j].se.tagfs_extent_offset;
 				el[j].tagfs_extent_len    = tle[j].se.tagfs_extent_len;
 			}
@@ -862,7 +866,7 @@ tagfs_append_log(struct tagfs_log       *logp,
 	}
 
 	if (logp->tagfs_log_next_index >= logp->tagfs_log_last_index) {
-		fprintf(stderr, "log is full \n");
+		fprintf(stderr, "log is full\n");
 		return -E2BIG;
 	}
 
@@ -959,7 +963,7 @@ tagfs_log_file_creation(
 	fc->fc_gid  = gid;
 
 	/* Copy extents into log entry */
-	for (i=0; i<nextents; i++) {
+	for (i = 0; i < nextents; i++) {
 		struct tagfs_log_extent *ext = &fc->tagfs_ext_list[i];
 
 		ext->tagfs_extent_type = TAGFS_EXT_SIMPLE;
@@ -1055,7 +1059,7 @@ __open_relpath(
 			/* no */
 		}
 
-	next:
+next:
 		/* Pop up one level; exit if we're at the top */
 		rpath = dirname(rpath);
 		if (strcmp(rpath, "/") == 0)
@@ -1213,7 +1217,8 @@ tagfs_fsck(
 	case S_IFCHR: {
 		char *mpt;
 		/* Check if there is a mounted tagfs file system on this device;
-		 * fail if so - if mounted, have to fsck by mount pt rather than device */
+		 * fail if so - if mounted, have to fsck by mount pt rather than device
+		 */
 		mpt = tagfs_get_mpt_by_dev(path);
 		if (mpt) {
 			fprintf(stderr, "%s: error - cannot fsck by device (%s) when mounted\n",
@@ -1390,7 +1395,7 @@ put_sb_log_into_bitmap(u8 *bitmap)
 	/* Mark superblock and log as allocated */
 	mu_bitmap_set(bitmap, 0);
 
-	for (i=1; i<((TAGFS_LOG_OFFSET + TAGFS_LOG_LEN) / TAGFS_ALLOC_UNIT); i++)
+	for (i = 1; i < ((TAGFS_LOG_OFFSET + TAGFS_LOG_LEN) / TAGFS_ALLOC_UNIT); i++)
 		mu_bitmap_set(bitmap, i);
 }
 
@@ -1433,7 +1438,7 @@ tagfs_build_bitmap(const struct tagfs_log   *logp,
 	put_sb_log_into_bitmap(bitmap);
 
 	/* This loop is over all log entries */
-	for (i=0; i<logp->tagfs_log_next_index; i++) {
+	for (i = 0; i < logp->tagfs_log_next_index; i++) {
 		const struct tagfs_log_entry *le = &logp->entries[i];
 
 		/* TODO: validate log sequence number */
@@ -1449,7 +1454,7 @@ tagfs_build_bitmap(const struct tagfs_log   *logp,
 				       fc->tagfs_relpath, fc->tagfs_fc_size);
 
 			/* For each extent in this log entry, mark the bitmap as allocated */
-			for (j=0; j<fc->tagfs_nextents; j++) {
+			for (j = 0; j < fc->tagfs_nextents; j++) {
 				s64 page_num;
 				s64 np;
 				s64 k;
@@ -1459,7 +1464,7 @@ tagfs_build_bitmap(const struct tagfs_log   *logp,
 				np = (ext[j].se.tagfs_extent_len + TAGFS_ALLOC_UNIT - 1)
 					/ TAGFS_ALLOC_UNIT;
 
-				for (k=page_num; k<(page_num + np); k++) {
+				for (k = page_num; k < (page_num + np); k++) {
 					rc = mu_bitmap_test_and_set(bitmap, k);
 					if (rc == 0) {
 						errors++; /* bit was already set */
@@ -1510,7 +1515,7 @@ bitmap_alloc_contiguous(u8 *bitmap,
 	int alloc_bits = (size + TAGFS_ALLOC_UNIT - 1) /  TAGFS_ALLOC_UNIT;
 	int bitmap_remainder;
 
-	for (i=0; i<nbits; i++) {
+	for (i = 0; i < nbits; i++) {
 		/* Skip bits that are set... */
 		if (mu_bitmap_test(bitmap, i))
 			continue;
@@ -1519,18 +1524,18 @@ bitmap_alloc_contiguous(u8 *bitmap,
 		if (alloc_bits > bitmap_remainder) /* Remaining space is not enough */
 			return 0;
 
-		for (j=i; j<(i+alloc_bits); j++) {
+		for (j = i; j < (i+alloc_bits); j++) {
 			if (mse_bitmap_test32(bitmap, j))
 				goto next;
 		}
 		/* If we get here, we didn't hit the "continue" which means that bits
 		 * i-(i+alloc_bits) are available
 		 */
-		for (j=i; j<(i+alloc_bits); j++)
+		for (j = i; j < (i+alloc_bits); j++)
 			mse_bitmap_set32(bitmap, j);
 
 		return i * TAGFS_ALLOC_UNIT;
-	next:
+next:
 	}
 	fprintf(stderr, "%s: alloc failed\n", __func__);
 	return 0;
@@ -1689,7 +1694,8 @@ tagfs_file_create(const char *path,
 {
 	int rc = 0;
 	int fd = open(path, O_RDWR | O_CREAT, mode); /* TODO: open as temp file,
-						      * move into place after alloc */
+						      * move into place after alloc
+						      */
 
 	if (fd < 0) {
 		fprintf(stderr, "%s: open/creat %s failed fd %d\n",
