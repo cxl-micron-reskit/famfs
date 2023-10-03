@@ -1771,6 +1771,100 @@ tagfs_dir_create(
  */
 
 int
+tagfs_mkdir(
+	const char *dirpath,
+	mode_t      mode,
+	uid_t       uid,
+	gid_t       gid)
+{
+	int rc;
+
+	char realparent[PATH_MAX];
+	char fullpath[PATH_MAX];
+	char mpt_out[PATH_MAX];
+	struct tagfs_log *logp;
+	char *dirdupe   = NULL;
+	char *parentdir = NULL;
+	char *basedupe  = NULL;
+	char *newdir    = NULL;
+	char *relpath   = NULL;
+	size_t log_size;
+	struct stat st;
+	void *addr;
+	int lfd;
+
+	dirdupe  = strdup(dirpath);  /* call dirname() on this dupe */
+	basedupe = strdup(dirpath); /* call basename() on this dupe */
+	newdir   = basename(basedupe);
+
+	/* full dirpath should not exist, but the parentdir path must exist and be a directory */
+	parentdir = dirname(dirdupe);
+	if (strcmp(parentdir, ".") == 0) {
+		fprintf(stderr, "%s: bad dirpath %s\n", __func__, dirpath);
+		rc = -1;
+		goto err_out;
+	}
+	rc = stat(parentdir, &st);
+	if ((st.st_mode & S_IFMT) != S_IFDIR) {
+		fprintf(stderr, "%s: parent (%s) of path %s is not a directory\n",
+			__func__, dirpath, parentdir);
+		rc = -1;
+		goto err_out;
+	}
+
+	/* parentdir exists and is a directory; rationalize the path with realpath */
+	if (realpath(parentdir, realparent) == 0) {
+		fprintf(stderr, "%s: failed to rationalize parentdir path (%s)\n",
+			__func__, parentdir);
+		rc = -1;
+		goto err_out;
+	}
+
+	/* Rebuild full path of to-be-createed directory from the rationalized parent dir path */
+	rc = snprintf(fullpath, PATH_MAX - 1, "%s/%s", realparent, newdir);
+	if (rc < 0) {
+		fprintf(stderr, "%s: fullpath overflow\n", __func__);
+		goto err_out;
+	}
+
+	/*
+	 * For this operation we need to open the log file, which also gets us
+	 * the mount point path
+	 */
+	lfd  = open_log_file_writable(realparent, &log_size, mpt_out);
+	addr = mmap(0, log_size, PROT_READ | PROT_WRITE, MAP_SHARED, lfd, 0);
+	if (addr == MAP_FAILED) {
+		fprintf(stderr, "%s: Failed to mmap log file\n", __func__);
+		rc = -1;
+		goto err_out;
+	}
+	close(lfd);
+	lfd  = 0;
+	logp = (struct tagfs_log *)addr;
+
+	printf("%s: creating directory %s\n", __func__, fullpath);
+
+	relpath = tagfs_relpath_from_fullpath(mpt_out, fullpath);
+	rc = tagfs_dir_create(mpt_out, relpath, mode, uid, gid);
+	if (rc) {
+		fprintf(stderr, "%s: failed to mkdir %s\n", __func__, fullpath);
+		rc = -1;
+		goto err_out;
+	}
+
+	/* log dir creation */
+	rc = tagfs_log_dir_creation(logp, relpath, mode, uid, gid);
+
+err_out:
+	if (dirdupe)
+		free(dirdupe);
+	if (basedupe)
+		free(basedupe);
+
+	return rc;
+}
+
+int
 tagfs_cp(char *srcfile,
 	 char *destfile)
 {
