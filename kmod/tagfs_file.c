@@ -585,6 +585,44 @@ tagfs_file_mmap(
 	return 0;
 }
 
+/* Wrappers for generic functions, we we can see them being called */
+ssize_t tagfs_file_splice_read(struct file *in, loff_t *ppos,
+			       struct pipe_inode_info *pipe, size_t len,
+			       unsigned int flags)
+{
+	ssize_t rc;
+
+	pr_info("%s: ppos %lld len %ld flags %x\n",
+		__func__, *ppos, len, flags);
+	rc = generic_file_splice_read(in, ppos, pipe, len, flags);
+	pr_info("%s: rc %ld\n", __func__, rc);
+	return rc;
+}
+
+ssize_t
+tagfs_iter_file_splice_write(struct pipe_inode_info *pipe, struct file *out,
+			     loff_t *ppos, size_t len, unsigned int flags)
+{
+	ssize_t rc;
+
+	pr_info("%s: ppos %lld len %ld flags %x\n",
+		__func__, *ppos, len, flags);
+	rc = iter_file_splice_write(pipe, out, ppos, len, flags);
+	pr_info("%s: rc %ld\n", __func__, rc);
+	return rc;
+}
+
+loff_t tagfs_generic_file_llseek(struct file *file, loff_t offset, int whence)
+{
+	loff_t rc;
+
+	pr_info("%s: offset %lld whence %d\n", __func__, offset, whence);
+	rc = generic_file_llseek(file, offset, whence);
+	pr_info("%s: rc %lld\n", __func__, rc);
+	return rc;
+
+}
+
 const struct file_operations tagfs_file_operations = {
 	.owner             = THIS_MODULE,
 
@@ -597,9 +635,11 @@ const struct file_operations tagfs_file_operations = {
 
 	/* Generic Operations */
 	.fsync		   = noop_fsync, /* TODO: could to wbinv on range :-/ */
-	.splice_read	   = generic_file_splice_read,
-	.splice_write	   = iter_file_splice_write,
-	.llseek		   = generic_file_llseek,
+
+	/* XXX: these can probably return to the generic versions */
+	.splice_read	   = tagfs_file_splice_read,
+	.splice_write	   = tagfs_iter_file_splice_write,
+	.llseek		   = tagfs_generic_file_llseek,
 };
 
 const struct inode_operations tagfs_file_inode_operations = {
