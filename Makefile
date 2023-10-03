@@ -14,6 +14,6 @@ doxygen:
 	doxygen Doxyfile
 
 checkfiles:	FORCE
-	@./checkfiles
+	@./scripts/checkfiles
 
 FORCE: ;
