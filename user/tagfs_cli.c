@@ -695,7 +695,7 @@ do_tagfs_cli_clone(int argc, char *argv[])
 	/* Create the destination file. This will be unlinked later if we don't get all
 	 * the way through the operation.
 	 */
-	dfd = tagfs_file_create(destfile, mode, uid, gid, filemap.file_size);
+	dfd = tagfs_file_create(destfile, mode, uid, gid);
 	if (dfd < 0) {
 		fprintf(stderr, "%s: failed to create file %s\n", __func__, destfile);
 		rc = -1;
@@ -902,29 +902,17 @@ do_tagfs_cli_creat(int argc, char *argv[])
 			exit(-1);
 		}
 	}
-	fd = tagfs_file_create(filename, mode, uid, gid, fsize);
+	fd = tagfs_mkfile(filename, mode, uid, gid, fsize);
 	if (fd < 0) {
 		fprintf(stderr, "%s: failed to create file %s\n", __func__, fullpath);
 		exit(-1);
 	}
-
-	/* Clean up the filename path. (Can't call realpath until the file exists) */
-	if (realpath(filename, fullpath) == NULL) {
-		fprintf(stderr, "%s: realpath() unable to rationalize filename %s\n",
-			__func__, filename);
-	}
-
-	rc = tagfs_file_alloc(fd, fullpath, O_RDWR, uid, gid, fsize);
-	if (rc)
-		fprintf(stderr, "%s: tagfs_file_alloc(%s, size=%ld) failed\n",
-		  __func__, fullpath, fsize);
-
 	if (randomize) {
 		struct stat st;
 		void *addr;
 		char *buf;
 
-		rc = stat(fullpath, &st);
+		rc = fstat(fd, &st);
 		if (rc) {
 			fprintf(stderr, "%s: failed to stat newly craeated file %s\n",
 				__func__, fullpath);
@@ -934,7 +922,7 @@ do_tagfs_cli_creat(int argc, char *argv[])
 			fprintf(stderr, "%s: file size mismatch %ld/%ld\n",
 				__func__, fsize, st.st_size);
 		}
-		addr = mmap_whole_file(fullpath, 0, NULL);
+		addr = mmap(0, fsize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 		if (!addr) {
 			fprintf(stderr, "%s: randomize mmap failed\n", __func__);
 			exit(-1);

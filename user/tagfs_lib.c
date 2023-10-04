@@ -560,7 +560,7 @@ tagfs_mkmeta(const char *devname)
 }
 
 /**
- * map_whole_file()
+ * mmap_whole_file()
  *
  * @fname
  * @read_only - mmap will be read-only if true
@@ -748,8 +748,7 @@ tagfs_logplay(
 			}
 			printf("%s: creating file %s\n", __func__, fc->tagfs_relpath);
 			fd = tagfs_file_create(rpath, fc->fc_mode,
-					       fc->fc_uid, fc->fc_gid,
-					       fc->tagfs_fc_size);
+					       fc->fc_uid, fc->fc_gid);
 			if (fd < 0) {
 				fprintf(stderr,
 					"%s: unable to create destfile (%s)\n",
@@ -1627,6 +1626,7 @@ tagfs_file_alloc(
 	/* Log file */
 	lfd = open_log_file_writable(rpath, &log_size, mpt);
 	if (lfd < 0) {
+		/* If we can't open the log file for writing, don't allocate */
 		free(rpath);
 		return lfd;
 	}
@@ -1684,13 +1684,14 @@ out:
  * @size
  *
  * Returns a file descriptior or -EBADF if the path is not in a tagfs file system
+ *
+ * TODO: append "_empty" to function name
  */
 int
 tagfs_file_create(const char *path,
 		  mode_t      mode,
 		  uid_t       uid,
-		  gid_t       gid,
-		  size_t      size)
+		  gid_t       gid)
 {
 	int rc = 0;
 	int fd = open(path, O_RDWR | O_CREAT, mode); /* TODO: open as temp file,
@@ -1716,6 +1717,43 @@ tagfs_file_create(const char *path,
 		if (rc)
 			fprintf(stderr, "%s: fchown returned %d errno %d\n",
 				__func__, rc, errno);
+	}
+	return fd;
+}
+
+/**
+ * tagfs_mkfile()
+ *
+ * Create *and* allocate a file
+ *
+ * Returns an open file descriptor if successful.
+ */
+int
+tagfs_mkfile(char    *filename,
+	     mode_t   mode,
+	     uid_t    uid,
+	     gid_t    gid,
+	     size_t   size)
+{
+	int fd, rc;
+	char fullpath[PATH_MAX];
+
+	fd = tagfs_file_create(filename, mode, uid, gid);
+	if (fd < 0)
+		return fd;
+
+	/* Clean up the filename path. (Can't call realpath until the file exists) */
+	if (realpath(filename, fullpath) == NULL) {
+		fprintf(stderr, "%s: realpath() unable to rationalize filename %s\n",
+			__func__, filename);
+	}
+
+	rc = tagfs_file_alloc(fd, fullpath, O_RDWR, uid, gid, size);
+	if (rc) {
+		fprintf(stderr, "%s: tagfs_file_alloc(%s, size=%ld) failed\n",
+			__func__, fullpath, size);
+		unlink(fullpath);
+		return -1;
 	}
 	return fd;
 }
@@ -1892,8 +1930,7 @@ tagfs_cp(char *srcfile,
 		return rc;
 	}
 
-	destfd = tagfs_file_create(destfile, srcstat.st_mode, srcstat.st_uid, srcstat.st_gid,
-				   srcstat.st_size);
+	destfd = tagfs_file_create(destfile, srcstat.st_mode, srcstat.st_uid, srcstat.st_gid);
 	if (destfd < 0) {
 		if (destfd == -EBADF)
 			fprintf(stderr,
