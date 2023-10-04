@@ -50,4 +50,5 @@ add_subdirectory(${CMAKE_BINARY_DIR}/googletest-src
 enable_testing()
 
 add_subdirectory(testlib)
+add_subdirectory(test)
 
