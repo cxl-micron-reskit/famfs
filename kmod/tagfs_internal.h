@@ -36,6 +36,7 @@ struct tagfs_file_meta {
 	size_t                tfs_extent_ct;
 	char                 *dax_devname;
 	struct dax_device    *daxdev;
+	size_t                file_size;
 	struct tagfs_extent   tfs_extents[];  /* flexible array */
 };
 

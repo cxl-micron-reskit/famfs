@@ -227,6 +227,7 @@ tagfs_file_init_dax(
 		goto errout;
 
 	meta->file_type = imap.file_type;
+	meta->file_size = imap.file_size;
 
 	if (meta->file_type == TAGFS_SUPERBLOCK)
 		pr_info("%s: superblock\n", __func__);
@@ -313,6 +314,7 @@ tagfs_file_init_dax(
  *           to a dax device.
  * @offset - the offset within the file where the fault occurred (will be page boundary)
  * @len    - the length of the faulted mapping (will be a page multiple)
+ *           (will be trimmed in *iomap if it's disjoint in the extent list)
  * @flags
  */
 static int
@@ -375,6 +377,7 @@ tagfs_meta_to_dax_offset(
 			 * starts
 			 */
 			iomap->addr    = dax_ext_offset + local_offset; /* "disk offset" */
+			iomap->offset  = offset; /* file offset */
 			iomap->length  = min_t(loff_t, len, ext_len_remainder);
 			iomap->dax_dev = fsi->dax_devp;
 			iomap->type    = IOMAP_MAPPED;
@@ -387,8 +390,19 @@ tagfs_meta_to_dax_offset(
 		}
 		local_offset -= dax_ext_len; /* Get ready for the next extent */
 	}
-	pr_err("%s: Failed to resolve offset %lld len %lld\n", __func__, offset, len);
-	return 1; /* What is correct error to return? */
+
+	/*  XXX !!! set iomap to zero length in this case, and return 0 !!!
+	 * This just means that the r/w is past EOF
+	 */
+	iomap->addr    = offset;
+	iomap->offset  = offset; /* file offset */
+	iomap->length  = 0; /* this had better result in no access to dax mem */
+	iomap->dax_dev = fsi->dax_devp;
+	iomap->type    = IOMAP_MAPPED;
+	iomap->flags   = flags;
+
+	pr_notice("%s: Access past EOF (offset %lld len %lld\n", __func__, offset, len);
+	return 0; /* What is correct error to return? */
 }
 
 
@@ -513,8 +527,31 @@ tagfs_dax_read_iter(
 	struct kiocb		*iocb,
 	struct iov_iter		*to)
 {
+	struct inode *inode = iocb->ki_filp->f_mapping->host;
+	size_t i_size       = i_size_read(inode);
 	ssize_t			ret = 0;
+	size_t count        = iov_iter_count(to);
+	struct tagfs_file_meta *meta = inode->i_private;
+	size_t max_count;
 
+	pr_info("%s: ofs %lld count %ld type %s i_size %ld\n", __func__,
+		iocb->ki_pos, iov_iter_count(to), tagfs_get_iov_iter_type(to), i_size);
+
+	if (!meta) {
+		pr_err("%s: un-initialized tagfs file\n", __func__);
+		return -EIO;
+	}
+	if (i_size != meta->file_size) {
+		pr_err("%s: something changed the size from  %ld to %ld\n",
+		       __func__, meta->file_size, i_size);
+		return -ENXIO;
+	}
+	max_count = max_t(size_t, 0, i_size - iocb->ki_pos);
+
+	if (count > max_count) {
+		pr_notice("%s: truncating to max_count\n", __func__);
+		iov_iter_truncate(to, max_count);
+	}
 
 	if (!iov_iter_count(to))
 		return 0; /* skip atime */
@@ -536,23 +573,33 @@ tagfs_dax_write_iter(
 	struct iov_iter *from)
 {
 	struct inode *inode = iocb->ki_filp->f_mapping->host;
-	size_t max_count    = i_size_read(inode) - iocb->ki_pos;
+	size_t i_size       = i_size_read(inode);
 	size_t count        = iov_iter_count(from);
+	struct tagfs_file_meta *meta = inode->i_private;
+	size_t max_count;
+
+	if (!meta) {
+		pr_err("%s: un-initialized tagfs file\n", __func__);
+		return -EIO;
+	}
+	if (i_size != meta->file_size) {
+		pr_err("%s: something changed the size from  %ld to %ld\n",
+		       __func__, meta->file_size, i_size);
+		return -ENXIO;
+	}
+	max_count = max_t(size_t, 0, i_size - iocb->ki_pos);
 
 	if (!IS_DAX(inode)) {
 		pr_err("%s: inode %llx IS_DAX is false\n", __func__, (u64)inode);
 		return 0;
 	}
+
 	/* Starting offset of write is: ioct->ki_pos
 	 * length is iov_iter_count(from)
 	 */
-	/* TODO: truncate "from" if necessary so that
-	 * (ki_pos + from_length) <= i_size
-	 * (i.e. i_size will not increase)
-	 * TODO: unit test for this
-	 */
-	pr_notice("%s: iter_type=%s count %ld max_count %ldx\n",
-	       __func__, tagfs_get_iov_iter_type(from), count, max_count);
+
+	pr_notice("%s: iter_type=%s offset %lld count %ld max_count %ldx\n",
+		  __func__, tagfs_get_iov_iter_type(from), iocb->ki_pos, count, max_count);
 
 	/* If write would go past EOF, truncate it to end at EOF
 	 * TODO: truncate at length of extent list instead - then append can happen if sufficient
@@ -562,6 +609,9 @@ tagfs_dax_write_iter(
 		pr_notice("%s: truncating to max_count\n", __func__);
 		iov_iter_truncate(from, max_count);
 	}
+
+	if (!iov_iter_count(from))
+		return 0; /* skip atime */
 
 	return dax_iomap_rw(iocb, from, &tagfs_iomap_ops);
 }
@@ -656,7 +706,7 @@ const struct inode_operations tagfs_file_inode_operations = {
  */
 
 /**
- * tagfs_read_iomap_begin()
+ * tagfs_iomap_begin()
  *
  * This function is pretty simple because files are
  * * never partially allocated
@@ -672,6 +722,7 @@ tagfs_iomap_begin(
 	struct iomap	       *iomap,
 	struct iomap	       *srcmap)
 {
+	struct tagfs_file_meta *meta = inode->i_private;
 	char flag_str[200];
 	size_t size;
 	int rc;
@@ -688,20 +739,13 @@ tagfs_iomap_begin(
 	/* TODO: find the right way to trim a write if it overflows the file's allocation
 	 * This isn't quite right yet, and it's reproducible by comparing files with "cmp"
 	 */
-#if 0
-	if ((offset + length) > i_size_read(inode)) {
-		pr_err("%s: ofs + length exceeds file size; append not allowed\n",
-		       __func__);
-		return -EINVAL;
-	}
-#else
+
 	/* If length overhangs i_size, truncate it to i_size */
 	size = i_size_read(inode);
-	if (offset > size)
-		return -EINVAL;
 
-	length = min_t(size_t, length, (i_size_read(inode) - offset));
-#endif
+	if (size != meta->file_size)  /* Temporary for debug */
+		pr_err("%s: something changed the size from  %ld to %ld\n",
+		       __func__, meta->file_size, size);
 
 	/* Need to lock inode? */
 
@@ -769,7 +813,7 @@ tagfs_filemap_fault(
 	struct vm_fault		*vmf)
 {
 	if (iomap_verbose)
-		pr_notice("%s\n", __func__);
+		pr_notice("%s pgoff %ld\n", __func__, vmf->pgoff);
 
 	/* DAX can shortcut the normal fault path on write faults! */
 	return __tagfs_filemap_fault(vmf, PE_SIZE_PTE,
@@ -781,7 +825,7 @@ tagfs_filemap_huge_fault(
 	struct vm_fault	       *vmf,
 	enum page_entry_size	pe_size)
 {
-	pr_notice("%s\n", __func__);
+	pr_notice("%s pgoff %ld\n", __func__, vmf->pgoff);
 
 	if (!IS_DAX(file_inode(vmf->vma->vm_file))) {
 		pr_err("%s: file not marked IS_DAX!!\n", __func__);
