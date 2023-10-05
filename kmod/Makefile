@@ -16,7 +16,7 @@ clean:
 
 all:
 	make -k -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
-#	cp tagfs.ko $(KHOME)/fs/tagfs/
+	cp tagfs.ko $(KHOME)/fs/tagfs/
 
 # jg: the line commented out above puts tagfs.ko in the kernel build tree
 # so gdb can find it. This is only needed if you're running a VM under gdb,

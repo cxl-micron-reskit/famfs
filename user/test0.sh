@@ -57,6 +57,9 @@ ${CLI} verify -S 1 -f $MPT/test1 || fail "verify 1 after multi creat"
 ${CLI} verify -S 2 -f $MPT/test2 || fail "verify 2 after multi creat"
 ${CLI} verify -S 3 -f $MPT/test3 || fail "verify 3 after multi creat"
 
+# Create same file should fail
+${CLI} creat -r -s 4096 -S 1 -f $MPT/test1   && fail "Create should fail if file exists"
+
 # Unmount and remount
 sudo umount $MPT || fail "umount"
 grep -c tagfs /proc/mounts         && fail "tagfs is still mounted after umount attempt"
