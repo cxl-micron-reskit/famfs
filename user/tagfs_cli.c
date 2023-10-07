@@ -778,12 +778,17 @@ tagfs_creat_usage(int   argc,
 	       "Create a file backed by free space:\n"
 	       "    %s -s <size> <filename>\n\n"
 	       "\nCreate a file containing randomized data from a specific seed:\n"
-	       "    %s -s size --randomize --seed <myseed> <filename"
-	       "\nCreate a file backed by one or morespecified extents:\n"
-	       "    %s -n <num_extents> -o <hpa> -l <len> [-o <hpa> -l <len> ... ] <filename>\n"
-	       "\n"
-	       "(the allocation will be logged without regard to whether the "
-	       "extents were available\n\n",
+	       "    %s -s size --randomize --seed <myseed> <filename>"
+	       "Create a file backed by free space, with octal mode 0644:\n"
+	       "    %s -s <size> -m 0644 <filename>\n\n"
+	       "Options:\n"
+	       "--size|-s <size>           - Required file size\n"
+	       "--seed|-S <random-seed>    - Optional seed for randomization\n"
+	       "--randomize|-r             - Optional - will randomize with provided seed\n"
+	       "--mode|-m <octal-mode>     - Default is 0644\n"
+	       "--uid|-u <int uid>         - Default is caller's uid\n"
+	       "--gid|-g <int gid>         - Default is caller's gid\n"
+	       "\n",
 	       progname, progname, progname);
 }
 
@@ -795,11 +800,10 @@ do_tagfs_cli_creat(int argc, char *argv[])
 	char fullpath[PATH_MAX];
 
 	size_t fsize = 0;
-	size_t ext_list_size = 0;
 	int arg_ct = 0;
 	uid_t uid = geteuid();
 	gid_t gid = getegid();
-	mode_t mode = S_IRUSR|S_IWUSR;
+	mode_t mode = 0644;
 	s64 seed;
 	int randomize = 0;
 
@@ -808,10 +812,12 @@ do_tagfs_cli_creat(int argc, char *argv[])
 	/* XXX can't use any of the same strings as the global args! */
 	struct option creat_options[] = {
 		/* These options set a flag. */
-		{"filename",    required_argument,             0,  'f'},
 		{"size",        required_argument,             0,  's'},
 		{"seed",        required_argument,             0,  'S'},
 		{"randomize",   no_argument,                   0,  'r'},
+		{"mode",        required_argument,             0,  'm'},
+		{"uid",         required_argument,             0,  'u'},
+		{"gid",         required_argument,             0,  'g'},
 		/* These options don't set a flag.
 		 * We distinguish them by their indices.
 		 */
@@ -837,7 +843,7 @@ do_tagfs_cli_creat(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+f:s:S:rh?",
+	while ((c = getopt_long(argc, argv, "+s:S:m:u:g:rh?",
 				creat_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -848,12 +854,6 @@ do_tagfs_cli_creat(int argc, char *argv[])
 		arg_ct++;
 		switch (c) {
 
-		case 'f': {
-			filename = optarg;
-			printf("filename: %s\n", filename);
-			/* TODO: make sure filename is in a tagfs file system */
-			break;
-		}
 		case 's':
 			fsize = strtoull(optarg, 0, 0);
 			if (fsize <= 0) {
@@ -867,41 +867,57 @@ do_tagfs_cli_creat(int argc, char *argv[])
 			seed = strtoull(optarg, 0, 0);
 			break;
 
+		case 'm':
+			mode = strtol(optarg, 0, 8); /* Must be valid octal */
+			break;
+
+		case 'u':
+			uid = strtol(optarg, 0, 0);
+			if (uid < 0) {
+				fprintf(stderr, "uid must be positive integer\n");
+				exit(-1);
+			}
+			break;
+
+		case 'g':
+			gid = strtol(optarg, 0, 0);
+			if (gid < 0) {
+				fprintf(stderr, "gid must be positive integer\n");
+				exit(-1);
+			}
+			break;
+
 		case 'r':
 			randomize++;
 			break;
 
 		case 'h':
-			fsize = strtoull(optarg, 0, 0);
-			if (fsize <= 0) {
-				fprintf(stderr, "invalid file size %ld\n",
-					fsize);
-				exit(-1);
-			}
-			break;
-
 		case '?':
 			tagfs_creat_usage(argc, argv);
 			return 0;
 
 		default:
-			printf("default (%c)\n", c);
+			printf("%s: urecognized argument (%c)\n", __func__, c);
 			return -1;
 		}
 	}
 
+	if (optind >= argc) {
+		fprintf(stderr, "Must specify at least one dax device\n");
+		return -1;
+	}
+	filename = argv[optind++];
 	if (filename == NULL) {
 		fprintf(stderr, "Must supply filename\n");
 		exit(-1);
 	}
 
-	if (ext_list_size && fsize) {
-		if (fsize > ext_list_size) {
-			fprintf(stderr, "error: fsize(%ld) > ext_list_size (%ld)\n",
-				fsize, ext_list_size);
-			exit(-1);
-		}
+	if (!fsize) {
+		fprintf(stderr, "Non-zero file size is required\n");
+		exit(-1);
 	}
+
+	printf("mode: %o\n", mode);
 	fd = tagfs_mkfile(filename, mode, uid, gid, fsize);
 	if (fd < 0) {
 		fprintf(stderr, "%s: failed to create file %s\n", __func__, fullpath);

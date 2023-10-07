@@ -45,12 +45,12 @@ sudo test -f $MPT/.meta/.log        || fail "no log file after mkmeta"
 #exit
 
 # Create 1 file and verify
-${CLI} creat -r -s 4096 -S 1 -f $MPT/test1   || fail "creat test1"
+${CLI} creat -r -s 4096 -S 1 $MPT/test1   || fail "creat test1"
 ${CLI} verify -S 1 -f $MPT/test1 || fail "verify 1 after creat"
 
 # Create 2 more files
-${CLI} creat -r -s 4096 -S 2 -f $MPT/test2   || fail "creat test2"
-${CLI} creat -r -s 4096 -S 3 -f $MPT/test3   || fail "creat test3"
+${CLI} creat -r -s 4096 -S 2 $MPT/test2   || fail "creat test2"
+${CLI} creat -r -s 4096 -S 3 $MPT/test3   || fail "creat test3"
 
 # Verify all 3 files
 ${CLI} verify -S 1 -f $MPT/test1 || fail "verify 1 after multi creat"
@@ -58,7 +58,7 @@ ${CLI} verify -S 2 -f $MPT/test2 || fail "verify 2 after multi creat"
 ${CLI} verify -S 3 -f $MPT/test3 || fail "verify 3 after multi creat"
 
 # Create same file should fail
-${CLI} creat -r -s 4096 -S 1 -f $MPT/test1   && fail "Create should fail if file exists"
+${CLI} creat -r -s 4096 -S 1 $MPT/test1   && fail "Create should fail if file exists"
 
 # Unmount and remount
 sudo umount $MPT || fail "umount"

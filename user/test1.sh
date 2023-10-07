@@ -33,11 +33,11 @@ verify_mounted $DEV $MPT "test1.sh"
 #
 
 F=test10
-${CLI} creat -r -s 8192 -S 10 -f $MPT/$F   || fail "creat $F"
+${CLI} creat -r -s 8192 -S 10 $MPT/$F   || fail "creat $F"
 ${CLI} verify -S 10 -f $MPT/$F || fail "verify $F after replay"
 
 F=bigtest0
-${CLI} creat -r -S 42 -s 0x800000 -f $MPT/$F   || fail "creat $F"
+${CLI} creat -r -S 42 -s 0x800000 $MPT/$F   || fail "creat $F"
 ${CLI} verify -S 42 -f $MPT/$F                 || fail "$F mismatch"
 
 ${CLI} cp $MPT/$F $MPT/${F}_cp      || fail "cp $F"

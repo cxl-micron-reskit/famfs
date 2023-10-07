@@ -26,7 +26,7 @@ ${CLI} fsck $MPT || fail "fsck should succeed"
 
 # Try to create a file that is not in a tagfs file system (assume relative path not in one)
 NOT_IN_TAGFS=no_leading_slash
-${CLI} creat -s 0x400000 -f $NOT_IN_TAGFS \
+${CLI} creat -s 0x400000 $NOT_IN_TAGFS \
      && fail "creating file not in tagfs file system should fail"
 
 # Tagfs getmap should succeed on a file that exists
@@ -47,7 +47,7 @@ SIZE=0x4000000
 for N in 10 11 12 13 14 15
 do
     FILE=${F}${N}
-    ${CLI} creat -r -S $N -s $SIZE -f $MPT/$FILE || fail "creat $FILE"
+    ${CLI} creat -r -S $N -s $SIZE $MPT/$FILE || fail "creat $FILE"
     ${CLI} verify -S $N -f $MPT/$FILE                || fail "$FILE mismatch"
 done
 

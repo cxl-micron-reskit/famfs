@@ -4,6 +4,7 @@
 #
 
 EXTRA_CFLAGS += -g -DDEBUG -O1
+#EXTRA_CFLAGS += -DCONFIG_TAGFS_CHAR_DAX=y
 
 obj-m += tagfs.o
 

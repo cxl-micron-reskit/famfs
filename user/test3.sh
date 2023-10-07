@@ -25,9 +25,9 @@ verify_mounted $DEV $MPT "test2.sh"
 sudo cmp $MPT/bigtest0 $MPT/bigtest0_cp       || fail "copies should match"
 sudo cmp $MPT/bigtest10 $MPT/bigtest11        && fail "files should not match"
 
-${CLI} creat -r -s 4096 -S 1 -f $MPT/ddtest   || fail "creat ddfile"
+${CLI} creat -r -s 4096 -S 1 $MPT/ddtest   || fail "creat ddfile"
 ${CLI} verify -S 1 -f $MPT/test1              || fail "verify ddfile creat"
-#sudo dd if=/dev/zero of=$MPT/ddtest bs=4096   || fail "dd into ddfile"
+#sudo dd if=/dev/zero of=$MPT/ddtest bs=4096 conv=notrunc  || fail "dd into ddfile"
 #${CLI} verify -S 1 -f $MPT/test1              && fail "verify should fail after dd overwrite"
 sudo dd of=/dev/null if=$MPT/ddtest bs=4096   || fail "dd out of ddfile"
 

@@ -746,7 +746,8 @@ tagfs_logplay(
 					__func__, rpath);
 				continue;
 			}
-			printf("%s: creating file %s\n", __func__, fc->tagfs_relpath);
+			printf("%s: creating file %s mode %o\n",
+			       __func__, fc->tagfs_relpath, fc->fc_mode);
 			fd = tagfs_file_create(rpath, fc->fc_mode,
 					       fc->fc_uid, fc->fc_gid);
 			if (fd < 0) {
@@ -1693,11 +1694,19 @@ tagfs_file_create(const char *path,
 		  uid_t       uid,
 		  gid_t       gid)
 {
+	struct stat st;
 	int rc = 0;
-	int fd = open(path, O_RDWR | O_CREAT, mode); /* TODO: open as temp file,
-						      * move into place after alloc
-						      */
+	int fd;
 
+	rc = stat(path, &st);
+	if (rc == 0) {
+		fprintf(stderr, "%s: file already exists: %s\n", __func__, path);
+		return -1;
+	}
+
+	fd = open(path, O_RDWR | O_CREAT, mode); /* TODO: open as temp file,
+						  * move into place after alloc
+						  */
 	if (fd < 0) {
 		fprintf(stderr, "%s: open/creat %s failed fd %d\n",
 			__func__, path, fd);
@@ -1748,7 +1757,7 @@ tagfs_mkfile(char    *filename,
 			__func__, filename);
 	}
 
-	rc = tagfs_file_alloc(fd, fullpath, O_RDWR, uid, gid, size);
+	rc = tagfs_file_alloc(fd, fullpath, mode, uid, gid, size);
 	if (rc) {
 		fprintf(stderr, "%s: tagfs_file_alloc(%s, size=%ld) failed\n",
 			__func__, fullpath, size);
