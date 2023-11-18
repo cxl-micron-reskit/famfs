@@ -42,6 +42,16 @@ struct tagfs_ioc_map {
 	struct tagfs_extent      *ext_list;
 };
 
+static inline size_t tioc_ext_list_size(struct tagfs_ioc_map *map)
+{
+	return (map->ext_list_count * sizeof(*map->ext_list));
+}
+
+static inline size_t tioc_ext_count(struct tagfs_ioc_map *map)
+{
+	return (map->ext_list_count);
+}
+
 /*
  * S means "Set" through a ptr,
  * T means "Tell" directly with the argument value
