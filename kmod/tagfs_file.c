@@ -109,22 +109,22 @@ extent_type_str(enum extent_type et)
  */
 static int
 tagfs_meta_alloc(
-	struct tagfs_file_meta  **mapp,
+	struct tagfs_file_meta  **metap,
 	size_t                    ext_count)
 {
-	struct tagfs_file_meta *map;
-	size_t                  mapsz;
+	struct tagfs_file_meta *meta;
+	size_t                  metasz;
 
-	*mapp = NULL;
+	*metap = NULL;
 
-	mapsz = sizeof(*map) + sizeof(*(map->tfs_extents)) * ext_count;
+	metasz = sizeof(*meta) + sizeof(*(meta->tfs_extents)) * ext_count;
 
-	map = kzalloc(mapsz, GFP_KERNEL);
-	if (!map)
+	meta = kzalloc(metasz, GFP_KERNEL);
+	if (!meta)
 		return -ENOMEM;
 
-	map->tfs_extent_ct = ext_count;
-	*mapp = map;
+	meta->tfs_extent_ct = ext_count;
+	*metap = meta;
 
 	return 0;
 }
@@ -134,6 +134,49 @@ tagfs_meta_free(
 	struct tagfs_file_meta *map)
 {
 	kfree(map);
+}
+
+static void
+tagfs_debug_dump_imap(struct tagfs_ioc_map *imap)
+{
+	if (!tagfs_verbose)
+		return;
+
+	pr_info("%s: ", __func__);
+	switch (imap->file_type) {
+	case TAGFS_SUPERBLOCK:
+		pr_info(" [superblock] ");
+		break;
+	case TAGFS_LOG:
+		pr_info(" [log file] ");
+		break;
+	case TAGFS_REG:
+		pr_info(" [Regular file]");
+		break;
+	default:
+		pr_err("[unrecognized file type %d]", imap->file_type);
+	}
+
+	switch(imap->extent_type) {
+	case HPA_EXTENT:
+		pr_info(" [HPA_EXTENT] ");
+		break;
+	case DAX_EXTENT:
+		pr_info(" [DAX_EXTENT] ");
+		break;
+	case FSDAX_EXTENT:
+		pr_info(" [FSDAX_EXTENT] ");
+		break;
+	case TAG_EXTENT:
+		pr_info(" [TAG_EXTENT] ");
+		break;
+	default:
+		pr_info(" [bogus extent type] ");
+		break;
+	}
+
+	pr_info(" [size=%ld] [ext_count=%ld] [ext_list=%llx]\n",
+		imap->file_size, imap->ext_list_count, (long long)imap->ext_list);
 }
 
 /**
@@ -157,7 +200,7 @@ tagfs_file_init_dax(
 	struct inode           *inode;
 
 	size_t  ext_count;
-	size_t  count = 0;
+	size_t  extent_total = 0;
 	int     rc = 0;
 	int     i;
 	int     alignment_errs = 0;
@@ -169,6 +212,8 @@ tagfs_file_init_dax(
 	if (rc)
 		return -EFAULT;
 
+	tagfs_debug_dump_imap(&imap);
+
 	ext_count = imap.ext_list_count;
 	if (ext_count < 1) {
 		pr_err("%s: invalid extent count %ld type %s\n",
@@ -176,8 +221,6 @@ tagfs_file_init_dax(
 		rc = -ENOSPC;
 		goto errout;
 	}
-	if (tagfs_verbose)
-		pr_info("%s: there are %ld extents\n", __func__, ext_count);
 
 	if (ext_count > TAGFS_MAX_EXTENTS) {
 		rc = -E2BIG;
@@ -190,7 +233,7 @@ tagfs_file_init_dax(
 		rc = -EBADF;
 		goto errout;
 	}
-	sb = inode->i_sb;
+	sb  = inode->i_sb;
 	fsi = inode->i_sb->s_fs_info;
 
 	/* Get space to copyin ext list from user space */
@@ -210,37 +253,12 @@ tagfs_file_init_dax(
 		goto errout;
 	}
 
-	/* Look through the extents and make sure they meet alignment reqs and
-	 * add up to the right size
-	 */
-	for (i = 0; i < imap.ext_list_count; i++)
-		count += tfs_extents[i].len;
-
-	/* File size can be <= ext list size, since extent sizes are constrained */
-	if (imap.file_size > count) {
-		pr_err("%s: file size %ld larger than ext list count %ld\n",
-		       __func__, imap.file_size, count);
-		rc = -EINVAL;
-		goto errout;
-	}
-
 	rc = tagfs_meta_alloc(&meta, ext_count);
 	if (rc)
 		goto errout;
 
 	meta->file_type = imap.file_type;
 	meta->file_size = imap.file_size;
-
-	if (meta->file_type == TAGFS_SUPERBLOCK) {
-		if (tagfs_verbose)
-			pr_info("%s: superblock\n", __func__);
-	} else if (meta->file_type == TAGFS_LOG) {
-		if (tagfs_verbose)
-			pr_info("%s: log\n", __func__);
-	} else {
-		if (tagfs_verbose)
-			pr_info("%s: Regular file\n", __func__);
-	}
 
 	/* Fill in the internal file metadata structure */
 	for (i = 0; i < imap.ext_list_count; i++) {
@@ -249,6 +267,8 @@ tagfs_file_init_dax(
 
 		offset = imap.ext_list[i].offset;
 		len    = imap.ext_list[i].len;
+
+		extent_total += len;
 
 		if (tagfs_verbose)
 			pr_info("%s: ext %d ofs=%lx len=%lx\n", __func__, i, offset, len);
@@ -262,8 +282,6 @@ tagfs_file_init_dax(
 		/* TODO: get HPA from Tag DAX device. Hmmm. */
 		meta->tfs_extents[i].offset = offset;
 		meta->tfs_extents[i].len    = len;
-		if (tagfs_verbose)
-			pr_info("%s: offset %lx len %ld\n", __func__, offset, len);
 
 		/* All extent addresses/offsets must be 2MiB aligned,
 		 * and all but the last length must be a 2MiB multiple.
@@ -278,6 +296,17 @@ tagfs_file_init_dax(
 			       __func__, i, len);
 			alignment_errs++;
 		}
+	}
+
+	/*
+	 * File size can be <= ext list size, since extent sizes are constrained
+	 * to PMD multiples
+	 */
+	if (imap.file_size > extent_total) {
+		pr_err("%s: file size %ld larger than ext list size %ld\n",
+		       __func__, imap.file_size, extent_total);
+		rc = -EINVAL;
+		goto errout;
 	}
 
 	if (alignment_errs > 0) {
@@ -358,6 +387,7 @@ tagfs_meta_to_dax_offset(
 
 	if (iomap_verbose)
 		pr_notice("%s: File offset %llx len %lld\n", __func__, offset, len);
+
 	for (i = 0; i < meta->tfs_extent_ct; i++) {
 		loff_t dax_ext_offset = meta->tfs_extents[i].offset;
 		loff_t dax_ext_len    = meta->tfs_extents[i].len;
@@ -410,7 +440,7 @@ tagfs_meta_to_dax_offset(
 	iomap->flags   = flags;
 
 	pr_notice("%s: Access past EOF (offset %lld len %lld\n", __func__, offset, len);
-	return 0; /* What is correct error to return? */
+	return 0;
 }
 
 
