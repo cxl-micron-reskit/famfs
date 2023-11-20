@@ -39,7 +39,7 @@
 
 static int iomap_verbose;
 module_param(iomap_verbose, int, 0660);
-static int tagfs_verbose = 1;
+static int tagfs_verbose;
 module_param(tagfs_verbose, int, 0660);
 
 #ifndef CONFIG_MMU
