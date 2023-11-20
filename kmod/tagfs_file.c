@@ -57,7 +57,8 @@ module_param(tagfs_verbose, int, 0660);
 /* For GDB debug; remove later... */
 #pragma GCC optimize("O1")
 
-int tagfs_blkdev_mode = FMODE_READ|FMODE_WRITE|FMODE_EXCL;
+/* blk opens are now exclusive if there is private_data */
+int tagfs_blkdev_mode = FMODE_READ|FMODE_WRITE;
 
 /* Debug stuff */
 
@@ -551,7 +552,6 @@ tagfs_get_iov_iter_type(struct iov_iter *iovi)
 	case ITER_IOVEC:    return "ITER_IOVEC";
 	case ITER_KVEC:     return "ITER_KVEC";
 	case ITER_BVEC:     return "ITER_BVEC";
-	case ITER_PIPE:     return "ITER_PIPE";
 	case ITER_XARRAY:   return "ITER_XARRAY";
 	case ITER_DISCARD:  return "ITER_DISCARD";
 	case ITER_UBUF:     return "ITER_UBUF";
@@ -689,7 +689,7 @@ ssize_t tagfs_file_splice_read(struct file *in, loff_t *ppos,
 		pr_info("%s: ppos %lld len %ld flags %x\n",
 			__func__, *ppos, len, flags);
 
-	rc = generic_file_splice_read(in, ppos, pipe, len, flags);
+	rc = filemap_splice_read(in, ppos, pipe, len, flags);
 	if (tagfs_verbose)
 		pr_info("%s: rc %ld\n", __func__, rc);
 	return rc;

@@ -366,6 +366,17 @@ char_err:
 }
 #endif
 
+static void
+tagfs_bdev_mark_dead(
+	struct block_device	*bdev)
+{
+	return; /* moving off blkdev anyway; some similar path will need to exist */
+}
+
+static const struct blk_holder_ops tagfs_holder_ops = {
+	.mark_dead		= tagfs_bdev_mark_dead,
+};
+
 static int
 tagfs_open_device(
 	struct super_block *sb,
@@ -395,7 +406,8 @@ tagfs_open_device(
 	}
 
 	/* Open block/dax backing device */
-	bdevp = blkdev_get_by_path(fc->source, tagfs_blkdev_mode, fsi);
+	bdevp = blkdev_get_by_path(fc->source, tagfs_blkdev_mode, fsi,
+				   &tagfs_holder_ops);
 	if (IS_ERR(bdevp)) {
 		pr_err("%s: failed blkdev_get_by_path(%s)\n", __func__, fc->source);
 		return PTR_ERR(bdevp);
@@ -406,7 +418,7 @@ tagfs_open_device(
 				      &tagfs_dax_holder_operations);
 	if (IS_ERR(dax_devp)) {
 		pr_err("%s: unable to get daxdev from bdevp\n", __func__);
-		blkdev_put(bdevp, tagfs_blkdev_mode);
+		blkdev_put(bdevp, fsi);
 		return -ENODEV;
 	}
 	pr_info("%s: dax_devp %llx\n", __func__, (u64)dax_devp);
@@ -486,7 +498,7 @@ static void tagfs_kill_sb(struct super_block *sb)
 #endif
 	mutex_destroy(&fsi->fsi_mutex);
 	if (fsi->bdevp)
-		blkdev_put(fsi->bdevp, tagfs_blkdev_mode);
+		blkdev_put(fsi->bdevp, fsi);
 	if (fsi->dax_filp)
 		filp_close(fsi->dax_filp, NULL);
 	if (fsi->dax_devp)
