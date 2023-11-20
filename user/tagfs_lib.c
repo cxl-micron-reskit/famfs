@@ -403,37 +403,30 @@ tagfs_file_map_create(
 	enum tagfs_file_type        type)
 {
 	struct tagfs_ioc_map filemap;
-	struct tagfs_extent *ext;
 	int rc;
+	int i;
 
 	assert(fd > 0);
-
-	ext = calloc(nextents, sizeof(struct tagfs_extent));
-	if (!ext)
-		return -ENOMEM;
 
 	filemap.file_type      = type;
 	filemap.file_size      = size;
 	filemap.extent_type    = FSDAX_EXTENT;
 	filemap.ext_list_count = nextents;
-	filemap.ext_list       = (struct tagfs_extent *)ext_list;
 
-#if 0
-	for (i = 0; i < nextents; i++) {
-		ext[i].offset = ext_list[i].tagfs_extent_offset;
-		ext[i].len    = ext_list[i].tagfs_extent_len;
+	for (i=0; i<nextents; i++) {
+		filemap.ext_list[i].offset = ext_list[i].tagfs_extent_offset;
+		filemap.ext_list[i].len    = ext_list[i].tagfs_extent_len;
 	}
-#endif
+
 	rc = ioctl(fd, TAGFSIOC_MAP_CREATE, &filemap);
 	if (rc)
 		fprintf(stderr, "%s: failed MAP_CREATE for file %s (errno %d)\n",
 			__func__, path, errno);
 
-	free(ext);
 	return rc;
 }
 
-/**
+/**n
  * tagfs_mkmeta()
  *
  * @devname - primary device for a tagfs file system
@@ -474,7 +467,7 @@ tagfs_mkmeta(const char *devname)
 				__func__, dirpath);
 	}
 
-	/* Create the superblock file */
+	/* Prepare full paths of superblock and log file */
 	strncpy(sb_file, dirpath, PATH_MAX - 1);
 	strncpy(log_file, dirpath, PATH_MAX - 1);
 

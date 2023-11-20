@@ -39,7 +39,7 @@
 
 static int iomap_verbose;
 module_param(iomap_verbose, int, 0660);
-static int tagfs_verbose;
+static int tagfs_verbose = 1;
 module_param(tagfs_verbose, int, 0660);
 
 #ifndef CONFIG_MMU
@@ -237,22 +237,7 @@ tagfs_file_init_dax(
 	sb  = inode->i_sb;
 	fsi = inode->i_sb->s_fs_info;
 
-	/* Get space to copyin ext list from user space */
-	tfs_extents = kcalloc(ext_count, sizeof(*tfs_extents), GFP_KERNEL);
-	if (!tfs_extents) {
-		pr_err("%s: Failed to alloc space for ext list\n", __func__);
-		rc = -ENOMEM;
-		goto errout;
-	}
-
-	/* Copyin the extent list (in dax offset space) of the file */
-	rc = copy_from_user(tfs_extents, imap.ext_list,
-			    ext_count * sizeof(*tfs_extents));
-	if (rc) {
-		pr_err("%s: Failed to retrieve extent list from user space\n", __func__);
-		rc = -EFAULT;
-		goto errout;
-	}
+	tfs_extents = &imap.ext_list[0];
 
 	rc = tagfs_meta_alloc(&meta, ext_count);
 	if (rc)
@@ -331,9 +316,6 @@ tagfs_file_init_dax(
  errout:
 	if (rc)
 		tagfs_meta_free(meta);
-
-	/* This was just temporary storage: */
-	kfree(tfs_extents);
 
 	return rc;
 }

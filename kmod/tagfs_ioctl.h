@@ -39,7 +39,7 @@ struct tagfs_ioc_map {
 	enum tagfs_file_type      file_type;
 	size_t                    file_size;
 	size_t                    ext_list_count;
-	struct tagfs_extent      *ext_list;
+	struct tagfs_extent       ext_list[TAGFS_MAX_EXTENTS];
 };
 
 static inline size_t tioc_ext_list_size(struct tagfs_ioc_map *map)
