@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+// SPDX-License-Identifier: GPL-2.0
 
 #include <stdio.h>
 #include <fcntl.h>
@@ -53,8 +53,7 @@ struct option global_options[] = {
 };
 
 int
-main(int argc,
-     char *argv[])
+main(int argc, char *argv[])
 {
 	int c, rc;
 
@@ -130,8 +129,8 @@ main(int argc,
 		printf("Tagfs superblock killed\n");
 		sb->ts_magic      = 0;
 		return 0;
-	} else
-		sb->ts_magic      = TAGFS_SUPER_MAGIC;
+	}
+	sb->ts_magic      = TAGFS_SUPER_MAGIC;
 
 	sb->ts_version    = TAGFS_CURRENT_VERSION;
 	sb->ts_log_offset = TAGFS_LOG_OFFSET;

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+// SPDX-License-Identifier: GPL-2.0
 
 #include <stdio.h>
 #include <fcntl.h>
@@ -52,8 +52,7 @@ struct option global_options[] = {
 };
 
 int
-main(int argc,
-     char *argv[])
+main(int argc, char *argv[])
 {
 	struct tagfs_ioc_map filemap;
 	struct tagfs_extent *ext_list;

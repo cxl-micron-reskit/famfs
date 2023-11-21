@@ -413,7 +413,7 @@ tagfs_file_map_create(
 	filemap.extent_type    = FSDAX_EXTENT;
 	filemap.ext_list_count = nextents;
 
-	for (i=0; i<nextents; i++) {
+	for (i = 0; i<nextents; i++) {
 		filemap.ext_list[i].offset = ext_list[i].tagfs_extent_offset;
 		filemap.ext_list[i].len    = ext_list[i].tagfs_extent_len;
 	}
@@ -614,35 +614,6 @@ mmap_superblock_file_read_only(const char *mpt)
 
 	return mmap_whole_file(sb_path, 1 /* superblock file always read-only */, NULL);
 }
-
-#if 0
-static struct tagfs_log *
-__mmap_log_file(const char *mpt,
-		int read_only)
-{
-	char log_path[PATH_MAX];
-
-	memset(log_path, 0, PATH_MAX);
-
-	strncat(log_path, mpt,     PATH_MAX - 1);
-	strncat(log_path, "/", PATH_MAX - 1);
-	strncat(log_path, LOG_FILE_RELPATH, PATH_MAX - 1);
-
-	return mmap_whole_file(log_path, read_only, NULL);
-}
-
-static struct tagfs_log *
-mmap_log_file_read_only(const char *mpt)
-{
-	return __mmap_log_file(mpt, 1);
-}
-
-static struct tagfs_log *
-mmap_log_file_writable(const char *mpt)
-{
-	return __mmap_log_file(mpt, 0);
-}
-#endif
 
 /******/
 
@@ -871,13 +842,6 @@ tagfs_append_log(struct tagfs_log       *logp,
 	return 0;
 }
 
-#if 0
-/* TODO */
-int
-tagfs_validate_fullpath(const char *fullpath)
-{
-}
-#endif
 
 /**
  * tagfs_relpath_from_fullpath()

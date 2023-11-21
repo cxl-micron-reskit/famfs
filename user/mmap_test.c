@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+// SPDX-License-Identifier: GPL-2.0
 
 #include <stdio.h>
 #include <fcntl.h>
@@ -39,8 +39,7 @@ struct option global_options[] = {
 };
 
 int
-main(int argc,
-     char *argv[])
+main(int argc, char *argv[])
 {
 	int c, rc, fd;
 	char *filename = NULL;
@@ -99,7 +98,7 @@ main(int argc,
 		exit(-1);
 	}
 
-	buf = mmap (0, statbuf.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	buf = mmap(0, statbuf.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (buf == MAP_FAILED)
 		fprintf(stderr, "mmap failed\n");
 

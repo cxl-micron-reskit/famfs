@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+// SPDX-License-Identifier: GPL-2.0
 
 #include <stdio.h>
 #include <unistd.h>
@@ -539,9 +539,9 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 	printf("\tsize:   %ld\n",  filemap.file_size);
 	printf("\textents: %ld\n", filemap.ext_list_count);
 
-	for (i = 0; i < filemap.ext_list_count; i++) {
+	for (i = 0; i < filemap.ext_list_count; i++)
 		printf("\t\t%llx\t%lld\n", ext_list[i].offset, ext_list[i].len);
-	}
+
 	close(rc);
 
 	return 0;
@@ -1170,14 +1170,6 @@ struct tagfs_cli_cmd {
 
 static void do_tagfs_cli_help(int argc, char **argv);
 
-#if 0
-static int tagfs_cli_help(int argc, char **argv)
-{
-	do_tagfs_cli_help(argc, argv);
-	return 0;
-}
-#endif
-
 struct
 tagfs_cli_cmd tagfs_cli_cmds[] = {
 
@@ -1209,7 +1201,7 @@ do_tagfs_cli_help(int argc, char **argv)
 		}
 	}
 
-	printf("%s: perform operations on a mounted tagfs file system"
+	printf("%s: perform operations on a mounted tagfs file system "
 	       "for specific files or devices\n"
 	       "%s [global_args] <command> [args]\n\n",
 	       progname, progname);
