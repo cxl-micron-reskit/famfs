@@ -62,8 +62,8 @@ main(int argc, char *argv[])
 	char *daxdev = NULL;
 	int force = 0;
 
-	struct tagfs_superblock *sb;
-	struct tagfs_log *tagfs_logp;
+	struct famfs_superblock *sb;
+	struct famfs_log *famfs_logp;
 	size_t devsize;
 
 	/* Process global options, if any */
@@ -108,52 +108,52 @@ main(int argc, char *argv[])
 	/* TODO: multiple devices? */
 	daxdev = argv[optind++];
 
-	rc = tagfs_get_device_size(daxdev, &devsize, &type);
+	rc = famfs_get_device_size(daxdev, &devsize, &type);
 	if (rc)
 		return -1;
 
 	printf("devsize: %ld\n", devsize);
 
-	rc = tagfs_mmap_superblock_and_log_raw(daxdev, &sb, &tagfs_logp, 0 /* read/write */);
+	rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &famfs_logp, 0 /* read/write */);
 	if (rc)
 		return -1;
 
-	if ((tagfs_check_super(sb) == 0) && !force) {
-		fprintf(stderr, "Device %s already has a tagfs superblock\n", daxdev);
+	if ((famfs_check_super(sb) == 0) && !force) {
+		fprintf(stderr, "Device %s already has a famfs superblock\n", daxdev);
 		return -1;
 	}
 
-	memset(sb, 0, TAGFS_SUPERBLOCK_SIZE); /* Zero the memory up to the log */
+	memset(sb, 0, FAMFS_SUPERBLOCK_SIZE); /* Zero the memory up to the log */
 
 	if (kill_super) {
-		printf("Tagfs superblock killed\n");
+		printf("Famfs superblock killed\n");
 		sb->ts_magic      = 0;
 		return 0;
 	}
-	sb->ts_magic      = TAGFS_SUPER_MAGIC;
+	sb->ts_magic      = FAMFS_SUPER_MAGIC;
 
-	sb->ts_version    = TAGFS_CURRENT_VERSION;
-	sb->ts_log_offset = TAGFS_LOG_OFFSET;
-	sb->ts_log_len    = TAGFS_LOG_LEN;
-	tagfs_uuidgen(&sb->ts_uuid);
+	sb->ts_version    = FAMFS_CURRENT_VERSION;
+	sb->ts_log_offset = FAMFS_LOG_OFFSET;
+	sb->ts_log_len    = FAMFS_LOG_LEN;
+	famfs_uuidgen(&sb->ts_uuid);
 	sb->ts_crc = 0; /* TODO: calculate and check crc */
 
 	/* Configure the first daxdev */
 	sb->ts_num_daxdevs = 1;
 	sb->ts_devlist[0].dd_size = devsize;
-	strncpy(sb->ts_devlist[0].dd_daxdev, daxdev, TAGFS_DEVNAME_LEN);
+	strncpy(sb->ts_devlist[0].dd_daxdev, daxdev, FAMFS_DEVNAME_LEN);
 
 	/* Zero and setup the log */
-	memset(tagfs_logp, 0, TAGFS_LOG_LEN);
-	tagfs_logp->tagfs_log_magic      = TAGFS_LOG_MAGIC;
-	tagfs_logp->tagfs_log_len        = TAGFS_LOG_LEN;
-	tagfs_logp->tagfs_log_next_seqnum    = 99;
-	tagfs_logp->tagfs_log_next_index = 0;
-	tagfs_logp->tagfs_log_last_index =
-		((TAGFS_LOG_LEN - offsetof(struct tagfs_log, entries))
-		 / sizeof(struct tagfs_log_entry));
+	memset(famfs_logp, 0, FAMFS_LOG_LEN);
+	famfs_logp->famfs_log_magic      = FAMFS_LOG_MAGIC;
+	famfs_logp->famfs_log_len        = FAMFS_LOG_LEN;
+	famfs_logp->famfs_log_next_seqnum    = 99;
+	famfs_logp->famfs_log_next_index = 0;
+	famfs_logp->famfs_log_last_index =
+		((FAMFS_LOG_LEN - offsetof(struct famfs_log, entries))
+		 / sizeof(struct famfs_log_entry));
 
-	tagfs_fsck_scan(sb, tagfs_logp, 0);
+	famfs_fsck_scan(sb, famfs_logp, 0);
 	close(rc);
 	return 0;
 }

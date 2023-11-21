@@ -66,7 +66,7 @@ main(int argc, char *argv[])
 		case 'f': {
 			filename = optarg;
 			printf("filename: %s\n", filename);
-			/* TODO: make sure filename is in a tagfs file system */
+			/* TODO: make sure filename is in a famfs file system */
 			break;
 		}
 		case 'h':

@@ -54,12 +54,12 @@
 /* Because this is exported but only prototyped in dax-private.h: */
 struct dax_device *inode_dax(struct inode *inode);
 
-#define TAGFS_DEFAULT_MODE	0755
+#define FAMFS_DEFAULT_MODE	0755
 
-static const struct super_operations tagfs_ops;
-static const struct inode_operations tagfs_dir_inode_operations;
+static const struct super_operations famfs_ops;
+static const struct inode_operations famfs_dir_inode_operations;
 
-struct inode *tagfs_get_inode(
+struct inode *famfs_get_inode(
 	struct super_block *sb,
 	const struct inode *dir,
 	umode_t             mode,
@@ -79,11 +79,11 @@ struct inode *tagfs_get_inode(
 			init_special_inode(inode, mode, dev);
 			break;
 		case S_IFREG:
-			inode->i_op = &tagfs_file_inode_operations;
-			inode->i_fop = &tagfs_file_operations;
+			inode->i_op = &famfs_file_inode_operations;
+			inode->i_fop = &famfs_file_operations;
 			break;
 		case S_IFDIR:
-			inode->i_op = &tagfs_dir_inode_operations;
+			inode->i_op = &famfs_dir_inode_operations;
 			inode->i_fop = &simple_dir_operations;
 
 			/* directory inodes start off with i_nlink == 2 (for "." entry) */
@@ -103,14 +103,14 @@ struct inode *tagfs_get_inode(
  */
 /* SMP-safe */
 static int
-tagfs_mknod(
+famfs_mknod(
 	struct mnt_idmap *idmap,
 	struct inode     *dir,
 	struct dentry    *dentry,
 	umode_t           mode,
 	dev_t             dev)
 {
-	struct inode *inode = tagfs_get_inode(dir->i_sb, dir, mode, dev);
+	struct inode *inode = famfs_get_inode(dir->i_sb, dir, mode, dev);
 	int error           = -ENOSPC;
 
 	if (inode) {
@@ -122,13 +122,13 @@ tagfs_mknod(
 	return error;
 }
 
-static int tagfs_mkdir(
+static int famfs_mkdir(
 	struct mnt_idmap *idmap,
 	struct inode     *dir,
 	struct dentry    *dentry,
 	umode_t           mode)
 {
-	int retval = tagfs_mknod(&nop_mnt_idmap, dir, dentry, mode | S_IFDIR, 0);
+	int retval = famfs_mknod(&nop_mnt_idmap, dir, dentry, mode | S_IFDIR, 0);
 
 	if (!retval)
 		inc_nlink(dir);
@@ -136,17 +136,17 @@ static int tagfs_mkdir(
 	return retval;
 }
 
-static int tagfs_create(
+static int famfs_create(
 	struct mnt_idmap *idmap,
 	struct inode     *dir,
 	struct dentry    *dentry,
 	umode_t           mode,
 	bool              excl)
 {
-	return tagfs_mknod(&nop_mnt_idmap, dir, dentry, mode | S_IFREG, 0);
+	return famfs_mknod(&nop_mnt_idmap, dir, dentry, mode | S_IFREG, 0);
 }
 
-static int tagfs_symlink(
+static int famfs_symlink(
 	struct mnt_idmap *idmap,
 	struct inode     *dir,
 	struct dentry    *dentry,
@@ -155,7 +155,7 @@ static int tagfs_symlink(
 	struct inode *inode;
 	int error = -ENOSPC;
 
-	inode = tagfs_get_inode(dir->i_sb, dir, S_IFLNK|S_IRWXUGO, 0);
+	inode = famfs_get_inode(dir->i_sb, dir, S_IFLNK|S_IRWXUGO, 0);
 	if (inode) {
 		int l = strlen(symname)+1;
 
@@ -170,7 +170,7 @@ static int tagfs_symlink(
 	return error;
 }
 
-static int tagfs_tmpfile(
+static int famfs_tmpfile(
 	struct mnt_idmap *idmap,
 	struct inode     *dir,
 	struct file      *file,
@@ -178,7 +178,7 @@ static int tagfs_tmpfile(
 {
 	struct inode *inode;
 
-	inode = tagfs_get_inode(dir->i_sb, dir, mode, 0);
+	inode = famfs_get_inode(dir->i_sb, dir, mode, 0);
 	if (!inode)
 		return -ENOSPC;
 
@@ -186,48 +186,48 @@ static int tagfs_tmpfile(
 	return finish_open_simple(file, 0);
 }
 
-static const struct inode_operations tagfs_dir_inode_operations = {
-	.create		= tagfs_create,
+static const struct inode_operations famfs_dir_inode_operations = {
+	.create		= famfs_create,
 	.lookup		= simple_lookup,
 	.link		= simple_link,
 	.unlink		= simple_unlink,
-	.symlink	= tagfs_symlink,
-	.mkdir		= tagfs_mkdir,
+	.symlink	= famfs_symlink,
+	.mkdir		= famfs_mkdir,
 	.rmdir		= simple_rmdir,
-	.mknod		= tagfs_mknod,
+	.mknod		= famfs_mknod,
 	.rename		= simple_rename,
-	.tmpfile	= tagfs_tmpfile,
+	.tmpfile	= famfs_tmpfile,
 };
 
 /*
  * Display the mount options in /proc/mounts.
  */
-static int tagfs_show_options(
+static int famfs_show_options(
 	struct seq_file *m,
 	struct dentry   *root)
 {
-	struct tagfs_fs_info *fsi = root->d_sb->s_fs_info;
+	struct famfs_fs_info *fsi = root->d_sb->s_fs_info;
 
-	if (fsi->mount_opts.mode != TAGFS_DEFAULT_MODE)
+	if (fsi->mount_opts.mode != FAMFS_DEFAULT_MODE)
 		seq_printf(m, ",mode=%o", fsi->mount_opts.mode);
 
 	return 0;
 }
 
-static const struct super_operations tagfs_ops = {
+static const struct super_operations famfs_ops = {
 	.statfs		= simple_statfs,
 	.drop_inode	= generic_delete_inode,
-	.show_options	= tagfs_show_options,
+	.show_options	= famfs_show_options,
 };
 
-enum tagfs_param {
+enum famfs_param {
 	Opt_mode,
 	Opt_dax,
 	Opt_rootdev,
 	Opt_daxdev,
 };
 
-const struct fs_parameter_spec tagfs_fs_parameters[] = {
+const struct fs_parameter_spec famfs_fs_parameters[] = {
 	fsparam_u32oct("mode",	  Opt_mode),
 	fsparam_string("dax",     Opt_dax),
 	fsparam_string("rootdev", Opt_rootdev),
@@ -235,22 +235,22 @@ const struct fs_parameter_spec tagfs_fs_parameters[] = {
 	{}
 };
 
-static int tagfs_parse_param(
+static int famfs_parse_param(
 	struct fs_context   *fc,
 	struct fs_parameter *param)
 {
-	struct tagfs_fs_info *fsi = fc->s_fs_info;
+	struct famfs_fs_info *fsi = fc->s_fs_info;
 	struct fs_parse_result result;
 	int opt;
 
-	opt = fs_parse(fc, tagfs_fs_parameters, param, &result);
+	opt = fs_parse(fc, famfs_fs_parameters, param, &result);
 	if (opt == -ENOPARAM) {
 		opt = vfs_parse_fs_param_source(fc, param);
 		if (opt != -ENOPARAM)
 			return opt;
 		/*
 		 * We might like to report bad mount options here;
-		 * but traditionally tagfs has ignored all mount options,
+		 * but traditionally famfs has ignored all mount options,
 		 * and as it is used as a !CONFIG_SHMEM simple substitute
 		 * for tmpfs, better continue to ignore other mount options.
 		 */
@@ -283,7 +283,7 @@ static int tagfs_parse_param(
  * is just a contiguous map-through to a dax device, the "standard" ones in
  * drivers/dax/super.c should be sufficient.
  */
-static const struct dax_operations tagfs_dax_ops = {
+static const struct dax_operations famfs_dax_ops = {
 	.direct_access =   dax_direct_access,
 	.zero_page_range = dax_zero_page_range,
 	.recovery_write =  dax_recovery_write,
@@ -292,16 +292,16 @@ static const struct dax_operations tagfs_dax_ops = {
 
 /**************************************************************************************/
 
-#ifdef CONFIG_TAGFS_CHAR_DAX
+#ifdef CONFIG_FAMFS_CHAR_DAX
 int add_dax_ops(struct dax_device *dax_dev,
 		const struct dax_operations *ops);
 
 static int
-tagfs_open_char_device(
+famfs_open_char_device(
 	struct super_block *sb,
 	struct fs_context  *fc)
 {
-	struct tagfs_fs_info *fsi = sb->s_fs_info;
+	struct famfs_fs_info *fsi = sb->s_fs_info;
 	struct dax_device    *dax_devp;
 	struct inode         *daxdev_inode;
 	//struct dev_dax *dev_dax = filp->private_data;
@@ -329,17 +329,17 @@ tagfs_open_char_device(
 	       __func__, fc->source, (u64)dax_devp);
 
 #if 0
-	tagfs_dev = kzalloc(sizeof(*tagfs_dev));
-	if (IS_ERR(tagfs_dev)) {
+	famfs_dev = kzalloc(sizeof(*famfs_dev));
+	if (IS_ERR(famfs_dev)) {
 		rc = -ENOMEM;
 		goto char_err;
 	}
 
-	/* XXX need to get the phys_addr and some other stuff to store in struct tagfs_device
+	/* XXX need to get the phys_addr and some other stuff to store in struct famfs_device
 	 */
 	/* Get phys_addr from dax somehow */
-	tagfs_dev->phys_addr = dax_pgoff_to_phys(dev_dax, 0, PAGE_SIZE);
-	tagfs_dev->pfn_flags = PFN_DEV;
+	famfs_dev->phys_addr = dax_pgoff_to_phys(dev_dax, 0, PAGE_SIZE);
+	famfs_dev->pfn_flags = PFN_DEV;
 
 	xaddr = devm_memremap(dev, pmem->phys_addr,
 				pmem->size, ARCH_MEMREMAP_PMEM);
@@ -349,9 +349,9 @@ tagfs_open_char_device(
 		       __func__, (u64)addr);
 #endif
 	/* JG: I aded this function to drivers/dax/super.c */
-	rc = add_dax_ops(dax_devp, &tagfs_dax_ops);
+	rc = add_dax_ops(dax_devp, &famfs_dax_ops);
 	if (rc) {
-		pr_info("%s: err attaching tagfs_dax_ops\n", __func__);
+		pr_info("%s: err attaching famfs_dax_ops\n", __func__);
 		goto char_err;
 	}
 
@@ -367,22 +367,22 @@ char_err:
 #endif
 
 static void
-tagfs_bdev_mark_dead(
+famfs_bdev_mark_dead(
 	struct block_device	*bdev)
 {
 	return; /* moving off blkdev anyway; some similar path will need to exist */
 }
 
-static const struct blk_holder_ops tagfs_holder_ops = {
-	.mark_dead		= tagfs_bdev_mark_dead,
+static const struct blk_holder_ops famfs_holder_ops = {
+	.mark_dead		= famfs_bdev_mark_dead,
 };
 
 static int
-tagfs_open_device(
+famfs_open_device(
 	struct super_block *sb,
 	struct fs_context  *fc)
 {
-	struct tagfs_fs_info *fsi = sb->s_fs_info;
+	struct famfs_fs_info *fsi = sb->s_fs_info;
 	struct block_device  *bdevp;
 	struct dax_device    *dax_devp;
 
@@ -394,9 +394,9 @@ tagfs_open_device(
 	}
 	pr_info("%s: Root device is %s\n", __func__, fc->source);
 
-#ifdef CONFIG_TAGFS_CHAR_DAX
+#ifdef CONFIG_FAMFS_CHAR_DAX
 	if (strstr(fc->source, "/dev/dax"))
-		return tagfs_open_char_device(sb, fc);
+		return famfs_open_char_device(sb, fc);
 #endif
 
 	if (!strstr(fc->source, "/dev/pmem")) {
@@ -406,8 +406,8 @@ tagfs_open_device(
 	}
 
 	/* Open block/dax backing device */
-	bdevp = blkdev_get_by_path(fc->source, tagfs_blkdev_mode, fsi,
-				   &tagfs_holder_ops);
+	bdevp = blkdev_get_by_path(fc->source, famfs_blkdev_mode, fsi,
+				   &famfs_holder_ops);
 	if (IS_ERR(bdevp)) {
 		pr_err("%s: failed blkdev_get_by_path(%s)\n", __func__, fc->source);
 		return PTR_ERR(bdevp);
@@ -415,7 +415,7 @@ tagfs_open_device(
 
 	dax_devp = fs_dax_get_by_bdev(bdevp, &start_off,
 				      fsi  /* holder */,
-				      &tagfs_dax_holder_operations);
+				      &famfs_dax_holder_operations);
 	if (IS_ERR(dax_devp)) {
 		pr_err("%s: unable to get daxdev from bdevp\n", __func__);
 		blkdev_put(bdevp, fsi);
@@ -430,26 +430,26 @@ tagfs_open_device(
 }
 
 static int
-tagfs_fill_super(
+famfs_fill_super(
 	struct super_block *sb,
 	struct fs_context  *fc)
 {
-	struct tagfs_fs_info *fsi = sb->s_fs_info;
+	struct famfs_fs_info *fsi = sb->s_fs_info;
 	struct inode *inode;
 	int rc = 0;
 
 	sb->s_maxbytes		= MAX_LFS_FILESIZE;
 	sb->s_blocksize		= PAGE_SIZE;
 	sb->s_blocksize_bits	= PAGE_SHIFT;
-	sb->s_magic		= TAGFS_MAGIC;
-	sb->s_op		= &tagfs_ops;
+	sb->s_magic		= FAMFS_MAGIC;
+	sb->s_op		= &famfs_ops;
 	sb->s_time_gran		= 1;
 
-	rc = tagfs_open_device(sb, fc);
+	rc = famfs_open_device(sb, fc);
 	if (rc)
 		goto out;
 
-	inode = tagfs_get_inode(sb, NULL, S_IFDIR | fsi->mount_opts.mode, 0);
+	inode = famfs_get_inode(sb, NULL, S_IFDIR | fsi->mount_opts.mode, 0);
 	sb->s_root = d_make_root(inode);
 	if (!sb->s_root)
 		rc = -ENOMEM;
@@ -458,42 +458,42 @@ out:
 	return rc;
 }
 
-static int tagfs_get_tree(struct fs_context *fc)
+static int famfs_get_tree(struct fs_context *fc)
 {
-	return get_tree_nodev(fc, tagfs_fill_super);
+	return get_tree_nodev(fc, famfs_fill_super);
 }
 
-static void tagfs_free_fc(struct fs_context *fc)
+static void famfs_free_fc(struct fs_context *fc)
 {
 	kfree(fc->s_fs_info);
 }
 
-static const struct fs_context_operations tagfs_context_ops = {
-	.free		= tagfs_free_fc,
-	.parse_param	= tagfs_parse_param,
-	.get_tree	= tagfs_get_tree,
+static const struct fs_context_operations famfs_context_ops = {
+	.free		= famfs_free_fc,
+	.parse_param	= famfs_parse_param,
+	.get_tree	= famfs_get_tree,
 };
 
-int tagfs_init_fs_context(struct fs_context *fc)
+int famfs_init_fs_context(struct fs_context *fc)
 {
-	struct tagfs_fs_info *fsi;
+	struct famfs_fs_info *fsi;
 
 	fsi = kzalloc(sizeof(*fsi), GFP_KERNEL);
 	if (!fsi)
 		return -ENOMEM;
 
 	mutex_init(&fsi->fsi_mutex);
-	fsi->mount_opts.mode = TAGFS_DEFAULT_MODE;
+	fsi->mount_opts.mode = FAMFS_DEFAULT_MODE;
 	fc->s_fs_info        = fsi;
-	fc->ops              = &tagfs_context_ops;
+	fc->ops              = &famfs_context_ops;
 	return 0;
 }
 
-static void tagfs_kill_sb(struct super_block *sb)
+static void famfs_kill_sb(struct super_block *sb)
 {
-	struct tagfs_fs_info *fsi = sb->s_fs_info;
+	struct famfs_fs_info *fsi = sb->s_fs_info;
 
-#ifdef CONFIG_TAGFS_CHAR_DAX
+#ifdef CONFIG_FAMFS_CHAR_DAX
 	kill_dax(fsi->dax_devp);
 #endif
 	mutex_destroy(&fsi->fsi_mutex);
@@ -508,15 +508,15 @@ static void tagfs_kill_sb(struct super_block *sb)
 	kill_litter_super(sb);
 }
 
-static struct file_system_type tagfs_fs_type = {
+static struct file_system_type famfs_fs_type = {
 	.name		  = "tagfs",
-	.init_fs_context  = tagfs_init_fs_context,
-	.parameters	  = tagfs_fs_parameters,
-	.kill_sb	  = tagfs_kill_sb,
+	.init_fs_context  = famfs_init_fs_context,
+	.parameters	  = famfs_fs_parameters,
+	.kill_sb	  = famfs_kill_sb,
 	.fs_flags	  = FS_USERNS_MOUNT,
 };
 
-static int __init init_tagfs_fs(void)
+static int __init init_famfs_fs(void)
 {
 	pr_info("%s\n", __func__);
 	/* See what the different log levels do */
@@ -526,19 +526,19 @@ static int __init init_tagfs_fs(void)
 	pr_warn("%s: KERN_WARNING \n", __func__);
 	pr_err("%s: KERN_ERR \n", __func__);
 
-	return register_filesystem(&tagfs_fs_type);
+	return register_filesystem(&famfs_fs_type);
 }
 
 void
-__exit tagfs_exit(void)
+__exit famfs_exit(void)
 {
 	pr_info("%s\n", __func__);
-	unregister_filesystem(&tagfs_fs_type);
+	unregister_filesystem(&famfs_fs_type);
 	pr_info("%s: unregistered\n", __func__);
 }
 
 MODULE_AUTHOR("John Groves, Micron Technology");
 MODULE_LICENSE("GPL v2");
 
-fs_initcall(init_tagfs_fs);
-module_exit(tagfs_exit);
+fs_initcall(init_famfs_fs);
+module_exit(famfs_exit);

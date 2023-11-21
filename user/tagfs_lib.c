@@ -61,7 +61,7 @@ mu_print_bitmap(u8 *bitmap, int num_bits)
 
 
 void
-tagfs_uuidgen(uuid_le *uuid)
+famfs_uuidgen(uuid_le *uuid)
 {
 	uuid_t local_uuid;
 
@@ -70,7 +70,7 @@ tagfs_uuidgen(uuid_le *uuid)
 }
 
 void
-tagfs_print_uuid(const uuid_le *uuid)
+famfs_print_uuid(const uuid_le *uuid)
 {
 	uuid_t local_uuid;
 	char uuid_str[37];
@@ -83,7 +83,7 @@ tagfs_print_uuid(const uuid_le *uuid)
 }
 
 int
-tagfs_get_device_size(const char       *fname,
+famfs_get_device_size(const char       *fname,
 		      size_t           *size,
 		      enum extent_type *type)
 {
@@ -144,16 +144,16 @@ tagfs_get_device_size(const char       *fname,
 }
 
 /**
- * tagfs_fsck_scan()
+ * famfs_fsck_scan()
  *
  * * Print info from the superblock
  * * Print log stats
  * * build the log bitmap (which scans the log) and check for errors
  */
 int
-tagfs_fsck_scan(
-	const struct tagfs_superblock *sb,
-	const struct tagfs_log        *logp,
+famfs_fsck_scan(
+	const struct famfs_superblock *sb,
+	const struct famfs_log        *logp,
 	int                            verbose)
 {
 	size_t total_log_size;
@@ -164,15 +164,15 @@ tagfs_fsck_scan(
 	u64 alloc_total, size_total;
 
 	effective_log_size = sizeof(*logp) +
-		(logp->tagfs_log_next_index * sizeof(struct tagfs_log_entry));
+		(logp->famfs_log_next_index * sizeof(struct famfs_log_entry));
 
 	/*
 	 * Print superblock info
 	 */
-	printf("Tagfs Superblock:\n");
+	printf("Famfs Superblock:\n");
 	printf("  UUID:   ");
-	tagfs_print_uuid(&sb->ts_uuid);
-	printf("  sizeof superblock: %ld\n", sizeof(struct tagfs_superblock));
+	famfs_print_uuid(&sb->ts_uuid);
+	printf("  sizeof superblock: %ld\n", sizeof(struct famfs_superblock));
 	printf("  num_daxdevs:              %d\n", sb->ts_num_daxdevs);
 	for (i = 0; i < sb->ts_num_daxdevs; i++) {
 		if (i == 0)
@@ -189,13 +189,13 @@ tagfs_fsck_scan(
 	 */
 	printf("\nLog stats:\n");
 	printf("  # of log entriesi in use: %lld of %lld\n",
-	       logp->tagfs_log_next_index, logp->tagfs_log_last_index + 1);
+	       logp->famfs_log_next_index, logp->famfs_log_last_index + 1);
 	printf("  Log size in use:          %ld\n", effective_log_size);
 
 	/*
 	 * Build the log bitmap to scan for errors
 	 */
-	bitmap = tagfs_build_bitmap(logp,  sb->ts_devlist[0].dd_size, NULL, &errors,
+	bitmap = famfs_build_bitmap(logp,  sb->ts_devlist[0].dd_size, NULL, &errors,
 				    &size_total, &alloc_total, 0);
 	if (errors)
 		printf("ERROR: %lld ALLOCATION COLLISIONS FOUND\n", errors);
@@ -213,23 +213,23 @@ tagfs_fsck_scan(
 		printf("log_offset:        %lld\n", sb->ts_log_offset);
 		printf("log_len:           %lld\n", sb->ts_log_len);
 
-		printf("sizeof(log header) %ld\n", sizeof(struct tagfs_log));
-		printf("sizeof(log_entry)  %ld\n", sizeof(struct tagfs_log_entry));
+		printf("sizeof(log header) %ld\n", sizeof(struct famfs_log));
+		printf("sizeof(log_entry)  %ld\n", sizeof(struct famfs_log_entry));
 
-		printf("last_log_index:    %lld\n", logp->tagfs_log_last_index);
-		total_log_size = sizeof(struct tagfs_log)
-			+ (sizeof(struct tagfs_log_entry) * (1 + logp->tagfs_log_last_index));
+		printf("last_log_index:    %lld\n", logp->famfs_log_last_index);
+		total_log_size = sizeof(struct famfs_log)
+			+ (sizeof(struct famfs_log_entry) * (1 + logp->famfs_log_last_index));
 		printf("full log size:     %ld\n", total_log_size);
-		printf("TAGFS_LOG_LEN:     %d\n", TAGFS_LOG_LEN);
-		printf("Remainder:         %ld\n", TAGFS_LOG_LEN - total_log_size);
-		printf("\nfc: %ld\n", sizeof(struct tagfs_file_creation));
-		printf("fa:   %ld\n", sizeof(struct tagfs_file_access));
+		printf("FAMFS_LOG_LEN:     %d\n", FAMFS_LOG_LEN);
+		printf("Remainder:         %ld\n", FAMFS_LOG_LEN - total_log_size);
+		printf("\nfc: %ld\n", sizeof(struct famfs_file_creation));
+		printf("fa:   %ld\n", sizeof(struct famfs_file_access));
 	}
 	return errors;
 }
 
 /**
- * tagfs_mmap_superblock_and_log_raw()
+ * famfs_mmap_superblock_and_log_raw()
  *
  * This function SHOULD ONLY BE CALLED BY FSCK AND MKMETA
  *
@@ -242,9 +242,9 @@ tagfs_fsck_scan(
  * @read_only - map sb and log read-only
  */
 int
-tagfs_mmap_superblock_and_log_raw(const char *devname,
-				  struct tagfs_superblock **sbp,
-				  struct tagfs_log **logp,
+famfs_mmap_superblock_and_log_raw(const char *devname,
+				  struct famfs_superblock **sbp,
+				  struct famfs_log **logp,
 				  int read_only)
 {
 	int fd = 0;
@@ -262,21 +262,21 @@ tagfs_mmap_superblock_and_log_raw(const char *devname,
 	}
 
 	/* Map superblock and log in one call */
-	sb_buf = mmap(0, TAGFS_SUPERBLOCK_SIZE + TAGFS_LOG_LEN, mapmode, MAP_SHARED, fd, 0);
+	sb_buf = mmap(0, FAMFS_SUPERBLOCK_SIZE + FAMFS_LOG_LEN, mapmode, MAP_SHARED, fd, 0);
 	if (sb_buf == MAP_FAILED) {
 		fprintf(stderr, "Failed to mmap superblock and log from %s\n", devname);
 		rc = -1;
 		goto err_out;
 	}
-	*sbp = (struct tagfs_superblock *)sb_buf;
+	*sbp = (struct famfs_superblock *)sb_buf;
 
-	*logp = (struct tagfs_log *)((u64)sb_buf + TAGFS_SUPERBLOCK_SIZE);
+	*logp = (struct famfs_log *)((u64)sb_buf + FAMFS_SUPERBLOCK_SIZE);
 	close(fd);
 	return 0;
 
 err_out:
 	if (sb_buf)
-		munmap(sb_buf, TAGFS_SUPERBLOCK_SIZE);
+		munmap(sb_buf, FAMFS_SUPERBLOCK_SIZE);
 
 	if (fd)
 		close(fd);
@@ -284,11 +284,11 @@ err_out:
 }
 
 int
-tagfs_check_super(const struct tagfs_superblock *sb)
+famfs_check_super(const struct famfs_superblock *sb)
 {
 	if (!sb)
 		return -1;
-	if (sb->ts_magic != TAGFS_SUPER_MAGIC)
+	if (sb->ts_magic != FAMFS_SUPER_MAGIC)
 		return -1;
 	/* TODO: check crc, etc. */
 	return 0;
@@ -297,15 +297,15 @@ tagfs_check_super(const struct tagfs_superblock *sb)
 #define XLEN 256
 
 /**
- * tagfs_get_mpt_by_dev()
+ * famfs_get_mpt_by_dev()
  *
- * @mtdev = the primary dax device for a tagfs file system.
+ * @mtdev = the primary dax device for a famfs file system.
  *
  * This function determines the mount point by parsing /proc/mounts to find the mount point
  * from a dax device name.
  */
 static char *
-tagfs_get_mpt_by_dev(const char *mtdev)
+famfs_get_mpt_by_dev(const char *mtdev)
 {
 	FILE *fp;
 	char *line = NULL;
@@ -357,17 +357,17 @@ out:
 }
 
 /**
- * tagfs_ext_to_simple_ext()
+ * famfs_ext_to_simple_ext()
  *
- * Convert a struct tagfs_extent list to struct tagfs_simple_extent.
+ * Convert a struct famfs_extent list to struct famfs_simple_extent.
  * The output list comes from malloc() and must be freed by the caller after use.
  */
-struct tagfs_simple_extent *
-tagfs_ext_to_simple_ext(
-	struct tagfs_extent *te_list,
+struct famfs_simple_extent *
+famfs_ext_to_simple_ext(
+	struct famfs_extent *te_list,
 	size_t               ext_count)
 {
-	struct tagfs_simple_extent *se = calloc(ext_count, sizeof(*se));
+	struct famfs_simple_extent *se = calloc(ext_count, sizeof(*se));
 	int i;
 
 	assert(te_list);
@@ -375,16 +375,16 @@ tagfs_ext_to_simple_ext(
 		return NULL;
 
 	for (i = 0; i < ext_count; i++) {
-		se[i].tagfs_extent_offset = te_list[i].offset;
-		se[i].tagfs_extent_len    = te_list[i].len;
+		se[i].famfs_extent_offset = te_list[i].offset;
+		se[i].famfs_extent_len    = te_list[i].len;
 	}
 	return se;
 }
 
 /**
- * tagfs_file_map_create()
+ * famfs_file_map_create()
  *
- * This function allocates free space in a tagfs file system and associates it
+ * This function allocates free space in a famfs file system and associates it
  * with a file.
  *
  * @path
@@ -394,15 +394,15 @@ tagfs_ext_to_simple_ext(
  * @extent_list
  */
 int
-tagfs_file_map_create(
+famfs_file_map_create(
 	const char                 *path,
 	int                         fd,
 	size_t                      size,
 	int                         nextents,
-	struct tagfs_simple_extent *ext_list,
-	enum tagfs_file_type        type)
+	struct famfs_simple_extent *ext_list,
+	enum famfs_file_type        type)
 {
-	struct tagfs_ioc_map filemap;
+	struct famfs_ioc_map filemap;
 	int rc;
 	int i;
 
@@ -414,11 +414,11 @@ tagfs_file_map_create(
 	filemap.ext_list_count = nextents;
 
 	for (i = 0; i<nextents; i++) {
-		filemap.ext_list[i].offset = ext_list[i].tagfs_extent_offset;
-		filemap.ext_list[i].len    = ext_list[i].tagfs_extent_len;
+		filemap.ext_list[i].offset = ext_list[i].famfs_extent_offset;
+		filemap.ext_list[i].len    = ext_list[i].famfs_extent_len;
 	}
 
-	rc = ioctl(fd, TAGFSIOC_MAP_CREATE, &filemap);
+	rc = ioctl(fd, FAMFSIOC_MAP_CREATE, &filemap);
 	if (rc)
 		fprintf(stderr, "%s: failed MAP_CREATE for file %s (errno %d)\n",
 			__func__, path, errno);
@@ -427,12 +427,12 @@ tagfs_file_map_create(
 }
 
 /**n
- * tagfs_mkmeta()
+ * famfs_mkmeta()
  *
- * @devname - primary device for a tagfs file system
+ * @devname - primary device for a famfs file system
  */
 int
-tagfs_mkmeta(const char *devname)
+famfs_mkmeta(const char *devname)
 {
 	struct stat st = {0};
 	int rc, sbfd, logfd;
@@ -440,14 +440,14 @@ tagfs_mkmeta(const char *devname)
 	char dirpath[PATH_MAX];
 	char sb_file[PATH_MAX];
 	char log_file[PATH_MAX];
-	struct tagfs_superblock *sb;
-	struct tagfs_log *logp;
-	struct tagfs_simple_extent ext;
+	struct famfs_superblock *sb;
+	struct famfs_log *logp;
+	struct famfs_simple_extent ext;
 
 	dirpath[0] = 0;
 
 	/* Get mount point path */
-	mpt = tagfs_get_mpt_by_dev(devname);
+	mpt = famfs_get_mpt_by_dev(devname);
 	if (!mpt) {
 		fprintf(stderr, "%s: unable to resolve mount pt from dev %s\n", __func__, devname);
 		return -1;
@@ -479,7 +479,7 @@ tagfs_mkmeta(const char *devname)
 	if (rc == 0) {
 		if ((st.st_mode & S_IFMT) == S_IFREG) {
 			/* Superblock file exists */
-			if (st.st_size != TAGFS_SUPERBLOCK_SIZE) {
+			if (st.st_size != FAMFS_SUPERBLOCK_SIZE) {
 				fprintf(stderr, "%s: unlinking bad superblock file\n",
 					__func__);
 				unlink(sb_file);
@@ -492,13 +492,13 @@ tagfs_mkmeta(const char *devname)
 		}
 	}
 
-	rc = tagfs_mmap_superblock_and_log_raw(devname, &sb, &logp, 1);
+	rc = famfs_mmap_superblock_and_log_raw(devname, &sb, &logp, 1);
 	if (rc) {
 		fprintf(stderr, "%s: superblock/log accessfailed\n", __func__);
 		return -1;
 	}
 
-	if (tagfs_check_super(sb)) {
+	if (famfs_check_super(sb)) {
 		fprintf(stderr, "%s: no valid superblock on device %s\n", __func__, devname);
 		return -1;
 	}
@@ -510,10 +510,10 @@ tagfs_mkmeta(const char *devname)
 		return -1;
 	}
 
-	ext.tagfs_extent_offset = 0;
-	ext.tagfs_extent_len    = TAGFS_SUPERBLOCK_SIZE;
-	rc = tagfs_file_map_create(sb_file, sbfd, TAGFS_SUPERBLOCK_SIZE, 1, &ext,
-				   TAGFS_SUPERBLOCK);
+	ext.famfs_extent_offset = 0;
+	ext.famfs_extent_len    = FAMFS_SUPERBLOCK_SIZE;
+	rc = famfs_file_map_create(sb_file, sbfd, FAMFS_SUPERBLOCK_SIZE, 1, &ext,
+				   FAMFS_SUPERBLOCK);
 	if (rc)
 		return -1;
 
@@ -541,9 +541,9 @@ tagfs_mkmeta(const char *devname)
 		return -1;
 	}
 
-	ext.tagfs_extent_offset = sb->ts_log_offset;
-	ext.tagfs_extent_len    = sb->ts_log_len;
-	rc = tagfs_file_map_create(log_file, logfd, sb->ts_log_len, 1, &ext, TAGFS_LOG);
+	ext.famfs_extent_offset = sb->ts_log_offset;
+	ext.famfs_extent_len    = sb->ts_log_len;
+	rc = famfs_file_map_create(log_file, logfd, sb->ts_log_len, 1, &ext, FAMFS_LOG);
 	if (rc)
 		return -1;
 
@@ -601,7 +601,7 @@ mmap_whole_file(
 	return addr;
 }
 
-struct tagfs_superblock *
+struct famfs_superblock *
 mmap_superblock_file_read_only(const char *mpt)
 {
 	char sb_path[PATH_MAX];
@@ -618,28 +618,28 @@ mmap_superblock_file_read_only(const char *mpt)
 /******/
 
 static inline int
-tagfs_log_full(const struct tagfs_log *logp)
+famfs_log_full(const struct famfs_log *logp)
 {
-	return (logp->tagfs_log_next_index > logp->tagfs_log_last_index);
+	return (logp->famfs_log_next_index > logp->famfs_log_last_index);
 }
 
 static inline int
-tagfs_log_entry_fc_path_is_relative(const struct tagfs_file_creation *fc)
+famfs_log_entry_fc_path_is_relative(const struct famfs_file_creation *fc)
 {
-	return ((strlen((char *)fc->tagfs_relpath) >= 1)
-		&& (fc->tagfs_relpath[0] != '/'));
+	return ((strlen((char *)fc->famfs_relpath) >= 1)
+		&& (fc->famfs_relpath[0] != '/'));
 }
 
 static inline int
-tagfs_log_entry_md_path_is_relative(const struct tagfs_mkdir *md)
+famfs_log_entry_md_path_is_relative(const struct famfs_mkdir *md)
 {
-	return ((strlen((char *)md->tagfs_relpath) >= 1)
-		&& (md->tagfs_relpath[0] != '/'));
+	return ((strlen((char *)md->famfs_relpath) >= 1)
+		&& (md->famfs_relpath[0] != '/'));
 }
 
 int
-tagfs_logplay(
-	const struct tagfs_log *logp,
+famfs_logplay(
+	const struct famfs_log *logp,
 	const char             *mpt,
 	int                     dry_run)
 {
@@ -648,21 +648,21 @@ tagfs_logplay(
 	int rc;
 
 
-	if (tagfs_log_full(logp)) {
+	if (famfs_log_full(logp)) {
 		fprintf(stderr, "%s: log is empty (mpt=%s)\n",
 			__func__, mpt);
 		return -1;
 	}
 
-	printf("%s: log contains %lld entries\n", __func__, logp->tagfs_log_next_index);
-	for (i = 0; i < logp->tagfs_log_next_index; i++) {
-		struct tagfs_log_entry le = logp->entries[i];
+	printf("%s: log contains %lld entries\n", __func__, logp->famfs_log_next_index);
+	for (i = 0; i < logp->famfs_log_next_index; i++) {
+		struct famfs_log_entry le = logp->entries[i];
 
 		nlog++;
-		switch (le.tagfs_log_entry_type) {
-		case TAGFS_LOG_FILE: {
-			const struct tagfs_file_creation *fc = &le.tagfs_fc;
-			struct tagfs_simple_extent *el;
+		switch (le.famfs_log_entry_type) {
+		case FAMFS_LOG_FILE: {
+			const struct famfs_file_creation *fc = &le.famfs_fc;
+			struct famfs_simple_extent *el;
 			char fullpath[PATH_MAX];
 			char rpath[PATH_MAX];
 			struct stat st;
@@ -670,9 +670,9 @@ tagfs_logplay(
 			int fd;
 
 			printf("%s: %d file=%s size=%lld\n", __func__, i,
-			       fc->tagfs_relpath, fc->tagfs_fc_size);
+			       fc->famfs_relpath, fc->famfs_fc_size);
 
-			if (!tagfs_log_entry_fc_path_is_relative(fc)) {
+			if (!famfs_log_entry_fc_path_is_relative(fc)) {
 				fprintf(stderr,
 					"%s: ignoring log entry; path is not relative\n",
 					__func__);
@@ -683,13 +683,13 @@ tagfs_logplay(
 			 * is the superblock, which is not in the log. Check for files with
 			 * null offset...
 			 */
-			for (j = 0; j < fc->tagfs_nextents; j++) {
-				const struct tagfs_simple_extent *se = &fc->tagfs_ext_list[j].se;
+			for (j = 0; j < fc->famfs_nextents; j++) {
+				const struct famfs_simple_extent *se = &fc->famfs_ext_list[j].se;
 
-				if (se->tagfs_extent_offset == 0) {
+				if (se->famfs_extent_offset == 0) {
 					fprintf(stderr,
 						"%s: ERROR file %s has extent with 0 offset\n",
-						__func__, fc->tagfs_relpath);
+						__func__, fc->famfs_relpath);
 					skip_file++;
 				}
 			}
@@ -697,9 +697,9 @@ tagfs_logplay(
 			if (skip_file)
 				continue;
 
-			/* tagfs_mkdirs(mpt, fc->tagfs_relpath); */
+			/* famfs_mkdirs(mpt, fc->famfs_relpath); */
 
-			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, fc->tagfs_relpath);
+			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, fc->famfs_relpath);
 			realpath(fullpath, rpath);
 			if (dry_run)
 				continue;
@@ -711,44 +711,44 @@ tagfs_logplay(
 				continue;
 			}
 			printf("%s: creating file %s mode %o\n",
-			       __func__, fc->tagfs_relpath, fc->fc_mode);
-			fd = tagfs_file_create(rpath, fc->fc_mode,
+			       __func__, fc->famfs_relpath, fc->fc_mode);
+			fd = famfs_file_create(rpath, fc->fc_mode,
 					       fc->fc_uid, fc->fc_gid);
 			if (fd < 0) {
 				fprintf(stderr,
 					"%s: unable to create destfile (%s)\n",
-					__func__, fc->tagfs_relpath);
+					__func__, fc->famfs_relpath);
 
 				unlink(rpath);
 				continue;
 			}
 
-			/* Build extent list of tagfs_simple_extent; the log entry has a
+			/* Build extent list of famfs_simple_extent; the log entry has a
 			 * different kind of extent list...
 			 */
-			el = calloc(fc->tagfs_nextents, sizeof(*el));
-			for (j = 0; j < fc->tagfs_nextents; j++) {
-				const struct tagfs_log_extent *tle = &fc->tagfs_ext_list[j];
+			el = calloc(fc->famfs_nextents, sizeof(*el));
+			for (j = 0; j < fc->famfs_nextents; j++) {
+				const struct famfs_log_extent *tle = &fc->famfs_ext_list[j];
 
-				el[j].tagfs_extent_offset = tle[j].se.tagfs_extent_offset;
-				el[j].tagfs_extent_len    = tle[j].se.tagfs_extent_len;
+				el[j].famfs_extent_offset = tle[j].se.famfs_extent_offset;
+				el[j].famfs_extent_len    = tle[j].se.famfs_extent_len;
 			}
-			tagfs_file_map_create(rpath, fd, fc->tagfs_fc_size,
-					      fc->tagfs_nextents, el, TAGFS_REG);
+			famfs_file_map_create(rpath, fd, fc->famfs_fc_size,
+					      fc->famfs_nextents, el, FAMFS_REG);
 			close(fd);
 			free(el);
 			break;
 		}
-		case TAGFS_LOG_MKDIR: {
-			const struct tagfs_mkdir *md = &le.tagfs_md;
+		case FAMFS_LOG_MKDIR: {
+			const struct famfs_mkdir *md = &le.famfs_md;
 			char fullpath[PATH_MAX];
 			char rpath[PATH_MAX];
 			int skip_dir = 0;
 			struct stat st;
 
-			printf("%s: %d mkdir=%s\n", __func__, i, md->tagfs_relpath);
+			printf("%s: %d mkdir=%s\n", __func__, i, md->famfs_relpath);
 
-			if (!tagfs_log_entry_md_path_is_relative(md)) {
+			if (!famfs_log_entry_md_path_is_relative(md)) {
 				fprintf(stderr,
 					"%s: ignoring log mkdir entry; path is not relative\n",
 					__func__);
@@ -758,7 +758,7 @@ tagfs_logplay(
 			if (skip_dir)
 				continue;
 
-			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, md->tagfs_relpath);
+			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, md->famfs_relpath);
 			realpath(fullpath, rpath);
 			if (dry_run)
 				continue;
@@ -786,18 +786,18 @@ tagfs_logplay(
 				continue;
 			}
 
-			printf("%s: creating directory %s\n", __func__, md->tagfs_relpath);
-			rc = tagfs_dir_create(mpt, (char *)md->tagfs_relpath, md->fc_mode,
+			printf("%s: creating directory %s\n", __func__, md->famfs_relpath);
+			rc = famfs_dir_create(mpt, (char *)md->famfs_relpath, md->fc_mode,
 					      md->fc_uid, md->fc_gid);
 			if (rc) {
 				fprintf(stderr,
 					"%s: error: unable to create directory (%s)\n",
-					__func__, md->tagfs_relpath);
+					__func__, md->famfs_relpath);
 			}
 
 			break;
 		}
-		case TAGFS_LOG_ACCESS:
+		case FAMFS_LOG_ACCESS:
 		default:
 			printf("%s: invalid log entry\n", __func__);
 			break;
@@ -808,43 +808,43 @@ tagfs_logplay(
 }
 
 /**
- * tagfs_append_log()
+ * famfs_append_log()
  *
- * @logp - pointer to struct tagfs_log in memory media
+ * @logp - pointer to struct famfs_log in memory media
  * @e    - pointer to log entry in memory
  *
  * NOTE: this function is not re-entrant. Must hold a lock or mutex when calling this
  * function if there is any chance of re-entrancy.
  */
 int
-tagfs_append_log(struct tagfs_log       *logp,
-		 struct tagfs_log_entry *e)
+famfs_append_log(struct famfs_log       *logp,
+		 struct famfs_log_entry *e)
 {
 	/* XXX This function is not re-entrant */
 	if (!logp || !e)
 		return -EINVAL;
 
-	if (logp->tagfs_log_magic != TAGFS_LOG_MAGIC) {
+	if (logp->famfs_log_magic != FAMFS_LOG_MAGIC) {
 		fprintf(stderr, "Log has invalid magic number\n");
 		return -EINVAL;
 	}
 
-	if (logp->tagfs_log_next_index >= logp->tagfs_log_last_index) {
+	if (logp->famfs_log_next_index >= logp->famfs_log_last_index) {
 		fprintf(stderr, "log is full\n");
 		return -E2BIG;
 	}
 
-	e->tagfs_log_entry_seqnum = logp->tagfs_log_next_seqnum;
-	memcpy(&logp->entries[logp->tagfs_log_next_index], e, sizeof(*e));
+	e->famfs_log_entry_seqnum = logp->famfs_log_next_seqnum;
+	memcpy(&logp->entries[logp->famfs_log_next_index], e, sizeof(*e));
 
-	logp->tagfs_log_next_seqnum++;
-	logp->tagfs_log_next_index++;
+	logp->famfs_log_next_seqnum++;
+	logp->famfs_log_next_index++;
 	return 0;
 }
 
 
 /**
- * tagfs_relpath_from_fullpath()
+ * famfs_relpath_from_fullpath()
  *
  * Returns a pointer to the relpath. This pointer points within the fullpath string
  *
@@ -852,7 +852,7 @@ tagfs_append_log(struct tagfs_log       *logp,
  * @fullpath
  */
 char *
-tagfs_relpath_from_fullpath(
+famfs_relpath_from_fullpath(
 	const char *mpt,
 	char       *fullpath)
 {
@@ -876,24 +876,24 @@ tagfs_relpath_from_fullpath(
 }
 
 /**
- * tagfs_log_file_creation()
+ * famfs_log_file_creation()
  */
 /* TODO: UI would be cleaner if this accepted a fullpath and the mpt, and did the
  * conversion itself. Then pretty much all calls would use the same stuff.
  */
 int
-tagfs_log_file_creation(
-	struct tagfs_log           *logp,
+famfs_log_file_creation(
+	struct famfs_log           *logp,
 	u64                         nextents,
-	struct tagfs_simple_extent *ext_list,
+	struct famfs_simple_extent *ext_list,
 	const char                 *relpath,
 	mode_t                      mode,
 	uid_t                       uid,
 	gid_t                       gid,
 	size_t                      size)
 {
-	struct tagfs_log_entry le = {0};
-	struct tagfs_file_creation *fc = &le.tagfs_fc;
+	struct famfs_log_entry le = {0};
+	struct famfs_file_creation *fc = &le.famfs_fc;
 	int i;
 
 	assert(logp);
@@ -901,19 +901,19 @@ tagfs_log_file_creation(
 	assert(nextents >= 1);
 	assert(relpath[0] != '/');
 
-	if (tagfs_log_full(logp)) {
+	if (famfs_log_full(logp)) {
 		fprintf(stderr, "%s: log full\n", __func__);
 		return -ENOMEM;
 	}
 
-	//le.tagfs_log_entry_seqnum = logp->tagfs_log_next_seqnum++; /* XXX mem ordering */
-	le.tagfs_log_entry_type = TAGFS_LOG_FILE;
+	//le.famfs_log_entry_seqnum = logp->famfs_log_next_seqnum++; /* XXX mem ordering */
+	le.famfs_log_entry_type = FAMFS_LOG_FILE;
 
-	fc->tagfs_fc_size = size;
-	fc->tagfs_nextents = nextents;
-	fc->tagfs_fc_flags = TAGFS_FC_ALL_HOSTS_RW; /* XXX hard coded access for now */
+	fc->famfs_fc_size = size;
+	fc->famfs_nextents = nextents;
+	fc->famfs_fc_flags = FAMFS_FC_ALL_HOSTS_RW; /* XXX hard coded access for now */
 
-	strncpy((char *)fc->tagfs_relpath, relpath, TAGFS_MAX_PATHLEN - 1);
+	strncpy((char *)fc->famfs_relpath, relpath, FAMFS_MAX_PATHLEN - 1);
 
 	fc->fc_mode = mode;
 	fc->fc_uid  = uid;
@@ -921,56 +921,56 @@ tagfs_log_file_creation(
 
 	/* Copy extents into log entry */
 	for (i = 0; i < nextents; i++) {
-		struct tagfs_log_extent *ext = &fc->tagfs_ext_list[i];
+		struct famfs_log_extent *ext = &fc->famfs_ext_list[i];
 
-		ext->tagfs_extent_type = TAGFS_EXT_SIMPLE;
-		ext->se.tagfs_extent_offset = ext_list[i].tagfs_extent_offset;
-		ext->se.tagfs_extent_len    = ext_list[i].tagfs_extent_len;
+		ext->famfs_extent_type = FAMFS_EXT_SIMPLE;
+		ext->se.famfs_extent_offset = ext_list[i].famfs_extent_offset;
+		ext->se.famfs_extent_len    = ext_list[i].famfs_extent_len;
 	}
 
-	return tagfs_append_log(logp, &le);
+	return famfs_append_log(logp, &le);
 }
 
 /**
- * tagfs_log_dir_creation()
+ * famfs_log_dir_creation()
  */
 /* TODO: UI would be cleaner if this accepted a fullpath and the mpt, and did the
  * conversion itself. Then pretty much all calls would use the same stuff.
  */
 int
-tagfs_log_dir_creation(
-	struct tagfs_log           *logp,
+famfs_log_dir_creation(
+	struct famfs_log           *logp,
 	const char                 *relpath,
 	mode_t                      mode,
 	uid_t                       uid,
 	gid_t                       gid)
 {
-	struct tagfs_log_entry le = {0};
-	struct tagfs_mkdir *md = &le.tagfs_md;
+	struct famfs_log_entry le = {0};
+	struct famfs_mkdir *md = &le.famfs_md;
 
 	assert(logp);
 	assert(relpath[0] != '/');
 
-	if (tagfs_log_full(logp)) {
+	if (famfs_log_full(logp)) {
 		fprintf(stderr, "%s: log full\n", __func__);
 		return -ENOMEM;
 	}
 
-	le.tagfs_log_entry_type = TAGFS_LOG_MKDIR;
+	le.famfs_log_entry_type = FAMFS_LOG_MKDIR;
 
-	strncpy((char *)md->tagfs_relpath, relpath, TAGFS_MAX_PATHLEN - 1);
+	strncpy((char *)md->famfs_relpath, relpath, FAMFS_MAX_PATHLEN - 1);
 
 	md->fc_mode = mode;
 	md->fc_uid  = uid;
 	md->fc_gid  = gid;
 
-	return tagfs_append_log(logp, &le);
+	return famfs_append_log(logp, &le);
 }
 
 /**
  * __open_relpath()
  *
- * @path       - any path within a tagfs file system (from mount pt on down)
+ * @path       - any path within a famfs file system (from mount pt on down)
  * @relpath    - the relative path to open (relative to the mount point)
  * @read_only
  * @size_out   - File size will be returned if this pointer is non-NULL
@@ -1030,7 +1030,7 @@ next:
 /**
  * open_log_file(path)
  *
- * @path - any path within a tagfs file system (from mount pt on down)
+ * @path - any path within a famfs file system (from mount pt on down)
  *
  * This will traverse upward from path, looking for a directory containing a .meta/.log
  * If found, it opens the log.
@@ -1091,12 +1091,12 @@ open_superblock_file_writable(
 	return __open_superblock_file(path, 0, sizep, mpt_out);
 }
 
-struct tagfs_superblock *
-tagfs_map_superblock_by_path(
+struct famfs_superblock *
+famfs_map_superblock_by_path(
 	const char *path,
 	int         read_only)
 {
-	struct tagfs_superblock *sb;
+	struct famfs_superblock *sb;
 	int prot = (read_only) ? PROT_READ : PROT_READ | PROT_WRITE;
 	size_t sb_size;
 	void *addr;
@@ -1115,16 +1115,16 @@ tagfs_map_superblock_by_path(
 		fprintf(stderr, "%s: Failed to mmap log file %s", __func__, path);
 		return NULL;
 	}
-	sb = (struct tagfs_superblock *)addr;
+	sb = (struct famfs_superblock *)addr;
 	return sb;
 }
 
-struct tagfs_log *
-tagfs_map_log_by_path(
+struct famfs_log *
+famfs_map_log_by_path(
 	const char *path,
 	int         read_only)
 {
-	struct tagfs_log *logp;
+	struct famfs_log *logp;
 	int prot = (read_only) ? PROT_READ : PROT_READ | PROT_WRITE;
 	size_t log_size;
 	void *addr;
@@ -1142,18 +1142,18 @@ tagfs_map_log_by_path(
 		fprintf(stderr, "%s: Failed to mmap log file %s", __func__, path);
 		return NULL;
 	}
-	logp = (struct tagfs_log *)addr;
+	logp = (struct famfs_log *)addr;
 	return logp;
 }
 
 int
-tagfs_fsck(
+famfs_fsck(
 	const char *path,
 	int use_mmap,
 	int verbose)
 {
-	struct tagfs_superblock *sb;
-	struct tagfs_log *logp;
+	struct famfs_superblock *sb;
+	struct famfs_log *logp;
 	struct stat st;
 	int malloc_sb_log = 0;
 	size_t size;
@@ -1173,10 +1173,10 @@ tagfs_fsck(
 	case S_IFBLK:
 	case S_IFCHR: {
 		char *mpt;
-		/* Check if there is a mounted tagfs file system on this device;
+		/* Check if there is a mounted famfs file system on this device;
 		 * fail if so - if mounted, have to fsck by mount pt rather than device
 		 */
-		mpt = tagfs_get_mpt_by_dev(path);
+		mpt = famfs_get_mpt_by_dev(path);
 		if (mpt) {
 			fprintf(stderr, "%s: error - cannot fsck by device (%s) when mounted\n",
 				__func__, path);
@@ -1184,11 +1184,11 @@ tagfs_fsck(
 			return -EBUSY;
 		}
 		/* If it's a device, we'll try to mmap superblock and log from the device */
-		rc = tagfs_get_device_size(path, &size, NULL);
+		rc = famfs_get_device_size(path, &size, NULL);
 		if (rc < 0)
 			return -1;
 
-		rc = tagfs_mmap_superblock_and_log_raw(path, &sb, &logp, 1 /* read-only */);
+		rc = famfs_mmap_superblock_and_log_raw(path, &sb, &logp, 1 /* read-only */);
 		break;
 	}
 	case S_IFREG:
@@ -1199,14 +1199,14 @@ tagfs_fsck(
 			 *
 			 * Note that this tends to fail
 			 */
-			sb =   tagfs_map_superblock_by_path(path, 1 /* read only */);
+			sb =   famfs_map_superblock_by_path(path, 1 /* read only */);
 			if (!sb) {
 				fprintf(stderr, "%s: failed to map superblock from file %s\n",
 					__func__, path);
 				return -1;
 			}
 
-			logp = tagfs_map_log_by_path(path, 1 /* read only */);
+			logp = famfs_map_log_by_path(path, 1 /* read only */);
 			if (!logp) {
 				fprintf(stderr, "%s: failed to map log from file %s\n",
 					__func__, path);
@@ -1228,11 +1228,11 @@ tagfs_fsck(
 				return -1;
 			}
 			/* Over-allocate so we can read 2MiB multiple */
-			sb = calloc(1, TAGFS_LOG_OFFSET);
+			sb = calloc(1, FAMFS_LOG_OFFSET);
 			assert(sb);
 
 			/* Read a copy of the superblock */
-			rc = read(sfd, sb, TAGFS_LOG_OFFSET); /* 2MiB multiple */
+			rc = read(sfd, sb, FAMFS_LOG_OFFSET); /* 2MiB multiple */
 			if (rc < 0) {
 				free(sb);
 				close(sfd);
@@ -1286,11 +1286,11 @@ tagfs_fsck(
 		return -EINVAL;
 	}
 
-	if (tagfs_check_super(sb)) {
-		fprintf(stderr, "%s: no tagfs superblock on device %s\n", __func__, path);
+	if (famfs_check_super(sb)) {
+		fprintf(stderr, "%s: no famfs superblock on device %s\n", __func__, path);
 		return -1;
 	}
-	rc = tagfs_fsck_scan(sb, logp, verbose);
+	rc = famfs_fsck_scan(sb, logp, verbose);
 	if (malloc_sb_log) {
 		free(sb);
 		free(logp);
@@ -1299,20 +1299,20 @@ tagfs_fsck(
 }
 
 /**
- * tagfs_validate_superblock_by_path()
+ * famfs_validate_superblock_by_path()
  *
  * @path
  *
  * Validate the superblock and return the dax device size, or -1 if sb or size invalid
  */
 static ssize_t
-tagfs_validate_superblock_by_path(const char *path)
+famfs_validate_superblock_by_path(const char *path)
 {
 	int sfd;
 	void *addr;
 	size_t sb_size;
 	ssize_t daxdevsize;
-	struct tagfs_superblock *sb;
+	struct famfs_superblock *sb;
 
 	/* XXX should be read only, but that doesn't work */
 	sfd = open_superblock_file_writable(path, &sb_size, NULL);
@@ -1326,14 +1326,14 @@ tagfs_validate_superblock_by_path(const char *path)
 		close(sfd);
 		return -1;
 	}
-	sb = (struct tagfs_superblock *)addr;
+	sb = (struct famfs_superblock *)addr;
 
-	if (tagfs_check_super(sb)) {
+	if (famfs_check_super(sb)) {
 		fprintf(stderr, "%s: invalid superblock\n", __func__);
 		return -1;
 	}
 	daxdevsize = sb->ts_devlist[0].dd_size;
-	munmap(sb, TAGFS_SUPERBLOCK_SIZE);
+	munmap(sb, FAMFS_SUPERBLOCK_SIZE);
 	close(sfd);
 	return daxdevsize;
 }
@@ -1352,12 +1352,12 @@ put_sb_log_into_bitmap(u8 *bitmap)
 	/* Mark superblock and log as allocated */
 	mu_bitmap_set(bitmap, 0);
 
-	for (i = 1; i < ((TAGFS_LOG_OFFSET + TAGFS_LOG_LEN) / TAGFS_ALLOC_UNIT); i++)
+	for (i = 1; i < ((FAMFS_LOG_OFFSET + FAMFS_LOG_LEN) / FAMFS_ALLOC_UNIT); i++)
 		mu_bitmap_set(bitmap, i);
 }
 
 /**
- * tagfs_build_bitmap()
+ * famfs_build_bitmap()
  *
  * XXX: this is only aware of the first daxdev in the superblock's list
  * @logp
@@ -1372,7 +1372,7 @@ put_sb_log_into_bitmap(u8 *bitmap)
  * @verbose
  */
 u8 *
-tagfs_build_bitmap(const struct tagfs_log   *logp,
+famfs_build_bitmap(const struct famfs_log   *logp,
 		   u64                       bitmap_size_in,
 		   u64                      *bitmap_size_out,
 		   u64                      *alloc_errors_out,
@@ -1380,7 +1380,7 @@ tagfs_build_bitmap(const struct tagfs_log   *logp,
 		   u64                      *alloc_total_out,
 		   int                       verbose)
 {
-	int npages = (bitmap_size_in - TAGFS_SUPERBLOCK_SIZE - TAGFS_LOG_LEN) / TAGFS_ALLOC_UNIT;
+	int npages = (bitmap_size_in - FAMFS_SUPERBLOCK_SIZE - FAMFS_LOG_LEN) / FAMFS_ALLOC_UNIT;
 	int bitmap_size = mu_bitmap_size(npages);
 	u8 *bitmap = calloc(1, bitmap_size);
 	u64 errors = 0;
@@ -1395,31 +1395,31 @@ tagfs_build_bitmap(const struct tagfs_log   *logp,
 	put_sb_log_into_bitmap(bitmap);
 
 	/* This loop is over all log entries */
-	for (i = 0; i < logp->tagfs_log_next_index; i++) {
-		const struct tagfs_log_entry *le = &logp->entries[i];
+	for (i = 0; i < logp->famfs_log_next_index; i++) {
+		const struct famfs_log_entry *le = &logp->entries[i];
 
 		/* TODO: validate log sequence number */
 
-		switch (le->tagfs_log_entry_type) {
-		case TAGFS_LOG_FILE: {
-			const struct tagfs_file_creation *fc = &le->tagfs_fc;
-			const struct tagfs_log_extent *ext = fc->tagfs_ext_list;
+		switch (le->famfs_log_entry_type) {
+		case FAMFS_LOG_FILE: {
+			const struct famfs_file_creation *fc = &le->famfs_fc;
+			const struct famfs_log_extent *ext = fc->famfs_ext_list;
 
-			size_sum += fc->tagfs_fc_size;
+			size_sum += fc->famfs_fc_size;
 			if (verbose)
 				printf("%s: file=%s size=%lld\n", __func__,
-				       fc->tagfs_relpath, fc->tagfs_fc_size);
+				       fc->famfs_relpath, fc->famfs_fc_size);
 
 			/* For each extent in this log entry, mark the bitmap as allocated */
-			for (j = 0; j < fc->tagfs_nextents; j++) {
+			for (j = 0; j < fc->famfs_nextents; j++) {
 				s64 page_num;
 				s64 np;
 				s64 k;
 
-				assert(!(ext[j].se.tagfs_extent_offset % TAGFS_ALLOC_UNIT));
-				page_num = ext[j].se.tagfs_extent_offset / TAGFS_ALLOC_UNIT;
-				np = (ext[j].se.tagfs_extent_len + TAGFS_ALLOC_UNIT - 1)
-					/ TAGFS_ALLOC_UNIT;
+				assert(!(ext[j].se.famfs_extent_offset % FAMFS_ALLOC_UNIT));
+				page_num = ext[j].se.famfs_extent_offset / FAMFS_ALLOC_UNIT;
+				np = (ext[j].se.famfs_extent_len + FAMFS_ALLOC_UNIT - 1)
+					/ FAMFS_ALLOC_UNIT;
 
 				for (k = page_num; k < (page_num + np); k++) {
 					rc = mu_bitmap_test_and_set(bitmap, k);
@@ -1427,17 +1427,17 @@ tagfs_build_bitmap(const struct tagfs_log   *logp,
 						errors++; /* bit was already set */
 					} else {
 						/* Don't count double allocations */
-						alloc_sum += TAGFS_ALLOC_UNIT;
+						alloc_sum += FAMFS_ALLOC_UNIT;
 					}
 				}
 			}
 			break;
 		}
-		case TAGFS_LOG_MKDIR:
+		case FAMFS_LOG_MKDIR:
 			/* Ignore directory log entries - no space is used */
 
 			break;
-		case TAGFS_LOG_ACCESS:
+		case FAMFS_LOG_ACCESS:
 		default:
 			printf("%s: invalid log entry\n", __func__);
 			break;
@@ -1469,7 +1469,7 @@ bitmap_alloc_contiguous(u8 *bitmap,
 			u64 size)
 {
 	int i, j;
-	int alloc_bits = (size + TAGFS_ALLOC_UNIT - 1) /  TAGFS_ALLOC_UNIT;
+	int alloc_bits = (size + FAMFS_ALLOC_UNIT - 1) /  FAMFS_ALLOC_UNIT;
 	int bitmap_remainder;
 
 	for (i = 0; i < nbits; i++) {
@@ -1491,7 +1491,7 @@ bitmap_alloc_contiguous(u8 *bitmap,
 		for (j = i; j < (i+alloc_bits); j++)
 			mse_bitmap_set32(bitmap, j);
 
-		return i * TAGFS_ALLOC_UNIT;
+		return i * FAMFS_ALLOC_UNIT;
 next:
 	}
 	fprintf(stderr, "%s: alloc failed\n", __func__);
@@ -1499,16 +1499,16 @@ next:
 }
 
 /**
- * tagfs_alloc_bypath()
+ * famfs_alloc_bypath()
  *
- * @path    - a path within the tagfs file system
+ * @path    - a path within the famfs file system
  * @size    - size in bytes
  *
  * XXX currently only contiuous allocations are supported
  */
 s64
-tagfs_alloc_bypath(
-	struct tagfs_log *logp,
+famfs_alloc_bypath(
+	struct famfs_log *logp,
 	const char       *path,
 	u64               size)
 {
@@ -1520,11 +1520,11 @@ tagfs_alloc_bypath(
 	if (size <= 0)
 		return -1;
 
-	daxdevsize = tagfs_validate_superblock_by_path(path);
+	daxdevsize = famfs_validate_superblock_by_path(path);
 	if (daxdevsize < 0)
 		return daxdevsize;
 
-	bitmap = tagfs_build_bitmap(logp, daxdevsize, &nbits, NULL, NULL, NULL, 0);
+	bitmap = famfs_build_bitmap(logp, daxdevsize, &nbits, NULL, NULL, NULL, 0);
 	printf("\nbitmap before:\n");
 	mu_print_bitmap(bitmap, nbits);
 	offset = bitmap_alloc_contiguous(bitmap, nbits, size);
@@ -1536,11 +1536,11 @@ tagfs_alloc_bypath(
 }
 
 int
-__file_not_tagfs(int fd)
+__file_not_famfs(int fd)
 {
 	int rc;
 
-	rc = ioctl(fd, TAGFSIOC_NOP, 0);
+	rc = ioctl(fd, FAMFSIOC_NOP, 0);
 	if (rc)
 		return 1;
 
@@ -1548,7 +1548,7 @@ __file_not_tagfs(int fd)
 }
 
 /**
- * tagfs_file_alloc()
+ * famfs_file_alloc()
  *
  * Alllocate space for a file, making it ready to use
  *
@@ -1559,7 +1559,7 @@ __file_not_tagfs(int fd)
  * @size - size to alloacte
  */
 int
-tagfs_file_alloc(
+famfs_file_alloc(
 	int         fd,
 	const char *path,
 	mode_t      mode,
@@ -1567,8 +1567,8 @@ tagfs_file_alloc(
 	gid_t       gid,
 	u64         size)
 {
-	struct tagfs_simple_extent ext = {0};
-	struct tagfs_log *logp;
+	struct famfs_simple_extent ext = {0};
+	struct famfs_log *logp;
 	char mpt[PATH_MAX];
 	size_t log_size;
 	char *relpath;
@@ -1597,31 +1597,31 @@ tagfs_file_alloc(
 	}
 	close(lfd);
 	lfd = 0;
-	logp = (struct tagfs_log *)addr;
+	logp = (struct famfs_log *)addr;
 
 	/* For the log, we need the path relative to the mount point.
 	 * getting this before we allocate is cleaner if the path is sombhow bogus
 	 */
-	relpath = tagfs_relpath_from_fullpath(mpt, rpath);
+	relpath = famfs_relpath_from_fullpath(mpt, rpath);
 	if (!relpath)
 		return -EINVAL;
 
 	/* Allocation is always contiguous initially */
-	offset = tagfs_alloc_bypath(logp, rpath, size);
+	offset = famfs_alloc_bypath(logp, rpath, size);
 	if (offset < 0) {
 		rc = -ENOMEM;
 		goto out;
 	}
 
-	ext.tagfs_extent_len    = round_size_to_alloc_unit(size);
-	ext.tagfs_extent_offset = offset;
+	ext.famfs_extent_len    = round_size_to_alloc_unit(size);
+	ext.famfs_extent_offset = offset;
 
-	rc = tagfs_log_file_creation(logp, 1, &ext,
+	rc = famfs_log_file_creation(logp, 1, &ext,
 				     relpath, mode, uid, gid, size);
 	if (rc)
 		goto out;
 
-	rc =  tagfs_file_map_create(path, fd, size, 1, &ext, TAGFS_REG);
+	rc =  famfs_file_map_create(path, fd, size, 1, &ext, FAMFS_REG);
 out:
 	if (lfd > 0)
 		close(lfd);
@@ -1631,7 +1631,7 @@ out:
 }
 
 /**
- * tagfs_file_create()
+ * famfs_file_create()
  *
  * Create a file but don't allocate dax space yet
  *
@@ -1641,12 +1641,12 @@ out:
  * @gid  - used if both uid and gid are non-null
  * @size
  *
- * Returns a file descriptior or -EBADF if the path is not in a tagfs file system
+ * Returns a file descriptior or -EBADF if the path is not in a famfs file system
  *
  * TODO: append "_empty" to function name
  */
 int
-tagfs_file_create(const char *path,
+famfs_file_create(const char *path,
 		  mode_t      mode,
 		  uid_t       uid,
 		  gid_t       gid)
@@ -1670,10 +1670,10 @@ tagfs_file_create(const char *path,
 		return fd;
 	}
 
-	if (__file_not_tagfs(fd)) {
+	if (__file_not_famfs(fd)) {
 		close(fd);
 		unlink(path);
-		fprintf(stderr, "%s: file %s not in a tagfs mount\n",
+		fprintf(stderr, "%s: file %s not in a famfs mount\n",
 			__func__, path);
 		return -EBADF;
 	}
@@ -1688,14 +1688,14 @@ tagfs_file_create(const char *path,
 }
 
 /**
- * tagfs_mkfile()
+ * famfs_mkfile()
  *
  * Create *and* allocate a file
  *
  * Returns an open file descriptor if successful.
  */
 int
-tagfs_mkfile(char    *filename,
+famfs_mkfile(char    *filename,
 	     mode_t   mode,
 	     uid_t    uid,
 	     gid_t    gid,
@@ -1704,7 +1704,7 @@ tagfs_mkfile(char    *filename,
 	int fd, rc;
 	char fullpath[PATH_MAX];
 
-	fd = tagfs_file_create(filename, mode, uid, gid);
+	fd = famfs_file_create(filename, mode, uid, gid);
 	if (fd < 0)
 		return fd;
 
@@ -1714,9 +1714,9 @@ tagfs_mkfile(char    *filename,
 			__func__, filename);
 	}
 
-	rc = tagfs_file_alloc(fd, fullpath, mode, uid, gid, size);
+	rc = famfs_file_alloc(fd, fullpath, mode, uid, gid, size);
 	if (rc) {
-		fprintf(stderr, "%s: tagfs_file_alloc(%s, size=%ld) failed\n",
+		fprintf(stderr, "%s: famfs_file_alloc(%s, size=%ld) failed\n",
 			__func__, fullpath, size);
 		unlink(fullpath);
 		return -1;
@@ -1725,7 +1725,7 @@ tagfs_mkfile(char    *filename,
 }
 
 /**
- * tagfs_dir_create()
+ * famfs_dir_create()
  *
  * Create a directory
  *
@@ -1739,7 +1739,7 @@ tagfs_mkfile(char    *filename,
  *
  */
 int
-tagfs_dir_create(
+famfs_dir_create(
 	const char *mpt,
 	const char *rpath,
 	mode_t      mode,
@@ -1756,7 +1756,7 @@ tagfs_dir_create(
 		return -1;
 	}
 
-	/* Check if dir is in tagfs mount? */
+	/* Check if dir is in famfs mount? */
 
 	if (uid && gid) {
 		rc = chown(fullpath, uid, gid);
@@ -1769,13 +1769,13 @@ tagfs_dir_create(
 }
 
 /**
- * libtagfs:
+ * libfamfs:
  *
- * tagfs_cp(srcfile, destfile)
+ * famfs_cp(srcfile, destfile)
  */
 
 int
-tagfs_mkdir(
+famfs_mkdir(
 	const char *dirpath,
 	mode_t      mode,
 	uid_t       uid,
@@ -1786,7 +1786,7 @@ tagfs_mkdir(
 	char realparent[PATH_MAX];
 	char fullpath[PATH_MAX];
 	char mpt_out[PATH_MAX];
-	struct tagfs_log *logp;
+	struct famfs_log *logp;
 	char *dirdupe   = NULL;
 	char *parentdir = NULL;
 	char *basedupe  = NULL;
@@ -1844,12 +1844,12 @@ tagfs_mkdir(
 	}
 	close(lfd);
 	lfd  = 0;
-	logp = (struct tagfs_log *)addr;
+	logp = (struct famfs_log *)addr;
 
 	printf("%s: creating directory %s\n", __func__, fullpath);
 
-	relpath = tagfs_relpath_from_fullpath(mpt_out, fullpath);
-	rc = tagfs_dir_create(mpt_out, relpath, mode, uid, gid);
+	relpath = famfs_relpath_from_fullpath(mpt_out, fullpath);
+	rc = famfs_dir_create(mpt_out, relpath, mode, uid, gid);
 	if (rc) {
 		fprintf(stderr, "%s: failed to mkdir %s\n", __func__, fullpath);
 		rc = -1;
@@ -1857,7 +1857,7 @@ tagfs_mkdir(
 	}
 
 	/* log dir creation */
-	rc = tagfs_log_dir_creation(logp, relpath, mode, uid, gid);
+	rc = famfs_log_dir_creation(logp, relpath, mode, uid, gid);
 
 err_out:
 	if (dirdupe)
@@ -1869,7 +1869,7 @@ err_out:
 }
 
 int
-tagfs_cp(char *srcfile,
+famfs_cp(char *srcfile,
 	 char *destfile)
 {
 	struct stat srcstat;
@@ -1882,7 +1882,7 @@ tagfs_cp(char *srcfile,
 
 	/**
 	 * Check the destination file first, since that is constrained in several ways:
-	 * * Dest must be in a tagfs file system
+	 * * Dest must be in a famfs file system
 	 * * Dest must not exist already
 	 */
 	rc = stat(destfile, &deststat);
@@ -1896,11 +1896,11 @@ tagfs_cp(char *srcfile,
 		return rc;
 	}
 
-	destfd = tagfs_file_create(destfile, srcstat.st_mode, srcstat.st_uid, srcstat.st_gid);
+	destfd = famfs_file_create(destfile, srcstat.st_mode, srcstat.st_uid, srcstat.st_gid);
 	if (destfd < 0) {
 		if (destfd == -EBADF)
 			fprintf(stderr,
-				"Destination file %s is not in a tagfs file system\n",
+				"Destination file %s is not in a famfs file system\n",
 				destfile);
 		else
 			fprintf(stderr, "%s: unable to create destfile (%s)\n",
@@ -1921,7 +1921,7 @@ tagfs_cp(char *srcfile,
 	}
 
 	/* TODO: consistent arg order fd, name */
-	rc = tagfs_file_alloc(destfd, destfile, srcstat.st_mode, srcstat.st_uid,
+	rc = famfs_file_alloc(destfd, destfile, srcstat.st_mode, srcstat.st_uid,
 			      srcstat.st_gid, srcstat.st_size);
 	if (rc) {
 		fprintf(stderr, "%s: failed to allocate size %ld for file %s\n",

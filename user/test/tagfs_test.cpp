@@ -14,8 +14,8 @@ extern "C" {
 #include <sys/stat.h>
 }
 
-/* These are really system test calls that need an actual tagfs file system mounted
- * at /mnt/tagfs
+/* These are really system test calls that need an actual famfs file system mounted
+ * at /mnt/famfs
  */
 
 
@@ -23,26 +23,26 @@ extern "C" {
  * NOTE THESE TESTS MUST BE RUN AS ROOT!!
  */
 
-#define TAGFS_MPT "/mnt/tagfs"
-#define DIRPATH   "/mnt/tagfs/testdir42"
-#define TESTFILE  "/mnt/tagfs/testdir42/testfile0"
+#define FAMFS_MPT "/mnt/famfs"
+#define DIRPATH   "/mnt/famfs/testdir42"
+#define TESTFILE  "/mnt/famfs/testdir42/testfile0"
 
-TEST(tagfs, dummy)
+TEST(famfs, dummy)
 {
 	printf("Dummy test\n");
 	ASSERT_EQ(0, 0);
 }
 
-TEST(tagfs, tagfs_mounted)
+TEST(famfs, famfs_mounted)
 {
 	int fd;
 	char mpt[PATH_MAX];
 
-	fd = open_log_file_read_only(TAGFS_MPT, NULL, mpt);
+	fd = open_log_file_read_only(FAMFS_MPT, NULL, mpt);
 	ASSERT_GT(fd, 2);
 }
 
-TEST(tagfs, tagfs_mkdir)
+TEST(famfs, famfs_mkdir)
 {
 	int rc;
 	struct stat st;
@@ -52,7 +52,7 @@ TEST(tagfs, tagfs_mkdir)
 	ASSERT_NE(0, rc);
 
 	/* Create a directory */
-	rc = tagfs_mkdir(DIRPATH, 0777, 0, 0);
+	rc = famfs_mkdir(DIRPATH, 0777, 0, 0);
 	ASSERT_EQ(0, rc);
 
 	/* Now the dir should exist */
@@ -62,9 +62,9 @@ TEST(tagfs, tagfs_mkdir)
 }
 
 /* Create a file and init */
-TEST(tagfs, tagfs_mkfile)
+TEST(famfs, famfs_mkfile)
 {
-	//rc = tagfs
+	//rc = famfs
 }
 
 /* Verify file */

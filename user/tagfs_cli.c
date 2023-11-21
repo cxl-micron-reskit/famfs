@@ -69,25 +69,25 @@ void print_global_opts(void)
 /********************************************************************/
 
 void
-tagfs_logplay_usage(int   argc,
+famfs_logplay_usage(int   argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
 
 	printf("\n"
-	       "Play the log into a tagfs file system\n"
+	       "Play the log into a famfs file system\n"
 	       "    %s <memdevice>\n"
 	       "\n", progname);
 }
 
 /* TODO: add recursive copy? */
 int
-do_tagfs_cli_logplay(int argc, char *argv[])
+do_famfs_cli_logplay(int argc, char *argv[])
 {
 	int c;
 	int rc;
 	int arg_ct = 0;
-	struct tagfs_log *logp;
+	struct famfs_log *logp;
 	char mpt_out[PATH_MAX];
 	size_t log_size;
 	char *filename;
@@ -108,8 +108,8 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 	 * err if nothing is left
 	 */
 	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli map: no files\n");
-		tagfs_logplay_usage(argc, argv);
+		fprintf(stderr, "famfs_cli map: no files\n");
+		famfs_logplay_usage(argc, argv);
 		return -1;
 	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
@@ -132,7 +132,7 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 			break;
 		case 'h':
 		case '?':
-			tagfs_logplay_usage(argc, argv);
+			famfs_logplay_usage(argc, argv);
 			return 0;
 
 		default:
@@ -174,27 +174,27 @@ do_tagfs_cli_logplay(int argc, char *argv[])
 	} while (resid > 0);
 
 	close(lfd);
-	tagfs_logplay(logp, mpt_out, dry_run);
+	famfs_logplay(logp, mpt_out, dry_run);
 	return 0;
 }
 
 /********************************************************************/
 
 void
-tagfs_mkmeta_usage(int   argc,
+famfs_mkmeta_usage(int   argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
 
 	printf("\n"
-	       "Expose the meta files of a tagfs file system\n"
+	       "Expose the meta files of a famfs file system\n"
 	       "    %s <memdevice>\n"
 	       "\n", progname);
 }
 
 /* TODO: add recursive copy? */
 int
-do_tagfs_cli_mkmeta(int argc, char *argv[])
+do_famfs_cli_mkmeta(int argc, char *argv[])
 {
 	int c;
 
@@ -209,8 +209,8 @@ do_tagfs_cli_mkmeta(int argc, char *argv[])
 	};
 
 	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli map: no args\n");
-		tagfs_mkmeta_usage(argc, argv);
+		fprintf(stderr, "famfs_cli map: no args\n");
+		famfs_mkmeta_usage(argc, argv);
 		return -1;
 	}
 
@@ -218,8 +218,8 @@ do_tagfs_cli_mkmeta(int argc, char *argv[])
 	 * err if nothing is left
 	 */
 	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli map: no files\n");
-		tagfs_mkmeta_usage(argc, argv);
+		fprintf(stderr, "famfs_cli map: no files\n");
+		famfs_mkmeta_usage(argc, argv);
 		return -1;
 	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
@@ -239,7 +239,7 @@ do_tagfs_cli_mkmeta(int argc, char *argv[])
 
 		case 'h':
 		case '?':
-			tagfs_mkmeta_usage(argc, argv);
+			famfs_mkmeta_usage(argc, argv);
 			return 0;
 
 		default:
@@ -261,7 +261,7 @@ do_tagfs_cli_mkmeta(int argc, char *argv[])
 		free(realdaxdev);
 		return -1;
 	}
-	tagfs_mkmeta(realdaxdev);
+	famfs_mkmeta(realdaxdev);
 	free(realdaxdev);
 	return 0;
 }
@@ -269,20 +269,20 @@ do_tagfs_cli_mkmeta(int argc, char *argv[])
 /********************************************************************/
 
 void
-tagfs_fsck_usage(int   argc,
+famfs_fsck_usage(int   argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
 
 	printf("\n"
-	       "Check a tagfs file system\n"
+	       "Check a famfs file system\n"
 	       "    %s <memdevice>\n"
 	       "\n", progname);
 }
 
 /* TODO: add recursive copy? */
 int
-do_tagfs_cli_fsck(int argc, char *argv[])
+do_famfs_cli_fsck(int argc, char *argv[])
 {
 	int c;
 
@@ -300,8 +300,8 @@ do_tagfs_cli_fsck(int argc, char *argv[])
 	};
 
 	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli map: no args\n");
-		tagfs_fsck_usage(argc, argv);
+		fprintf(stderr, "famfs_cli map: no args\n");
+		famfs_fsck_usage(argc, argv);
 		return -1;
 	}
 
@@ -309,8 +309,8 @@ do_tagfs_cli_fsck(int argc, char *argv[])
 	 * err if nothing is left
 	 */
 	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli map: no files\n");
-		tagfs_fsck_usage(argc, argv);
+		fprintf(stderr, "famfs_cli map: no files\n");
+		famfs_fsck_usage(argc, argv);
 		return -1;
 	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
@@ -332,7 +332,7 @@ do_tagfs_cli_fsck(int argc, char *argv[])
 			break;
 		case 'h':
 		case '?':
-			tagfs_fsck_usage(argc, argv);
+			famfs_fsck_usage(argc, argv);
 			return 0;
 
 		default:
@@ -347,30 +347,30 @@ do_tagfs_cli_fsck(int argc, char *argv[])
 	}
 	/* TODO: multiple devices? */
 	daxdev = argv[optind++];
-	return tagfs_fsck(daxdev, use_mmap, verbose_flag);
+	return famfs_fsck(daxdev, use_mmap, verbose_flag);
 }
 
 
 /********************************************************************/
 
 void
-tagfs_cp_usage(int   argc,
+famfs_cp_usage(int   argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
 
 	printf("\n"
-	       "Copy a file into a tagfs file system\n"
+	       "Copy a file into a famfs file system\n"
 	       "    %s cp <srcfile> <destfile>\n"
 	       "\n"
-	       "NOTE: you need this tool to copy a file into a tagfs file system,\n"
-	       "but the standard \'cp\' can be used to copy FROM a tagfs file system.\n",
+	       "NOTE: you need this tool to copy a file into a famfs file system,\n"
+	       "but the standard \'cp\' can be used to copy FROM a famfs file system.\n",
 	       progname);
 }
 
 /* TODO: add recursive copy? */
 int
-do_tagfs_cli_cp(int argc, char *argv[])
+do_famfs_cli_cp(int argc, char *argv[])
 {
 	int c, rc;
 
@@ -387,8 +387,8 @@ do_tagfs_cli_cp(int argc, char *argv[])
 	};
 
 	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli map: no args\n");
-		tagfs_cp_usage(argc, argv);
+		fprintf(stderr, "famfs_cli map: no args\n");
+		famfs_cp_usage(argc, argv);
 		return -1;
 	}
 
@@ -396,8 +396,8 @@ do_tagfs_cli_cp(int argc, char *argv[])
 	 * err if nothing is left
 	 */
 	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli map: no files\n");
-		tagfs_cp_usage(argc, argv);
+		fprintf(stderr, "famfs_cli map: no files\n");
+		famfs_cp_usage(argc, argv);
 		return -1;
 	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
@@ -417,7 +417,7 @@ do_tagfs_cli_cp(int argc, char *argv[])
 
 		case 'h':
 		case '?':
-			tagfs_cp_usage(argc, argv);
+			famfs_cp_usage(argc, argv);
 			return 0;
 
 		default:
@@ -429,8 +429,8 @@ do_tagfs_cli_cp(int argc, char *argv[])
 	srcfile = argv[optind++];
 	destfile = argv[optind++];
 
-	rc = tagfs_cp(srcfile, destfile);
-	printf("tagfs_cp returned %d\n", rc);
+	rc = famfs_cp(srcfile, destfile);
+	printf("famfs_cp returned %d\n", rc);
 	return 0;
 }
 
@@ -438,7 +438,7 @@ do_tagfs_cli_cp(int argc, char *argv[])
 /********************************************************************/
 
 void
-tagfs_getmap_usage(int   argc,
+famfs_getmap_usage(int   argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
@@ -450,10 +450,10 @@ tagfs_getmap_usage(int   argc,
 }
 
 int
-do_tagfs_cli_getmap(int argc, char *argv[])
+do_famfs_cli_getmap(int argc, char *argv[])
 {
-	struct tagfs_ioc_map filemap;
-	struct tagfs_extent *ext_list;
+	struct famfs_ioc_map filemap;
+	struct famfs_extent *ext_list;
 	int c, i, fd;
 	int rc = 0;
 	char *filename = NULL;
@@ -467,8 +467,8 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 	};
 
 	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli map: no args\n");
-		tagfs_getmap_usage(argc, argv);
+		fprintf(stderr, "famfs_cli map: no args\n");
+		famfs_getmap_usage(argc, argv);
 		return -1;
 	}
 
@@ -476,8 +476,8 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 	 * err if nothing is left
 	 */
 	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli map: no files\n");
-		tagfs_getmap_usage(argc, argv);
+		fprintf(stderr, "famfs_cli map: no files\n");
+		famfs_getmap_usage(argc, argv);
 		return -1;
 	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
@@ -497,7 +497,7 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 
 		case 'h':
 		case '?':
-			tagfs_getmap_usage(argc, argv);
+			famfs_getmap_usage(argc, argv);
 			return 0;
 
 		default:
@@ -521,14 +521,14 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 			filename, rc, errno);
 		exit(-1);
 	}
-	rc = ioctl(fd, TAGFSIOC_MAP_GET, &filemap);
+	rc = ioctl(fd, FAMFSIOC_MAP_GET, &filemap);
 	if (rc) {
 		printf("ioctl returned rc %d errno %d\n", rc, errno);
 		perror("ioctl");
 		return rc;
 	}
-	ext_list = calloc(filemap.ext_list_count, sizeof(struct tagfs_extent));
-	rc = ioctl(fd, TAGFSIOC_MAP_GETEXT, ext_list);
+	ext_list = calloc(filemap.ext_list_count, sizeof(struct famfs_extent));
+	rc = ioctl(fd, FAMFSIOC_MAP_GETEXT, ext_list);
 	if (rc) {
 		printf("ioctl returned rc %d errno %d\n", rc, errno);
 		perror("ioctl");
@@ -550,7 +550,7 @@ do_tagfs_cli_getmap(int argc, char *argv[])
 /********************************************************************/
 
 void
-tagfs_clone_usage(int   argc,
+famfs_clone_usage(int   argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
@@ -563,10 +563,10 @@ tagfs_clone_usage(int   argc,
 }
 
 int
-do_tagfs_cli_clone(int argc, char *argv[])
+do_famfs_cli_clone(int argc, char *argv[])
 {
-	struct tagfs_ioc_map filemap;
-	struct tagfs_extent *ext_list;
+	struct famfs_ioc_map filemap;
+	struct famfs_extent *ext_list;
 	int c;
 	int rc = 0;
 	int arg_ct = 0;
@@ -580,10 +580,10 @@ do_tagfs_cli_clone(int argc, char *argv[])
 	int dfd = 0;
 	char mpt_out[PATH_MAX];
 	char *relpath;
-	struct tagfs_log *logp;
+	struct famfs_log *logp;
 	void *addr;
 	size_t log_size;
-	struct tagfs_simple_extent *se;
+	struct famfs_simple_extent *se;
 	uid_t uid = geteuid();
 	gid_t gid = getegid();
 	mode_t mode = S_IRUSR|S_IWUSR;
@@ -595,8 +595,8 @@ do_tagfs_cli_clone(int argc, char *argv[])
 	};
 
 	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli map: no args\n");
-		tagfs_clone_usage(argc, argv);
+		fprintf(stderr, "famfs_cli map: no args\n");
+		famfs_clone_usage(argc, argv);
 		return -1;
 	}
 
@@ -604,8 +604,8 @@ do_tagfs_cli_clone(int argc, char *argv[])
 	 * err if nothing is left
 	 */
 	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli map: no files\n");
-		tagfs_clone_usage(argc, argv);
+		fprintf(stderr, "famfs_cli map: no files\n");
+		famfs_clone_usage(argc, argv);
 		return -1;
 	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
@@ -625,7 +625,7 @@ do_tagfs_cli_clone(int argc, char *argv[])
 
 		case 'h':
 		case '?':
-			tagfs_clone_usage(argc, argv);
+			famfs_clone_usage(argc, argv);
 			return 0;
 
 		default:
@@ -637,7 +637,7 @@ do_tagfs_cli_clone(int argc, char *argv[])
 	/* There should be 2 more arguments */
 	if (optind > (argc - 1)) {
 		fprintf(stderr, "%s: too few arguents\n", __func__);
-		tagfs_clone_usage(argc, argv);
+		famfs_clone_usage(argc, argv);
 		return -1;
 	}
 	srcfile  = argv[optind++];
@@ -648,7 +648,7 @@ do_tagfs_cli_clone(int argc, char *argv[])
 	}
 
 	/*
-	 * Open source file and make sure it's a tagfs file
+	 * Open source file and make sure it's a famfs file
 	 */
 	sfd = open(srcfile, O_RDONLY, 0);
 	if (sfd < 0) {
@@ -656,8 +656,8 @@ do_tagfs_cli_clone(int argc, char *argv[])
 			__func__, srcfile);
 		return -1;
 	}
-	if (__file_not_tagfs(sfd)) {
-		fprintf(stderr, "%s: source file %s is not a tagfs file\n",
+	if (__file_not_famfs(sfd)) {
+		fprintf(stderr, "%s: source file %s is not a famfs file\n",
 			__func__, srcfile);
 		return -1;
 	}
@@ -665,13 +665,13 @@ do_tagfs_cli_clone(int argc, char *argv[])
 	/*
 	 * Get map for source file
 	 */
-	rc = ioctl(sfd, TAGFSIOC_MAP_GET, &filemap);
+	rc = ioctl(sfd, FAMFSIOC_MAP_GET, &filemap);
 	if (rc) {
 		fprintf(stderr, "%s: MAP_GET returned %d errno %d\n", __func__, rc, errno);
 		goto err_out;
 	}
-	ext_list = calloc(filemap.ext_list_count, sizeof(struct tagfs_extent));
-	rc = ioctl(sfd, TAGFSIOC_MAP_GETEXT, ext_list);
+	ext_list = calloc(filemap.ext_list_count, sizeof(struct famfs_extent));
+	rc = ioctl(sfd, FAMFSIOC_MAP_GETEXT, ext_list);
 	if (rc) {
 		fprintf(stderr, "%s: GETEXT returned %d errno %d\n", __func__, rc, errno);
 		goto err_out;
@@ -690,12 +690,12 @@ do_tagfs_cli_clone(int argc, char *argv[])
 	}
 	close(lfd);
 	lfd = 0;
-	logp = (struct tagfs_log *)addr;
+	logp = (struct famfs_log *)addr;
 
 	/* Create the destination file. This will be unlinked later if we don't get all
 	 * the way through the operation.
 	 */
-	dfd = tagfs_file_create(destfile, mode, uid, gid);
+	dfd = famfs_file_create(destfile, mode, uid, gid);
 	if (dfd < 0) {
 		fprintf(stderr, "%s: failed to create file %s\n", __func__, destfile);
 		rc = -1;
@@ -707,19 +707,19 @@ do_tagfs_cli_clone(int argc, char *argv[])
 	 * kernel rejects the caller-supplied allocation ext list
 	 */
 	/* Ugh need to unify extent types... XXX */
-	se = tagfs_ext_to_simple_ext(ext_list, filemap.ext_list_count);
+	se = famfs_ext_to_simple_ext(ext_list, filemap.ext_list_count);
 	if (!se) {
 		rc = -ENOMEM;
 		goto err_out;
 	}
-	rc = tagfs_file_map_create(destfile, dfd, filemap.file_size, filemap.ext_list_count,
-				   se, TAGFS_REG);
+	rc = famfs_file_map_create(destfile, dfd, filemap.file_size, filemap.ext_list_count,
+				   se, FAMFS_REG);
 	if (rc) {
 		fprintf(stderr, "%s: failed to create destination file\n", __func__);
 		exit(-1);
 	}
 
-	/* Now have created the destionation file (and therefore we know it is in a tagfs
+	/* Now have created the destionation file (and therefore we know it is in a famfs
 	 * mount, we need its relative path of
 	 */
 	if (realpath(destfile, destfullpath) == NULL) {
@@ -727,19 +727,19 @@ do_tagfs_cli_clone(int argc, char *argv[])
 		unlink(destfullpath);
 		return -1;
 	}
-	relpath = tagfs_relpath_from_fullpath(mpt_out, destfullpath);
+	relpath = famfs_relpath_from_fullpath(mpt_out, destfullpath);
 	if (!relpath) {
 		rc = -1;
 		unlink(destfullpath);
 		goto err_out;
 	}
 
-	/* XXX - tagfs_log_file_creation should only be called outside
-	 * tagfs_lib.c if we are intentionally doing extent list allocation
-	 * bypassing tagfs_lib. This is useful for testing, by generating
+	/* XXX - famfs_log_file_creation should only be called outside
+	 * famfs_lib.c if we are intentionally doing extent list allocation
+	 * bypassing famfs_lib. This is useful for testing, by generating
 	 * problematic extent lists on purpoose...
 	 */
-	rc = tagfs_log_file_creation(logp, filemap.ext_list_count, se,
+	rc = famfs_log_file_creation(logp, filemap.ext_list_count, se,
 				     relpath, O_RDWR, uid, gid, filemap.file_size);
 	if (rc) {
 		fprintf(stderr,
@@ -769,7 +769,7 @@ err_out:
 /********************************************************************/
 
 void
-tagfs_creat_usage(int   argc,
+famfs_creat_usage(int   argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
@@ -793,7 +793,7 @@ tagfs_creat_usage(int   argc,
 }
 
 int
-do_tagfs_cli_creat(int argc, char *argv[])
+do_famfs_cli_creat(int argc, char *argv[])
 {
 	int c, rc, fd;
 	char *filename = NULL;
@@ -826,8 +826,8 @@ do_tagfs_cli_creat(int argc, char *argv[])
 	};
 
 	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli creat: no args\n");
-		tagfs_creat_usage(argc, argv);
+		fprintf(stderr, "famfs_cli creat: no args\n");
+		famfs_creat_usage(argc, argv);
 		return -1;
 	}
 
@@ -835,8 +835,8 @@ do_tagfs_cli_creat(int argc, char *argv[])
 	 * err if nothing is left
 	 */
 	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli creat: no files\n");
-		tagfs_creat_usage(argc, argv);
+		fprintf(stderr, "famfs_cli creat: no files\n");
+		famfs_creat_usage(argc, argv);
 		return -1;
 	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
@@ -893,7 +893,7 @@ do_tagfs_cli_creat(int argc, char *argv[])
 
 		case 'h':
 		case '?':
-			tagfs_creat_usage(argc, argv);
+			famfs_creat_usage(argc, argv);
 			return 0;
 
 		default:
@@ -918,7 +918,7 @@ do_tagfs_cli_creat(int argc, char *argv[])
 	}
 
 	printf("mode: %o\n", mode);
-	fd = tagfs_mkfile(filename, mode, uid, gid, fsize);
+	fd = famfs_mkfile(filename, mode, uid, gid, fsize);
 	if (fd < 0) {
 		fprintf(stderr, "%s: failed to create file %s\n", __func__, fullpath);
 		exit(-1);
@@ -957,13 +957,13 @@ do_tagfs_cli_creat(int argc, char *argv[])
 /********************************************************************/
 
 void
-tagfs_mkdir_usage(int   argc,
+famfs_mkdir_usage(int   argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
 
 	printf("\n"
-	       "Create a directory in a tagfs file system:\n"
+	       "Create a directory in a famfs file system:\n"
 	       "    %s <dirname>\n\n"
 	       "\n"
 	       "(the mkdir will be logged\n\n",
@@ -971,7 +971,7 @@ tagfs_mkdir_usage(int   argc,
 }
 
 int
-do_tagfs_cli_mkdir(int argc, char *argv[])
+do_famfs_cli_mkdir(int argc, char *argv[])
 {
 	int c;
 
@@ -995,8 +995,8 @@ do_tagfs_cli_mkdir(int argc, char *argv[])
 	};
 
 	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli mkdir: no args\n");
-		tagfs_mkdir_usage(argc, argv);
+		fprintf(stderr, "famfs_cli mkdir: no args\n");
+		famfs_mkdir_usage(argc, argv);
 		return -1;
 	}
 
@@ -1004,8 +1004,8 @@ do_tagfs_cli_mkdir(int argc, char *argv[])
 	 * err if nothing is left
 	 */
 	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli mkdir: no files\n");
-		tagfs_mkdir_usage(argc, argv);
+		fprintf(stderr, "famfs_cli mkdir: no files\n");
+		famfs_mkdir_usage(argc, argv);
 		return -1;
 	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
@@ -1025,7 +1025,7 @@ do_tagfs_cli_mkdir(int argc, char *argv[])
 
 		case 'h':
 		case '?':
-			tagfs_mkdir_usage(argc, argv);
+			famfs_mkdir_usage(argc, argv);
 			return 0;
 
 		default:
@@ -1041,12 +1041,12 @@ do_tagfs_cli_mkdir(int argc, char *argv[])
 
 	dirpath  = argv[optind++];
 
-	return tagfs_mkdir(dirpath, mode, uid, gid);
+	return famfs_mkdir(dirpath, mode, uid, gid);
 }
 
 /********************************************************************/
 void
-tagfs_verify_usage(int   argc,
+famfs_verify_usage(int   argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
@@ -1058,7 +1058,7 @@ tagfs_verify_usage(int   argc,
 }
 
 int
-do_tagfs_cli_verify(int argc, char *argv[])
+do_famfs_cli_verify(int argc, char *argv[])
 {
 	int c, fd;
 	char *filename = NULL;
@@ -1079,8 +1079,8 @@ do_tagfs_cli_verify(int argc, char *argv[])
 	};
 
 	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli map: no args\n");
-		tagfs_verify_usage(argc, argv);
+		fprintf(stderr, "famfs_cli map: no args\n");
+		famfs_verify_usage(argc, argv);
 		return -1;
 	}
 
@@ -1088,8 +1088,8 @@ do_tagfs_cli_verify(int argc, char *argv[])
 	 * err if nothing is left
 	 */
 	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli map: no files\n");
-		tagfs_verify_usage(argc, argv);
+		fprintf(stderr, "famfs_cli map: no files\n");
+		famfs_verify_usage(argc, argv);
 		return -1;
 	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
@@ -1114,12 +1114,12 @@ do_tagfs_cli_verify(int argc, char *argv[])
 		case 'f': {
 			filename = optarg;
 			printf("filename: %s\n", filename);
-			/* TODO: make sure filename is in a tagfs file system */
+			/* TODO: make sure filename is in a famfs file system */
 			break;
 		}
 		case 'h':
 		case '?':
-			tagfs_verify_usage(argc, argv);
+			famfs_verify_usage(argc, argv);
 			return 0;
 
 		default:
@@ -1162,53 +1162,53 @@ do_tagfs_cli_verify(int argc, char *argv[])
 /********************************************************************/
 
 
-struct tagfs_cli_cmd {
+struct famfs_cli_cmd {
 	char *cmd;
 	int (*run)(int argc, char **argv);
 	void (*help)(int argc, char **argv);
 };
 
-static void do_tagfs_cli_help(int argc, char **argv);
+static void do_famfs_cli_help(int argc, char **argv);
 
 struct
-tagfs_cli_cmd tagfs_cli_cmds[] = {
+famfs_cli_cmd famfs_cli_cmds[] = {
 
-	{"creat",   do_tagfs_cli_creat,   tagfs_creat_usage},
-	{"mkdir",   do_tagfs_cli_mkdir,   tagfs_mkdir_usage},
-	{"verify",  do_tagfs_cli_verify,  tagfs_verify_usage},
-	{"getmap",  do_tagfs_cli_getmap,  tagfs_getmap_usage},
-	{"clone",   do_tagfs_cli_clone,   tagfs_clone_usage},
-	{"cp",      do_tagfs_cli_cp,      tagfs_cp_usage},
-	{"fsck",    do_tagfs_cli_fsck,    tagfs_fsck_usage},
-	{"mkmeta",  do_tagfs_cli_mkmeta,  tagfs_mkmeta_usage},
-	{"logplay", do_tagfs_cli_logplay, tagfs_logplay_usage},
+	{"creat",   do_famfs_cli_creat,   famfs_creat_usage},
+	{"mkdir",   do_famfs_cli_mkdir,   famfs_mkdir_usage},
+	{"verify",  do_famfs_cli_verify,  famfs_verify_usage},
+	{"getmap",  do_famfs_cli_getmap,  famfs_getmap_usage},
+	{"clone",   do_famfs_cli_clone,   famfs_clone_usage},
+	{"cp",      do_famfs_cli_cp,      famfs_cp_usage},
+	{"fsck",    do_famfs_cli_fsck,    famfs_fsck_usage},
+	{"mkmeta",  do_famfs_cli_mkmeta,  famfs_mkmeta_usage},
+	{"logplay", do_famfs_cli_logplay, famfs_logplay_usage},
 
 	{NULL, NULL, NULL}
 };
 
 static void
-do_tagfs_cli_help(int argc, char **argv)
+do_famfs_cli_help(int argc, char **argv)
 {
 	int i;
 	char *progname = xbasename(argv[0]);
 	/* Is there a command after "help" on the command line? */
 	if (optind < argc) {
-		for (i = 0; (tagfs_cli_cmds[i].cmd); i++) {
-			if (!strcmp(argv[optind], tagfs_cli_cmds[i].cmd)) {
-				tagfs_cli_cmds[i].help(argc, argv);
+		for (i = 0; (famfs_cli_cmds[i].cmd); i++) {
+			if (!strcmp(argv[optind], famfs_cli_cmds[i].cmd)) {
+				famfs_cli_cmds[i].help(argc, argv);
 				return;
 			}
 		}
 	}
 
-	printf("%s: perform operations on a mounted tagfs file system "
+	printf("%s: perform operations on a mounted famfs file system "
 	       "for specific files or devices\n"
 	       "%s [global_args] <command> [args]\n\n",
 	       progname, progname);
 	print_global_opts();
 	printf("Commands:\n");
-	for (i = 0; (tagfs_cli_cmds[i].cmd); i++)
-		printf("\t%s\n", tagfs_cli_cmds[i].cmd);
+	for (i = 0; (famfs_cli_cmds[i].cmd); i++)
+		printf("\t%s\n", famfs_cli_cmds[i].cmd);
 }
 
 int
@@ -1236,7 +1236,7 @@ main(int argc, char **argv)
 
 		case 'h':
 		case '?':
-			do_tagfs_cli_help(argc, argv);
+			do_famfs_cli_help(argc, argv);
 			return 0;
 
 		default:
@@ -1245,20 +1245,20 @@ main(int argc, char **argv)
 	}
 
 	if (optind >= argc) {
-		fprintf(stderr, "tagfs_cli: missing command\n\n");
-		do_tagfs_cli_help(argc, argv);
+		fprintf(stderr, "famfs_cli: missing command\n\n");
+		do_famfs_cli_help(argc, argv);
 		return -1;
 	}
 
-	for (i = 0; (tagfs_cli_cmds[i].cmd); i++) {
-		if (!strcmp(argv[optind], tagfs_cli_cmds[i].cmd)) {
+	for (i = 0; (famfs_cli_cmds[i].cmd); i++) {
+		if (!strcmp(argv[optind], famfs_cli_cmds[i].cmd)) {
 			optind++; /* move past cmd on cmdline */
-			return tagfs_cli_cmds[i].run(argc, argv);
+			return famfs_cli_cmds[i].run(argc, argv);
 		}
 	}
 
 	fprintf(stderr, "%s: Unrecognized command %s\n", argv[0], optarg);
-	do_tagfs_cli_help(argc, argv);
+	do_famfs_cli_help(argc, argv);
 
 	return 0;
 }

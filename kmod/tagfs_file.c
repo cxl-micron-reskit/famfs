@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0
-/* file-mmu.c: tagfs MMU-based file operations
+/* file-mmu.c: famfs MMU-based file operations
  *
  * Resizable simple ram filesystem for Linux.
  *
@@ -39,31 +39,31 @@
 
 static int iomap_verbose;
 module_param(iomap_verbose, int, 0660);
-static int tagfs_verbose;
-module_param(tagfs_verbose, int, 0660);
+static int famfs_verbose;
+module_param(famfs_verbose, int, 0660);
 
 #ifndef CONFIG_MMU
-#error "Tagfs requires a kernel with CONFIG_MMU enabled"
+#error "Famfs requires a kernel with CONFIG_MMU enabled"
 #endif
 
 #ifndef CONFIG_DAX
-#error "Tagfs requires a kernel with CONFIG_x52DAX enabled"
+#error "Famfs requires a kernel with CONFIG_x52DAX enabled"
 #endif
 
 #ifndef CONFIG_FS_DAX
-#error "Tagfs requires a kernel with CONFIG_FS_DAX enabled"
+#error "Famfs requires a kernel with CONFIG_FS_DAX enabled"
 #endif
 
 /* For GDB debug; remove later... */
 #pragma GCC optimize("O1")
 
 /* blk opens are now exclusive if there is private_data */
-int tagfs_blkdev_mode = FMODE_READ|FMODE_WRITE;
+int famfs_blkdev_mode = FMODE_READ|FMODE_WRITE;
 
 /* Debug stuff */
 
 static void
-tagfs_get_iomap_flags_str(char *flag_str, unsigned int flags)
+famfs_get_iomap_flags_str(char *flag_str, unsigned int flags)
 {
 	flag_str[0] = 0;
 
@@ -104,16 +104,16 @@ extent_type_str(enum extent_type et)
 }
 
 /**
- * tagfs_map_meta_alloc() - Allocate mcache map metadata
+ * famfs_map_meta_alloc() - Allocate mcache map metadata
  * @mapp:       Pointer to an mcache_map_meta pointer
  * @ext_count:  The number of extents needed
  */
 static int
-tagfs_meta_alloc(
-	struct tagfs_file_meta  **metap,
+famfs_meta_alloc(
+	struct famfs_file_meta  **metap,
 	size_t                    ext_count)
 {
-	struct tagfs_file_meta *meta;
+	struct famfs_file_meta *meta;
 	size_t                  metasz;
 
 	*metap = NULL;
@@ -131,27 +131,27 @@ tagfs_meta_alloc(
 }
 
 static void
-tagfs_meta_free(
-	struct tagfs_file_meta *map)
+famfs_meta_free(
+	struct famfs_file_meta *map)
 {
 	kfree(map);
 }
 
 static void
-tagfs_debug_dump_imap(struct tagfs_ioc_map *imap)
+famfs_debug_dump_imap(struct famfs_ioc_map *imap)
 {
-	if (!tagfs_verbose)
+	if (!famfs_verbose)
 		return;
 
 	pr_info("%s: ", __func__);
 	switch (imap->file_type) {
-	case TAGFS_SUPERBLOCK:
+	case FAMFS_SUPERBLOCK:
 		pr_info(" [superblock] ");
 		break;
-	case TAGFS_LOG:
+	case FAMFS_LOG:
 		pr_info(" [log file] ");
 		break;
-	case TAGFS_REG:
+	case FAMFS_REG:
 		pr_info(" [Regular file]");
 		break;
 	default:
@@ -181,22 +181,22 @@ tagfs_debug_dump_imap(struct tagfs_ioc_map *imap)
 }
 
 /**
- * tagfs_file_init_dax() - TAGFSIOC_MAP_CREATE ioctl handler
+ * famfs_file_init_dax() - FAMFSIOC_MAP_CREATE ioctl handler
  * @file:
  * @arg:        ptr to struct mcioc_map in user space
  *
  * Setup the dax mapping for a file. Files are created empty, and then function is called
- * (by tagfs_file_ioctl()) to setup the mapping and set the file size.
+ * (by famfs_file_ioctl()) to setup the mapping and set the file size.
  */
 static int
-tagfs_file_init_dax(
+famfs_file_init_dax(
 	struct file    *file,
 	void __user    *arg)
 {
-	struct tagfs_file_meta *meta;
-	struct tagfs_fs_info   *fsi;
-	struct tagfs_ioc_map    imap;
-	struct tagfs_extent    *tfs_extents = NULL;
+	struct famfs_file_meta *meta;
+	struct famfs_fs_info   *fsi;
+	struct famfs_ioc_map    imap;
+	struct famfs_extent    *tfs_extents = NULL;
 	struct super_block     *sb;
 	struct inode           *inode;
 
@@ -213,7 +213,7 @@ tagfs_file_init_dax(
 	if (rc)
 		return -EFAULT;
 
-	tagfs_debug_dump_imap(&imap);
+	famfs_debug_dump_imap(&imap);
 
 	ext_count = imap.ext_list_count;
 	if (ext_count < 1) {
@@ -223,7 +223,7 @@ tagfs_file_init_dax(
 		goto errout;
 	}
 
-	if (ext_count > TAGFS_MAX_EXTENTS) {
+	if (ext_count > FAMFS_MAX_EXTENTS) {
 		rc = -E2BIG;
 		goto errout;
 	}
@@ -239,7 +239,7 @@ tagfs_file_init_dax(
 
 	tfs_extents = &imap.ext_list[0];
 
-	rc = tagfs_meta_alloc(&meta, ext_count);
+	rc = famfs_meta_alloc(&meta, ext_count);
 	if (rc)
 		goto errout;
 
@@ -256,10 +256,10 @@ tagfs_file_init_dax(
 
 		extent_total += len;
 
-		if (tagfs_verbose)
+		if (famfs_verbose)
 			pr_info("%s: ext %d ofs=%lx len=%lx\n", __func__, i, offset, len);
 
-		if (offset == 0 && meta->file_type != TAGFS_SUPERBLOCK) {
+		if (offset == 0 && meta->file_type != FAMFS_SUPERBLOCK) {
 			pr_err("%s: zero offset on non-superblock file!!\n", __func__);
 			rc = -EINVAL;
 			goto errout;
@@ -301,7 +301,7 @@ tagfs_file_init_dax(
 		rc = -EINVAL;
 	}
 
-	/* Publish the tagfs metadata on inode->i_private */
+	/* Publish the famfs metadata on inode->i_private */
 	inode_lock(inode);
 	if (inode->i_private) {
 		pr_err("%s: inode already has i_private!\n", __func__);
@@ -315,13 +315,13 @@ tagfs_file_init_dax(
 
  errout:
 	if (rc)
-		tagfs_meta_free(meta);
+		famfs_meta_free(meta);
 
 	return rc;
 }
 
 /**
- * tagfs_meta_to_dax_offset()
+ * famfs_meta_to_dax_offset()
  *
  * This function is called for a page fault on the file (which will be limited to TLB and
  * page table faults, since the file has no backing store other than dax memory.
@@ -338,29 +338,29 @@ tagfs_file_init_dax(
  * @flags
  */
 static int
-tagfs_meta_to_dax_offset(
+famfs_meta_to_dax_offset(
 	struct inode *inode,
 	struct iomap *iomap,
 	loff_t        offset,
 	loff_t        len,
 	unsigned int  flags)
 {
-	struct tagfs_file_meta *meta = (struct tagfs_file_meta *)inode->i_private;
+	struct famfs_file_meta *meta = (struct famfs_file_meta *)inode->i_private;
 	int i;
 	loff_t local_offset = offset;
-	struct tagfs_fs_info  *fsi = inode->i_sb->s_fs_info;
+	struct famfs_fs_info  *fsi = inode->i_sb->s_fs_info;
 
 	iomap->offset = offset; /* file offset */
 
 	if (iomap_verbose)
 		switch (meta->file_type) {
-		case TAGFS_SUPERBLOCK:
+		case FAMFS_SUPERBLOCK:
 			pr_notice("%s: SUPERBLOCK\n", __func__);
 			break;
-		case TAGFS_LOG:
+		case FAMFS_LOG:
 			pr_notice("%s: LOG\n", __func__);
 			break;
-		case TAGFS_REG:
+		case FAMFS_REG:
 			pr_notice("%s: REGULAR FILE\n", __func__);
 			break;
 		default:
@@ -375,11 +375,11 @@ tagfs_meta_to_dax_offset(
 		loff_t dax_ext_offset = meta->tfs_extents[i].offset;
 		loff_t dax_ext_len    = meta->tfs_extents[i].len;
 
-		if ((dax_ext_offset == 0) && (meta->file_type != TAGFS_SUPERBLOCK))
+		if ((dax_ext_offset == 0) && (meta->file_type != FAMFS_SUPERBLOCK))
 			pr_err("%s: zero offset on non-superblock file!!\n", __func__);
 
 		if (iomap_verbose)
-			pr_notice("%s: ofs %llx len %llx tagfs: ext %d ofs %llx len %llx\n",
+			pr_notice("%s: ofs %llx len %llx famfs: ext %d ofs %llx len %llx\n",
 				  __func__, local_offset, len, i,
 				  dax_ext_offset, dax_ext_len);
 
@@ -428,7 +428,7 @@ tagfs_meta_to_dax_offset(
 
 
 static int
-tagfs_dax_notify_failure(
+famfs_dax_notify_failure(
 	struct dax_device	*dax_devp,
 	u64			offset,
 	u64			len,
@@ -441,8 +441,8 @@ tagfs_dax_notify_failure(
 	return -EOPNOTSUPP;
 }
 
-const struct dax_holder_operations tagfs_dax_holder_operations = {
-	.notify_failure		= tagfs_dax_notify_failure,
+const struct dax_holder_operations famfs_dax_holder_operations = {
+	.notify_failure		= famfs_dax_notify_failure,
 };
 
 
@@ -451,14 +451,14 @@ const struct dax_holder_operations tagfs_dax_holder_operations = {
  */
 
 /**
- * tagfs_file_ioctl() -  top-level mcache ioctl handler
+ * famfs_file_ioctl() -  top-level mcache ioctl handler
  * @file:
  * @cmd:
  * @arg:
  */
 static
 long
-tagfs_file_ioctl(
+famfs_file_ioctl(
 	struct file    *file,
 	unsigned int    cmd,
 	unsigned long   arg)
@@ -466,18 +466,18 @@ tagfs_file_ioctl(
 	long rc;
 
 	switch (cmd) {
-	case TAGFSIOC_NOP:
+	case FAMFSIOC_NOP:
 		rc = 0;
 		break;
 
-	case TAGFSIOC_MAP_CREATE:
-		rc = tagfs_file_init_dax(file, (void *)arg);
+	case FAMFSIOC_MAP_CREATE:
+		rc = famfs_file_init_dax(file, (void *)arg);
 		break;
 
-	case TAGFSIOC_MAP_GET: {
+	case FAMFSIOC_MAP_GET: {
 		struct inode *inode = file_inode(file);
-		struct tagfs_file_meta *meta = inode->i_private;
-		struct tagfs_ioc_map umeta;
+		struct famfs_file_meta *meta = inode->i_private;
+		struct famfs_ioc_map umeta;
 
 
 		memset(&umeta, 0, sizeof(umeta));
@@ -497,13 +497,13 @@ tagfs_file_ioctl(
 		}
 	}
 		break;
-	case TAGFSIOC_MAP_GETEXT: {
+	case FAMFSIOC_MAP_GETEXT: {
 		struct inode *inode = file_inode(file);
-		struct tagfs_file_meta *meta = inode->i_private;
+		struct famfs_file_meta *meta = inode->i_private;
 
 		if (meta)
 			rc = copy_to_user((void __user *)arg, meta->tfs_extents,
-					  meta->tfs_extent_ct * sizeof(struct tagfs_extent));
+					  meta->tfs_extent_ct * sizeof(struct famfs_extent));
 		else
 			rc = -EINVAL;
 	}
@@ -517,7 +517,7 @@ tagfs_file_ioctl(
 }
 
 static unsigned long
-tagfs_mmu_get_unmapped_area(
+famfs_mmu_get_unmapped_area(
 	struct file    *file,
 	unsigned long   addr,
 	unsigned long   len,
@@ -528,7 +528,7 @@ tagfs_mmu_get_unmapped_area(
 }
 
 const char *
-tagfs_get_iov_iter_type(struct iov_iter *iovi)
+famfs_get_iov_iter_type(struct iov_iter *iovi)
 {
 	switch (iovi->iter_type) {
 	case ITER_IOVEC:    return "ITER_IOVEC";
@@ -542,7 +542,7 @@ tagfs_get_iov_iter_type(struct iov_iter *iovi)
 }
 
 static ssize_t
-tagfs_dax_read_iter(
+famfs_dax_read_iter(
 	struct kiocb		*iocb,
 	struct iov_iter		*to)
 {
@@ -550,15 +550,15 @@ tagfs_dax_read_iter(
 	size_t i_size       = i_size_read(inode);
 	ssize_t			ret = 0;
 	size_t count        = iov_iter_count(to);
-	struct tagfs_file_meta *meta = inode->i_private;
+	struct famfs_file_meta *meta = inode->i_private;
 	size_t max_count;
 
-	if (tagfs_verbose)
+	if (famfs_verbose)
 		pr_info("%s: ofs %lld count %ld type %s i_size %ld\n", __func__,
-			iocb->ki_pos, iov_iter_count(to), tagfs_get_iov_iter_type(to), i_size);
+			iocb->ki_pos, iov_iter_count(to), famfs_get_iov_iter_type(to), i_size);
 
 	if (!meta) {
-		pr_err("%s: un-initialized tagfs file\n", __func__);
+		pr_err("%s: un-initialized famfs file\n", __func__);
 		return -EIO;
 	}
 	if (i_size != meta->file_size) {
@@ -569,7 +569,7 @@ tagfs_dax_read_iter(
 	max_count = max_t(size_t, 0, i_size - iocb->ki_pos);
 
 	if (count > max_count) {
-		if (tagfs_verbose)
+		if (famfs_verbose)
 			pr_notice("%s: truncating to max_count\n", __func__);
 		iov_iter_truncate(to, max_count);
 	}
@@ -577,30 +577,30 @@ tagfs_dax_read_iter(
 	if (!iov_iter_count(to))
 		return 0; /* skip atime */
 
-	ret = dax_iomap_rw(iocb, to, &tagfs_iomap_ops);
+	ret = dax_iomap_rw(iocb, to, &famfs_iomap_ops);
 
 	file_accessed(iocb->ki_filp);
 	return ret;
 }
 
 /**
- * tagfs_write_iter()
+ * famfs_write_iter()
  *
  * We need our own write-iter in order to prevent append
  */
 ssize_t
-tagfs_dax_write_iter(
+famfs_dax_write_iter(
 	struct kiocb    *iocb,
 	struct iov_iter *from)
 {
 	struct inode *inode = iocb->ki_filp->f_mapping->host;
 	size_t i_size       = i_size_read(inode);
 	size_t count        = iov_iter_count(from);
-	struct tagfs_file_meta *meta = inode->i_private;
+	struct famfs_file_meta *meta = inode->i_private;
 	size_t max_count;
 
 	if (!meta) {
-		pr_err("%s: un-initialized tagfs file\n", __func__);
+		pr_err("%s: un-initialized famfs file\n", __func__);
 		return -EIO;
 	}
 	if (i_size != meta->file_size) {
@@ -619,16 +619,16 @@ tagfs_dax_write_iter(
 	 * length is iov_iter_count(from)
 	 */
 
-	if (tagfs_verbose)
+	if (famfs_verbose)
 		pr_notice("%s: iter_type=%s offset %lld count %ld max_count %ldx\n",
-			  __func__, tagfs_get_iov_iter_type(from), iocb->ki_pos, count, max_count);
+			  __func__, famfs_get_iov_iter_type(from), iocb->ki_pos, count, max_count);
 
 	/* If write would go past EOF, truncate it to end at EOF
 	 * TODO: truncate at length of extent list instead - then append can happen if sufficient
 	 * pre-allocated extents exist
 	 */
 	if (count > max_count) {
-		if (tagfs_verbose)
+		if (famfs_verbose)
 			pr_notice("%s: truncating to max_count\n", __func__);
 		iov_iter_truncate(from, max_count);
 	}
@@ -636,17 +636,17 @@ tagfs_dax_write_iter(
 	if (!iov_iter_count(from))
 		return 0; /* skip atime */
 
-	return dax_iomap_rw(iocb, from, &tagfs_iomap_ops);
+	return dax_iomap_rw(iocb, from, &famfs_iomap_ops);
 }
 
 static int
-tagfs_file_mmap(
+famfs_file_mmap(
 	struct file		*file,
 	struct vm_area_struct	*vma)
 {
 	struct inode		*inode = file_inode(file);
 
-	if (tagfs_verbose)
+	if (famfs_verbose)
 		pr_notice("%s\n", __func__);
 
 	if (!IS_DAX(inode)) {
@@ -655,80 +655,80 @@ tagfs_file_mmap(
 	}
 
 	file_accessed(file);
-	vma->vm_ops = &tagfs_file_vm_ops;
+	vma->vm_ops = &famfs_file_vm_ops;
 	vm_flags_set(vma, VM_HUGEPAGE);
 	return 0;
 }
 
 /* Wrappers for generic functions, we can see them being called */
-ssize_t tagfs_file_splice_read(struct file *in, loff_t *ppos,
+ssize_t famfs_file_splice_read(struct file *in, loff_t *ppos,
 			       struct pipe_inode_info *pipe, size_t len,
 			       unsigned int flags)
 {
 	ssize_t rc;
 
-	if (tagfs_verbose)
+	if (famfs_verbose)
 		pr_info("%s: ppos %lld len %ld flags %x\n",
 			__func__, *ppos, len, flags);
 
 	rc = filemap_splice_read(in, ppos, pipe, len, flags);
-	if (tagfs_verbose)
+	if (famfs_verbose)
 		pr_info("%s: rc %ld\n", __func__, rc);
 	return rc;
 }
 
 ssize_t
-tagfs_iter_file_splice_write(struct pipe_inode_info *pipe, struct file *out,
+famfs_iter_file_splice_write(struct pipe_inode_info *pipe, struct file *out,
 			     loff_t *ppos, size_t len, unsigned int flags)
 {
 	ssize_t rc;
 
-	if (tagfs_verbose)
+	if (famfs_verbose)
 		pr_info("%s: ppos %lld len %ld flags %x\n",
 			__func__, *ppos, len, flags);
 
 	rc = iter_file_splice_write(pipe, out, ppos, len, flags);
 
-	if (tagfs_verbose)
+	if (famfs_verbose)
 		pr_info("%s: rc %ld\n", __func__, rc);
 	return rc;
 }
 
-loff_t tagfs_generic_file_llseek(struct file *file, loff_t offset, int whence)
+loff_t famfs_generic_file_llseek(struct file *file, loff_t offset, int whence)
 {
 	loff_t rc;
 
-	if (tagfs_verbose)
+	if (famfs_verbose)
 		pr_info("%s: offset %lld whence %d\n", __func__, offset, whence);
 
 	rc = generic_file_llseek(file, offset, whence);
 
-	if (tagfs_verbose)
+	if (famfs_verbose)
 		pr_info("%s: rc %lld\n", __func__, rc);
 	return rc;
 
 }
 
-const struct file_operations tagfs_file_operations = {
+const struct file_operations famfs_file_operations = {
 	.owner             = THIS_MODULE,
 
-	/* Custom tagfs operations */
-	.write_iter	   = tagfs_dax_write_iter,
-	.read_iter	   = tagfs_dax_read_iter,
-	.get_unmapped_area = tagfs_mmu_get_unmapped_area,
-	.unlocked_ioctl    = tagfs_file_ioctl,
-	.mmap		   = tagfs_file_mmap,
+	/* Custom famfs operations */
+	.write_iter	   = famfs_dax_write_iter,
+	.read_iter	   = famfs_dax_read_iter,
+	.get_unmapped_area = famfs_mmu_get_unmapped_area,
+	.unlocked_ioctl    = famfs_file_ioctl,
+	.mmap		   = famfs_file_mmap,
 
 	/* Generic Operations */
 	.fsync		   = noop_fsync, /* TODO: could to wbinv on range :-/ */
 
 	/* XXX: these can probably return to the generic versions */
-	.splice_read	   = tagfs_file_splice_read,
-	.splice_write	   = tagfs_iter_file_splice_write,
-	.llseek		   = tagfs_generic_file_llseek,
+	.splice_read	   = famfs_file_splice_read,
+	.splice_write	   = famfs_iter_file_splice_write,
+	.llseek		   = famfs_generic_file_llseek,
 };
 
-const struct inode_operations tagfs_file_inode_operations = {
+const struct inode_operations famfs_file_inode_operations = {
 	/* All generic */
 	.setattr	   = simple_setattr,
 	.getattr	   = simple_getattr,
@@ -742,7 +742,7 @@ const struct inode_operations tagfs_file_inode_operations = {
  */
 
 /**
- * tagfs_iomap_begin()
+ * famfs_iomap_begin()
  *
  * This function is pretty simple because files are
  * * never partially allocated
@@ -750,7 +750,7 @@ const struct inode_operations tagfs_file_inode_operations = {
  * * never "allocate on write"
  */
 static int
-tagfs_iomap_begin(
+famfs_iomap_begin(
 	struct inode	       *inode,
 	loff_t			offset,
 	loff_t			length,
@@ -758,7 +758,7 @@ tagfs_iomap_begin(
 	struct iomap	       *iomap,
 	struct iomap	       *srcmap)
 {
-	struct tagfs_file_meta *meta = inode->i_private;
+	struct famfs_file_meta *meta = inode->i_private;
 	char flag_str[200];
 	size_t size;
 	int rc;
@@ -768,7 +768,7 @@ tagfs_iomap_begin(
 
 	/* Dump flags */
 	if (iomap_verbose) {
-		tagfs_get_iomap_flags_str(flag_str, flags);
+		famfs_get_iomap_flags_str(flag_str, flags);
 		pr_notice("        iomap flags: %s\n", flag_str);
 	}
 
@@ -785,26 +785,26 @@ tagfs_iomap_begin(
 
 	/* Need to lock inode? */
 
-	rc = tagfs_meta_to_dax_offset(inode, iomap, offset, length, flags);
+	rc = famfs_meta_to_dax_offset(inode, iomap, offset, length, flags);
 
 	return rc;
 }
 
 /* Should just need one set of iomap ops */
-const struct iomap_ops tagfs_iomap_ops = {
-	.iomap_begin		= tagfs_iomap_begin,
+const struct iomap_ops famfs_iomap_ops = {
+	.iomap_begin		= famfs_iomap_begin,
 };
 
 
 /*********************************************************************
  * vm_operations
  *
- * Note: We never need a special set of write_iomap_ops becuase tagfs never
+ * Note: We never need a special set of write_iomap_ops becuase famfs never
  * performs allocation on write.
  */
 
 static vm_fault_t
-__tagfs_filemap_fault(
+__famfs_filemap_fault(
 	struct vm_fault		*vmf,
 	enum page_entry_size	pe_size,
 	bool			write_fault)
@@ -821,11 +821,11 @@ __tagfs_filemap_fault(
 	if (IS_DAX(inode)) {
 		pfn_t pfn;
 
-		ret = dax_iomap_fault(vmf, pe_size, &pfn, NULL, &tagfs_iomap_ops);
+		ret = dax_iomap_fault(vmf, pe_size, &pfn, NULL, &famfs_iomap_ops);
 		if (ret & VM_FAULT_NEEDDSYNC)
 			ret = dax_finish_sync_fault(vmf, pe_size, pfn);
 	} else {
-		/* All tagfs faults will be dax... */
+		/* All famfs faults will be dax... */
 		pr_err("%s: oops, non-dax fault\n", __func__);
 		ret = VM_FAULT_SIGBUS;
 	}
@@ -837,7 +837,7 @@ __tagfs_filemap_fault(
 }
 
 static inline bool
-tagfs_is_write_fault(
+famfs_is_write_fault(
 	struct vm_fault		*vmf)
 {
 	return (vmf->flags & FAULT_FLAG_WRITE) &&
@@ -845,23 +845,23 @@ tagfs_is_write_fault(
 }
 
 static vm_fault_t
-tagfs_filemap_fault(
+famfs_filemap_fault(
 	struct vm_fault		*vmf)
 {
 	if (iomap_verbose)
 		pr_notice("%s pgoff %ld\n", __func__, vmf->pgoff);
 
 	/* DAX can shortcut the normal fault path on write faults! */
-	return __tagfs_filemap_fault(vmf, PE_SIZE_PTE,
-			IS_DAX(file_inode(vmf->vma->vm_file)) && tagfs_is_write_fault(vmf));
+	return __famfs_filemap_fault(vmf, PE_SIZE_PTE,
+			IS_DAX(file_inode(vmf->vma->vm_file)) && famfs_is_write_fault(vmf));
 }
 
 static vm_fault_t
-tagfs_filemap_huge_fault(
+famfs_filemap_huge_fault(
 	struct vm_fault	       *vmf,
 	enum page_entry_size	pe_size)
 {
-	if (tagfs_verbose)
+	if (famfs_verbose)
 		pr_notice("%s pgoff %ld\n", __func__, vmf->pgoff);
 
 	if (!IS_DAX(file_inode(vmf->vma->vm_file))) {
@@ -870,18 +870,18 @@ tagfs_filemap_huge_fault(
 	}
 
 	/* DAX can shortcut the normal fault path on write faults! */
-	return __tagfs_filemap_fault(vmf, pe_size,
-			tagfs_is_write_fault(vmf));
+	return __famfs_filemap_fault(vmf, pe_size,
+			famfs_is_write_fault(vmf));
 }
 
 static vm_fault_t
-tagfs_filemap_page_mkwrite(
+famfs_filemap_page_mkwrite(
 	struct vm_fault		*vmf)
 {
-	if (tagfs_verbose)
+	if (famfs_verbose)
 		pr_notice("%s\n", __func__);
 
-	return __tagfs_filemap_fault(vmf, PE_SIZE_PTE, true);
+	return __famfs_filemap_fault(vmf, PE_SIZE_PTE, true);
 }
 
 /*
@@ -890,17 +890,17 @@ tagfs_filemap_page_mkwrite(
  * prepare memory for writing so handle is as standard write fault.
  */
 static vm_fault_t
-tagfs_filemap_pfn_mkwrite(
+famfs_filemap_pfn_mkwrite(
 	struct vm_fault		*vmf)
 {
-	if (tagfs_verbose)
+	if (famfs_verbose)
 		pr_info("%s\n", __func__);
 
-	return __tagfs_filemap_fault(vmf, PE_SIZE_PTE, true);
+	return __famfs_filemap_fault(vmf, PE_SIZE_PTE, true);
 }
 
 static vm_fault_t
-tagfs_filemap_map_pages(
+famfs_filemap_map_pages(
 	struct vm_fault	       *vmf,
 	pgoff_t			start_pgoff,
 	pgoff_t			end_pgoff)
@@ -914,11 +914,11 @@ tagfs_filemap_map_pages(
 	return ret;
 }
 
-const struct vm_operations_struct tagfs_file_vm_ops = {
-	.fault		= tagfs_filemap_fault,
-	.huge_fault	= tagfs_filemap_huge_fault,
-	.map_pages	= tagfs_filemap_map_pages,
-	.page_mkwrite	= tagfs_filemap_page_mkwrite,
-	.pfn_mkwrite	= tagfs_filemap_pfn_mkwrite,
+const struct vm_operations_struct famfs_file_vm_ops = {
+	.fault		= famfs_filemap_fault,
+	.huge_fault	= famfs_filemap_huge_fault,
+	.map_pages	= famfs_filemap_map_pages,
+	.page_mkwrite	= famfs_filemap_page_mkwrite,
+	.pfn_mkwrite	= famfs_filemap_pfn_mkwrite,
 };
 

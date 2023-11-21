@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
-#ifndef TAGFS_IOCTL_H
-#define TAGFS_IOCTL_H
+#ifndef FAMFS_IOCTL_H
+#define FAMFS_IOCTL_H
 
 #include <linux/ioctl.h>
 #include <linux/uuid.h>
@@ -8,7 +8,7 @@
 #define is_aligned(POINTER, BYTE_COUNT) \
 	(((uintptr_t)(const void *)(POINTER)) % (BYTE_COUNT) == 0)
 
-#define TAGFS_MAX_EXTENTS 2
+#define FAMFS_MAX_EXTENTS 2
 
 enum extent_type {
 	HPA_EXTENT = 13,
@@ -17,37 +17,37 @@ enum extent_type {
 	TAG_EXTENT,
 };
 
-struct tagfs_extent {
+struct famfs_extent {
 	u64              offset;
 	u64              len;
 };
 
-enum tagfs_file_type {
-	TAGFS_REG,
-	TAGFS_SUPERBLOCK,
-	TAGFS_LOG,
+enum famfs_file_type {
+	FAMFS_REG,
+	FAMFS_SUPERBLOCK,
+	FAMFS_LOG,
 };
 
-#define TAGFS_DEVNAME_LEN 32
+#define FAMFS_DEVNAME_LEN 32
 /**
- * struct tagfs_ioc_map
+ * struct famfs_ioc_map
  *
- * This is the metadata that indicates where the memory is for a tagfs file
+ * This is the metadata that indicates where the memory is for a famfs file
  */
-struct tagfs_ioc_map {
+struct famfs_ioc_map {
 	enum extent_type          extent_type;
-	enum tagfs_file_type      file_type;
+	enum famfs_file_type      file_type;
 	size_t                    file_size;
 	size_t                    ext_list_count;
-	struct tagfs_extent       ext_list[TAGFS_MAX_EXTENTS];
+	struct famfs_extent       ext_list[FAMFS_MAX_EXTENTS];
 };
 
-static inline size_t tioc_ext_list_size(struct tagfs_ioc_map *map)
+static inline size_t tioc_ext_list_size(struct famfs_ioc_map *map)
 {
 	return (map->ext_list_count * sizeof(*map->ext_list));
 }
 
-static inline size_t tioc_ext_count(struct tagfs_ioc_map *map)
+static inline size_t tioc_ext_count(struct famfs_ioc_map *map)
 {
 	return map->ext_list_count;
 }
@@ -60,16 +60,16 @@ static inline size_t tioc_ext_count(struct tagfs_ioc_map *map)
  * X means "eXchange": switch G and S atomically
  * H means "sHift": switch T and Q atomically
  */
-#define TAGFSIOC_MAGIC 'u'
+#define FAMFSIOC_MAGIC 'u'
 
 /* TODO: use correct _IO.... macros here */
-#define TAGFSIOC_MAP_CREATE    _IOWR(TAGFSIOC_MAGIC, 1, struct tagfs_ioc_map)
-#define TAGFSIOC_MAP_GET       _IOWR(TAGFSIOC_MAGIC, 2, struct tagfs_ioc_map)
-#define TAGFSIOC_MAP_GETEXT    _IOWR(TAGFSIOC_MAGIC, 3, struct tagfs_extent)
-#define TAGFSIOC_NOP           _IO(TAGFSIOC_MAGIC, 3)
+#define FAMFSIOC_MAP_CREATE    _IOWR(FAMFSIOC_MAGIC, 1, struct famfs_ioc_map)
+#define FAMFSIOC_MAP_GET       _IOWR(FAMFSIOC_MAGIC, 2, struct famfs_ioc_map)
+#define FAMFSIOC_MAP_GETEXT    _IOWR(FAMFSIOC_MAGIC, 3, struct famfs_extent)
+#define FAMFSIOC_NOP           _IO(FAMFSIOC_MAGIC, 3)
 
-#define TAGFSIOC_MAP_SUPERBLOCK _IOWR(TAGFSIOC_MAGIC, 4, ?)
-#define TAGFSIOC_MAP_ROOTLOG    _IOWR(TAGFSIOC_MAGIC, 5, ?)
+#define FAMFSIOC_MAP_SUPERBLOCK _IOWR(FAMFSIOC_MAGIC, 4, ?)
+#define FAMFSIOC_MAP_ROOTLOG    _IOWR(FAMFSIOC_MAGIC, 5, ?)
 
 
-#endif /* TAGFS_IOCTL_H */
+#endif /* FAMFS_IOCTL_H */

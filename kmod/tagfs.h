@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
-#ifndef _LINUX_TAGFS_H
-#define _LINUX_TAGFS_H
+#ifndef _LINUX_FAMFS_H
+#define _LINUX_FAMFS_H
 
 #ifndef __KERNEL__
 /* Typedefs for user space */

@@ -54,8 +54,8 @@ struct option global_options[] = {
 int
 main(int argc, char *argv[])
 {
-	struct tagfs_ioc_map filemap;
-	struct tagfs_extent *ext_list;
+	struct famfs_ioc_map filemap;
+	struct famfs_extent *ext_list;
 	int c, i, rc, fd;
 	char *filename = NULL;
 
@@ -171,7 +171,7 @@ main(int argc, char *argv[])
 		case 'f': {
 			filename = optarg;
 			printf("filename: %s\n", filename);
-			/* TODO: make sure filename is in a tagfs file system */
+			/* TODO: make sure filename is in a famfs file system */
 			break;
 		}
 		case 'h':
@@ -187,7 +187,7 @@ main(int argc, char *argv[])
 
 	printf("%d extents specified:\n", num_extents);
 	printf("Total size: %ld\n", fsize);
-	filemap.file_type   = TAGFS_REG;
+	filemap.file_type   = FAMFS_REG;
 	filemap.file_size   = fsize;
 	filemap.extent_type = type;
 	for (i = 0; i < num_extents; i++)
@@ -203,7 +203,7 @@ main(int argc, char *argv[])
 		fprintf(stderr, "open/create failed; rc %d errno %d\n", rc, errno);
 		exit(-1);
 	}
-	rc = ioctl(fd, TAGFSIOC_MAP_CREATE, &filemap);
+	rc = ioctl(fd, FAMFSIOC_MAP_CREATE, &filemap);
 	if (rc) {
 		printf("ioctl returned rc %d errno %d\n", rc, errno);
 		perror("ioctl");
