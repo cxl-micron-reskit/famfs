@@ -158,7 +158,7 @@ tagfs_debug_dump_imap(struct tagfs_ioc_map *imap)
 		pr_err("[unrecognized file type %d]", imap->file_type);
 	}
 
-	switch(imap->extent_type) {
+	switch (imap->extent_type) {
 	case HPA_EXTENT:
 		pr_info(" [HPA_EXTENT] ");
 		break;
@@ -660,7 +660,7 @@ tagfs_file_mmap(
 	return 0;
 }
 
-/* Wrappers for generic functions, we we can see them being called */
+/* Wrappers for generic functions, we can see them being called */
 ssize_t tagfs_file_splice_read(struct file *in, loff_t *ppos,
 			       struct pipe_inode_info *pipe, size_t len,
 			       unsigned int flags)

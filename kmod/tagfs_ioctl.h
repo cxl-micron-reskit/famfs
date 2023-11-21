@@ -49,7 +49,7 @@ static inline size_t tioc_ext_list_size(struct tagfs_ioc_map *map)
 
 static inline size_t tioc_ext_count(struct tagfs_ioc_map *map)
 {
-	return (map->ext_list_count);
+	return map->ext_list_count;
 }
 
 /*
