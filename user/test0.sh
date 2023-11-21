@@ -7,8 +7,8 @@ export PATH=cwd/debug:$PATH
 DEVTYPE="$1"
 echo "DEVTYPE=$DEVTYPE"
 
-MKFS="sudo debug/mkfs.tagfs"
-CLI="sudo debug/tagfs"
+MKFS="sudo debug/mkfs.famfs"
+CLI="sudo debug/famfs"
 
 source test_funcs.sh
 
@@ -16,23 +16,23 @@ set -x
 
 sudo mkdir -p $MPT || fail "mkdir"
 
-# Make sure tagfs is not currently mounted
-grep -c tagfs /proc/mounts         && fail "tagfs is currently mounted"
+# Make sure famfs is not currently mounted
+grep -c famfs /proc/mounts         && fail "famfs is currently mounted"
 
-# destroy tagfs file system, if any
+# destroy famfs file system, if any
 ${MKFS} -f -k $DEV    || fail "mkfs/kill"
 ${MKFS}  $DEV         || fail "mkfs"
 ${MKFS}  $DEV         && fail "mkfs redo" # fail, fs exists
 
-#debug/tagfs mkmeta /dev/pmem0                  || fail "mkmeta"
+#debug/famfs mkmeta /dev/pmem0                  || fail "mkmeta"
 ${CLI} fsck $DEV          || fail "fsck"
 
-sudo insmod ../kmod/tagfs.ko       || fail "insmod"
+sudo insmod ../kmod/famfs.ko       || fail "insmod"
 
 sudo mount $MOUNT_OPTS $DEV $MPT || fail "mount"
 #sudo mount $MOUNT_OPTS $DEV $MPT && fail "double mount should fail"
 
-grep tagfs /proc/mounts             || fail "No tagfs mounted"
+grep famfs /proc/mounts             || fail "No famfs mounted"
 grep $DEV /proc/mounts              || fail "dev=$DEV not in /proc/mounts~"
 grep $MPT /proc/mounts              || fail "Mount pt $MPT not in /proc/mounts~"
 
@@ -62,11 +62,11 @@ ${CLI} creat -r -s 4096 -S 1 $MPT/test1   && fail "Create should fail if file ex
 
 # Unmount and remount
 sudo umount $MPT || fail "umount"
-grep -c tagfs /proc/mounts         && fail "tagfs is still mounted after umount attempt"
+grep -c famfs /proc/mounts         && fail "famfs is still mounted after umount attempt"
 
 sudo mount $MOUNT_OPTS $DEV $MPT   || fail "mount"
 
-grep -c tagfs /proc/mounts         || fail "tagfs not mounted after remount attempt"
+grep -c famfs /proc/mounts         || fail "famfs not mounted after remount attempt"
 
 echo "this logplay should fail because we haven't done mkmeta yet"
 ${CLI} logplay $MPT               && fail "logplay 1 before mkmeta"

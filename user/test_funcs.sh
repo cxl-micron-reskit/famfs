@@ -11,17 +11,17 @@
 
 if [[ $DEVTYPE == "char" ]]; then
     DEV=/dev/dax0.0
-    MOUNT_OPTS="-t tagfs -o noatime -o dax=always "
+    MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 #    test -c $DEV && sudo ndctl create-namespace --force --mode=devdax --reconfig=namespace0.0 \
 #			 && fail "ndctl reconfig"
 #    test -c $DEV && fail "Unable to convert to devdax"
 else
     DEV=/dev/pmem0
-    MOUNT_OPTS="-t tagfs -o noatime -o dax=always "
+    MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 #    test -b $DEV && sudo ndctl create-namespace --force --mode=fsdax --reconfig=namespace0.0
 #    test -c $DEV && fail "Unable to convert to block/fsdax"
 fi
-MPT=/mnt/tagfs
+MPT=/mnt/famfs
 
 
 

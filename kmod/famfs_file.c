@@ -33,9 +33,9 @@
 #include <linux/uio.h>
 #include <linux/iomap.h>
 
-#include "tagfs.h"
-#include "tagfs_internal.h"
-#include "tagfs_ioctl.h"
+#include "famfs.h"
+#include "famfs_internal.h"
+#include "famfs_ioctl.h"
 
 static int iomap_verbose;
 module_param(iomap_verbose, int, 0660);

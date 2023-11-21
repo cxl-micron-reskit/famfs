@@ -24,11 +24,11 @@
 #include <assert.h>
 #include <sys/param.h> /* MIN()/MAX() */
 
-#include "tagfs.h"
-#include "tagfs_ioctl.h"
-#include "tagfs_meta.h"
+#include "famfs.h"
+#include "famfs_ioctl.h"
+#include "famfs_meta.h"
 
-#include "tagfs_lib.h"
+#include "famfs_lib.h"
 #include "bitmap.h"
 
 void
@@ -326,7 +326,7 @@ famfs_get_mpt_by_dev(const char *mtdev)
 		int  x0, x1;
 		char *xmpt = NULL;
 
-		if (strstr(line, "tagfs")) {
+		if (strstr(line, "famfs")) {
 			rc = sscanf(line, "%s %s %s %s %d %d",
 				    dev, mpt, fstype, args, &x0, &x1);
 			if (rc <= 0)

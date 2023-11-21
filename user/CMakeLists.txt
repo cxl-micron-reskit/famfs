@@ -5,7 +5,7 @@ set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -ggdb -Wall ")
 
-project(tagfs_test)
+project(famfs_test)
 
 include_directories("${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}/../kmod")
@@ -18,18 +18,18 @@ include_directories("${PROJECT_SOURCE_DIR}/testlib")
 
 message(STATUS "PROJECT_SOURCE_DIR=${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}")
-include_directories("${PROJECT_SOURCE_DIR}../tagfs")
+include_directories("${PROJECT_SOURCE_DIR}../famfs")
 
-add_library(libtagfs tagfs_lib.c  )
+add_library(libfamfs famfs_lib.c  )
 
 add_executable(mkfile mmap_test.c )
 add_executable(mmap_test mmap_test.c )
-add_executable(tagfs tagfs_cli.c )
-add_executable(mkfs.tagfs mkfs.tagfs.c )
+add_executable(famfs famfs_cli.c )
+add_executable(mkfs.famfs mkfs.famfs.c )
 
-target_link_libraries(tagfs libtagfs tagfstest uuid)
-target_link_libraries(mkfs.tagfs libtagfs uuid)
-target_link_libraries(mkfile libtagfs uuid)
+target_link_libraries(famfs libfamfs famfstest uuid)
+target_link_libraries(mkfs.famfs libfamfs uuid)
+target_link_libraries(mkfile libfamfs uuid)
 
 
 

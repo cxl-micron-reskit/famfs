@@ -22,8 +22,8 @@
 
 typedef __u64 u64;
 
-#include "tagfs_ioctl.h"
-#include "tagfs_lib.h"
+#include "famfs_ioctl.h"
+#include "famfs_lib.h"
 #include "random_buffer.h"
 
 /* maybe move to internal lib */

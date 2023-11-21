@@ -13,9 +13,9 @@ cwd=$(pwd)
 export PATH=cwd/debug:$PATH
 
 DEV=/dev/pmem0
-MPT=/mnt/tagfs
+MPT=/mnt/famfs
 
-CLI="sudo debug/tagfs"
+CLI="sudo debug/famfs"
 
 source test_funcs.sh
 set -x

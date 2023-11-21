@@ -4,11 +4,11 @@
 #
 
 EXTRA_CFLAGS += -g -DDEBUG -O1
-#EXTRA_CFLAGS += -DCONFIG_TAGFS_CHAR_DAX=y
+#EXTRA_CFLAGS += -DCONFIG_FAMFS_CHAR_DAX=y
 
-obj-m += tagfs.o
+obj-m += famfs.o
 
-tagfs-objs += tagfs_inode.o tagfs_file.o
+famfs-objs += famfs_inode.o famfs_file.o
 
 KHOME = ~/w/linux-debug
 
@@ -17,9 +17,13 @@ clean:
 
 all:
 	make -k -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
-	cp tagfs.ko $(KHOME)/fs/tagfs/
 
-# jg: the line commented out above puts tagfs.ko in the kernel build tree
+# Put kmod in a kernel tree for gdb debugging
+gdb:
+	mkdir -p $(KHOME)/fs/famfs
+	cp famfs.ko $(KHOME)/fs/famfs/
+
+# jg: the line commented out above puts famfs.ko in the kernel build tree
 # so gdb can find it. This is only needed if you're running a VM under gdb,
 # but you need to set the right KHOME
 
@@ -27,11 +31,11 @@ all:
 # jg: this is not working. there is some experimental code that tries
 # (unsuccessfully) to use a /dex/daxm.n device rather than a /dev/pmem
 # device, and enabling that code requires the defnition of the
-# CONFIG_TAGFS_CHAR_DAX macro, plus a kernel patch.
+# CONFIG_FAMFS_CHAR_DAX macro, plus a kernel patch.
 #
 # The attempt below to conditionally define that macro does not work.
 # Leaving it in for the moment as a reminder.
 #
-chardax:	EXTRA_CFLAGS += -DCONFIG_TAGFS_CHAR_DAX=y
+chardax:	EXTRA_CFLAGS += -DCONFIG_FAMFS_CHAR_DAX=y
 chardax:	all
 

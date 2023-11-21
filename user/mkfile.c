@@ -16,7 +16,7 @@
 
 typedef __u64 u64;
 
-#include "../tagfs/tagfs_ioctl.h"
+#include "../famfs/famfs_ioctl.h"
 
 void
 print_usage(int   argc,

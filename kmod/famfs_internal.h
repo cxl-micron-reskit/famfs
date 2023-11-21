@@ -2,7 +2,7 @@
 #ifndef FAMFS_INTERNAL_H
 #define FAMFS_INTERNAL_H
 
-#include "tagfs_ioctl.h"
+#include "famfs_ioctl.h"
 
 #include <linux/fs_parser.h> // bleh...
 

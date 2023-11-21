@@ -6,8 +6,8 @@
 #include <linux/uuid.h>
 //#include <linux/dax.h>
 
-#include "tagfs.h"
-#include "tagfs_ioctl.h"
+#include "famfs.h"
+#include "famfs_ioctl.h"
 
 /**
  * Allocation metadata: superblock and log

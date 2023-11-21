@@ -11,5 +11,5 @@ include_directories("${PROJECT_SOURCE_DIR}")
 #file(GLOB sources "${PROJECT_SOURCE_DIR}/src/*.c")
 
 #add_executable(testy ${sources})
-add_library(tagfstest  random_buffer.c xrand.c )
+add_library(famfstest  random_buffer.c xrand.c )
 

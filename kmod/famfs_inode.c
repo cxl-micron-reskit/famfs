@@ -48,8 +48,8 @@
 #include <linux/pfn_t.h>
 #include <linux/dax.h>
 
-#include "tagfs.h"
-#include "tagfs_internal.h"
+#include "famfs.h"
+#include "famfs_internal.h"
 
 /* Because this is exported but only prototyped in dax-private.h: */
 struct dax_device *inode_dax(struct inode *inode);
@@ -509,7 +509,7 @@ static void famfs_kill_sb(struct super_block *sb)
 }
 
 static struct file_system_type famfs_fs_type = {
-	.name		  = "tagfs",
+	.name		  = "famfs",
 	.init_fs_context  = famfs_init_fs_context,
 	.parameters	  = famfs_fs_parameters,
 	.kill_sb	  = famfs_kill_sb,

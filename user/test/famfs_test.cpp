@@ -6,8 +6,8 @@
 #include <gtest/gtest.h>
 
 extern "C" {
-#include "tagfs_lib.h"
-#include "tagfs_meta.h"
+#include "famfs_lib.h"
+#include "famfs_meta.h"
 #include <unistd.h>
 #include <linux/limits.h>
 #include <sys/mman.h>

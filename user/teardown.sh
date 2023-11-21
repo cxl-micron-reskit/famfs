@@ -9,7 +9,7 @@ fail () {
     exit 1
 }
 
-MOUNT_PT=/mnt/tagfs
+MOUNT_PT=/mnt/famfs
 
 if [ ! -d $MOUNT_PT ]; then
     echo "Error MOUNT_PT ($MOUNT_PT) is not a directory"
@@ -17,4 +17,4 @@ if [ ! -d $MOUNT_PT ]; then
 fi
 
 sudo umount $MOUNT_PT
-sudo rmmod tagfs      || fail "rmmod"
+sudo rmmod famfs      || fail "rmmod"

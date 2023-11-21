@@ -14,9 +14,9 @@ cwd=$(pwd)
 export PATH=cwd/debug:$PATH
 
 DEV=/dev/pmem0
-MPT=/mnt/tagfs
+MPT=/mnt/famfs
 
-CLI="sudo debug/tagfs"
+CLI="sudo debug/famfs"
 
 source test_funcs.sh
 set -x
@@ -24,22 +24,22 @@ set -x
 verify_mounted $DEV $MPT "test2.sh"
 ${CLI} fsck $MPT || fail "fsck should succeed"
 
-# Try to create a file that is not in a tagfs file system (assume relative path not in one)
-NOT_IN_TAGFS=no_leading_slash
-${CLI} creat -s 0x400000 $NOT_IN_TAGFS \
-     && fail "creating file not in tagfs file system should fail"
+# Try to create a file that is not in a famfs file system (assume relative path not in one)
+NOT_IN_FAMFS=no_leading_slash
+${CLI} creat -s 0x400000 $NOT_IN_FAMFS \
+     && fail "creating file not in famfs file system should fail"
 
-# Tagfs getmap should succeed on a file that exists
+# Famfs getmap should succeed on a file that exists
 LOG=$MPT/.meta/.log
-${CLI} getmap $LOG || fail "getmap should succeed on the tagfs log file"
+${CLI} getmap $LOG || fail "getmap should succeed on the famfs log file"
 
 
-# tagfs getmap should fail on a file that does not exist
+# famfs getmap should fail on a file that does not exist
 NOTEXIST=$MPT/not_exist
-${CLI} getmap $NOT_EXIST && fail "getmap should fail non nonexistent file in tagfs"
+${CLI} getmap $NOT_EXIST && fail "getmap should fail non nonexistent file in famfs"
 
-# tagfs getmap should fail on a file that is not in a tagfs file system
-${CLI} getmap $NOT_IN_TAGFS && fail "getmap should fail if file not in tagfs"
+# famfs getmap should fail on a file that is not in a famfs file system
+${CLI} getmap $NOT_IN_FAMFS && fail "getmap should fail if file not in famfs"
 
 
 F=bigtest

@@ -2,8 +2,8 @@
 #ifndef _H_FAMFS_LIB
 #define _H_FAMFS_LIB
 
-#include "tagfs.h"
-#include "tagfs_meta.h"
+#include "famfs.h"
+#include "famfs_meta.h"
 
 #define SB_FILE_RELPATH    ".meta/.superblock"
 #define LOG_FILE_RELPATH   ".meta/.log"
