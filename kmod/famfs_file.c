@@ -47,7 +47,7 @@ module_param(famfs_verbose, int, 0660);
 #endif
 
 #ifndef CONFIG_DAX
-#error "Famfs requires a kernel with CONFIG_x52DAX enabled"
+#error "Famfs requires a kernel with CONFIG_DAX enabled"
 #endif
 
 #ifndef CONFIG_FS_DAX
@@ -763,11 +763,10 @@ famfs_iomap_begin(
 	size_t size;
 	int rc;
 
-	if (iomap_verbose)
-		pr_notice("%s: offset %lld length %lld\n", __func__, offset, length);
-
 	/* Dump flags */
 	if (iomap_verbose) {
+		pr_notice("%s: offset %lld length %lld\n", __func__, offset, length);
+
 		famfs_get_iomap_flags_str(flag_str, flags);
 		pr_notice("        iomap flags: %s\n", flag_str);
 	}
