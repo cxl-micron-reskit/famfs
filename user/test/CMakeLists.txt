@@ -1,4 +1,6 @@
 
+cmake_minimum_required(VERSION 3.5)
+
 include_directories("${PROJECT_SOURCE_DIR}/")
 include_directories("${PROJECT_SOURCE_DIR}/usr")
 include_directories("${PROJECT_SOURCE_DIR}/../kmod")
