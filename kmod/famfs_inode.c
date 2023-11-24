@@ -47,6 +47,7 @@
 #include <linux/namei.h>
 #include <linux/pfn_t.h>
 #include <linux/dax.h>
+#include <linux/blkdev.h>
 
 #include "famfs.h"
 #include "famfs_internal.h"
@@ -275,6 +276,8 @@ static int famfs_parse_param(
 
 /**************************************************************************************/
 
+#ifdef CONFIG_FAMFS_CHAR_DAX
+
 
 /**
  * struct @dax_operations
@@ -292,9 +295,10 @@ static const struct dax_operations famfs_dax_ops = {
 
 /**************************************************************************************/
 
-#ifdef CONFIG_FAMFS_CHAR_DAX
+#if 0
 int add_dax_ops(struct dax_device *dax_dev,
 		const struct dax_operations *ops);
+#endif
 
 static int
 famfs_open_char_device(
@@ -343,10 +347,10 @@ famfs_open_char_device(
 
 	xaddr = devm_memremap(dev, pmem->phys_addr,
 				pmem->size, ARCH_MEMREMAP_PMEM);
-		bb_range.start =  res->start;
-		bb_range.end = res->end;
-		pr_notice("%s: is_nd_pfn addr %llx\n",
-		       __func__, (u64)addr);
+	bb_range.start =  res->start;
+	bb_range.end = res->end;
+	pr_notice("%s: is_nd_pfn addr %llx\n",
+		  __func__, (u64)addr);
 #endif
 	/* JG: I aded this function to drivers/dax/super.c */
 	rc = add_dax_ops(dax_devp, &famfs_dax_ops);
@@ -364,17 +368,30 @@ char_err:
 	filp_close(fsi->dax_filp, NULL);
 	return rc;
 }
+
+#else
+
+static int
+famfs_open_char_device(
+	struct super_block *sb,
+	struct fs_context  *fc)
+{
+	pr_err("%s:\n", __func__);
+	return -ENODEV;
+}
+
 #endif
 
 static void
 famfs_bdev_mark_dead(
-	struct block_device	*bdev)
+       struct block_device     *bdev)
 {
+	pr_err("%s: Linux thinks something went wrong with the block device!!\n", __func__);
 	return; /* moving off blkdev anyway; some similar path will need to exist */
 }
 
 static const struct blk_holder_ops famfs_holder_ops = {
-	.mark_dead		= famfs_bdev_mark_dead,
+	.mark_dead  = famfs_bdev_mark_dead,
 };
 
 static int
@@ -394,10 +411,8 @@ famfs_open_device(
 	}
 	pr_info("%s: Root device is %s\n", __func__, fc->source);
 
-#ifdef CONFIG_FAMFS_CHAR_DAX
 	if (strstr(fc->source, "/dev/dax"))
 		return famfs_open_char_device(sb, fc);
-#endif
 
 	if (!strstr(fc->source, "/dev/pmem")) {
 		pr_err("%s: primary backing dev (%s) is not pmem\n",
