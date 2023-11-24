@@ -236,6 +236,7 @@ tagfs_filemap_huge_fault()
 		           dax_iomap_pte_fault()
 			       iomap_iter()
 			           iomap_iter_advance() #resets iomap and srcmap
+				   iomap->begin() /* gets struct dax_device, offset, len */
 			       dax_fault_iter() - HORKAGE
 
 dax_iomap_fault()
@@ -245,7 +246,7 @@ dax_iomap_fault()
 	        iomap_iter: if iter->iomap.length: ops->iomap_end()
 		iomap_iter: iomap_advance()
 		iomap_iter: ops->iomap_begin()
-		iomap_titer: iomap_done()
+		iomap_iter: iomap_done()
 	    xfs_direct_write_iomap_begin() (iomap->begin())
 	    dax_fault_iter
 	        iomap_direct_access() (returns kaddr)
