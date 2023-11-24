@@ -77,7 +77,7 @@ sudo test -f $MPT/.meta/.superblock || fail "no superblock file after mkmeta"
 sudo test -f $MPT/.meta/.log        || fail "no log file after mkmeta"
 
 sudo ls -lR $MPT
-${CLI} logplay  $MPT             || fail "logplay affter mkmeta should work"
+${CLI} logplay  $MPT             || fail "logplay after mkmeta should work"
 ${CLI} mkmeta $DEV               || fail "mkmeta repeat should fail"
 
 # Replay the log, recovering the files that existed befure the umount
