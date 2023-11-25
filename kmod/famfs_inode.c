@@ -276,8 +276,25 @@ static int famfs_parse_param(
 
 /**************************************************************************************/
 
+
 #ifdef CONFIG_FAMFS_CHAR_DAX
 
+/*
+ * For char dax:
+ */
+static int
+famfs_dax_notify_failure(struct dax_device *dax_dev, u64 offset,
+			u64 len, int mf_flags)
+{
+	pr_err("%s: offset %lld len %llu flags %x\n", __func__,
+	       offset, len, mf_flags);
+	dump_stack();
+	return -EOPNOTSUPP;
+}
+
+static const struct dax_holder_operations famfs_dax_holder_ops = {
+	.notify_failure		= famfs_dax_notify_failure,
+};
 
 /**
  * struct @dax_operations
@@ -353,7 +370,7 @@ famfs_open_char_device(
 		  __func__, (u64)addr);
 #endif
 	/* JG: I aded this function to drivers/dax/super.c */
-	rc = add_dax_ops(dax_devp, &famfs_dax_ops);
+	rc = add_dax_ops(dax_devp, &famfs_dax_ops, &famfs_dax_holder_ops);
 	if (rc) {
 		pr_info("%s: err attaching famfs_dax_ops\n", __func__);
 		goto char_err;
@@ -387,13 +404,17 @@ famfs_bdev_mark_dead(
        struct block_device     *bdev)
 {
 	pr_err("%s: Linux thinks something went wrong with the block device!!\n", __func__);
+	dump_stack();
 	return; /* moving off blkdev anyway; some similar path will need to exist */
 }
 
-static const struct blk_holder_ops famfs_holder_ops = {
+static const struct blk_holder_ops famfs_blk_holder_ops = {
 	.mark_dead  = famfs_bdev_mark_dead,
 };
 
+/*
+ * For block dax
+ */
 static int
 famfs_dax_notify_failure(
 	struct dax_device	*dax_devp,
@@ -404,7 +425,7 @@ famfs_dax_notify_failure(
 
 	pr_err("%s: dax_devp %llx offset %llx len %lld mf_flags %x\n",
 	       __func__, (u64)dax_devp, (u64)offset, (u64)len, mf_flags);
-
+	dump_stack();
 	return -EOPNOTSUPP;
 }
 
@@ -441,7 +462,7 @@ famfs_open_device(
 
 	/* Open block/dax backing device */
 	bdevp = blkdev_get_by_path(fc->source, famfs_blkdev_mode, fsi,
-				   &famfs_holder_ops);
+				   &famfs_blk_holder_ops);
 	if (IS_ERR(bdevp)) {
 		pr_err("%s: failed blkdev_get_by_path(%s)\n", __func__, fc->source);
 		return PTR_ERR(bdevp);

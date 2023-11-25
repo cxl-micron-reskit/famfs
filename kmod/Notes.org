@@ -6,6 +6,8 @@ TODO
 ** mkfs.tagfs <dev>
 
 * char DAX key questions
+** How to open a char /dev/dax file
+
 ** How to attach struct dax_operations to struct dax_device
 This is done by drivers/nvdimm/pmem.c
 ** How to get from a daxdev and offset to a kaddr and pfn
