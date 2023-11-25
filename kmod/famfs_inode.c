@@ -369,7 +369,7 @@ char_err:
 	return rc;
 }
 
-#else
+#else /* CONFIG_FAMFS_CHAR_DAX */
 
 static int
 famfs_open_char_device(
@@ -380,7 +380,7 @@ famfs_open_char_device(
 	return -ENODEV;
 }
 
-#endif
+#endif /* CONFIG_FAMFS_CHAR_DAX */
 
 static void
 famfs_bdev_mark_dead(
@@ -393,6 +393,25 @@ famfs_bdev_mark_dead(
 static const struct blk_holder_ops famfs_holder_ops = {
 	.mark_dead  = famfs_bdev_mark_dead,
 };
+
+static int
+famfs_dax_notify_failure(
+	struct dax_device	*dax_devp,
+	u64			offset,
+	u64			len,
+	int			mf_flags)
+{
+
+	pr_err("%s: dax_devp %llx offset %llx len %lld mf_flags %x\n",
+	       __func__, (u64)dax_devp, (u64)offset, (u64)len, mf_flags);
+
+	return -EOPNOTSUPP;
+}
+
+const struct dax_holder_operations famfs_blk_dax_holder_ops = {
+	.notify_failure		= famfs_dax_notify_failure,
+};
+
 
 static int
 famfs_open_device(
@@ -430,7 +449,7 @@ famfs_open_device(
 
 	dax_devp = fs_dax_get_by_bdev(bdevp, &start_off,
 				      fsi  /* holder */,
-				      &famfs_dax_holder_operations);
+				      &famfs_blk_dax_holder_ops);
 	if (IS_ERR(dax_devp)) {
 		pr_err("%s: unable to get daxdev from bdevp\n", __func__);
 		blkdev_put(bdevp, fsi);

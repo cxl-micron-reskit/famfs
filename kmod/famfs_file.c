@@ -427,25 +427,6 @@ famfs_meta_to_dax_offset(
 }
 
 
-static int
-famfs_dax_notify_failure(
-	struct dax_device	*dax_devp,
-	u64			offset,
-	u64			len,
-	int			mf_flags)
-{
-
-	pr_err("%s: dax_devp %llx offset %llx len %lld mf_flags %x\n",
-	       __func__, (u64)dax_devp, (u64)offset, (u64)len, mf_flags);
-
-	return -EOPNOTSUPP;
-}
-
-const struct dax_holder_operations famfs_dax_holder_operations = {
-	.notify_failure		= famfs_dax_notify_failure,
-};
-
-
 /*********************************************************************
  * file_operations
  */

@@ -33,8 +33,6 @@ extern const struct inode_operations     famfs_file_inode_operations;
 struct famfs_file_meta {
 	enum famfs_file_type  file_type;
 	size_t                file_size;
-  //char                 *dax_devname;
-  //struct dax_device    *daxdev;
 	enum extent_type      tfs_extent_type;
 	size_t                tfs_extent_ct;
 	struct famfs_extent   tfs_extents[];  /* flexible array */
@@ -45,7 +43,7 @@ struct famfs_mount_opts {
 };
 
 extern int famfs_blkdev_mode;
-extern const struct dax_holder_operations famfs_dax_holder_operations;
+//extern const struct dax_holder_operations famfs_dax_holder_operations;
 extern const struct iomap_ops             famfs_iomap_ops;
 extern const struct vm_operations_struct  famfs_file_vm_ops;
 
@@ -53,7 +51,6 @@ struct famfs_fs_info {
 	struct mutex             fsi_mutex;
 	struct famfs_mount_opts  mount_opts;
 	int                      num_dax_devs;
-	//char                    *root_daxdev; /* use fc->source instead */
 	struct file             *dax_filp;
 	struct dax_device       *dax_devp; /* TODO: indexed list of dax_devp's */
 	struct block_device     *bdevp;    /* TODO: indexed list of bdevp's (if usigng bdevs)
