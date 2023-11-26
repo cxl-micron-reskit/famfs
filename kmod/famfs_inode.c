@@ -277,7 +277,7 @@ static int famfs_parse_param(
 /**************************************************************************************/
 
 
-#ifdef CONFIG_FAMFS_CHAR_DAX
+#if defined(CONFIG_FAMFS_CHAR_DAX) && defined(CONFIG_DEV_DAX_IOMAP)
 
 /*
  * For char dax:
@@ -386,7 +386,7 @@ char_err:
 	return rc;
 }
 
-#else /* CONFIG_FAMFS_CHAR_DAX */
+#else /* not CONFIG_DEV_DAX_IOMAP */
 
 static int
 famfs_open_char_device(
@@ -397,7 +397,7 @@ famfs_open_char_device(
 	return -ENODEV;
 }
 
-#endif /* CONFIG_FAMFS_CHAR_DAX */
+#endif /* CONFIG_DEV_DAX_IOMAP */
 
 static void
 famfs_bdev_mark_dead(
@@ -578,6 +578,15 @@ static int __init init_famfs_fs(void)
 	pr_warn("%s: KERN_WARNING \n", __func__);
 	pr_err("%s: KERN_ERR \n", __func__);
 
+#if defined(CONFIG_DEV_DAX_IOMAP)
+	pr_notice("%s: kernel compiled with CONFIG_DEV_DAX_IOMAP\n", __func__);
+#endif
+
+#if defined(CONFIG_FAMFS_CHAR_DAX) && defined(CONFIG_DEV_DAX_IOMAP)
+	pr_notice("%s: famfs compiled with experimental /dev/dax support\n", __func__);
+#else
+	pr_notice("%s: famfs compiled WITHOUT experimental /dev/dax support\n", __func__);
+#endif
 	return register_filesystem(&famfs_fs_type);
 }
 
