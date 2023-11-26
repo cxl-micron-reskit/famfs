@@ -416,7 +416,7 @@ static const struct blk_holder_ops famfs_blk_holder_ops = {
  * For block dax
  */
 static int
-famfs_dax_notify_failure(
+famfs_blk_dax_notify_failure(
 	struct dax_device	*dax_devp,
 	u64			offset,
 	u64			len,
@@ -430,7 +430,7 @@ famfs_dax_notify_failure(
 }
 
 const struct dax_holder_operations famfs_blk_dax_holder_ops = {
-	.notify_failure		= famfs_dax_notify_failure,
+	.notify_failure		= famfs_blk_dax_notify_failure,
 };
 
 
@@ -548,9 +548,6 @@ static void famfs_kill_sb(struct super_block *sb)
 {
 	struct famfs_fs_info *fsi = sb->s_fs_info;
 
-#ifdef CONFIG_FAMFS_CHAR_DAX
-	kill_dax(fsi->dax_devp);
-#endif
 	mutex_destroy(&fsi->fsi_mutex);
 	if (fsi->bdevp)
 		blkdev_put(fsi->bdevp, fsi);
