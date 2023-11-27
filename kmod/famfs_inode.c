@@ -333,7 +333,7 @@ famfs_open_char_device(
 	fsi->dax_filp = filp_open(fc->source, O_RDWR, 0);
 	pr_info("%s: dax_filp=%llx\n", __func__, (u64)fsi->dax_filp);
 	if (IS_ERR(fsi->dax_filp)) {
-		pr_err("%s: failed to open dax device 5s\n",
+		pr_err("%s: failed to open dax device %s\n",
 		       __func__, fc->source);
 		fsi->dax_filp = NULL;
 		return PTR_ERR(fsi->dax_filp);
