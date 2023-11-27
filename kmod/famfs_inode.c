@@ -333,7 +333,8 @@ famfs_open_char_device(
 	fsi->dax_filp = filp_open(fc->source, O_RDWR, 0);
 	pr_info("%s: dax_filp=%llx\n", __func__, (u64)fsi->dax_filp);
 	if (IS_ERR(fsi->dax_filp)) {
-		pr_err("%s: failed to open dax device\n", __func__);
+		pr_err("%s: failed to open dax device 5s\n",
+		       __func__, fc->source);
 		fsi->dax_filp = NULL;
 		return PTR_ERR(fsi->dax_filp);
 	}
@@ -341,7 +342,8 @@ famfs_open_char_device(
 	daxdev_inode = file_inode(fsi->dax_filp);
 	dax_devp     = inode_dax(daxdev_inode);
 	if (IS_ERR(dax_devp)) {
-		pr_err("%s: unable to get daxdev from inode\n", __func__);
+		pr_err("%s: unable to get daxdev from inode for %s\n",
+		       __func__, fc->source);
 		rc = -ENODEV;
 		goto char_err;
 	}
@@ -369,7 +371,10 @@ famfs_open_char_device(
 	pr_notice("%s: is_nd_pfn addr %llx\n",
 		  __func__, (u64)addr);
 #endif
-	/* JG: I aded this function to drivers/dax/super.c */
+	/*
+	 * JG: I aded this function to drivers/dax/super.c
+	 * It is compiled if CONFIG_DEV_DAX_IOMAP is defined in the kernel config
+	 */
 	rc = add_dax_ops(dax_devp, &famfs_dax_ops, &famfs_dax_holder_ops);
 	if (rc) {
 		pr_info("%s: err attaching famfs_dax_ops\n", __func__);
@@ -386,18 +391,19 @@ char_err:
 	return rc;
 }
 
-#else /* not CONFIG_DEV_DAX_IOMAP */
+#else /* not CONFIG_DEV_DAX_IOMAP && CONFIG_FAMFS_CHAR_DAX */
 
 static int
 famfs_open_char_device(
 	struct super_block *sb,
 	struct fs_context  *fc)
 {
-	pr_err("%s:\n", __func__);
+	pr_info("%s: Root device is %s, but /dev/dax support compiled out\n",
+		__func__, fc->source);
 	return -ENODEV;
 }
 
-#endif /* CONFIG_DEV_DAX_IOMAP */
+#endif /* CONFIG_DEV_DAX_IOMAP etc. */
 
 static void
 famfs_bdev_mark_dead(
@@ -449,7 +455,6 @@ famfs_open_device(
 		pr_err("%s: already mounted\n", __func__);
 		return -EALREADY;
 	}
-	pr_info("%s: Root device is %s\n", __func__, fc->source);
 
 	if (strstr(fc->source, "/dev/dax"))
 		return famfs_open_char_device(sb, fc);
@@ -476,7 +481,7 @@ famfs_open_device(
 		blkdev_put(bdevp, fsi);
 		return -ENODEV;
 	}
-	pr_info("%s: dax_devp %llx\n", __func__, (u64)dax_devp);
+
 	fsi->bdevp    = bdevp;
 	fsi->dax_devp = dax_devp;
 
