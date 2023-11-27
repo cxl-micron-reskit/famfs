@@ -1,4 +1,13 @@
 /* SPDX-License-Identifier: GPL-2.0 */
+/*
+ * famfs - dax file system for shared fabric-attached memory
+ *
+ * Copyright 2023 Micron Technology, Inc.
+ *
+ * This file system, originally based on ramfs the dax support from xfs,
+ * is intended to allow multiple host systems to mount a common file system
+ * view of dax files that map to shared memory.
+ */
 #ifndef FAMFS_META_H
 #define FAMFS_META_H
 
@@ -103,21 +112,6 @@ struct famfs_simple_extent {
 	/* Tihs extent is on the dax device with the superblock */
 	u64 famfs_extent_offset;
 	u64 famfs_extent_len;
-};
-
-struct famfs_spanning_extent {
-	/* This extent may span dax devices (tagged capacity instances) and
-	 * therefore each extent must include a dax device uuid
-	 */
-	/* TODO  */
-};
-
-struct famfs_stripe_extent {
-	/* This extent will specfy an ordered set of dax devices, a chunk size,
-	 * and a length (which multiple of (ndevices * chunksize) so there is
-	 * an integer number of full stripes
-	 */
-	/* TODO  */
 };
 
 struct famfs_log_extent {

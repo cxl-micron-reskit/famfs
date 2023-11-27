@@ -1,28 +1,12 @@
-// SPDX-License-Identifier: GPL-2.0
-/* file-mmu.c: famfs MMU-based file operations
- *
- * Resizable simple ram filesystem for Linux.
- *
- * Copyright (C) 2000 Linus Torvalds.
- *               2000 Transmeta Corp.
- *
- * Usage limits added by David Gibson, Linuxcare Australia.
- * This file is released under the GPL.
- */
-
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
- * NOTE! This filesystem is probably most useful
- * not as a real filesystem, but as an example of
- * how virtual filesystems can be written.
+ * famfs - dax file system for shared fabric-attached memory
  *
- * It doesn't get much simpler than this. Consider
- * that this file implements the full semantics of
- * a POSIX-compliant read-write filesystem.
+ * Copyright 2023 Micron Technology, Inc.
  *
- * Note in particular how the filesystem does not
- * need to implement any data structures of its own
- * to keep track of the virtual data: using the VFS
- * caches is sufficient.
+ * This file system, originally based on ramfs the dax support from xfs,
+ * is intended to allow multiple host systems to mount a common file system
+ * view of dax files that map to shared memory.
  */
 
 #include <linux/module.h>
