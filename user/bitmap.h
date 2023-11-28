@@ -5,9 +5,6 @@
 #ifndef _H_MSE_PLATFORM_BITMAP
 #define _H_MSE_PLATFORM_BITMAP
 
-//#include <mse_platform/base.h>
-//#include <mse_platform/inttypes.h>
-
 #define BYTE_SHIFT 3
 
 static inline int
@@ -186,14 +183,5 @@ mse_bitmap_test_and_clear32(
 	bitmap[byte_num] &= and_val;
 	return 1;
 }
-
-/* bitmap_lib.c declarations */
-void mu_print_bitmap(u8 *bitmap, int num_bits);
-void mu_sprintbuf_bitmap(char *buf,
-			 size_t *remainder,
-			 size_t *offset,
-			 u8 *bitmap,
-			 int num_bits);
-
 
 #endif

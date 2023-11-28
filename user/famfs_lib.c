@@ -31,21 +31,24 @@
 #include "famfs_lib.h"
 #include "bitmap.h"
 
-void
-make_bit_string(u8 byte, char *str)
-{
-	str[0] = (byte & 0x80) ? '1':'0';
-	str[1] = (byte & 0x40) ? '1':'0';
-	str[2] = (byte & 0x20) ? '1':'0';
-	str[3] = (byte & 0x10) ? '1':'0';
-	str[4] = (byte & 0x08) ? '1':'0';
-	str[5] = (byte & 0x04) ? '1':'0';
-	str[6] = (byte & 0x02) ? '1':'0';
-	str[7] = (byte & 0x01) ? '1':'0';
-	str[8] = 0;
-}
+static u8 *
+famfs_build_bitmap(const struct famfs_log   *logp,
+		   u64                       bitmap_size_in,
+		   u64                      *bitmap_size_out,
+		   u64                      *alloc_errors_out,
+		   u64                      *size_total_out,
+		   u64                      *alloc_total_out,
+		   int                       verbose);
+static int
+famfs_dir_create(
+	const char *mpt,
+	const char *rpath,
+	mode_t      mode,
+	uid_t       uid,
+	gid_t       gid);
 
-void
+
+static void
 mu_print_bitmap(u8 *bitmap, int num_bits)
 {
 	int i, val;
@@ -384,8 +387,7 @@ famfs_ext_to_simple_ext(
 /**
  * famfs_file_map_create()
  *
- * This function allocates free space in a famfs file system and associates it
- * with a file.
+ * This function attaches an allocated simple extent list to a file
  *
  * @path
  * @fd           - file descriptor for the file whose map will be created (already open)
@@ -413,6 +415,7 @@ famfs_file_map_create(
 	filemap.extent_type    = FSDAX_EXTENT;
 	filemap.ext_list_count = nextents;
 
+	/* TODO: check for overflow (nextents > max_extents) */
 	for (i = 0; i<nextents; i++) {
 		filemap.ext_list[i].offset = ext_list[i].famfs_extent_offset;
 		filemap.ext_list[i].len    = ext_list[i].famfs_extent_len;
@@ -428,6 +431,9 @@ famfs_file_map_create(
 
 /**n
  * famfs_mkmeta()
+ *
+ * Create the meta files (.meta/.superblock and .meta/.log)) in a mounted famfs
+ * file system
  *
  * @devname - primary device for a famfs file system
  */
@@ -503,7 +509,7 @@ famfs_mkmeta(const char *devname)
 		return -1;
 	}
 
-	/* Create and allocate Superblock file */
+	/* Create and provide mapping for Superblock file */
 	sbfd = open(sb_file, O_RDWR|O_CREAT, S_IRUSR|S_IWUSR);
 	if (sbfd < 0) {
 		fprintf(stderr, "%s: failed to create file %s\n", __func__, sb_file);
@@ -534,7 +540,7 @@ famfs_mkmeta(const char *devname)
 		}
 	}
 
-	/* Create and allocate log file */
+	/* Create and provide mapping for log file */
 	logfd = open(log_file, O_RDWR|O_CREAT, S_IRUSR|S_IWUSR);
 	if (logfd < 0) {
 		fprintf(stderr, "%s: failed to create file %s\n", __func__, log_file);
@@ -601,19 +607,6 @@ mmap_whole_file(
 	return addr;
 }
 
-struct famfs_superblock *
-mmap_superblock_file_read_only(const char *mpt)
-{
-	char sb_path[PATH_MAX];
-
-	memset(sb_path, 0, PATH_MAX);
-
-	strncat(sb_path, mpt,     PATH_MAX - 1);
-	strncat(sb_path, "/", PATH_MAX - 1);
-	strncat(sb_path, SB_FILE_RELPATH, PATH_MAX - 1);
-
-	return mmap_whole_file(sb_path, 1 /* superblock file always read-only */, NULL);
-}
 
 /******/
 
@@ -646,7 +639,6 @@ famfs_logplay(
 	int nlog = 0;
 	int i, j;
 	int rc;
-
 
 	if (famfs_log_full(logp)) {
 		fprintf(stderr, "%s: log is empty (mpt=%s)\n",
@@ -816,7 +808,7 @@ famfs_logplay(
  * NOTE: this function is not re-entrant. Must hold a lock or mutex when calling this
  * function if there is any chance of re-entrancy.
  */
-int
+static int
 famfs_append_log(struct famfs_log       *logp,
 		 struct famfs_log_entry *e)
 {
@@ -937,7 +929,7 @@ famfs_log_file_creation(
 /* TODO: UI would be cleaner if this accepted a fullpath and the mpt, and did the
  * conversion itself. Then pretty much all calls would use the same stuff.
  */
-int
+static int
 famfs_log_dir_creation(
 	struct famfs_log           *logp,
 	const char                 *relpath,
@@ -977,7 +969,7 @@ famfs_log_dir_creation(
  * @mpt_out    - Mount point will be returned if this pointer is non-NULL
  *               (the string space is assumed to be of size PATH_MAX)
  */
-int
+static int
 __open_relpath(
 	const char *path,
 	const char *relpath,
@@ -1073,7 +1065,7 @@ __open_superblock_file(
 	return __open_relpath(path, SB_FILE_RELPATH, read_only, sizep, mpt_out);
 }
 
-int
+static int
 open_superblock_file_read_only(
 	const char *path,
 	size_t     *sizep,
@@ -1082,7 +1074,7 @@ open_superblock_file_read_only(
 	return __open_superblock_file(path, 1, sizep, mpt_out);
 }
 
-int
+static int
 open_superblock_file_writable(
 	const char *path,
 	size_t     *sizep,
@@ -1091,7 +1083,7 @@ open_superblock_file_writable(
 	return __open_superblock_file(path, 0, sizep, mpt_out);
 }
 
-struct famfs_superblock *
+static struct famfs_superblock *
 famfs_map_superblock_by_path(
 	const char *path,
 	int         read_only)
@@ -1119,7 +1111,7 @@ famfs_map_superblock_by_path(
 	return sb;
 }
 
-struct famfs_log *
+static struct famfs_log *
 famfs_map_log_by_path(
 	const char *path,
 	int         read_only)
@@ -1371,7 +1363,7 @@ put_sb_log_into_bitmap(u8 *bitmap)
  *                     b/c those will increase size_total but not alloc_total)
  * @verbose
  */
-u8 *
+static u8 *
 famfs_build_bitmap(const struct famfs_log   *logp,
 		   u64                       bitmap_size_in,
 		   u64                      *bitmap_size_out,
@@ -1463,7 +1455,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
  *
  * Return value: the offset in bytes
  */
-u64
+static u64
 bitmap_alloc_contiguous(u8 *bitmap,
 			u64 nbits,
 			u64 size)
@@ -1506,7 +1498,7 @@ next:
  *
  * XXX currently only contiuous allocations are supported
  */
-s64
+static s64
 famfs_alloc_bypath(
 	struct famfs_log *logp,
 	const char       *path,
@@ -1558,7 +1550,7 @@ __file_not_famfs(int fd)
  * @uid
  * @size - size to alloacte
  */
-int
+static int
 famfs_file_alloc(
 	int         fd,
 	const char *path,
@@ -1738,7 +1730,7 @@ famfs_mkfile(char    *filename,
  *
  *
  */
-int
+static int
 famfs_dir_create(
 	const char *mpt,
 	const char *rpath,

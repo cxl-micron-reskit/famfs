@@ -13,7 +13,6 @@
 
 #include <linux/types.h>
 #include <linux/uuid.h>
-//#include <linux/dax.h>
 
 #include "famfs.h"
 #include "famfs_ioctl.h"
@@ -34,9 +33,9 @@
  *
  * A famfs file system has a root dax device. The superblock (struct famfs superblock) lives
  * at offset 0 on the root dax device. The superblock is exposed as a file at .meta/sb via the
- * FAMFSIOC_MAP_SUPERBLOCK ioctl.
+ * FAMFSIOC_MAP_SUPERBLOCK ioctl. *fixme*
  *
- * The root log is located in the root dax device, at sb->ts_log_offset. The initial log length
+ * The root log is located in the root dax device, at sb->ts_log_offset. The log length
  * is sb->ts_log_len. The root log is exposed as the file .meta/rootlog via the
  * FAMFSIOC_MAP_ROOTLOG ioctl.
  *
@@ -71,8 +70,6 @@ static inline size_t round_size_to_alloc_unit(u64 size)
 
 struct famfs_daxdev {
 	size_t              dd_size;
-//	struct dax_device  *dd_dax_device;
-//	void               *dd_dax_device;
 	uuid_le             dd_uuid;
 	/* TODO: what is an invariant way to reference a DAX device? */
 	char                dd_daxdev[FAMFS_DEVNAME_LEN];
