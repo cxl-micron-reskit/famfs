@@ -77,8 +77,5 @@ static inline size_t tioc_ext_count(struct famfs_ioc_map *map)
 #define FAMFSIOC_MAP_GETEXT    _IOWR(FAMFSIOC_MAGIC, 3, struct famfs_extent)
 #define FAMFSIOC_NOP           _IO(FAMFSIOC_MAGIC, 3)
 
-#define FAMFSIOC_MAP_SUPERBLOCK _IOWR(FAMFSIOC_MAGIC, 4, ?)
-#define FAMFSIOC_MAP_ROOTLOG    _IOWR(FAMFSIOC_MAGIC, 5, ?)
-
 
 #endif /* FAMFS_IOCTL_H */
