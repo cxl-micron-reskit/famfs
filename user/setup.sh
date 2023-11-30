@@ -3,6 +3,8 @@
 cwd=$(pwd)
 export PATH=cwd/debug:$PATH
 
+DEVTYPE="$1"
+echo "DEVTYPE=$DEVTYPE"
 
 MPT="/mnt/famfs"
 #OWNER="jgroves.jgroves"
