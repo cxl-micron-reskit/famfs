@@ -1490,7 +1490,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 }
 
 /**
- * bitmap_alloc_contigous()
+ * bitmap_alloc_contiguous()
  *
  * @bitmap
  * @nbits - number of bits in the bitmap
@@ -1503,8 +1503,8 @@ bitmap_alloc_contiguous(u8 *bitmap,
 			u64 nbits,
 			u64 size)
 {
-	int i, j;
-	int alloc_bits = (size + FAMFS_ALLOC_UNIT - 1) /  FAMFS_ALLOC_UNIT;
+	u64 i, j;
+	u64 alloc_bits = (size + FAMFS_ALLOC_UNIT - 1) /  FAMFS_ALLOC_UNIT;
 	int bitmap_remainder;
 
 	for (i = 0; i < nbits; i++) {
