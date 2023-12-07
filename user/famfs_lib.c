@@ -52,13 +52,28 @@ static void
 mu_print_bitmap(u8 *bitmap, int num_bits)
 {
 	int i, val;
+	int sum = 0;
+	char linebuf[256] = {0};
 
 	mu_bitmap_foreach(bitmap, num_bits, i, val) {
-		if (!(i%64))
-			printf("\n%4d: ", i);
+		sum += val;
 
-		printf("%d", val);
+		if (!(i%64)) {
+			/* New line; print previous line only is there was at least one '1' in it */
+			if (sum > 0) {
+				printf("%s", linebuf);
+				sum = 0;
+			}
+
+			/* Start over with next line */
+			linebuf[0] = 0;
+			sprintf(linebuf, "\n%4d: ", i); /* Put header in line */
+		}
+
+		strcat(linebuf, (val) ? "1" : "0");     /* Append a '1' or '0' */
 	}
+	if (sum > 0)
+		printf("%s", linebuf);
 	printf("\n");
 }
 
