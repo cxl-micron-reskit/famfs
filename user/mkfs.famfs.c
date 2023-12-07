@@ -153,7 +153,7 @@ main(int argc, char *argv[])
 		((FAMFS_LOG_LEN - offsetof(struct famfs_log, entries))
 		 / sizeof(struct famfs_log_entry));
 
-	famfs_fsck_scan(sb, famfs_logp, 0);
+	famfs_fsck_scan(sb, famfs_logp, 1, 0);
 	close(rc);
 	return 0;
 }

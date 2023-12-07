@@ -37,7 +37,7 @@ ${CLI} creat -r -s 8192 -S 10 $MPT/$F   || fail "creat $F"
 ${CLI} verify -S 10 -f $MPT/$F || fail "verify $F after replay"
 
 F=bigtest0
-${CLI} creat -r -S 42 -s 0x800000 $MPT/$F   || fail "creat $F"
+${CLI} creat -v -r -S 42 -s 0x800000 $MPT/$F   || fail "creat $F"
 ${CLI} verify -S 42 -f $MPT/$F                 || fail "$F mismatch"
 
 ${CLI} cp $MPT/$F $MPT/${F}_cp      || fail "cp $F"
@@ -56,8 +56,8 @@ ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp4      || fail "cp4 $F"
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp5      || fail "cp5 $F"
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp6      || fail "cp6 $F"
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp7      || fail "cp7 $F"
-${CLI} cp $MPT/$F $MPT/subdir/${F}_cp8      || fail "cp8 $F"
-${CLI} cp $MPT/$F $MPT/subdir/${F}_cp9      || fail "cp9 $F"
+${CLI} cp -v $MPT/$F $MPT/subdir/${F}_cp8      || fail "cp8 $F"
+${CLI} cp -v $MPT/$F $MPT/subdir/${F}_cp9      || fail "cp9 $F"
 
 ${CLI} logplay -n $MPT
 
@@ -91,6 +91,7 @@ ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp8 || fail "verify ${F}_cp8"
 ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp9 || fail "verify ${F}_cp9"
 
 ${CLI} fsck $MPT || fail "fsck should succeed"
+${CLI} fsck -v $MPT || fail "fsck should succeed"
 
 set +x
 echo "*************************************************************************************"

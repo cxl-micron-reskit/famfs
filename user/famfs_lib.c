@@ -33,7 +33,7 @@
 
 static u8 *
 famfs_build_bitmap(const struct famfs_log   *logp,
-		   u64                       bitmap_size_in,
+		   u64                       dev_size_in,
 		   u64                      *bitmap_size_out,
 		   u64                      *alloc_errors_out,
 		   u64                      *size_total_out,
@@ -157,10 +157,12 @@ int
 famfs_fsck_scan(
 	const struct famfs_superblock *sb,
 	const struct famfs_log        *logp,
+	int                            human,
 	int                            verbose)
 {
 	size_t total_log_size;
 	size_t effective_log_size;
+	u64 nbits;
 	int i;
 	u64 errors = 0;
 	u8 *bitmap;
@@ -198,35 +200,56 @@ famfs_fsck_scan(
 	/*
 	 * Build the log bitmap to scan for errors
 	 */
-	bitmap = famfs_build_bitmap(logp,  sb->ts_devlist[0].dd_size, NULL, &errors,
+	bitmap = famfs_build_bitmap(logp,  sb->ts_devlist[0].dd_size, &nbits, &errors,
 				    &size_total, &alloc_total, 0);
 	if (errors)
 		printf("ERROR: %lld ALLOCATION COLLISIONS FOUND\n", errors);
 	else {
+		u64 capacity = nbits * FAMFS_ALLOC_UNIT;
 		float space_amp = (float)alloc_total / (float)size_total;
+		float percent_used = (float)alloc_total /  (float)capacity;
+		float agig = 1024 * 1024 * 1024;
 
-		printf("  No allocation errors found\n");
-		printf("  alloc_total=%lld size_total=%lld space_amplification=%.2f\n",
-		       alloc_total, size_total, space_amp);
+		printf("  No allocation errors found\n\n");
+		printf("Capacity:\n");
+		if (!human) {
+			printf("  Total capacity: %ld\n", sb->ts_devlist[0].dd_size);
+			printf("  alloc_total=%lld size_total=%lld space_amplification=%.2f\n",
+			       alloc_total, size_total, space_amp);
+			printf("  Spaced used / free / free %% %lld / %lld / %.0f%%\n",
+			       alloc_total, nbits & FAMFS_ALLOC_UNIT, percent_used);
+		} else {
+			printf("  Total capacity: %0.2fG\n",
+			       (float)sb->ts_devlist[0].dd_size / agig);
+			printf("  alloc_total=%.2fG size_total=%.2fG space_amplification=%.2f\n",
+			       (float)alloc_total / agig,
+			       (float)size_total / agig, space_amp);
+			printf("  Spaced used / free / free %%: %.2f / %.2f / %.0f%%\n",
+			       (float)alloc_total / agig,
+			       (float)(nbits & FAMFS_ALLOC_UNIT) / agig, percent_used);
+		}
 	}
 
 	free(bitmap);
 
 	if (verbose) {
-		printf("log_offset:        %lld\n", sb->ts_log_offset);
-		printf("log_len:           %lld\n", sb->ts_log_len);
+		printf("\nVerbose:\n");
+		printf("  log_offset:        %lld\n", sb->ts_log_offset);
+		printf("  log_len:           %lld\n", sb->ts_log_len);
 
-		printf("sizeof(log header) %ld\n", sizeof(struct famfs_log));
-		printf("sizeof(log_entry)  %ld\n", sizeof(struct famfs_log_entry));
+		printf("  sizeof(log header) %ld\n", sizeof(struct famfs_log));
+		printf("  sizeof(log_entry)  %ld\n", sizeof(struct famfs_log_entry));
 
-		printf("last_log_index:    %lld\n", logp->famfs_log_last_index);
+		printf("  last_log_index:    %lld\n", logp->famfs_log_last_index);
 		total_log_size = sizeof(struct famfs_log)
 			+ (sizeof(struct famfs_log_entry) * (1 + logp->famfs_log_last_index));
-		printf("full log size:     %ld\n", total_log_size);
-		printf("FAMFS_LOG_LEN:     %d\n", FAMFS_LOG_LEN);
-		printf("Remainder:         %ld\n", FAMFS_LOG_LEN - total_log_size);
-		printf("\nfc: %ld\n", sizeof(struct famfs_file_creation));
-		printf("fa:   %ld\n", sizeof(struct famfs_file_access));
+		printf("  full log size:     %ld\n", total_log_size);
+		printf("  FAMFS_LOG_LEN:     %d\n", FAMFS_LOG_LEN);
+		printf("  Remainder:         %ld\n", FAMFS_LOG_LEN - total_log_size);
+		printf("  sizeof(struct famfs_file_creation): %ld\n",
+		       sizeof(struct famfs_file_creation));
+		printf("  sizeof(struct famfs_file_access):   %ld\n",
+		       sizeof(struct famfs_file_access));
 	}
 	return errors;
 }
@@ -1142,6 +1165,7 @@ int
 famfs_fsck(
 	const char *path,
 	int use_mmap,
+	int human,
 	int verbose)
 {
 	struct famfs_superblock *sb;
@@ -1282,7 +1306,7 @@ famfs_fsck(
 		fprintf(stderr, "%s: no famfs superblock on device %s\n", __func__, path);
 		return -1;
 	}
-	rc = famfs_fsck_scan(sb, logp, verbose);
+	rc = famfs_fsck_scan(sb, logp, human, verbose);
 	if (malloc_sb_log) {
 		free(sb);
 		free(logp);
@@ -1363,23 +1387,27 @@ put_sb_log_into_bitmap(u8 *bitmap)
  *                     b/c those will increase size_total but not alloc_total)
  * @verbose
  */
+/* XXX: should get log size from superblock */
 static u8 *
 famfs_build_bitmap(const struct famfs_log   *logp,
-		   u64                       bitmap_size_in,
+		   u64                       dev_size_in,
 		   u64                      *bitmap_size_out,
 		   u64                      *alloc_errors_out,
 		   u64                      *size_total_out,
 		   u64                      *alloc_total_out,
 		   int                       verbose)
 {
-	int npages = (bitmap_size_in - FAMFS_SUPERBLOCK_SIZE - FAMFS_LOG_LEN) / FAMFS_ALLOC_UNIT;
-	int bitmap_size = mu_bitmap_size(npages);
+	u64 npages = (dev_size_in - FAMFS_SUPERBLOCK_SIZE - FAMFS_LOG_LEN) / FAMFS_ALLOC_UNIT;
+	u64 bitmap_size = mu_bitmap_size(npages);
 	u8 *bitmap = calloc(1, bitmap_size);
 	u64 errors = 0;
-	size_t alloc_sum = 0;
-	size_t size_sum  = 0;
+	u64 alloc_sum = 0;
+	u64 size_sum  = 0;
 	int i, j;
 	int rc;
+
+	printf("%s: dev_size %lld npages %lld bitmap_size %lld bytes\n",
+	       __func__, dev_size_in, npages, bitmap_size);
 
 	if (!bitmap)
 		return NULL;
@@ -1502,7 +1530,8 @@ static s64
 famfs_alloc_bypath(
 	struct famfs_log *logp,
 	const char       *path,
-	u64               size)
+	u64               size,
+	int               verbose)
 {
 	ssize_t daxdevsize;
 	u8 *bitmap;
@@ -1517,12 +1546,16 @@ famfs_alloc_bypath(
 		return daxdevsize;
 
 	bitmap = famfs_build_bitmap(logp, daxdevsize, &nbits, NULL, NULL, NULL, 0);
-	printf("\nbitmap before:\n");
-	mu_print_bitmap(bitmap, nbits);
+	if (verbose) {
+		printf("\nbitmap before:\n");
+		mu_print_bitmap(bitmap, nbits);
+	}
 	offset = bitmap_alloc_contiguous(bitmap, nbits, size);
-	printf("\nbitmap after:\n");
-	mu_print_bitmap(bitmap, nbits);
-	printf("\nAllocated offset: %lld\n", offset);
+	if (verbose) {
+		printf("\nbitmap after:\n");
+		mu_print_bitmap(bitmap, nbits);
+		printf("\nAllocated offset: %lld\n", offset);
+	}
 	free(bitmap);
 	return offset;
 }
@@ -1557,7 +1590,8 @@ famfs_file_alloc(
 	mode_t      mode,
 	uid_t       uid,
 	gid_t       gid,
-	u64         size)
+	u64         size,
+	int         verbose)
 {
 	struct famfs_simple_extent ext = {0};
 	struct famfs_log *logp;
@@ -1599,7 +1633,7 @@ famfs_file_alloc(
 		return -EINVAL;
 
 	/* Allocation is always contiguous initially */
-	offset = famfs_alloc_bypath(logp, rpath, size);
+	offset = famfs_alloc_bypath(logp, rpath, size, verbose);
 	if (offset < 0) {
 		rc = -ENOMEM;
 		goto out;
@@ -1691,7 +1725,8 @@ famfs_mkfile(char    *filename,
 	     mode_t   mode,
 	     uid_t    uid,
 	     gid_t    gid,
-	     size_t   size)
+	     size_t   size,
+	     int      verbose)
 {
 	int fd, rc;
 	char fullpath[PATH_MAX];
@@ -1704,12 +1739,16 @@ famfs_mkfile(char    *filename,
 	if (realpath(filename, fullpath) == NULL) {
 		fprintf(stderr, "%s: realpath() unable to rationalize filename %s\n",
 			__func__, filename);
+		close(fd);
+		unlink(filename);
+		return -EBADF;
 	}
 
-	rc = famfs_file_alloc(fd, fullpath, mode, uid, gid, size);
+	rc = famfs_file_alloc(fd, fullpath, mode, uid, gid, size, verbose);
 	if (rc) {
 		fprintf(stderr, "%s: famfs_file_alloc(%s, size=%ld) failed\n",
 			__func__, fullpath, size);
+		close(fd);
 		unlink(fullpath);
 		return -1;
 	}
@@ -1862,7 +1901,8 @@ err_out:
 
 int
 famfs_cp(char *srcfile,
-	 char *destfile)
+	 char *destfile,
+	 int   verbose)
 {
 	struct stat srcstat;
 	struct stat deststat;
@@ -1888,6 +1928,22 @@ famfs_cp(char *srcfile,
 		return rc;
 	}
 
+	/* XXX: check wihether new file will fit! */
+
+	/*
+	 * Makefsure we can open and read the source file
+	 */
+	srcfd = open(srcfile, O_RDONLY, 0);
+	if (srcfd < 0) {
+		fprintf(stderr, "%s: unable to open srcfile (%s)\n", __func__, srcfile);
+		unlink(destfile);
+		return rc;
+	}
+
+#if 1
+	destfd = famfs_mkfile(destfile, srcstat.st_mode, srcstat.st_uid,
+			      srcstat.st_gid, srcstat.st_size, verbose);
+#else
 	destfd = famfs_file_create(destfile, srcstat.st_mode, srcstat.st_uid, srcstat.st_gid);
 	if (destfd < 0) {
 		if (destfd == -EBADF)
@@ -1902,25 +1958,16 @@ famfs_cp(char *srcfile,
 		return destfd;
 	}
 
-	/*
-	 * Now deal with source file
-	 */
-	srcfd = open(srcfile, O_RDONLY, 0);
-	if (srcfd < 0) {
-		fprintf(stderr, "%s: unable to open srcfile (%s)\n", __func__, srcfile);
-		unlink(destfile);
-		return rc;
-	}
-
 	/* TODO: consistent arg order fd, name */
 	rc = famfs_file_alloc(destfd, destfile, srcstat.st_mode, srcstat.st_uid,
-			      srcstat.st_gid, srcstat.st_size);
+			      srcstat.st_gid, srcstat.st_size, verbose);
 	if (rc) {
 		fprintf(stderr, "%s: failed to allocate size %ld for file %s\n",
 			__func__, srcstat.st_size, destfile);
 		unlink(destfile);
 		return -1;
 	}
+#endif
 
 	destp = mmap(0, srcstat.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, destfd, 0);
 	if (destp == MAP_FAILED) {

@@ -43,13 +43,8 @@ xbasename(char *str)
 
 /* Global option related stuff */
 
-int verbose_flag;  /* JG: ignored at the moment */
-static int dry_run;
-
 struct option global_options[] = {
 	/* These options set a flag. */
-	{"verbose",          no_argument, &verbose_flag,  1 },
-	{"brief",            no_argument, &verbose_flag,  0 },
 	/* These options don't set a flag.
 	 * We distinguish them by their indices.
 	 */
@@ -289,13 +284,15 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	int arg_ct = 0;
 	char *daxdev = NULL;
 	int use_mmap = 0;
+	int human = 0; /* -h is no longer --help... */
+	int verbose = 0;
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option fsck_options[] = {
 		/* These options set a */
-		{"daxdev",      required_argument,             0,  'D'},
-		{"fsdaxdev",    required_argument,             0,  'F'},
-		{"mmap",        required_argument,             0,  'm'},
+		{"mmap",        no_argument,             0,  'm'},
+		{"human",       no_argument,             0,  'h'},
+		{"verbose",     no_argument,             0,  'v'},
 		{0, 0, 0, 0}
 	};
 
@@ -317,7 +314,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+h?m",
+	while ((c = getopt_long(argc, argv, "+vh?m",
 				fsck_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -331,6 +328,11 @@ do_famfs_cli_fsck(int argc, char *argv[])
 			use_mmap = 1;
 			break;
 		case 'h':
+			human = 1;
+			break;
+		case 'v':
+			verbose++;
+			break;
 		case '?':
 			famfs_fsck_usage(argc, argv);
 			return 0;
@@ -347,7 +349,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	}
 	/* TODO: multiple devices? */
 	daxdev = argv[optind++];
-	return famfs_fsck(daxdev, use_mmap, verbose_flag);
+	return famfs_fsck(daxdev, use_mmap, human, verbose);
 }
 
 
@@ -373,16 +375,16 @@ int
 do_famfs_cli_cp(int argc, char *argv[])
 {
 	int c, rc;
-
 	int arg_ct = 0;
-
 	char *srcfile;
 	char *destfile;
+	int verbose = 0;
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option cp_options[] = {
 		/* These options set a */
 		{"filename",    required_argument,             0,  'f'},
+		{"verbose",     no_argument,                   0,  'v'},
 		{0, 0, 0, 0}
 	};
 
@@ -404,7 +406,7 @@ do_famfs_cli_cp(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+h?",
+	while ((c = getopt_long(argc, argv, "+vh?",
 				cp_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -414,7 +416,9 @@ do_famfs_cli_cp(int argc, char *argv[])
 
 		arg_ct++;
 		switch (c) {
-
+		case 'v':
+			verbose++;
+			break;
 		case 'h':
 		case '?':
 			famfs_cp_usage(argc, argv);
@@ -429,7 +433,7 @@ do_famfs_cli_cp(int argc, char *argv[])
 	srcfile = argv[optind++];
 	destfile = argv[optind++];
 
-	rc = famfs_cp(srcfile, destfile);
+	rc = famfs_cp(srcfile, destfile, verbose);
 	printf("famfs_cp returned %d\n", rc);
 	return 0;
 }
@@ -806,6 +810,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 	mode_t mode = 0644;
 	s64 seed;
 	int randomize = 0;
+	int verbose = 0;
 
 	/* TODO: allow passing in uid/gid/mode on command line*/
 
@@ -818,6 +823,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 		{"mode",        required_argument,             0,  'm'},
 		{"uid",         required_argument,             0,  'u'},
 		{"gid",         required_argument,             0,  'g'},
+		{"verbose",     no_argument,                   0,  'v'},
 		/* These options don't set a flag.
 		 * We distinguish them by their indices.
 		 */
@@ -843,7 +849,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+s:S:m:u:g:rh?",
+	while ((c = getopt_long(argc, argv, "+s:S:m:u:g:rh?v",
 				creat_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -890,6 +896,9 @@ do_famfs_cli_creat(int argc, char *argv[])
 		case 'r':
 			randomize++;
 			break;
+		case 'v':
+			verbose++;
+			break;
 
 		case 'h':
 		case '?':
@@ -918,7 +927,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 	}
 
 	printf("mode: %o\n", mode);
-	fd = famfs_mkfile(filename, mode, uid, gid, fsize);
+	fd = famfs_mkfile(filename, mode, uid, gid, fsize, verbose);
 	if (fd < 0) {
 		fprintf(stderr, "%s: failed to create file %s\n", __func__, fullpath);
 		exit(-1);
@@ -1221,7 +1230,7 @@ main(int argc, char **argv)
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+nh?d:",
+	while ((c = getopt_long(argc, argv, "+h?:",
 				global_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -1230,10 +1239,6 @@ main(int argc, char **argv)
 			break;
 
 		switch (c) {
-		case 'n':
-			dry_run++;
-			break;
-
 		case 'h':
 		case '?':
 			do_famfs_cli_help(argc, argv);
