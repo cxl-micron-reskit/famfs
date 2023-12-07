@@ -360,7 +360,7 @@ famfs_open_char_device(
 	 * JG: I aded this function to drivers/dax/super.c
 	 * It is compiled if CONFIG_DEV_DAX_IOMAP is defined in the kernel config
 	 */
-	rc = add_dax_ops(dax_devp, &famfs_dax_ops, &famfs_dax_holder_ops);
+	rc = add_dax_ops(dax_devp, &famfs_dax_holder_ops);
 	if (rc) {
 		pr_info("%s: err attaching famfs_dax_ops\n", __func__);
 		goto char_err;
