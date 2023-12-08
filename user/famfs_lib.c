@@ -23,6 +23,7 @@
 #include <libgen.h>
 #include <assert.h>
 #include <sys/param.h> /* MIN()/MAX() */
+#include <zlib.h>
 
 #include "famfs.h"
 #include "famfs_ioctl.h"
@@ -196,6 +197,26 @@ famfs_get_device_size(const char       *fname,
 }
 
 /**
+ * famfs_gen_superblock_crc()
+ *
+ * This function must be updated if any fields changes before teh crc in the superblock!
+ */
+unsigned long
+famfs_gen_superblock_crc(const struct famfs_superblock *sb)
+{
+	unsigned long crc = crc32(0L, Z_NULL, 0);
+
+	assert(sb);
+	crc = crc32(crc, (const unsigned char *)&sb->ts_magic,       sizeof(sb->ts_magic));
+	crc = crc32(crc, (const unsigned char *)&sb->ts_version,     sizeof(sb->ts_version));
+	crc = crc32(crc, (const unsigned char *)&sb->ts_log_offset,  sizeof(sb->ts_log_offset));
+	crc = crc32(crc, (const unsigned char *)&sb->ts_log_len,     sizeof(sb->ts_log_len));
+	crc = crc32(crc, (const unsigned char *)&sb->ts_uuid,        sizeof(sb->ts_uuid));
+	crc = crc32(crc, (const unsigned char *)&sb->ts_system_uuid, sizeof(sb->ts_system_uuid));
+	return crc;
+}
+
+/**
  * famfs_fsck_scan()
  *
  * * Print info from the superblock
@@ -364,11 +385,18 @@ err_out:
 int
 famfs_check_super(const struct famfs_superblock *sb)
 {
+	unsigned long sbcrc;
+
 	if (!sb)
 		return -1;
 	if (sb->ts_magic != FAMFS_SUPER_MAGIC)
 		return -1;
-	/* TODO: check crc, etc. */
+	sbcrc = famfs_gen_superblock_crc(sb);
+	if (sb->ts_crc != sbcrc)
+		fprintf(stderr, "WARNING: crc mismatch in superblock!\n");
+
+
+	/* TODO: enforce crc, etc. */
 	return 0;
 }
 

@@ -27,9 +27,10 @@ add_executable(mmap_test mmap_test.c )
 add_executable(famfs famfs_cli.c )
 add_executable(mkfs.famfs mkfs.famfs.c )
 
-target_link_libraries(famfs libfamfs famfstest uuid)
-target_link_libraries(mkfs.famfs libfamfs uuid)
-target_link_libraries(mkfile libfamfs uuid)
+target_link_libraries(famfs libfamfs famfstest uuid z)
+target_link_libraries(mkfs.famfs libfamfs uuid z)
+target_link_libraries(libfamfs  uuid z)
+target_link_libraries(mkfile libfamfs uuid z)
 
 
 

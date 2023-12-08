@@ -139,12 +139,14 @@ main(int argc, char *argv[])
 	sb->ts_log_offset = FAMFS_LOG_OFFSET;
 	sb->ts_log_len    = FAMFS_LOG_LEN;
 	famfs_uuidgen(&sb->ts_uuid);
-	sb->ts_crc = 0; /* TODO: calculate and check crc */
 
 	/* Configure the first daxdev */
 	sb->ts_num_daxdevs = 1;
 	sb->ts_devlist[0].dd_size = devsize;
 	strncpy(sb->ts_devlist[0].dd_daxdev, daxdev, FAMFS_DEVNAME_LEN);
+
+	/* Calculate superblock crc */
+	sb->ts_crc = famfs_gen_superblock_crc(sb); /* gotta do this last! */
 
 	/* Zero and setup the log */
 	memset(famfs_logp, 0, FAMFS_LOG_LEN);
