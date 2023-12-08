@@ -1237,6 +1237,14 @@ famfs_fsck(
 		return -errno;
 	}
 
+	/*
+	 * Lots of options here;
+	 * * If a dax device (either pmem or /dev/dax) we'll fsck that - but only if the fs
+	 *   is not currently mounted.
+	 * * If any file path from the mount point on down in a mounted famfs file system is
+	 *   specified, we will find the the superblock and log files and fsck the mounted
+	 *   file system.
+	 */
 	switch (st.st_mode & S_IFMT) {
 	case S_IFBLK:
 	case S_IFCHR: {
@@ -1261,6 +1269,12 @@ famfs_fsck(
 	}
 	case S_IFREG:
 	case S_IFDIR: {
+		/*
+		 * More options: default is to read the superblock and log into local buffers
+		 * (which is useful to spot check that posix read is not broken). But if the
+		 * use_mmap open is provided, we will mmap the superblock and logs files
+		 * rather than reading them into a local buffer.
+		 */
 		if (use_mmap) {
 			/* If it's a file or directory, we'll try to mmap the sb and
 			 * log from their files
