@@ -231,18 +231,19 @@ famfs_fsck_scan(
 			printf("  Total capacity: %ld\n", sb->ts_devlist[0].dd_size);
 			printf("  alloc_total=%lld size_total=%lld space_amplification=%.2f\n",
 			       alloc_total, size_total, space_amp);
-			printf("  Spaced used / free / free %% %lld / %lld / %.0f%%\n",
-			       alloc_total, nbits & FAMFS_ALLOC_UNIT, percent_used);
+			printf("  Allocated bytes: %lld\n", alloc_total);
+			printf("  Free space:      %lld\n", nbits * FAMFS_ALLOC_UNIT);
 		} else {
 			printf("  Total capacity: %0.2fG\n",
 			       (float)sb->ts_devlist[0].dd_size / agig);
 			printf("  alloc_total=%.2fG size_total=%.2fG space_amplification=%.2f\n",
 			       (float)alloc_total / agig,
 			       (float)size_total / agig, space_amp);
-			printf("  Spaced used / free / free %%: %.2f / %.2f / %.0f%%\n",
-			       (float)alloc_total / agig,
-			       (float)(nbits & FAMFS_ALLOC_UNIT) / agig, percent_used);
+			printf("  Allocated space: %.2f\n", (float)alloc_total / agig);
+			printf("  Free space:      %.2f\n",
+			       (float)(nbits * FAMFS_ALLOC_UNIT) / agig);
 		}
+		printf("  Percent used:    %.1f%%\n", percent_used);
 	}
 
 	free(bitmap);
