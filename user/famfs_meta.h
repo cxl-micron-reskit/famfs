@@ -52,7 +52,7 @@
  */
 
 #define FAMFS_SUPER_MAGIC      0x09211963
-#define FAMFS_CURRENT_VERSION  42
+#define FAMFS_CURRENT_VERSION  43
 #define FAMFS_MAX_DAXDEVS      64
 
 #define FAMFS_LOG_OFFSET    0x200000 /* 2MiB */
@@ -85,7 +85,8 @@ struct famfs_superblock {
 	u64                 ts_version;
 	u64                 ts_log_offset;  /* offset to the start of the log file */
 	u64                 ts_log_len;
-	uuid_le             ts_uuid;
+	uuid_le             ts_uuid;        /* UUID of this file system */
+	uuid_le             ts_system_uuid; /* system uuid */
 	u64                 ts_crc;         /* Covers all fields prior to this one */
 	u32                 ts_num_daxdevs; /* limit is FAMFS_MAX_DAXDEVS */
 	u32                 ts_sb_flags;

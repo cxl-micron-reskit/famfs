@@ -42,8 +42,6 @@ int kill_super;
 
 struct option global_options[] = {
 	/* These options set a flag. */
-	{"daxdev",      required_argument,             0,  'D'},
-	{"fsdaxdev",    required_argument,             0,  'F'},
 	{"force",       no_argument,                   0,  'f'},
 	/* These options don't set a flag.
 	 * We distinguish them by their indices.
@@ -132,6 +130,11 @@ main(int argc, char *argv[])
 	}
 	sb->ts_magic      = FAMFS_SUPER_MAGIC;
 
+	rc = famfs_get_system_uuid(&sb->ts_system_uuid);
+	if (rc) {
+		fprintf(stderr, "mkfs.famfs: unable to get system uuid");
+		return -1;
+	}
 	sb->ts_version    = FAMFS_CURRENT_VERSION;
 	sb->ts_log_offset = FAMFS_LOG_OFFSET;
 	sb->ts_log_len    = FAMFS_LOG_LEN;

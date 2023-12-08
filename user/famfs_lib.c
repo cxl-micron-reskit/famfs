@@ -97,7 +97,41 @@ famfs_print_uuid(const uuid_le *uuid)
 	uuid_unparse(local_uuid, uuid_str);
 
 	printf("%s\n", uuid_str);
+}
 
+#define SYS_UUID_PATH "/sys/devices/virtual/dmi/id/product_uuid"
+int
+famfs_get_system_uuid(uuid_le *uuid_out)
+{
+	FILE *f;
+	char uuid_str[48];  /* UUIDs are 36 characters long, plus null terminator */
+	uuid_t uuid;
+
+	f = fopen(SYS_UUID_PATH, "r");
+	if (!f) {
+		fprintf(stderr, "%s: unable to open system uuid at %s\n",
+			__func__, SYS_UUID_PATH);
+		return -errno;
+	}
+
+	/* gpt */
+	if (fscanf(f, "%36s", uuid_str) != 1) {
+		fprintf(stderr, "%s: unable to read system uuid at %s\n", __func__, SYS_UUID_PATH);
+		fclose(f);
+		return -errno;
+	}
+
+	fclose(f);
+
+	if (uuid_parse(uuid_str, uuid) == -1) {
+		/* If this fails, we should check for a famfs-specific UUID file - and if
+		 * that doesn't already exist we should generate the UUID and write the file
+		 */
+		fprintf(stderr, "%s: Error parsing UUID (%s)\n", __func__, uuid_str);
+		return -EINVAL;
+	}
+	memcpy(uuid_out, uuid, sizeof(uuid));
+	return 0;
 }
 
 int
@@ -190,8 +224,10 @@ famfs_fsck_scan(
 	 * Print superblock info
 	 */
 	printf("Famfs Superblock:\n");
-	printf("  UUID:   ");
+	printf("  Filesystem UUID: ");
 	famfs_print_uuid(&sb->ts_uuid);
+	printf("  System UUID:     ");
+	famfs_print_uuid(&sb->ts_system_uuid);
 	printf("  sizeof superblock: %ld\n", sizeof(struct famfs_superblock));
 	printf("  num_daxdevs:              %d\n", sb->ts_num_daxdevs);
 	for (i = 0; i < sb->ts_num_daxdevs; i++) {

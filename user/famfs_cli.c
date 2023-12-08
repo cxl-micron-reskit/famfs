@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <linux/ioctl.h>
+#include <linux/uuid.h> /* Our preferred UUID format */
+#include <uuid/uuid.h>  /* for uuid_generate / libuuid */
 #include <errno.h>
 #include <string.h>
 #include <assert.h>

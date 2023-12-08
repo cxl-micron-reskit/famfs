@@ -2,6 +2,9 @@
 #ifndef _H_FAMFS_LIB
 #define _H_FAMFS_LIB
 
+#include <linux/uuid.h> /* Our preferred UUID format */
+#include <uuid/uuid.h>  /* for uuid_generate / libuuid */
+
 #include "famfs.h"
 #include "famfs_meta.h"
 
@@ -41,6 +44,7 @@ int famfs_fsck(const char *devname, int use_mmap, int human, int verbose);
 
 void famfs_uuidgen(uuid_le *uuid);
 void famfs_print_uuid(const uuid_le *uuid);
+int famfs_get_system_uuid(uuid_le *uuid_out);
 int famfs_mkmeta(const char *devname);
 u64 famfs_alloc(const char *devname, u64 size);
 int famfs_logplay(const struct famfs_log *logp, const char *mpt, int dry_run);
