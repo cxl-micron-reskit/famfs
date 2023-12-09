@@ -1,0 +1,54 @@
+
+
+TODO Features
+
+* Perf comparison
+** TODO Adapt multichase to test dax and pmem memory
+** TODO Adapt multihase to test mmapped file
+** TODO Compare multichase on pmem, /dev/dax, and famfs file
+
+* Enforce only master can append log
+** DONE Write system uuid to superblock
+** TODO libfamfs should prevent log write on system with mismatched uuid
+* Properly serialize allocating and log append
+** TODO Use flock spanning alloc, init and log append
+** TODO Correct procedure for log append
+1. Alloc log space
+2. Append log
+3. flush cache
+4. barrier
+5. write log header (make log append visible)
+6. flush cache
+
+* Log / Logplay
+** TODO Do an mmap-based logplay for /dev/dax benchmarking
+** TODO files on clients should default to read-only
+** TODO Add a crc to log entries
+** TODO Add a crc to log header
+** TODO Logplay: check seq numbers
+** TODO Logplay: check crc on entries
+** TODO Logplay: enforce FAMFS_CURRENT_VERSION
+** TODO Logplay: support down-level versions? (maybe someday?)
+
+* fsck, etc.
+** DONE (bug) on 1T device, famfs thinks it's full way too soon
+Had some regular ints where I needed U64's
+** DONE mkfs/famfs_lib: implement superblock crc
+** TODO famfs fsck, logplay: enforce superblock crc
+** TODO famfs fsck, logplay: enforce superblock version
+** TODO famfs fsck: free space always zero
+** TODO famfs fsck: print percentage used
+** DONE famfs fsck: optionally print capacities in human form (G)
+
+* file operaitons
+** TODO famfs mv: rename can work
+** TODO files on clients should default to read-only
+** TODO famfs cp: semantics like real cp
+*** TODO famfs cp: if multiple sources and target is dir, use basenames on dest files
+
+* Configurable log size
+** TODO FAMFS_LOG_LEN becomes FAMFS_MIN_LOG_LEN, actual gets looked up in SB?
+** TODO Need tests that fully validate log behavior
+
+* Unit test needs
+** TODO Test bitmap on various sized devices
