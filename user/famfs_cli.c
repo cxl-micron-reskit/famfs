@@ -93,11 +93,13 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	int resid = 0;
 	int total = 0;
 	char *buf = NULL;
+	int use_mmap = 0;
 
-/* XXX can't use any of the same strings as the global args! */
+	/* XXX can't use any of the same strings as the global args! */
 	struct option logplay_options[] = {
 		/* These options set a */
-		{"dryrun",      required_argument,             0,  'n'},
+		{"dryrun",    required_argument,       0,  'n'},
+		{"mmap",      no_argument,             0,  'm'},
 		{0, 0, 0, 0}
 	};
 
@@ -113,7 +115,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+nh?",
+	while ((c = getopt_long(argc, argv, "+mnh?",
 				logplay_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -131,7 +133,9 @@ do_famfs_cli_logplay(int argc, char *argv[])
 		case '?':
 			famfs_logplay_usage(argc, argv);
 			return 0;
-
+		case 'm':
+			use_mmap++;
+			break;
 		default:
 			printf("default (%c)\n", c);
 			return -1;
@@ -151,27 +155,40 @@ do_famfs_cli_logplay(int argc, char *argv[])
 		return -1;
 	}
 
-	logp = malloc(log_size);
-	if (!logp) {
-		fprintf(stderr, "%s: malloc %ld failed for log\n", __func__, log_size);
-		return -ENOMEM;
-	}
-	resid = log_size;
-	buf = (char *)logp;
-	do {
-		rc = read(lfd, &buf[total], resid);
-		if (rc < 0) {
-			fprintf(stderr, "%s: error %d reading log file\n",
-				__func__, errno);
-			return -errno;
+	if (use_mmap) {
+		logp = mmap(0, FAMFS_LOG_LEN, PROT_READ, MAP_PRIVATE, lfd, 0);
+		if (logp == MAP_FAILED) {
+			fprintf(stderr, "%s: failed to mmap log file %s/.meta/log\n",
+				__func__, mpt_out);
+			close(lfd);
+			return -1;
 		}
-		printf("%s: read %d bytes of log\n", __func__, rc);
-		resid -= rc;
-		total += rc;
-	} while (resid > 0);
-
-	close(lfd);
+	} else {
+		/* Get log via posix read */
+		logp = malloc(log_size);
+		if (!logp) {
+			close(lfd);
+			fprintf(stderr, "%s: malloc %ld failed for log\n", __func__, log_size);
+			return -ENOMEM;
+		}
+		resid = log_size;
+		buf = (char *)logp;
+		do {
+			rc = read(lfd, &buf[total], resid);
+			if (rc < 0) {
+				fprintf(stderr, "%s: error %d reading log file\n",
+					__func__, errno);
+				return -errno;
+			}
+			printf("%s: read %d bytes of log\n", __func__, rc);
+			resid -= rc;
+			total += rc;
+		} while (resid > 0);
+	}
 	famfs_logplay(logp, mpt_out, dry_run);
+	if (use_mmap)
+		munmap(logp, FAMFS_LOG_LEN);
+	close(lfd);
 	return 0;
 }
 

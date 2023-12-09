@@ -747,6 +747,12 @@ famfs_logplay(
 	int i, j;
 	int rc;
 
+	if (logp->famfs_log_magic != FAMFS_LOG_MAGIC) {
+		fprintf(stderr, "%s: log has bad magic number (%llx)\n",
+			__func__, logp->famfs_log_magic);
+		return -1;
+	}
+	/* TODO: verify log header crc */
 	if (famfs_log_full(logp)) {
 		fprintf(stderr, "%s: log is empty (mpt=%s)\n",
 			__func__, mpt);
