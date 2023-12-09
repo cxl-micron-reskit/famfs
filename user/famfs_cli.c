@@ -73,8 +73,16 @@ famfs_logplay_usage(int   argc,
 
 	printf("\n"
 	       "Play the log into a famfs file system\n"
-	       "    %s <memdevice>\n"
-	       "\n", progname);
+	       "    %s [Options] <fspath>\n"
+	       "\n"
+	       "<fspath> must be the mount point or a path that falls within a famfs file system\n"
+	       "\n"
+	       "Options:\n"
+	       "  --read|-r  Get the log via posix read\n"
+	       "  --mmap|-m  - Get the log via mmap\n"
+	       "\n"
+	       "\n",
+	       progname);
 }
 
 /* TODO: add recursive copy? */
@@ -87,19 +95,21 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	struct famfs_log *logp;
 	char mpt_out[PATH_MAX];
 	size_t log_size;
-	char *filename;
+	char *fspath;
 	int lfd;
 	int dry_run = 0;
 	int resid = 0;
 	int total = 0;
 	char *buf = NULL;
 	int use_mmap = 0;
-
+	int use_read = 0;
+	
 	/* XXX can't use any of the same strings as the global args! */
 	struct option logplay_options[] = {
 		/* These options set a */
 		{"dryrun",    required_argument,       0,  'n'},
 		{"mmap",      no_argument,             0,  'm'},
+		{"read",      no_argument,             0,  'r'},
 		{0, 0, 0, 0}
 	};
 
@@ -136,22 +146,35 @@ do_famfs_cli_logplay(int argc, char *argv[])
 		case 'm':
 			use_mmap++;
 			break;
+		case 'r':
+			use_read++;
+			break;
 		default:
 			printf("default (%c)\n", c);
 			return -1;
 		}
 	}
 
-	if (optind >= argc) {
-		fprintf(stderr, "Must specify at least one dax device\n");
+	if (use_mmap && use_read) {
+		fprintf(stderr, "The --mmap and --read arguments are mutually exclusive\n");
+		famfs_logplay_usage(argc, argv);
 		return -1;
 	}
-	filename = argv[optind++];
+	else if (! (use_mmap || use_read)) {
+		/* If neither method was explicitly requested, default to mmap */
+		use_mmap ++;
+	}
+	if (optind >= argc) {
+		fprintf(stderr, "Must specify at least path "
+			"(which must fall within a mounted famfs file system)\n");
+		return -1;
+	}
+	fspath = argv[optind++];
 
-	lfd = open_log_file_read_only(filename, &log_size, mpt_out);
+	lfd = open_log_file_read_only(fspath, &log_size, mpt_out);
 	if (lfd < 0) {
 		fprintf(stderr, "%s: failed to open log file for filesystem %s\n",
-			__func__, filename);
+			__func__, fspath);
 		return -1;
 	}
 
