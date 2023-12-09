@@ -35,7 +35,7 @@
 static u8 *
 famfs_build_bitmap(const struct famfs_log   *logp,
 		   u64                       dev_size_in,
-		   u64                      *bitmap_size_out,
+		   u64                      *bitmap_nbits_out,
 		   u64                      *alloc_errors_out,
 		   u64                      *size_total_out,
 		   u64                      *alloc_total_out,
@@ -236,8 +236,13 @@ famfs_fsck_scan(
 	int i;
 	u64 errors = 0;
 	u8 *bitmap;
-	u64 alloc_total, size_total;
+	u64 alloc_sum, fsize_sum;
+	u64 dev_capacity;
 
+	assert(sb);
+	assert(logp);
+
+	dev_capacity = sb->ts_devlist[0].dd_size;
 	effective_log_size = sizeof(*logp) +
 		(logp->famfs_log_next_index * sizeof(struct famfs_log_entry));
 
@@ -272,41 +277,40 @@ famfs_fsck_scan(
 	/*
 	 * Build the log bitmap to scan for errors
 	 */
-	bitmap = famfs_build_bitmap(logp,  sb->ts_devlist[0].dd_size, &nbits, &errors,
-				    &size_total, &alloc_total, 0);
+	bitmap = famfs_build_bitmap(logp,  dev_capacity, &nbits, &errors,
+				    &fsize_sum, &alloc_sum, verbose);
 	if (errors)
 		printf("ERROR: %lld ALLOCATION COLLISIONS FOUND\n", errors);
 	else {
-		u64 capacity = nbits * FAMFS_ALLOC_UNIT;
-		float space_amp = (float)alloc_total / (float)size_total;
-		float percent_used = (float)alloc_total /  (float)capacity;
+		u64 bitmap_capacity = nbits * FAMFS_ALLOC_UNIT;
+		float space_amp = (float)alloc_sum / (float)fsize_sum;
+		float percent_used = 100.0 * (float)alloc_sum /  (float)bitmap_capacity;
 		float agig = 1024 * 1024 * 1024;
 
 		printf("  No allocation errors found\n\n");
 		printf("Capacity:\n");
 		if (!human) {
-			printf("  Total capacity: %ld\n", sb->ts_devlist[0].dd_size);
-			printf("  alloc_total=%lld size_total=%lld space_amplification=%.2f\n",
-			       alloc_total, size_total, space_amp);
-			printf("  Allocated bytes: %lld\n", alloc_total);
-			printf("  Free space:      %lld\n", nbits * FAMFS_ALLOC_UNIT);
+			printf("  Device capacity:         %lld\n", dev_capacity);
+			printf("  Bitmap capacity:         %lld\n", bitmap_capacity);
+			printf("  Sum of file sizes:       %lld\n", fsize_sum);
+			printf("  Allocated bytes:         %lld\n", alloc_sum);
+			printf("  Free space:              %lld\n", bitmap_capacity - alloc_sum);
 		} else {
-			printf("  Total capacity: %0.2fG\n",
-			       (float)sb->ts_devlist[0].dd_size / agig);
-			printf("  alloc_total=%.2fG size_total=%.2fG space_amplification=%.2f\n",
-			       (float)alloc_total / agig,
-			       (float)size_total / agig, space_amp);
-			printf("  Allocated space: %.2f\n", (float)alloc_total / agig);
-			printf("  Free space:      %.2f\n",
-			       (float)(nbits * FAMFS_ALLOC_UNIT) / agig);
+			printf("  Device capacity:         %0.2fG\n", (float)dev_capacity / agig);
+			printf("  Bitmap capacity:         %0.2fG\n", (float)bitmap_capacity/ agig);
+			printf("  Sum of file sizes:       %0.2fG\n", (float)fsize_sum / agig);
+			printf("  Allocated space:         %.2fG\n", (float)alloc_sum / agig);
+			printf("  Free space:              %.2fG\n",
+			       ((float)bitmap_capacity - (float)alloc_sum) / agig);
 		}
-		printf("  Percent used:    %.1f%%\n", percent_used);
+			printf("  Space amplification:     %0.2f\n", space_amp);
+		printf("  Percent used:            %.1f%%\n\n", percent_used);
 	}
 
 	free(bitmap);
 
 	if (verbose) {
-		printf("\nVerbose:\n");
+		printf("Verbose:\n");
 		printf("  log_offset:        %lld\n", sb->ts_log_offset);
 		printf("  log_len:           %lld\n", sb->ts_log_len);
 
@@ -323,6 +327,7 @@ famfs_fsck_scan(
 		       sizeof(struct famfs_file_creation));
 		printf("  sizeof(struct famfs_file_access):   %ld\n",
 		       sizeof(struct famfs_file_access));
+		printf("\n");
 	}
 	return errors;
 }
@@ -394,7 +399,6 @@ famfs_check_super(const struct famfs_superblock *sb)
 	sbcrc = famfs_gen_superblock_crc(sb);
 	if (sb->ts_crc != sbcrc)
 		fprintf(stderr, "WARNING: crc mismatch in superblock!\n");
-
 
 	/* TODO: enforce crc, etc. */
 	return 0;
@@ -1382,7 +1386,9 @@ famfs_fsck(
 						__func__, errno);
 					return -errno;
 				}
-				printf("%s: read %d bytes of log\n", __func__, rc);
+				if (verbose)
+					printf("%s: read %d bytes of log\n", __func__, rc);
+
 				resid -= rc;
 				total += rc;
 			} while (resid > 0);
@@ -1449,7 +1455,7 @@ famfs_validate_superblock_by_path(const char *path)
 }
 
 /**
- * put sb_log_into_bitmap()
+ * put_sb_log_into_bitmap()
  *
  * The two files that are not in the log are the superblock and the log. So these
  * files need to be manually added to the allocation bitmap. This function does that.
@@ -1472,42 +1478,47 @@ put_sb_log_into_bitmap(u8 *bitmap)
  * XXX: this is only aware of the first daxdev in the superblock's list
  * @logp
  * @size_in          - total size of allocation space in bytes
- * @bitmap_size_out  - output: size of the bitmap
+ * @bitmap_nbits_out - output: size of the bitmap
  * @alloc_errors_out - output: number of times a file referenced a bit that was already set
- * @size_total_out   - output: if ptr non-null, this is the sum of the file sizes
- * @alloc_total_out  - output: if ptr non-null, this is the sum of all allocation sizes
+ * @fsize_total_out  - output: if ptr non-null, this is the sum of the file sizes
+ * @alloc_sum_out    - output: if ptr non-null, this is the sum of all allocation sizes
  *                    (excluding double-allocations; space amplification is
- *                     @alloc_total / @size_total provided there are no double allocations,
- *                     b/c those will increase size_total but not alloc_total)
+ *                     @alloc_sum / @size_total provided there are no double allocations,
+ *                     b/c those will increase size_total but not alloc_sum)
  * @verbose
  */
 /* XXX: should get log size from superblock */
 static u8 *
 famfs_build_bitmap(const struct famfs_log   *logp,
 		   u64                       dev_size_in,
-		   u64                      *bitmap_size_out,
+		   u64                      *bitmap_nbits_out,
 		   u64                      *alloc_errors_out,
-		   u64                      *size_total_out,
-		   u64                      *alloc_total_out,
+		   u64                      *fsize_total_out,
+		   u64                      *alloc_sum_out,
 		   int                       verbose)
 {
-	u64 npages = (dev_size_in - FAMFS_SUPERBLOCK_SIZE - FAMFS_LOG_LEN) / FAMFS_ALLOC_UNIT;
-	u64 bitmap_size = mu_bitmap_size(npages);
-	u8 *bitmap = calloc(1, bitmap_size);
+	u64 nbits = (dev_size_in - FAMFS_SUPERBLOCK_SIZE - FAMFS_LOG_LEN) / FAMFS_ALLOC_UNIT;
+	u64 bitmap_nbytes = mu_bitmap_size(nbits);
+	u8 *bitmap = calloc(1, bitmap_nbytes);
 	u64 errors = 0;
 	u64 alloc_sum = 0;
-	u64 size_sum  = 0;
+	u64 fsize_sum  = 0;
 	int i, j;
 	int rc;
 
-	printf("%s: dev_size %lld npages %lld bitmap_size %lld bytes\n",
-	       __func__, dev_size_in, npages, bitmap_size);
+	if (verbose)
+		printf("%s: dev_size %lld nbits %lld bitmap_nbytes %lld\n",
+		       __func__, dev_size_in, nbits, bitmap_nbytes);
 
 	if (!bitmap)
 		return NULL;
 
 	put_sb_log_into_bitmap(bitmap);
 
+	if (verbose) {
+		printf("%s: superblock and log in bitmap:", __func__);
+		mu_print_bitmap(bitmap, nbits);
+	}
 	/* This loop is over all log entries */
 	for (i = 0; i < logp->famfs_log_next_index; i++) {
 		const struct famfs_log_entry *le = &logp->entries[i];
@@ -1519,7 +1530,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 			const struct famfs_file_creation *fc = &le->famfs_fc;
 			const struct famfs_log_extent *ext = fc->famfs_ext_list;
 
-			size_sum += fc->famfs_fc_size;
+			fsize_sum += fc->famfs_fc_size;
 			if (verbose)
 				printf("%s: file=%s size=%lld\n", __func__,
 				       fc->famfs_relpath, fc->famfs_fc_size);
@@ -1557,14 +1568,14 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 			break;
 		}
 	}
-	if (bitmap_size_out)
-		*bitmap_size_out = bitmap_size;
+	if (bitmap_nbits_out)
+		*bitmap_nbits_out = nbits;
 	if (alloc_errors_out)
 		*alloc_errors_out = errors;
-	if (size_total_out)
-		*size_total_out = size_sum;
-	if (alloc_total_out)
-		*alloc_total_out = alloc_sum;
+	if (fsize_total_out)
+		*fsize_total_out = fsize_sum;
+	if (alloc_sum_out)
+		*alloc_sum_out = alloc_sum;
 	return bitmap;
 }
 
