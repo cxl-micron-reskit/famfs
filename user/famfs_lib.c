@@ -216,6 +216,32 @@ famfs_gen_superblock_crc(const struct famfs_superblock *sb)
 	return crc;
 }
 
+unsigned long
+famfs_gen_log_header_crc(const struct famfs_log *logp)
+{
+	unsigned long crc = crc32(0L, Z_NULL, 0);
+
+	assert(logp);
+	crc = crc32(crc, (const unsigned char *)
+		    &logp->famfs_log_magic, sizeof(logp->famfs_log_magic));
+	crc = crc32(crc, (const unsigned char *)
+		    &logp->famfs_log_len, sizeof(logp->famfs_log_len));
+	crc = crc32(crc, (const unsigned char *)
+		    &logp->famfs_log_last_index, sizeof(logp->famfs_log_last_index));
+	return crc;
+}
+
+static unsigned long
+famfs_gen_log_entry_crc(const struct famfs_log_entry *le)
+{
+	unsigned long crc = crc32(0L, Z_NULL, 0);
+	size_t le_size = sizeof(*le);
+	size_t le_crc_size = le_size - sizeof(le->famfs_log_entry_crc);
+
+	crc = crc32(crc, (const unsigned char *)le, le_crc_size);
+	return crc;
+}
+
 /**
  * famfs_fsck_scan()
  *
@@ -741,14 +767,49 @@ famfs_log_entry_md_path_is_relative(const struct famfs_mkdir *md)
 		&& (md->famfs_relpath[0] != '/'));
 }
 
+static int
+famfs_validate_log_header(const struct famfs_log *logp)
+{
+	unsigned long crc = famfs_gen_log_header_crc(logp);
+
+	if (logp->famfs_log_magic != FAMFS_LOG_MAGIC) {
+		fprintf(stderr, "%s: bad magic number in log header\n", __func__);
+		return -1;
+	}
+	if (logp->famfs_log_crc != crc) {
+		fprintf(stderr, "%s: invalid crc in log header\n", __func__);
+		return -1;
+	}
+	return 0;
+}
+
+static int
+famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index)
+{
+	unsigned long crc;
+	int errors = 0;
+
+	if (le->famfs_log_entry_seqnum != index) {
+		fprintf(stderr, "%s: bad seqnum; expect %lld found %lld\n",
+			__func__, index, le->famfs_log_entry_seqnum);
+		errors++;
+	}
+	crc = famfs_gen_log_entry_crc(le);
+	if (le->famfs_log_entry_crc != crc) {
+		fprintf(stderr, "%s: bad crc at log index %lld\n", __func__, index);
+		errors++;
+	}
+	return errors;
+}
+
 int
 famfs_logplay(
 	const struct famfs_log *logp,
 	const char             *mpt,
 	int                     dry_run)
 {
-	int nlog = 0;
-	int i, j;
+	u64 nlog = 0;
+	u64 i, j;
 	int rc;
 
 	if (logp->famfs_log_magic != FAMFS_LOG_MAGIC) {
@@ -763,10 +824,19 @@ famfs_logplay(
 		return -1;
 	}
 
+	if (famfs_validate_log_header(logp)) {
+		fprintf(stderr, "%s: invalid log header\n", __func__);
+		return -1;
+	}
+
 	printf("%s: log contains %lld entries\n", __func__, logp->famfs_log_next_index);
 	for (i = 0; i < logp->famfs_log_next_index; i++) {
 		struct famfs_log_entry le = logp->entries[i];
 
+		if (famfs_validate_log_entry(&le, i)) {
+			fprintf(stderr, "%s: invalid log entry at index %lld\n", __func__, i);
+			return -1;
+		}
 		nlog++;
 		switch (le.famfs_log_entry_type) {
 		case FAMFS_LOG_FILE: {
@@ -778,7 +848,7 @@ famfs_logplay(
 			int skip_file = 0;
 			int fd;
 
-			printf("%s: %d file=%s size=%lld\n", __func__, i,
+			printf("%s: %lld file=%s size=%lld\n", __func__, i,
 			       fc->famfs_relpath, fc->famfs_fc_size);
 
 			if (!famfs_log_entry_fc_path_is_relative(fc)) {
@@ -855,7 +925,7 @@ famfs_logplay(
 			int skip_dir = 0;
 			struct stat st;
 
-			printf("%s: %d mkdir=%s\n", __func__, i, md->famfs_relpath);
+			printf("%s: %lld mkdir=%s\n", __func__, i, md->famfs_relpath);
 
 			if (!famfs_log_entry_md_path_is_relative(md)) {
 				fprintf(stderr,
@@ -912,7 +982,7 @@ famfs_logplay(
 			break;
 		}
 	}
-	printf("%s: processed %d log entries\n", __func__, nlog);
+	printf("%s: processed %lld log entries\n", __func__, nlog);
 	return 0;
 }
 
@@ -944,6 +1014,7 @@ famfs_append_log(struct famfs_log       *logp,
 	}
 
 	e->famfs_log_entry_seqnum = logp->famfs_log_next_seqnum;
+	e->famfs_log_entry_crc = famfs_gen_log_entry_crc(e);
 	memcpy(&logp->entries[logp->famfs_log_next_index], e, sizeof(*e));
 
 	logp->famfs_log_next_seqnum++;

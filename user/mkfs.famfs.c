@@ -152,12 +152,13 @@ main(int argc, char *argv[])
 	memset(famfs_logp, 0, FAMFS_LOG_LEN);
 	famfs_logp->famfs_log_magic      = FAMFS_LOG_MAGIC;
 	famfs_logp->famfs_log_len        = FAMFS_LOG_LEN;
-	famfs_logp->famfs_log_next_seqnum    = 99;
+	famfs_logp->famfs_log_next_seqnum    = 0;
 	famfs_logp->famfs_log_next_index = 0;
 	famfs_logp->famfs_log_last_index =
 		((FAMFS_LOG_LEN - offsetof(struct famfs_log, entries))
 		 / sizeof(struct famfs_log_entry));
 
+	famfs_logp->famfs_log_crc = famfs_gen_log_header_crc(famfs_logp);
 	famfs_fsck_scan(sb, famfs_logp, 1, 0);
 	close(rc);
 	return 0;

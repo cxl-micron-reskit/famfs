@@ -38,6 +38,7 @@ int famfs_mmap_superblock_and_log_raw(const char *devname, struct famfs_superblo
 				      struct famfs_log **logp, int read_only);
 
 unsigned long famfs_gen_superblock_crc(const struct famfs_superblock *sb);
+unsigned long famfs_gen_log_header_crc(const struct famfs_log *logp);
 extern int famfs_fsck_scan(const struct famfs_superblock *sb, const struct famfs_log *logp,
 			   int human, int verbose);
 int famfs_check_super(const struct famfs_superblock *sb);

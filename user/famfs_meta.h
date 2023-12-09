@@ -52,7 +52,7 @@
  */
 
 #define FAMFS_SUPER_MAGIC      0x09211963
-#define FAMFS_CURRENT_VERSION  43
+#define FAMFS_CURRENT_VERSION  45
 #define FAMFS_MAX_DAXDEVS      64
 
 #define FAMFS_LOG_OFFSET    0x200000 /* 2MiB */
@@ -180,6 +180,7 @@ struct famfs_log_entry {
 		struct famfs_mkdir         famfs_md;
 		struct famfs_file_access   famfs_fa;
 	};
+	unsigned long famfs_log_entry_crc;
 };
 
 #define FAMFS_LOG_MAGIC 0xbadcafef00d
@@ -187,9 +188,10 @@ struct famfs_log_entry {
 struct famfs_log {
 	u64     famfs_log_magic;
 	u64     famfs_log_len;
+	u64     famfs_log_last_index; /* Log would overflow if we write past here */
+	unsigned long famfs_log_crc;
 	u64     famfs_log_next_seqnum;
 	u64     famfs_log_next_index;
-	u64     famfs_log_last_index; /* Log would overflow if we write past here */
 	struct famfs_log_entry entries[];
 };
 
