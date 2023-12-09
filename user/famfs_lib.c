@@ -424,6 +424,13 @@ famfs_check_super(const struct famfs_superblock *sb)
 	if (sb->ts_magic != FAMFS_SUPER_MAGIC)
 		return -1;
 
+	if (sb->ts_version != FAMFS_CURRENT_VERSION) {
+		fprintf(stderr, "%s: superblock version=%lld (expected %lld).\n"
+			"\tThis famfs_lib is not compatible with your famfs instance\n",
+			__func__, sb->ts_version, (u64)FAMFS_CURRENT_VERSION);
+		return -1;
+	}
+
 	sbcrc = famfs_gen_superblock_crc(sb);
 	if (sb->ts_crc != sbcrc) {
 		fprintf(stderr, "%s ERROR: crc mismatch in superblock!\n", __func__);
