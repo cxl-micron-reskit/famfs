@@ -21,30 +21,37 @@ TODO Features
 6. flush cache
 
 * Log / Logplay
-** TODO Do an mmap-based logplay for /dev/dax benchmarking
+** DONE Do an mmap-based logplay for /dev/dax benchmarking
 ** TODO files on clients should default to read-only
-** TODO Add a crc to log entries
-** TODO Add a crc to log header
-** TODO Logplay: check seq numbers
-** TODO Logplay: check crc on entries
-** TODO Logplay: enforce FAMFS_CURRENT_VERSION
-** TODO Logplay: support down-level versions? (maybe someday?)
+** DONE Add a crc to log entries
+** DONE Add a crc to log header
+** DONE Logplay: check seq numbers
+** DONE Logplay: check crc on entries
+** TODO famfs logplay: enforce superblock rules
+** TODO All log opens; do read-only first, and only open writable on the master
+** TODO famfs_log_append: check host_uuid to see if I'm the master
+fail any log writing if not the master
 
 * fsck, etc.
 ** DONE (bug) on 1T device, famfs thinks it's full way too soon
 Had some regular ints where I needed U64's
 ** DONE mkfs/famfs_lib: implement superblock crc
-** TODO famfs fsck, logplay: enforce superblock crc
-** TODO famfs fsck, logplay: enforce superblock version
-** TODO famfs fsck: free space always zero
-** TODO famfs fsck: print percentage used
+(it currently doesn't check the superblock, which is not good)
+** DONE famfs fsck: enforce superblock crc
+** DONE famfs fsck: enforce superblock version
+** DONE famfs fsck: free space always zero
+** DONE famfs fsck: print percentage used
 ** DONE famfs fsck: optionally print capacities in human form (G)
 
 * file operaitons
 ** TODO famfs mv: rename can work
+...but only of logplay looks ahead for renames!!
 ** TODO files on clients should default to read-only
 ** TODO famfs cp: semantics like real cp
 *** TODO famfs cp: if multiple sources and target is dir, use basenames on dest files
+do globbing; last arg must be directory if there are more than 2 args. if last arg is dir,
+use basename of each.
+*** TODO python (or other) script to do recursive 'tagfs cp'?
 
 * Configurable log size
 ** TODO FAMFS_LOG_LEN becomes FAMFS_MIN_LOG_LEN, actual gets looked up in SB?
