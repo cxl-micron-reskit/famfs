@@ -340,6 +340,8 @@ famfs_fsck_scan(
  * The superblock and log are mapped directly from a device. Other apps should map
  * them from their meta files!
  *
+ * The superblock is not validated. That is the caller's responsibility.
+ *
  * @devname   - dax device name
  * @sbp
  * @logp
@@ -373,7 +375,6 @@ famfs_mmap_superblock_and_log_raw(const char *devname,
 		goto err_out;
 	}
 	*sbp = (struct famfs_superblock *)sb_buf;
-
 	*logp = (struct famfs_log *)((u64)sb_buf + FAMFS_SUPERBLOCK_SIZE);
 	close(fd);
 	return 0;
@@ -396,9 +397,12 @@ famfs_check_super(const struct famfs_superblock *sb)
 		return -1;
 	if (sb->ts_magic != FAMFS_SUPER_MAGIC)
 		return -1;
+
 	sbcrc = famfs_gen_superblock_crc(sb);
-	if (sb->ts_crc != sbcrc)
-		fprintf(stderr, "WARNING: crc mismatch in superblock!\n");
+	if (sb->ts_crc != sbcrc) {
+		fprintf(stderr, "%s ERROR: crc mismatch in superblock!\n", __func__);
+		return -1;
+	}
 
 	/* TODO: enforce crc, etc. */
 	return 0;
@@ -1409,7 +1413,7 @@ famfs_fsck(
 	}
 
 	if (famfs_check_super(sb)) {
-		fprintf(stderr, "%s: no famfs superblock on device %s\n", __func__, path);
+		fprintf(stderr, "%s: no valid famfs superblock on device %s\n", __func__, path);
 		return -1;
 	}
 	rc = famfs_fsck_scan(sb, logp, human, verbose);
