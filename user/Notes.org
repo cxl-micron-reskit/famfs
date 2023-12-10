@@ -2,9 +2,13 @@
 
 TODO Features
 
+* Big
+** TODO get char read/write working
+** TODO some more stressful automated tests
+
 * Perf comparison
-** TODO Adapt multichase to test dax and pmem memory
-** TODO Adapt multihase to test mmapped file
+** DONE Adapt multichase to test dax and pmem memory
+** DONE Adapt multihase to test mmapped file
 ** TODO Compare multichase on pmem, /dev/dax, and famfs file
 
 * Enforce only master can append log
