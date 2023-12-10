@@ -49,6 +49,7 @@ famfs_dir_create(
 	gid_t       gid);
 
 static struct famfs_superblock *famfs_map_superblock_by_path(const char *path,int read_only);
+static int famfs_file_create(const char *path, mode_t mode, uid_t uid, gid_t gid, int disable_write);
 
 static void
 mu_print_bitmap(u8 *bitmap, int num_bits)
@@ -89,7 +90,7 @@ famfs_uuidgen(uuid_le *uuid)
 	memcpy(uuid, &local_uuid, sizeof(local_uuid));
 }
 
-void
+static void
 famfs_print_uuid(const uuid_le *uuid)
 {
 	uuid_t local_uuid;
@@ -534,7 +535,7 @@ out:
  * Convert a struct famfs_extent list to struct famfs_simple_extent.
  * The output list comes from malloc() and must be freed by the caller after use.
  */
-struct famfs_simple_extent *
+static struct famfs_simple_extent *
 famfs_ext_to_simple_ext(
 	struct famfs_extent *te_list,
 	size_t               ext_count)
@@ -564,7 +565,7 @@ famfs_ext_to_simple_ext(
  * @nextents
  * @extent_list
  */
-int
+static int
 famfs_file_map_create(
 	const char                 *path,
 	int                         fd,
@@ -733,6 +734,8 @@ famfs_mkmeta(const char *devname)
  * @fname
  * @read_only - mmap will be read-only if true
  * @size      - size will be stored if this pointer is non-NULL
+ *
+ * TODO: this is only used by the cli for file verification. Move to CLI?
  */
 void *
 mmap_whole_file(
@@ -1069,7 +1072,7 @@ famfs_append_log(struct famfs_log       *logp,
  * @mpt - mount point string (rationalized by realpath())
  * @fullpath
  */
-char *
+static char *
 famfs_relpath_from_fullpath(
 	const char *mpt,
 	char       *fullpath)
@@ -1099,7 +1102,7 @@ famfs_relpath_from_fullpath(
 /* TODO: UI would be cleaner if this accepted a fullpath and the mpt, and did the
  * conversion itself. Then pretty much all calls would use the same stuff.
  */
-int
+static int
 famfs_log_file_creation(
 	struct famfs_log           *logp,
 	u64                         nextents,
@@ -1304,7 +1307,7 @@ open_log_file_read_only(
 	return __open_log_file(path, 1, sizep, mpt_out);
 }
 
-int
+static int
 open_log_file_writable(
 	const char *path,
 	size_t     *sizep,
@@ -1816,7 +1819,7 @@ famfs_alloc_bypath(
 	return offset;
 }
 
-int
+static int
 __file_not_famfs(int fd)
 {
 	int rc;
@@ -1928,7 +1931,7 @@ out:
  *
  * TODO: append "_empty" to function name
  */
-int
+static int
 famfs_file_create(const char *path,
 		  mode_t      mode,
 		  uid_t       uid,
