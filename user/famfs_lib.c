@@ -1173,13 +1173,45 @@ __open_relpath(
 	char       *mpt_out)
 {
 	int openmode = (read_only) ? O_RDONLY : O_RDWR;
-	char *rpath = realpath(path, NULL);
+	char *rpath;
+	char path_copy[PATH_MAX];
+	char *pc = &path_copy[0];
 	struct stat st;
 	int rc, fd;
+	int loop_ct = 15;
+
+	/*
+	 * If path does not exist, ascend canonically until we find something that does
+	 * exist, or until that remaining path string is too short, or until it looks like
+	 * we might be in an infinite loop
+	 */
+	strncpy(path_copy, path, PATH_MAX - 1);
+	while (1) {
+		if (strlen(pc) <= 1) {
+			fprintf(stderr, "%s: path %s appears not to be in a famfs mount\n",
+				__func__, path);
+			return -1;
+		}
+
+		rpath = realpath(pc, NULL);
+		if (rpath)
+			break; /* found a valid path */
+		pc = dirname(pc);
+		if (--loop_ct == 0) {
+			fprintf(stderr,
+				"%s: bailed from possible infinite loop; path=%s path_copy=%s\n",
+				__func__, path, pc);
+			return -1;
+		}
+	}
 
 	if (!rpath)
-		return 0;
+		return -1;
 
+	/*
+	 * At this point rpath does exist, and is a root-based path. Continue to ascend as
+	 * necessary to find the mount point which contains the meta files
+	 */
 	while (1) {
 		char log_path[PATH_MAX] = {0};
 
