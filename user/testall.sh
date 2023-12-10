@@ -10,6 +10,8 @@ sleep 4
 sleep 4
 ./test3.sh       || exit
 sleep 4
+./test4.sh       || exit
+#sleep 4
 #./test_errors.sh || exit
 #sleep 4
 #./teardown.sh
