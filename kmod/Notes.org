@@ -14,48 +14,6 @@ This is done by drivers/nvdimm/pmem.c
 Somehow devm_memremap_pages() is invovled
 
 
-* Testing plans
-** DONE test files in non-root directory
-and complex paths...
-Had to add 'tagfs mkdir', which is now working.
-** TODO test filling up a tagfs file system
-Need some intelligence to figure out when a create should fail based on size
-of the FS.
-** TODO Need test that attempts to write past EOF
-Should fail to append file past allocation, but succeed *to* allocation
-** TODO Need test that overflows the log
-** TODO Need test that mounts the same memory/pmem device from mulltiple VMs
-...and verifies that they see the same stuff
-...and explores whether mutations are immediately visible
-
-* Known bugs
-** TODO Char device not cleaned up properly on umount
-** TODO the 'tagfs creat' invocations in test0.sh have 000 permissions
-...even though that's not the mode they're created under.
-But 'tagfs cp' seems to get it right. Should be an easy fix...
-** TODO linux "cmp" comparisons fail even when "tagfs verify" succeeds
-There is something wrong with posix read. tagfs verify uses mmap, and verifies the
-file againsts same-seed data.
-** TODO Should flush cache when writing log
-This includes initialization as well as writing log entries
-** TODO Should invalidate cache prior to reading log
-** TODO Should flush cache when writing superblock
-** TODO Should invalidate cache prior to reading superblock
-Invalidate header and entire log before reading
-
-* Valgrind checking
-** DONE tagfs verify
-** DONE tagfs mkdir
-** DONE tagfs logplay
-** DONE tagfs creat
-** DONE tagfs cp
-** DONE tagfs fsck on fs
-** TODO tagfs fsck on device
-** TODO tagfs mkmeta
-There is a minor leak in tagfs_get_mpt_by_dev() still
-
-
-
 * Tests
 
 
@@ -85,13 +43,13 @@ tagfs write -s <seed> -r <file>
 ** DONE Verify file contents
 tagfs verify
 ** TODO tool to write/read/verify flexibly with both mmap and posix write/read
-** TODO Read log and build bitmap, detecting duplicate memory references
-** TODO intentional creation of duplicate memory references (alloc with specific extents)
+** DONE Read log and build bitmap, detecting duplicate memory references
+** DONE intentional creation of duplicate memory references (alloc with specific extents)
 
 * Add fs parameters
 ** DONE primary dax dev
 
-* TODO Integrate wtih googletest and automate baseline set of tests
+* DONE Integrate wtih googletest and automate baseline set of tests
 * DONE Debug "tagfs cp" cli functionality
 * DONE Need uuid_gen() function in tagfs_lib
 * TODO How will the kernel module read/access the superblock and log?

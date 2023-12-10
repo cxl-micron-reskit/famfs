@@ -5,6 +5,7 @@ TODO Features
 * Big
 ** TODO get char read/write working
 ** TODO some more stressful automated tests
+** TODO move most of mkfs into famfs_lib.c, so more funcs can be static
 
 * Perf comparison
 ** DONE Adapt multichase to test dax and pmem memory
@@ -13,7 +14,9 @@ TODO Features
 
 * Enforce only master can append log
 ** DONE Write system uuid to superblock
-** TODO libfamfs should prevent log write on system with mismatched uuid
+** DONE libfamfs should prevent log write on system with mismatched uuid
+** TODO Review: make sure no writable opens to SB and log happen until role verified
+This is certainly not true yet.
 * Properly serialize allocating and log append
 ** TODO Use flock spanning alloc, init and log append
 ** TODO Correct procedure for log append
@@ -23,6 +26,10 @@ TODO Features
 4. barrier
 5. write log header (make log append visible)
 6. flush cache
+
+* CLI needs
+** TODO famfs cp -r
+** TODO famfs mkdir -p
 
 * Log / Logplay
 ** DONE Do an mmap-based logplay for /dev/dax benchmarking
@@ -47,7 +54,7 @@ Had some regular ints where I needed U64's
 ** DONE famfs fsck: print percentage used
 ** DONE famfs fsck: optionally print capacities in human form (G)
 
-* file operaitons
+* file operations
 ** TODO famfs mv: rename can work
 ...but only of logplay looks ahead for renames!!
 ** TODO files on clients should default to read-only
@@ -63,3 +70,68 @@ use basename of each.
 
 * Unit test needs
 ** TODO Test bitmap on various sized devices
+* functions that can be unit tested
+** TODO __open_relpath()
+** TODO famfs_get_system_uuid()
+** TODO famfs_check_super()
+** TODO famfs_get_by_dev()
+(requires mocking /proc/mounts)
+** TODO famfs_ext_to_simple_ext()
+(or maybe git rid of more than one current extent type)
+** TODO famfs_validate_log_header
+** TODO famfs_log_entry_path_is_relative()
+** TODO famfs_validate_log_entry()
+** TODO famfs_logpplay()
+use dry run plus mocking the create functions
+** TODO famfs_append_log()
+** TODO famfs_relpath_from_fullpath()
+** TODO famfs_log_file_creation()
+** TODO famfs_log_dir_creation()
+** TODO famfs_map_superblock_by_path()
+** TODO famfs_map_log_by_path()
+** TODO put_sb_log_into_bitmap()
+** TODO famfs_build_bitmap()
+*** TODO also track down the nf bitmap unit tests
+** TODO bitmmap_alloc_contiguous()
+** TODO 
+
+* Testing plans
+** DONE test files in non-root directory
+and complex paths...
+Had to add 'tagfs mkdir', which is now working.
+** TODO test filling up a tagfs file system
+Need some intelligence to figure out when a create should fail based on size
+of the FS.
+** TODO Need test that attempts to write past EOF
+Should fail to append file past allocation, but succeed *to* allocation
+** TODO Need test that overflows the log
+** TODO Need test that mounts the same memory/pmem device from mulltiple VMs
+...and verifies that they see the same stuff
+...and explores whether mutations are immediately visible
+
+* Known bugs
+** TODO Char device not cleaned up properly on umount
+** TODO the 'tagfs creat' invocations in test0.sh have 000 permissions
+...even though that's not the mode they're created under.
+But 'tagfs cp' seems to get it right. Should be an easy fix...
+** TODO linux "cmp" comparisons fail even when "tagfs verify" succeeds
+There is something wrong with posix read. tagfs verify uses mmap, and verifies the
+file againsts same-seed data.
+** TODO Should flush cache when writing log
+This includes initialization as well as writing log entries
+** TODO Should invalidate cache prior to reading log
+** TODO Should flush cache when writing superblock
+** TODO Should invalidate cache prior to reading superblock
+Invalidate header and entire log before reading
+
+* Valgrind checking
+** DONE tagfs verify
+** DONE tagfs mkdir
+** DONE tagfs logplay
+** DONE tagfs creat
+** DONE tagfs cp
+** DONE tagfs fsck on fs
+** TODO tagfs fsck on device
+** TODO tagfs mkmeta
+There is a minor leak in tagfs_get_mpt_by_dev() still
+
