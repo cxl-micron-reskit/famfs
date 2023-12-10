@@ -93,6 +93,11 @@ struct famfs_superblock {
 	struct famfs_daxdev ts_devlist[FAMFS_SUPERBLOCK_MAX_DAXDEVS];
 };
 
+enum famfs_system_role {
+	FAMFS_MASTER, /* System iss the masster, and can write the log */
+	FAMFS_CLIENT, /* System is a client - cannot write the log or sb */
+};
+
 /* Lives at the base of the .meta/log file: */
 struct famfs_log_cb {
 	u64 num_log_entries;

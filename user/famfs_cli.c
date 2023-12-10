@@ -611,28 +611,13 @@ famfs_clone_usage(int   argc,
 int
 do_famfs_cli_clone(int argc, char *argv[])
 {
-	struct famfs_ioc_map filemap;
-	struct famfs_extent *ext_list;
 	int c;
-	int rc = 0;
 	int arg_ct = 0;
+	int verbose = 0;
 
 	char *srcfile = NULL;
 	char *destfile = NULL;
 	char srcfullpath[PATH_MAX];
-	char destfullpath[PATH_MAX];
-	int lfd = 0;
-	int sfd = 0;
-	int dfd = 0;
-	char mpt_out[PATH_MAX];
-	char *relpath;
-	struct famfs_log *logp;
-	void *addr;
-	size_t log_size;
-	struct famfs_simple_extent *se;
-	uid_t uid = geteuid();
-	gid_t gid = getegid();
-	mode_t mode = S_IRUSR|S_IWUSR;
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option cp_options[] = {
@@ -658,7 +643,7 @@ do_famfs_cli_clone(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+h?",
+	while ((c = getopt_long(argc, argv, "+vh?",
 				cp_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -669,6 +654,9 @@ do_famfs_cli_clone(int argc, char *argv[])
 		arg_ct++;
 		switch (c) {
 
+		case 'v':
+			verbose++;
+			break;
 		case 'h':
 		case '?':
 			famfs_clone_usage(argc, argv);
@@ -693,123 +681,7 @@ do_famfs_cli_clone(int argc, char *argv[])
 		return -1;
 	}
 
-	/*
-	 * Open source file and make sure it's a famfs file
-	 */
-	sfd = open(srcfile, O_RDONLY, 0);
-	if (sfd < 0) {
-		fprintf(stderr, "%s: failed to open source file %s\n",
-			__func__, srcfile);
-		return -1;
-	}
-	if (__file_not_famfs(sfd)) {
-		fprintf(stderr, "%s: source file %s is not a famfs file\n",
-			__func__, srcfile);
-		return -1;
-	}
-
-	/*
-	 * Get map for source file
-	 */
-	rc = ioctl(sfd, FAMFSIOC_MAP_GET, &filemap);
-	if (rc) {
-		fprintf(stderr, "%s: MAP_GET returned %d errno %d\n", __func__, rc, errno);
-		goto err_out;
-	}
-	ext_list = calloc(filemap.ext_list_count, sizeof(struct famfs_extent));
-	rc = ioctl(sfd, FAMFSIOC_MAP_GETEXT, ext_list);
-	if (rc) {
-		fprintf(stderr, "%s: GETEXT returned %d errno %d\n", __func__, rc, errno);
-		goto err_out;
-	}
-
-	/*
-	 * For this operation we need to open the log file, which also gets us
-	 * the mount point path
-	 */
-	lfd = open_log_file_writable(srcfullpath, &log_size, mpt_out);
-	addr = mmap(0, log_size, PROT_READ | PROT_WRITE, MAP_SHARED, lfd, 0);
-	if (addr == MAP_FAILED) {
-		fprintf(stderr, "%s: Failed to mmap log file\n", __func__);
-		rc = -1;
-		goto err_out;
-	}
-	close(lfd);
-	lfd = 0;
-	logp = (struct famfs_log *)addr;
-
-	/* Create the destination file. This will be unlinked later if we don't get all
-	 * the way through the operation.
-	 */
-	dfd = famfs_file_create(destfile, mode, uid, gid);
-	if (dfd < 0) {
-		fprintf(stderr, "%s: failed to create file %s\n", __func__, destfile);
-		rc = -1;
-		goto err_out;
-	}
-
-	/*
-	 * Create the file before logging, so we can avoid a BS log entry if the
-	 * kernel rejects the caller-supplied allocation ext list
-	 */
-	/* Ugh need to unify extent types... XXX */
-	se = famfs_ext_to_simple_ext(ext_list, filemap.ext_list_count);
-	if (!se) {
-		rc = -ENOMEM;
-		goto err_out;
-	}
-	rc = famfs_file_map_create(destfile, dfd, filemap.file_size, filemap.ext_list_count,
-				   se, FAMFS_REG);
-	if (rc) {
-		fprintf(stderr, "%s: failed to create destination file\n", __func__);
-		exit(-1);
-	}
-
-	/* Now have created the destionation file (and therefore we know it is in a famfs
-	 * mount, we need its relative path of
-	 */
-	if (realpath(destfile, destfullpath) == NULL) {
-		close(dfd);
-		unlink(destfullpath);
-		return -1;
-	}
-	relpath = famfs_relpath_from_fullpath(mpt_out, destfullpath);
-	if (!relpath) {
-		rc = -1;
-		unlink(destfullpath);
-		goto err_out;
-	}
-
-	/* XXX - famfs_log_file_creation should only be called outside
-	 * famfs_lib.c if we are intentionally doing extent list allocation
-	 * bypassing famfs_lib. This is useful for testing, by generating
-	 * problematic extent lists on purpoose...
-	 */
-	rc = famfs_log_file_creation(logp, filemap.ext_list_count, se,
-				     relpath, O_RDWR, uid, gid, filemap.file_size);
-	if (rc) {
-		fprintf(stderr,
-			"%s: failed to log caller-specified allocation\n",
-			__func__);
-		rc = -1;
-		unlink(destfullpath);
-		goto err_out;
-	}
-	/***************/
-
-	close(rc);
-
-	return 0;
-err_out:
-	if (lfd > 0)
-		close(lfd);
-	if (sfd > 0)
-		close(sfd);
-	if (lfd > 0)
-		close(lfd);
-	if (dfd > 0)
-		close(dfd);
-	return rc;
+	return famfs_clone(srcfile, destfile, verbose);
 }
 
 /********************************************************************/

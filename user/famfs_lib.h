@@ -52,10 +52,11 @@ u64 famfs_alloc(const char *devname, u64 size);
 int famfs_logplay(const struct famfs_log *logp, const char *mpt, int dry_run);
 
 char *famfs_relpath_from_fullpath(const char *mpt, char *fullpath);
-int famfs_file_create(const char *path, mode_t mode, uid_t uid, gid_t gid);
-int famfs_mkfile(char *filename, mode_t mode, uid_t uid, gid_t gid, size_t size, int verbose);
+int famfs_file_create(const char *path, mode_t mode, uid_t uid, gid_t gid, int disable_write);
+int famfs_mkfile(const char *filename, mode_t mode, uid_t uid, gid_t gid, size_t size, int verbose);
 
-int famfs_cp(char *srcfile, char *destfile, int verbose);
+int famfs_cp(const char *srcfile, const char *destfile, int verbose);
+int famfs_clone(const char *srcfile, const char *destfile, int verbose);
 int __file_not_famfs(int fd);
 struct famfs_simple_extent *famfs_ext_to_simple_ext(struct famfs_extent *te_list, size_t ext_count);
 

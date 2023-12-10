@@ -48,6 +48,7 @@ famfs_dir_create(
 	uid_t       uid,
 	gid_t       gid);
 
+static struct famfs_superblock *famfs_map_superblock_by_path(const char *path,int read_only);
 
 static void
 mu_print_bitmap(u8 *bitmap, int num_bits)
@@ -133,6 +134,30 @@ famfs_get_system_uuid(uuid_le *uuid_out)
 	}
 	memcpy(uuid_out, uuid, sizeof(uuid));
 	return 0;
+}
+
+/**
+ * famfs_get_role()
+ *
+ * Check whether this host is the master or not. If not the master, it must not attempt
+ * to write the superblock or log, and files will default to read-only
+ */
+static int
+famfs_get_role(const struct famfs_superblock *sb)
+{
+	uuid_le my_uuid;
+	int rc = famfs_get_system_uuid(&my_uuid);
+
+	if (rc) {
+		fprintf(stderr, "%s: unable to get system uuid; assuming client role\n",
+			__func__);
+		return FAMFS_CLIENT;
+	}
+	assert(sb);
+	if (memcmp(&my_uuid, &sb->ts_system_uuid, sizeof(my_uuid)) == 0)
+		return FAMFS_MASTER;
+
+	return FAMFS_CLIENT;
 }
 
 int
@@ -815,19 +840,25 @@ famfs_logplay(
 	const char             *mpt,
 	int                     dry_run)
 {
+	enum famfs_system_role role;
+	struct famfs_superblock *sb;
 	u64 nlog = 0;
 	u64 i, j;
 	int rc;
 
+	sb = famfs_map_superblock_by_path(mpt, 1 /* read-only */);
+	if (!sb)
+		return -1;
+
+	if (famfs_check_super(sb)) {
+		fprintf(stderr, "%s: no valid superblock for mpt %s\n", __func__, mpt);
+		return -1;
+	}
+	role = famfs_get_role(sb);
+
 	if (logp->famfs_log_magic != FAMFS_LOG_MAGIC) {
 		fprintf(stderr, "%s: log has bad magic number (%llx)\n",
 			__func__, logp->famfs_log_magic);
-		return -1;
-	}
-	/* TODO: verify log header crc */
-	if (famfs_log_full(logp)) {
-		fprintf(stderr, "%s: log is empty (mpt=%s)\n",
-			__func__, mpt);
 		return -1;
 	}
 
@@ -898,8 +929,8 @@ famfs_logplay(
 			}
 			printf("%s: creating file %s mode %o\n",
 			       __func__, fc->famfs_relpath, fc->fc_mode);
-			fd = famfs_file_create(rpath, fc->fc_mode,
-					       fc->fc_uid, fc->fc_gid);
+			fd = famfs_file_create(rpath, fc->fc_mode, fc->fc_uid, fc->fc_gid,
+					       (role == FAMFS_CLIENT) ? 1 : 0);
 			if (fd < 0) {
 				fprintf(stderr,
 					"%s: unable to create destfile (%s)\n",
@@ -1321,17 +1352,17 @@ famfs_map_superblock_by_path(
 	void *addr;
 	int fd;
 
-	fd = __open_superblock_file(path, 1 /* read only */,
+	fd = __open_superblock_file(path, read_only,
 				    &sb_size, NULL);
 	if (fd < 0) {
-		fprintf(stderr, "%s: failed to open log file for filesystem %s\n",
-			__func__, path);
+		fprintf(stderr, "%s: failed to open superblock file %s for filesystem %s\n",
+			__func__, read_only ? "read-only" : "writable",	path);
 		return NULL;
 	}
 	addr = mmap(0, sb_size, prot, MAP_SHARED, fd, 0);
 	close(fd);
 	if (addr == MAP_FAILED) {
-		fprintf(stderr, "%s: Failed to mmap log file %s", __func__, path);
+		fprintf(stderr, "%s: Failed to mmap superblock file %s\n", __func__, path);
 		return NULL;
 	}
 	sb = (struct famfs_superblock *)addr;
@@ -1358,7 +1389,7 @@ famfs_map_log_by_path(
 	addr = mmap(0, log_size, prot, MAP_SHARED, fd, 0);
 	close(fd);
 	if (addr == MAP_FAILED) {
-		fprintf(stderr, "%s: Failed to mmap log file %s", __func__, path);
+		fprintf(stderr, "%s: Failed to mmap log file %s\n", __func__, path);
 		return NULL;
 	}
 	logp = (struct famfs_log *)addr;
@@ -1842,7 +1873,7 @@ famfs_file_alloc(
 
 	addr = mmap(0, log_size, PROT_READ | PROT_WRITE, MAP_SHARED, lfd, 0);
 	if (addr == MAP_FAILED) {
-		fprintf(stderr, "%s: Failed to mmap log file", __func__);
+		fprintf(stderr, "%s: Failed to mmap log file\n", __func__);
 		close(lfd);
 		return -1;
 	}
@@ -1890,7 +1921,8 @@ out:
  * @mode
  * @uid  - used if both uid and gid are non-null
  * @gid  - used if both uid and gid are non-null
- * @size
+ * @disable_write - if this flag is non-zero, write permissions will be removed from the mode
+ *                  (we default files to read-only on client systems)
  *
  * Returns a file descriptior or -EBADF if the path is not in a famfs file system
  *
@@ -1900,7 +1932,8 @@ int
 famfs_file_create(const char *path,
 		  mode_t      mode,
 		  uid_t       uid,
-		  gid_t       gid)
+		  gid_t       gid,
+		  int         disable_write)
 {
 	struct stat st;
 	int rc = 0;
@@ -1911,6 +1944,9 @@ famfs_file_create(const char *path,
 		fprintf(stderr, "%s: file already exists: %s\n", __func__, path);
 		return -1;
 	}
+
+	if (disable_write)
+		mode = mode & ~(S_IWUSR | S_IWGRP | S_IWOTH);
 
 	fd = open(path, O_RDWR | O_CREAT, mode); /* TODO: open as temp file,
 						  * move into place after alloc
@@ -1946,17 +1982,38 @@ famfs_file_create(const char *path,
  * Returns an open file descriptor if successful.
  */
 int
-famfs_mkfile(char    *filename,
+famfs_mkfile(const char    *filename,
 	     mode_t   mode,
 	     uid_t    uid,
 	     gid_t    gid,
 	     size_t   size,
 	     int      verbose)
 {
-	int fd, rc;
+	enum famfs_system_role role;
+	struct famfs_superblock *sb;
 	char fullpath[PATH_MAX];
+	int fd, rc;
 
-	fd = famfs_file_create(filename, mode, uid, gid);
+	/*
+	 * Check system role; files can only be created on FAMFS_MASTER system
+	 */
+	sb = famfs_map_superblock_by_path(filename, 1 /* read-only */);
+	if (!sb)
+		return -1;
+
+	if (famfs_check_super(sb)) {
+		fprintf(stderr, "%s: no valid superblock for path %s\n", __func__, filename);
+		return -1;
+	}
+	role = famfs_get_role(sb);
+
+	if (role != FAMFS_MASTER) {
+		fprintf(stderr, "%s: file creation not allowed on client systems\n", __func__);
+		return -EPERM;
+	}
+
+	/* Create the file */
+	fd = famfs_file_create(filename, mode, uid, gid, 0);
 	if (fd < 0)
 		return fd;
 
@@ -2125,8 +2182,8 @@ err_out:
 }
 
 int
-famfs_cp(char *srcfile,
-	 char *destfile,
+famfs_cp(const char *srcfile,
+	 const char *destfile,
 	 int   verbose)
 {
 	struct stat srcstat;
@@ -2165,34 +2222,8 @@ famfs_cp(char *srcfile,
 		return rc;
 	}
 
-#if 1
 	destfd = famfs_mkfile(destfile, srcstat.st_mode, srcstat.st_uid,
 			      srcstat.st_gid, srcstat.st_size, verbose);
-#else
-	destfd = famfs_file_create(destfile, srcstat.st_mode, srcstat.st_uid, srcstat.st_gid);
-	if (destfd < 0) {
-		if (destfd == -EBADF)
-			fprintf(stderr,
-				"Destination file %s is not in a famfs file system\n",
-				destfile);
-		else
-			fprintf(stderr, "%s: unable to create destfile (%s)\n",
-				__func__, destfile);
-
-		unlink(destfile);
-		return destfd;
-	}
-
-	/* TODO: consistent arg order fd, name */
-	rc = famfs_file_alloc(destfd, destfile, srcstat.st_mode, srcstat.st_uid,
-			      srcstat.st_gid, srcstat.st_size, verbose);
-	if (rc) {
-		fprintf(stderr, "%s: failed to allocate size %ld for file %s\n",
-			__func__, srcstat.st_size, destfile);
-		unlink(destfile);
-		return -1;
-	}
-#endif
 
 	destp = mmap(0, srcstat.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, destfd, 0);
 	if (destp == MAP_FAILED) {
@@ -2231,4 +2262,175 @@ famfs_cp(char *srcfile,
 	close(srcfd);
 	close(destfd);
 	return 0;
+}
+
+/**
+ * famfs_clone()
+ *
+ *
+ * This function is for generating cross-linked file errors, and should be compiled out
+ * of the library when not needed for that purpose.
+ */
+int
+famfs_clone(const char *srcfile,
+	    const char *destfile,
+	    int   verbose)
+{
+	struct famfs_superblock *sb;//`, *sb2;
+	struct famfs_ioc_map filemap;
+	struct famfs_extent *ext_list;
+	char srcfullpath[PATH_MAX];
+	char destfullpath[PATH_MAX];
+	int lfd = 0;
+	int sfd = 0;
+	int dfd = 0;
+	char mpt_out[PATH_MAX];
+	char *relpath;
+	struct famfs_log *logp;
+	void *addr;
+	size_t log_size;
+	struct famfs_simple_extent *se;
+	uid_t uid = geteuid();
+	gid_t gid = getegid();
+	mode_t mode = S_IRUSR|S_IWUSR;
+	enum famfs_system_role role;
+	int rc;
+
+	/*
+	 * Check system role; files can only be created on FAMFS_MASTER system
+	 */
+	sb = famfs_map_superblock_by_path(srcfile, 1 /* read-only */);
+	if (!sb)
+		return -1;
+
+	if (famfs_check_super(sb)) {
+		fprintf(stderr, "%s: no valid superblock for path %s\n", __func__, srcfile);
+		return -1;
+	}
+	role = famfs_get_role(sb);
+
+	if (role != FAMFS_MASTER) {
+		fprintf(stderr, "%s: file creation not allowed on client systems\n", __func__);
+		return -EPERM;
+	}
+
+	/* Make sure both files are in the SAME famfs file system */
+
+	/*
+	 * Open source file and make sure it's a famfs file
+	 */
+	sfd = open(srcfile, O_RDONLY, 0);
+	if (sfd < 0) {
+		fprintf(stderr, "%s: failed to open source file %s\n",
+			__func__, srcfile);
+		return -1;
+	}
+	if (__file_not_famfs(sfd)) {
+		fprintf(stderr, "%s: source file %s is not a famfs file\n",
+			__func__, srcfile);
+		return -1;
+	}
+
+	/*
+	 * Get map for source file
+	 */
+	rc = ioctl(sfd, FAMFSIOC_MAP_GET, &filemap);
+	if (rc) {
+		fprintf(stderr, "%s: MAP_GET returned %d errno %d\n", __func__, rc, errno);
+		goto err_out;
+	}
+	ext_list = calloc(filemap.ext_list_count, sizeof(struct famfs_extent));
+	rc = ioctl(sfd, FAMFSIOC_MAP_GETEXT, ext_list);
+	if (rc) {
+		fprintf(stderr, "%s: GETEXT returned %d errno %d\n", __func__, rc, errno);
+		goto err_out;
+	}
+
+	/*
+	 * For this operation we need to open the log file, which also gets us
+	 * the mount point path
+	 */
+	lfd = open_log_file_writable(srcfullpath, &log_size, mpt_out);
+	addr = mmap(0, log_size, PROT_READ | PROT_WRITE, MAP_SHARED, lfd, 0);
+	if (addr == MAP_FAILED) {
+		fprintf(stderr, "%s: Failed to mmap log file\n", __func__);
+		rc = -1;
+		goto err_out;
+	}
+	close(lfd);
+	lfd = 0;
+	logp = (struct famfs_log *)addr;
+
+	/* Create the destination file. This will be unlinked later if we don't get all
+	 * the way through the operation.
+	 */
+	dfd = famfs_file_create(destfile, mode, uid, gid, 0);
+	if (dfd < 0) {
+		fprintf(stderr, "%s: failed to create file %s\n", __func__, destfile);
+		rc = -1;
+		goto err_out;
+	}
+
+	/*
+	 * Create the file before logging, so we can avoid a BS log entry if the
+	 * kernel rejects the caller-supplied allocation ext list
+	 */
+	/* Ugh need to unify extent types... XXX */
+	se = famfs_ext_to_simple_ext(ext_list, filemap.ext_list_count);
+	if (!se) {
+		rc = -ENOMEM;
+		goto err_out;
+	}
+	rc = famfs_file_map_create(destfile, dfd, filemap.file_size, filemap.ext_list_count,
+				   se, FAMFS_REG);
+	if (rc) {
+		fprintf(stderr, "%s: failed to create destination file\n", __func__);
+		exit(-1);
+	}
+
+	/* Now have created the destionation file (and therefore we know it is in a famfs
+	 * mount, we need its relative path of
+	 */
+	if (realpath(destfile, destfullpath) == NULL) {
+		close(dfd);
+		unlink(destfullpath);
+		return -1;
+	}
+	relpath = famfs_relpath_from_fullpath(mpt_out, destfullpath);
+	if (!relpath) {
+		rc = -1;
+		unlink(destfullpath);
+		goto err_out;
+	}
+
+	/* XXX - famfs_log_file_creation should only be called outside
+	 * famfs_lib.c if we are intentionally doing extent list allocation
+	 * bypassing famfs_lib. This is useful for testing, by generating
+	 * problematic extent lists on purpoose...
+	 */
+	rc = famfs_log_file_creation(logp, filemap.ext_list_count, se,
+				     relpath, O_RDWR, uid, gid, filemap.file_size);
+	if (rc) {
+		fprintf(stderr,
+			"%s: failed to log caller-specified allocation\n",
+			__func__);
+		rc = -1;
+		unlink(destfullpath);
+		goto err_out;
+	}
+	/***************/
+
+	close(rc);
+
+	return 0;
+err_out:
+	if (lfd > 0)
+		close(lfd);
+	if (sfd > 0)
+		close(sfd);
+	if (lfd > 0)
+		close(lfd);
+	if (dfd > 0)
+		close(dfd);
+	return rc;
 }
