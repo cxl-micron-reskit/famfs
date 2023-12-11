@@ -80,6 +80,7 @@ famfs_logplay_usage(int   argc,
 	       "Options:\n"
 	       "  --read|-r  Get the log via posix read\n"
 	       "  --mmap|-m  - Get the log via mmap\n"
+	       "  --client|-c - force \"client mode\" (all files read-only)\n"
 	       "\n"
 	       "\n",
 	       progname);
@@ -103,6 +104,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	char *buf = NULL;
 	int use_mmap = 0;
 	int use_read = 0;
+	int client_mode = 0;
 	
 	/* XXX can't use any of the same strings as the global args! */
 	struct option logplay_options[] = {
@@ -110,6 +112,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 		{"dryrun",    required_argument,       0,  'n'},
 		{"mmap",      no_argument,             0,  'm'},
 		{"read",      no_argument,             0,  'r'},
+		{"client",    no_argument,             0,  'c'},
 		{0, 0, 0, 0}
 	};
 
@@ -125,7 +128,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+mnh?",
+	while ((c = getopt_long(argc, argv, "+cmnh?",
 				logplay_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -148,6 +151,10 @@ do_famfs_cli_logplay(int argc, char *argv[])
 			break;
 		case 'r':
 			use_read++;
+			break;
+		case 'c':
+			client_mode++;
+			printf("client mode\n");
 			break;
 		default:
 			printf("default (%c)\n", c);
@@ -208,7 +215,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 			total += rc;
 		} while (resid > 0);
 	}
-	famfs_logplay(logp, mpt_out, dry_run);
+	famfs_logplay(logp, mpt_out, dry_run, client_mode);
 	if (use_mmap)
 		munmap(logp, FAMFS_LOG_LEN);
 	close(lfd);

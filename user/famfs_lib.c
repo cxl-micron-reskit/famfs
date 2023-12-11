@@ -837,11 +837,22 @@ famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index)
 	return errors;
 }
 
+/**
+ * famfs_logplay()
+ *
+ * Play the log for a famfs file system
+ *
+ * @logp        - pointer to a read-only copy or mmap of the log
+ * @mpt         - mount point path
+ * @dry_run     - process the log but don't create the files & directories
+ * @client_mode - for testing; play the log as if this is a client node, even on master
+ */
 int
 famfs_logplay(
 	const struct famfs_log *logp,
 	const char             *mpt,
-	int                     dry_run)
+	int                     dry_run,
+	int                     client_mode)
 {
 	enum famfs_system_role role;
 	struct famfs_superblock *sb;
@@ -857,7 +868,8 @@ famfs_logplay(
 		fprintf(stderr, "%s: no valid superblock for mpt %s\n", __func__, mpt);
 		return -1;
 	}
-	role = famfs_get_role(sb);
+
+	role = (client_mode) ? FAMFS_CLIENT : famfs_get_role(sb);
 
 	if (logp->famfs_log_magic != FAMFS_LOG_MAGIC) {
 		fprintf(stderr, "%s: log has bad magic number (%llx)\n",
