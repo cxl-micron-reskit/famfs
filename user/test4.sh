@@ -24,7 +24,7 @@ set -x
 verify_mounted $DEV $MPT "test2.sh"
 
 
-${CLI} creat -s 3221225472  ${MPT}/memfile
+${CLI} creat -s 3g  ${MPT}/memfile
 ${MULTICHASE} -d ${MPT}/memfile -m 2900m || fail "multichase fail"
 
 set +x

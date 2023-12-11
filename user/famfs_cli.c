@@ -700,7 +700,7 @@ famfs_creat_usage(int   argc,
 	       "Create a file backed by free space, with octal mode 0644:\n"
 	       "    %s -s <size> -m 0644 <filename>\n\n"
 	       "Options:\n"
-	       "--size|-s <size>           - Required file size\n"
+	       "--size|-s <size>[kKmMgG]   - Required file size\n"
 	       "--seed|-S <random-seed>    - Optional seed for randomization\n"
 	       "--randomize|-r             - Optional - will randomize with provided seed\n"
 	       "--mode|-m <octal-mode>     - Default is 0644\n"
@@ -708,6 +708,35 @@ famfs_creat_usage(int   argc,
 	       "--gid|-g <int gid>         - Default is caller's gid\n"
 	       "\n",
 	       progname, progname, progname);
+}
+
+static s64 get_multiplier(const char *endptr)
+{
+	size_t multiplier = 1;
+
+	if (!endptr)
+		return 1;
+
+	switch (*endptr) {
+	case 'k':
+	case 'K':
+		multiplier = 1024;
+		break;
+	case 'm':
+	case 'M':
+		multiplier = 1024 * 1024;
+		break;
+	case 'g':
+	case 'G':
+		multiplier = 1024 * 1024 * 1024;
+		break;
+	case 0:
+		return 1;
+	}
+	++endptr;
+	if (*endptr) /* If the unit was not the last char in string, it's an error */
+		return -1;
+	return multiplier;
 }
 
 int
@@ -718,6 +747,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 	char fullpath[PATH_MAX];
 
 	size_t fsize = 0;
+	s64 mult;
 	int arg_ct = 0;
 	uid_t uid = geteuid();
 	gid_t gid = getegid();
@@ -765,7 +795,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 	 */
 	while ((c = getopt_long(argc, argv, "+s:S:m:u:g:rh?v",
 				creat_options, &optind)) != EOF) {
-		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
+		char *endptr;
 
 		/* Detect the end of the options. */
 		if (c == -1)
@@ -775,12 +805,15 @@ do_famfs_cli_creat(int argc, char *argv[])
 		switch (c) {
 
 		case 's':
-			fsize = strtoull(optarg, 0, 0);
+			fsize = strtoull(optarg, &endptr, 0);
 			if (fsize <= 0) {
 				fprintf(stderr, "invalid file size %ld\n",
 					fsize);
 				exit(-1);
 			}
+			mult = get_multiplier(endptr);
+			if (mult > 0)
+				fsize *= mult;
 			break;
 
 		case 'S':
