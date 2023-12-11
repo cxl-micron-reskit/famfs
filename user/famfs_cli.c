@@ -505,7 +505,7 @@ famfs_getmap_usage(int   argc,
 int
 do_famfs_cli_getmap(int argc, char *argv[])
 {
-	struct famfs_ioc_map filemap;
+	struct famfs_ioc_map filemap = {0};
 	struct famfs_extent *ext_list;
 	int c, i, fd;
 	int rc = 0;
@@ -585,6 +585,7 @@ do_famfs_cli_getmap(int argc, char *argv[])
 	if (rc) {
 		printf("ioctl returned rc %d errno %d\n", rc, errno);
 		perror("ioctl");
+		free(ext_list);
 		return rc;
 	}
 
@@ -596,7 +597,7 @@ do_famfs_cli_getmap(int argc, char *argv[])
 		printf("\t\t%llx\t%lld\n", ext_list[i].offset, ext_list[i].len);
 
 	close(rc);
-
+	free(ext_list);
 	return 0;
 }
 
@@ -751,7 +752,6 @@ do_famfs_cli_creat(int argc, char *argv[])
 {
 	int c, rc, fd;
 	char *filename = NULL;
-	char fullpath[PATH_MAX];
 
 	size_t fsize = 0;
 	s64 mult;
@@ -883,7 +883,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 	printf("mode: %o\n", mode);
 	fd = famfs_mkfile(filename, mode, uid, gid, fsize, verbose);
 	if (fd < 0) {
-		fprintf(stderr, "%s: failed to create file %s\n", __func__, fullpath);
+		fprintf(stderr, "%s: failed to create file %s\n", __func__, filename);
 		exit(-1);
 	}
 	if (randomize) {
@@ -894,7 +894,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 		rc = fstat(fd, &st);
 		if (rc) {
 			fprintf(stderr, "%s: failed to stat newly craeated file %s\n",
-				__func__, fullpath);
+				__func__, filename);
 			exit(-1);
 		}
 		if (st.st_size != fsize) {

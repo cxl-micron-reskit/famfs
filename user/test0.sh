@@ -7,8 +7,12 @@ export PATH=cwd/debug:$PATH
 DEVTYPE="$1"
 echo "DEVTYPE=$DEVTYPE"
 
-MKFS="sudo debug/mkfs.famfs"
-CLI="sudo debug/famfs"
+# Run under valgrind?
+VG=""
+#VG="valgrind --leak-check=full --show-leak-kinds=all"
+
+MKFS="sudo $VG debug/mkfs.famfs"
+CLI="sudo $VG debug/famfs"
 
 source test_funcs.sh
 

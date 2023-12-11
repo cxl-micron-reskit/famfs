@@ -5,7 +5,11 @@ export PATH=cwd/debug:$PATH
 
 MPT=/mnt/famfs
 
-CLI="sudo debug/famfs"
+# Run under valgrind?
+VG=""
+#VG="valgrind --leak-check=full --show-leak-kinds=all"
+
+CLI="sudo $VG debug/famfs"
 
 source test_funcs.sh
 

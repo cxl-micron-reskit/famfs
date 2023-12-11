@@ -514,6 +514,7 @@ famfs_get_mpt_by_dev(const char *mtdev)
 				answer = strdup(xmpt);
 				free(xmpt);
 				free(line);
+				fclose(fp);
 				return answer;
 			}
 		}
@@ -574,7 +575,7 @@ famfs_file_map_create(
 	struct famfs_simple_extent *ext_list,
 	enum famfs_file_type        type)
 {
-	struct famfs_ioc_map filemap;
+	struct famfs_ioc_map filemap = {0};
 	int rc;
 	int i;
 
@@ -2292,7 +2293,7 @@ famfs_clone(const char *srcfile,
 	    int   verbose)
 {
 	struct famfs_superblock *sb;//`, *sb2;
-	struct famfs_ioc_map filemap;
+	struct famfs_ioc_map filemap = {0};
 	struct famfs_extent *ext_list;
 	char srcfullpath[PATH_MAX];
 	char destfullpath[PATH_MAX];
