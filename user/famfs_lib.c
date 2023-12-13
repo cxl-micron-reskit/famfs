@@ -1762,7 +1762,7 @@ bitmap_alloc_contiguous(u8 *bitmap,
 {
 	u64 i, j;
 	u64 alloc_bits = (size + FAMFS_ALLOC_UNIT - 1) /  FAMFS_ALLOC_UNIT;
-	int bitmap_remainder;
+	u64 bitmap_remainder;
 
 	for (i = 0; i < nbits; i++) {
 		/* Skip bits that are set... */
