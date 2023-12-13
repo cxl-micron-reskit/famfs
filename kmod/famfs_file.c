@@ -20,6 +20,7 @@
 #include "famfs.h"
 #include "famfs_internal.h"
 #include "famfs_ioctl.h"
+#include "famfs_trace.h"
 
 static int iomap_verbose;
 module_param(iomap_verbose, int, 0660);
@@ -388,6 +389,8 @@ famfs_meta_to_dax_offset(
 			iomap->type    = IOMAP_MAPPED;
 			iomap->flags   = flags;
 
+			trace_famfs_meta_to_dax_offset(inode, offset, len,
+						       iomap->addr, iomap->offset);
 			if (iomap_verbose)
 				pr_notice("%s: --> ext %d daxdev offset %llx len %lld\n",
 				       __func__, i, iomap->addr, iomap->length);
@@ -776,6 +779,7 @@ __famfs_filemap_fault(
 	struct inode		*inode = file_inode(vmf->vma->vm_file);
 	vm_fault_t		ret;
 
+	trace_famfs_filemap_fault(inode, pe_size, write_fault);
 
 	if (write_fault) {
 		sb_start_pagefault(inode->i_sb);

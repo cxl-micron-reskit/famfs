@@ -8,7 +8,7 @@ EXTRA_CFLAGS += -DCONFIG_FAMFS_CHAR_DAX=y
 
 obj-m += famfs.o
 
-famfs-objs += famfs_inode.o famfs_file.o
+famfs-objs += famfs_inode.o famfs_file.o famfs_trace.o
 
 KHOME = ~/w/linux-debug
 

@@ -36,6 +36,7 @@
 
 #include "famfs.h"
 #include "famfs_internal.h"
+#include "famfs_trace.h"
 
 /* Because this is exported but only prototyped in dax-private.h: */
 struct dax_device *inode_dax(struct inode *inode);
