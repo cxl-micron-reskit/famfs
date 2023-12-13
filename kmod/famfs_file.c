@@ -16,16 +16,10 @@
 #include <linux/dax.h>
 #include <linux/uio.h>
 #include <linux/iomap.h>
-
 #include "famfs.h"
 #include "famfs_internal.h"
 #include "famfs_ioctl.h"
 #include "famfs_trace.h"
-
-static int iomap_verbose;
-module_param(iomap_verbose, int, 0660);
-static int famfs_verbose;
-module_param(famfs_verbose, int, 0660);
 
 #ifndef CONFIG_MMU
 #error "Famfs requires a kernel with CONFIG_MMU enabled"
@@ -44,6 +38,107 @@ module_param(famfs_verbose, int, 0660);
 
 /* blk opens are now exclusive if there is private_data */
 int famfs_blkdev_mode = FMODE_READ|FMODE_WRITE;
+
+/*
+ * Basic module tuning parameters
+ *
+ * These appear at /sys/module/famfs/parameters
+ */
+static int iomap_verbose;
+module_param(iomap_verbose, int, 0660);
+static int famfs_verbose;
+module_param(famfs_verbose, int, 0660);
+
+/*
+ * filemap_fault counters
+ *
+ * The counters and the fault_count_enable file live at
+ * /sys/fs/famfs/
+ */
+struct famfs_fault_counters ffc;
+static int fault_count_enable = 1;
+
+static ssize_t
+fault_count_enable_show(struct kobject *kobj,
+			struct kobj_attribute *attr,
+			char *buf)
+{
+	return sprintf(buf, "%d\n", fault_count_enable);
+}
+
+static ssize_t
+fault_count_enable_store(struct kobject        *kobj,
+			 struct kobj_attribute *attr,
+			 const char            *buf,
+			 size_t                 count)
+{
+	int value;
+
+	sscanf(buf, "%d", &value);
+
+	if (value > 0) /* clear fault counters when enabling, but not when disabling */
+		famfs_clear_fault_counters(&ffc);
+
+	fault_count_enable = value;
+	return count;
+}
+
+/* Individual fault counters are read-only */
+static ssize_t
+fault_count_pte_show(struct kobject *kobj,
+		     struct kobj_attribute *attr,
+		     char *buf)
+{
+	return sprintf(buf, "%llu", famfs_pte_fault_ct(&ffc));
+}
+
+static ssize_t
+fault_count_pmd_show(struct kobject *kobj,
+		     struct kobj_attribute *attr,
+		     char *buf)
+{
+	return sprintf(buf, "%llu", famfs_pmd_fault_ct(&ffc));
+}
+
+static ssize_t
+fault_count_pud_show(struct kobject *kobj,
+		     struct kobj_attribute *attr,
+		     char *buf)
+{
+	return sprintf(buf, "%llu", famfs_pud_fault_ct(&ffc));
+}
+
+static struct kobj_attribute fault_count_enable_attribute = __ATTR(fault_count_enable,
+								   0660,
+								   fault_count_enable_show,
+								   fault_count_enable_store);
+static struct kobj_attribute fault_count_pte_attribute = __ATTR(pte_fault_ct,
+								0440,
+								fault_count_pte_show,
+								NULL);
+static struct kobj_attribute fault_count_pmd_attribute = __ATTR(pmd_fault_ct,
+								0440,
+								fault_count_pmd_show,
+								NULL);
+static struct kobj_attribute fault_count_pud_attribute = __ATTR(pud_fault_ct,
+								0440,
+								fault_count_pud_show,
+								NULL);
+
+
+static struct attribute *attrs[] = {
+	&fault_count_enable_attribute.attr,
+	&fault_count_pte_attribute.attr,
+	&fault_count_pmd_attribute.attr,
+	&fault_count_pud_attribute.attr,
+	NULL,
+};
+
+struct attribute_group famfs_attr_group = {
+	.attrs = attrs,
+};
+
+/* End fault counters */
 
 /* Debug stuff */
 
@@ -788,6 +883,9 @@ __famfs_filemap_fault(
 
 	if (IS_DAX(inode)) {
 		pfn_t pfn;
+
+		if (fault_count_enable)
+			famfs_inc_fault_counter(&ffc, pe_size);
 
 		ret = dax_iomap_fault(vmf, pe_size, &pfn, NULL, &famfs_iomap_ops);
 		if (ret & VM_FAULT_NEEDDSYNC)

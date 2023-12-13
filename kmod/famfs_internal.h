@@ -14,6 +14,7 @@
 #include "famfs_ioctl.h"
 
 #include <linux/fs_parser.h> // bleh...
+#include <linux/atomic.h>
 
 #define FAMFS_MAGIC 0xdeadbeef
 
@@ -66,5 +67,50 @@ struct famfs_fs_info {
 					    * (extents would index into the device list)
 					    */
 };
+
+/*
+ * filemap_fault counters
+ */
+enum famfs_fault {
+	FAMFS_PTE = 0,
+	FAMFS_PMD,
+	FAMFS_PUD,
+	FAMFS_NUM_FAULT_TYPES,
+};
+
+struct famfs_fault_counters {
+	atomic64_t fault_ct[FAMFS_NUM_FAULT_TYPES];
+};
+
+extern struct famfs_fault_counters ffc;
+
+static inline void famfs_clear_fault_counters(struct famfs_fault_counters *fc)
+{
+	int i;
+
+	for (i = 0; i < FAMFS_NUM_FAULT_TYPES; i++)
+		atomic64_set(&fc->fault_ct[i], 0);
+}
+
+static inline void famfs_inc_fault_counter(struct famfs_fault_counters *fc,
+					       enum famfs_fault type)
+{
+	atomic64_inc(&fc->fault_ct[type]);
+}
+
+static inline u64 famfs_pte_fault_ct(struct famfs_fault_counters *fc)
+{
+	return atomic64_read(&fc->fault_ct[FAMFS_PTE]);
+}
+
+static inline u64 famfs_pmd_fault_ct(struct famfs_fault_counters *fc)
+{
+	return atomic64_read(&fc->fault_ct[FAMFS_PMD]);
+}
+
+static inline u64 famfs_pud_fault_ct(struct famfs_fault_counters *fc)
+{
+	return atomic64_read(&fc->fault_ct[FAMFS_PUD]);
+}
 
 #endif

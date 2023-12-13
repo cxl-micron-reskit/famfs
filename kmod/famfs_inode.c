@@ -551,16 +551,22 @@ static void famfs_kill_sb(struct super_block *sb)
 	kill_litter_super(sb);
 }
 
+#define MODULE_NAME "famfs"
 static struct file_system_type famfs_fs_type = {
-	.name		  = "famfs",
+	.name		  = MODULE_NAME,
 	.init_fs_context  = famfs_init_fs_context,
 	.parameters	  = famfs_fs_parameters,
 	.kill_sb	  = famfs_kill_sb,
 	.fs_flags	  = FS_USERNS_MOUNT,
 };
 
+extern struct attribute_group famfs_attr_group;
+static struct kobject *famfs_kobj;
+
 static int __init init_famfs_fs(void)
 {
+	int rc;
+
 	pr_info("%s\n", __func__);
 	/* See what the different log levels do */
 	pr_debug("%s: KERN_DEBUG \n", __func__);
@@ -570,14 +576,23 @@ static int __init init_famfs_fs(void)
 	pr_err("%s: KERN_ERR \n", __func__);
 
 #if defined(CONFIG_DEV_DAX_IOMAP)
-	pr_notice("%s: kernel compiled with CONFIG_DEV_DAX_IOMAP\n", __func__);
-#endif
-
-#if defined(CONFIG_DEV_DAX_IOMAP)
 	pr_notice("%s: famfs compiled with experimental /dev/dax support\n", __func__);
 #else
 	pr_notice("%s: famfs compiled WITHOUT experimental /dev/dax support\n", __func__);
 #endif
+	famfs_kobj = kobject_create_and_add(MODULE_NAME, fs_kobj);
+	if (!famfs_kobj) {
+		printk(KERN_ALERT "Failed to create kobject\n");
+		return -ENOMEM;
+	}
+
+	rc = sysfs_create_group(famfs_kobj, &famfs_attr_group);
+	if (rc) {
+		kobject_put(famfs_kobj);
+		printk(KERN_ALERT "%s: Failed to create sysfs group\n", __func__);
+		return rc;
+	}
+
 	return register_filesystem(&famfs_fs_type);
 }
 
@@ -585,6 +600,8 @@ void
 __exit famfs_exit(void)
 {
 	pr_info("%s\n", __func__);
+	sysfs_remove_group(famfs_kobj,  &famfs_attr_group);
+	kobject_put(famfs_kobj);
 	unregister_filesystem(&famfs_fs_type);
 	pr_info("%s: unregistered\n", __func__);
 }
