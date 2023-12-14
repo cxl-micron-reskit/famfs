@@ -1,6 +1,16 @@
 
 TODO
 
+* ftrace notes
+** From Dan Williams
+I'm not a trace-cmd user but I do know that the raw printk goes to /sys/kernel/debug/tracing/trace,
+and that you can do sysrq-z to dump the ftrace buffer to the kernel log
+** From Dave Jiang
+yes. what's in sysfs trace file is what TP_printk() formats. What comes through the API and
+in turn the trace-cmd frontend are the data that gets passed in to the trace event. You can
+extract more data from the trace event than what gets printed. You can take a look at the
+cxl monitor implementation to get a simpler view vs trace-cmd internals.
+
 * Semi-working functionality
 ** tagfs fsck
 ** mkfs.tagfs <dev>
