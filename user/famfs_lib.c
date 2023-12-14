@@ -2312,15 +2312,21 @@ famfs_clone(const char *srcfile,
 	enum famfs_system_role role;
 	int rc;
 
+	/* srcfile must already exist */
+	if (realpath(srcfile, srcfullpath) == NULL) {
+		fprintf(stderr, "%s: bad source path %s\n", __func__, srcfile);
+		return -1;
+	}
+
 	/*
 	 * Check system role; files can only be created on FAMFS_MASTER system
 	 */
-	sb = famfs_map_superblock_by_path(srcfile, 1 /* read-only */);
+	sb = famfs_map_superblock_by_path(srcfullpath, 1 /* read-only */);
 	if (!sb)
 		return -1;
 
 	if (famfs_check_super(sb)) {
-		fprintf(stderr, "%s: no valid superblock for path %s\n", __func__, srcfile);
+		fprintf(stderr, "%s: no valid superblock for path %s\n", __func__, srcfullpath);
 		return -1;
 	}
 	role = famfs_get_role(sb);
@@ -2335,15 +2341,15 @@ famfs_clone(const char *srcfile,
 	/*
 	 * Open source file and make sure it's a famfs file
 	 */
-	sfd = open(srcfile, O_RDONLY, 0);
+	sfd = open(srcfullpath, O_RDONLY, 0);
 	if (sfd < 0) {
 		fprintf(stderr, "%s: failed to open source file %s\n",
-			__func__, srcfile);
+			__func__, srcfullpath);
 		return -1;
 	}
 	if (__file_not_famfs(sfd)) {
 		fprintf(stderr, "%s: source file %s is not a famfs file\n",
-			__func__, srcfile);
+			__func__, srcfullpath);
 		return -1;
 	}
 
