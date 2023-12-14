@@ -1,23 +1,62 @@
 #!/usr/bin/env bash
 
-fail () {
-    set +x
-    echo
-    echo "*** Fail ***"
-    echo "$1"
-    echo
-    exit 1
-}
-
 cwd=$(pwd)
-export PATH=cwd/debug:$PATH
 
-DEV=/dev/pmem0
+# Defaults
+DEV="/dev/pmem0"
+VG=""
+SCRIPTS=../scripts
 MPT=/mnt/famfs
+MOUNT_OPTS="-t famfs -o noatime -o dax=always "
+BIN=../debug
+KMOD=../../kmod
 
-CLI="sudo debug/famfs"
+# Override defaults as needed
+while (( $# > 0)); do
+    flag="$1"
+    shift
+    case "$flag" in
+	(-d|--device)
+	    DEV=$1
+	    shift;
+	    ;;
+	(-b|--bin)
+	    BIN=$1
+	    shift
+	    ;;
+	(-s|--scripts)
+	    SCRIPTS=$1
+	    source_root=$1;
+	    shift;
+	    ;;
+	(-k|--kmod)
+	    KMOD=$1
+	    shift
+	    ;;
+	(-v|--valgrind)
+	    # no argument to -v; just setup for Valgrind
+	    VG="valgrind --leak-check=full --show-leak-kinds=all"
+	    ;;
+	*)
+	    remainder="$flag $1";
+	    shift;
+	    while (( $# > 0)); do
+		remainder="$remainder $1"
+		shift
+	    done
+	    echo "ignoring commandline remainder: $remainder"
+	    ;;
 
-source test_funcs.sh
+    esac
+done
+
+echo "DEVTYPE=$DEVTYPE"
+MKFS="sudo $VG $BIN/mkfs.famfs"
+CLI="sudo $VG $BIN/famfs"
+
+source $SCRIPTS/test_funcs.sh
+# Above this line should be the same for all smoke tests
+
 set -x
 
 verify_mounted $DEV $MPT "test2.sh"

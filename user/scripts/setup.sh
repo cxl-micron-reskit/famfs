@@ -1,5 +1,16 @@
 #!/usr/bin/bash
 
+TEST_FUNCS=scripts/test_funcs.sh
+if [ ! -f $TEST_FUNCS ]; then
+	echo "Can't source $TEST_FUNCS"
+	exit -1
+fi
+BIN=debug
+if [ ! -d $BIN ]; then
+	echo "Can't find executables"
+	exit -1
+fi
+
 cwd=$(pwd)
 export PATH=cwd/debug:$PATH
 
@@ -10,7 +21,7 @@ MPT="/mnt/famfs"
 #OWNER="jgroves.jgroves"
 CLI="sudo debug/famfs"
 
-source test_funcs.sh
+source scripts/test_funcs.sh || fail "can't source test_funcs.sh"
 
 test -f $MPT || test -D $MPT && fail "mount point $MPT is not a directory"
 

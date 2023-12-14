@@ -1,20 +1,61 @@
 #!/usr/bin/env bash
 
-
 cwd=$(pwd)
-export PATH=cwd/debug:$PATH
 
-DEVTYPE="$1"
-echo "DEVTYPE=$DEVTYPE"
-
-# Run under valgrind?
+# Defaults
+DEV="/dev/pmem0"
 VG=""
-#VG="valgrind --leak-check=full --show-leak-kinds=all"
+SCRIPTS=../scripts
+MPT=/mnt/famfs
+MOUNT_OPTS="-t famfs -o noatime -o dax=always "
+BIN=../debug
+KMOD=../../kmod
 
-MKFS="sudo $VG debug/mkfs.famfs"
-CLI="sudo $VG debug/famfs"
+# Override defaults as needed
+while (( $# > 0)); do
+    flag="$1"
+    shift
+    case "$flag" in
+	(-d|--device)
+	    DEV=$1
+	    shift;
+	    ;;
+	(-b|--bin)
+	    BIN=$1
+	    shift
+	    ;;
+	(-s|--scripts)
+	    SCRIPTS=$1
+	    source_root=$1;
+	    shift;
+	    ;;
+	(-k|--kmod)
+	    KMOD=$1
+	    shift
+	    ;;
+	(-v|--valgrind)
+	    # no argument to -v; just setup for Valgrind
+	    VG="valgrind --leak-check=full --show-leak-kinds=all"
+	    ;;
+	*)
+	    remainder="$flag $1";
+	    shift;
+	    while (( $# > 0)); do
+		remainder="$remainder $1"
+		shift
+	    done
+	    echo "ignoring commandline remainder: $remainder"
+	    ;;
 
-source test_funcs.sh
+    esac
+done
+
+echo "DEVTYPE=$DEVTYPE"
+MKFS="sudo $VG $BIN/mkfs.famfs"
+CLI="sudo $VG $BIN/famfs"
+
+source $SCRIPTS/test_funcs.sh
+# Above this line should be the same for all smoke tests
 
 set -x
 
@@ -31,7 +72,7 @@ ${MKFS}  $DEV         && fail "mkfs redo" # fail, fs exists
 #debug/famfs mkmeta /dev/pmem0                  || fail "mkmeta"
 ${CLI} fsck $DEV          || fail "fsck"
 
-sudo insmod ../kmod/famfs.ko       || fail "insmod"
+sudo insmod $KMOD/famfs.ko       || fail "insmod"
 
 sudo mount $MOUNT_OPTS $DEV $MPT || fail "mount"
 #sudo mount $MOUNT_OPTS $DEV $MPT && fail "double mount should fail"
@@ -40,13 +81,9 @@ grep famfs /proc/mounts             || fail "No famfs mounted"
 grep $DEV /proc/mounts              || fail "dev=$DEV not in /proc/mounts~"
 grep $MPT /proc/mounts              || fail "Mount pt $MPT not in /proc/mounts~"
 
-#exit
-
 ${CLI} mkmeta $DEV        || fail "mkmeta"
 sudo test -f $MPT/.meta/.superblock || fail "no superblock file after mkmeta"
 sudo test -f $MPT/.meta/.log        || fail "no log file after mkmeta"
-
-#exit
 
 # Create 1 file and verify
 ${CLI} creat -r -s 4096 -S 1 $MPT/test1   || fail "creat test1"
