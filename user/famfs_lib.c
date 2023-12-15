@@ -51,6 +51,19 @@ famfs_dir_create(
 static struct famfs_superblock *famfs_map_superblock_by_path(const char *path,int read_only);
 static int famfs_file_create(const char *path, mode_t mode, uid_t uid, gid_t gid, int disable_write);
 
+static int
+__file_not_famfs(int fd)
+{
+	int rc;
+
+	rc = ioctl(fd, FAMFSIOC_NOP, 0);
+	if (rc)
+		return 1;
+
+	return 0;
+}
+
+
 static void
 mu_print_bitmap(u8 *bitmap, int num_bits)
 {
@@ -1204,12 +1217,24 @@ famfs_log_dir_creation(
 /**
  * __open_relpath()
  *
+ * This functionn starts with @path and ascends until @relpath is a valid
+ * sub-path from the ascended subset of @path.
+ *
+ * This is intended for ascending from @path until (e.g.) @relpath=".meta/.superblock"
+ * is valid - and opening that.
+ *
+ * It is also important to verify that the @relpath file is in a famfs file system,
+ * but there are also (unit test) cases where it is useful to exercise this logic
+ * even if the ascended @path is not in a famfs file system.
+ *
  * @path       - any path within a famfs file system (from mount pt on down)
  * @relpath    - the relative path to open (relative to the mount point)
  * @read_only
  * @size_out   - File size will be returned if this pointer is non-NULL
  * @mpt_out    - Mount point will be returned if this pointer is non-NULL
  *               (the string space is assumed to be of size PATH_MAX)
+ * @no_fscheck - For unit tests only - don't check whether the file with @relpath
+ *               is actually in a famfs file system.
  */
 static int
 __open_relpath(
@@ -1217,7 +1242,8 @@ __open_relpath(
 	const char *relpath,
 	int         read_only,
 	size_t     *size_out,
-	char       *mpt_out)
+	char       *mpt_out,
+	int         no_fscheck)
 {
 	int openmode = (read_only) ? O_RDONLY : O_RDWR;
 	char *rpath;
@@ -1260,23 +1286,35 @@ __open_relpath(
 	 * necessary to find the mount point which contains the meta files
 	 */
 	while (1) {
-		char log_path[PATH_MAX] = {0};
+		char fullpath[PATH_MAX] = {0};
 
 		rc = stat(rpath, &st);
 		if (rc < 0)
 			goto next;
 		if ((st.st_mode & S_IFMT) == S_IFDIR) {
 			/* It's a dir; does it have <relpath> under it? */
-			snprintf(log_path, PATH_MAX - 1, "%s/%s", rpath, relpath);
-			rc = stat(log_path, &st);
+			snprintf(fullpath, PATH_MAX - 1, "%s/%s", rpath, relpath);
+			rc = stat(fullpath, &st);
 			if ((rc == 0) && ((st.st_mode & S_IFMT) == S_IFREG)) {
-				/* yes */
+				/* We found it. */
 				if (size_out)
 					*size_out = st.st_size;
 				if (mpt_out)
 					strncpy(mpt_out, rpath, PATH_MAX - 1);
-				fd = open(log_path, openmode, 0);
+				fd = open(fullpath, openmode, 0);
 				free(rpath);
+
+				/* Check whether the file we found is actually in famfs;
+				 * Unit tests can disable this check but production code
+				 * should not.
+				 */
+				if (!no_fscheck && __file_not_famfs(fd)) {
+					fprintf(stderr,
+						"%s: found file %s but it is not in famfs\n",
+						__func__, fullpath);
+					close(fd);
+					return -1;
+				}
 				return fd;
 			}
 			/* no */
@@ -1308,7 +1346,7 @@ __open_log_file(
 	size_t     *sizep,
 	char       *mpt_out)
 {
-	return __open_relpath(path, LOG_FILE_RELPATH, read_only, sizep, mpt_out);
+	return __open_relpath(path, LOG_FILE_RELPATH, read_only, sizep, mpt_out, 0);
 }
 
 int
@@ -1336,7 +1374,7 @@ __open_superblock_file(
 	size_t     *sizep,
 	char       *mpt_out)
 {
-	return __open_relpath(path, SB_FILE_RELPATH, read_only, sizep, mpt_out);
+	return __open_relpath(path, SB_FILE_RELPATH, read_only, sizep, mpt_out, 0);
 }
 
 static int
@@ -1830,18 +1868,6 @@ famfs_alloc_bypath(
 	}
 	free(bitmap);
 	return offset;
-}
-
-static int
-__file_not_famfs(int fd)
-{
-	int rc;
-
-	rc = ioctl(fd, FAMFSIOC_NOP, 0);
-	if (rc)
-		return 1;
-
-	return 0;
 }
 
 /**
@@ -2464,20 +2490,34 @@ err_out:
  * done by the caller, so an alternate caller can arrange for a superblock and log
  * to be written to alternate files/locations.
  */
-static int
+int
 __famfs_mkfs(const char              *daxdev,
 	     struct famfs_superblock *sb,
 	     struct famfs_log        *logp,
-	     u64                      device_size)
+	     u64                      device_size,
+	     int                      force,
+	     int                      kill)
 
 {
 	int rc;
+
+	if ((famfs_check_super(sb) == 0) && !force) {
+		fprintf(stderr, "Device %s already has a famfs superblock\n", daxdev);
+		return -1;
+	}
+
+	if (kill) {
+		printf("Famfs superblock killed\n");
+		sb->ts_magic      = 0;
+		return 0;
+	}
 
 	rc = famfs_get_system_uuid(&sb->ts_system_uuid);
 	if (rc) {
 		fprintf(stderr, "mkfs.famfs: unable to get system uuid");
 		return -1;
 	}
+	sb->ts_magic      = FAMFS_SUPER_MAGIC;
 	sb->ts_version    = FAMFS_CURRENT_VERSION;
 	sb->ts_log_offset = FAMFS_LOG_OFFSET;
 	sb->ts_log_len    = FAMFS_LOG_LEN;
@@ -2530,19 +2570,5 @@ famfs_mkfs(const char *daxdev,
 	if (rc)
 		return -1;
 
-	if ((famfs_check_super(sb) == 0) && !force) {
-		fprintf(stderr, "Device %s already has a famfs superblock\n", daxdev);
-		return -1;
-	}
-
-	memset(sb, 0, FAMFS_SUPERBLOCK_SIZE); /* Zero the memory up to the log */
-
-	if (kill) {
-		printf("Famfs superblock killed\n");
-		sb->ts_magic      = 0;
-		return 0;
-	}
-	sb->ts_magic      = FAMFS_SUPER_MAGIC;
-
-	return __famfs_mkfs(daxdev, sb, logp, devsize);
+	return __famfs_mkfs(daxdev, sb, logp, devsize, force, kill);
 }
