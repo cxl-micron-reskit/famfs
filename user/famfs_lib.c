@@ -1236,7 +1236,7 @@ famfs_log_dir_creation(
  * @no_fscheck - For unit tests only - don't check whether the file with @relpath
  *               is actually in a famfs file system.
  */
-static int
+int
 __open_relpath(
 	const char *path,
 	const char *relpath,
