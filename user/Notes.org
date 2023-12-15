@@ -67,7 +67,7 @@ fail any log writing if not the master
 Had some regular ints where I needed U64's
 ** DONE mkfs/famfs_lib: implement superblock crc
 (it currently doesn't check the superblock, which is not good)
-** DONE famfs fsck: enforce superblock crc
+** DONE famfs fsck: enforce superblock crcb
 ** DONE famfs fsck: enforce superblock version
 ** DONE famfs fsck: free space always zero
 ** DONE famfs fsck: print percentage used
@@ -103,10 +103,11 @@ Should fail to append file past allocation, but succeed *to* allocation
 
 * Unit test needs
 ** TODO Test bitmap on various sized devices
+
 * functions that can be unit tested
 ** TODO __open_relpath()
 ** TODO famfs_get_system_uuid()
-** TODO famfs_check_super()
+** DONE famfs_check_super()
 ** TODO famfs_get_by_dev()
 (requires mocking /proc/mounts)
 ** TODO famfs_ext_to_simple_ext()
@@ -126,7 +127,7 @@ use dry run plus mocking the create functions
 ** TODO famfs_build_bitmap()
 *** TODO also track down the nf bitmap unit tests
 ** TODO bitmmap_alloc_contiguous()
-** TODO 
+** DONE __famfs_mkfs
 
 * Valgrind checking (should repeat periodically with all smoke tests)
 ** DONE famfs verify
