@@ -105,7 +105,7 @@ Should fail to append file past allocation, but succeed *to* allocation
 ** TODO Test bitmap on various sized devices
 
 * functions that can be unit tested
-** TODO __open_relpath()
+** DONE __open_relpath()
 ** TODO famfs_get_system_uuid()
 ** DONE famfs_check_super()
 ** TODO famfs_get_by_dev()

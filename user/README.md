@@ -52,10 +52,27 @@ as follows:
 
 You can [see an example of the full output from run_smoke.sh here](markdown/smoke-example.md)
 
+The smoke tests (by default) require the following:
+
+* A valid /dev/pmem0 device which is at least 4GiB in size
+
 # Running unit tests
 
-Famfs uses the googletest framework for unit testing code components, although meaningful
-tests are still TBD.
+Famfs uses the googletest framework for unit testing code components, although test coverage
+is still limited.
 
-    cd usr/debug
-    ctest
+    cd user/debug
+    sudo ctest
+
+Or you can do this:
+
+    cd user
+    sudo make test
+
+You can also do this:
+
+    cd user
+    sudo debug/test/famfs_unit_tests
+
+Important note: the unit tests must be run as root or under sudo, primarily because
+getting the system UUID only works as root. We may look into circumventing this...
