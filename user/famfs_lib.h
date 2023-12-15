@@ -38,4 +38,9 @@ int famfs_clone(const char *srcfile, const char *destfile, int verbose);
 
 int famfs_mkdir(const char *dirpath, mode_t mode, uid_t uid, gid_t gid);
 int famfs_mkfs(const char *daxdev, int kill, int force);
+
+/* Only exported for unit tests */
+int __famfs_mkfs(const char *daxdev, struct famfs_superblock *sb, struct famfs_log *logp,
+		 u64 device_size, int force, int kill);
+
 #endif /* _H_FAMFS_LIB */

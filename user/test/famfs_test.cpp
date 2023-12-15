@@ -12,6 +12,8 @@ extern "C" {
 #include <linux/limits.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <fcntl.h>
+#include <stdlib.h>
 }
 
 /* These are really system test calls that need an actual famfs file system mounted
@@ -33,537 +35,127 @@ TEST(famfs, dummy)
 	ASSERT_EQ(0, 0);
 }
 
-TEST(famfs, famfs_mounted)
+TEST(famfs, famfs_mkfs)
 {
-	int fd;
-	char mpt[PATH_MAX];
-
-	fd = open_log_file_read_only(FAMFS_MPT, NULL, mpt);
-	ASSERT_GT(fd, 2);
-}
-
-TEST(famfs, famfs_mkdir)
-{
+	char *buf  = (char *)calloc(1, FAMFS_LOG_LEN);
+	u64 device_size = 1024 * 1024 * 1024;
+	struct famfs_superblock *sb;
+	struct famfs_log *logp;
+	mode_t mode = 0777;
+	int lfd, sfd;
+	void *addr;
 	int rc;
-	struct stat st;
 
-	/* Directory should not already exist */
-	rc = stat(DIRPATH, &st);
-	ASSERT_NE(0, rc);
+	system("rm -rf /tmp/famfs");
 
-	/* Create a directory */
-	rc = famfs_mkdir(DIRPATH, 0777, 0, 0);
-	ASSERT_EQ(0, rc);
+	/* Create fake famfs and famfs/.meta mount point */
+	rc = mkdir("/tmp/famfs", mode);
+	ASSERT_EQ(rc, 0);
+	rc = mkdir("/tmp/famfs/.meta", mode);
+	ASSERT_EQ(rc, 0);
 
-	/* Now the dir should exist */
-	rc = stat(DIRPATH, &st);
-	ASSERT_EQ(0, rc);
-	ASSERT_EQ(S_IFDIR, st.st_mode & S_IFMT);
+	/* Create fake log and superblock files */
+	sfd = open("/tmp/famfs/.meta/.superblock", O_RDWR | O_CREAT, 0666);
+	ASSERT_GT(sfd, 0);
+	lfd = open("/tmp/famfs/.meta/.log", O_RDWR | O_CREAT, 0666);
+	ASSERT_GT(lfd, 0);
+
+	/* Zero out the superblock and llog files */
+	rc = write(sfd, buf, FAMFS_SUPERBLOCK_SIZE);
+	ASSERT_EQ(rc, FAMFS_SUPERBLOCK_SIZE);
+
+	rc = write(lfd, buf, FAMFS_LOG_LEN);
+	ASSERT_EQ(rc, FAMFS_LOG_LEN);
+
+	/* Mmap fake log file */
+	addr = mmap(0, FAMFS_SUPERBLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, sfd, 0);
+	ASSERT_NE(addr, MAP_FAILED);
+	logp = (struct famfs_log *)addr;
+
+	/* mmap fake superblock file */
+	addr = mmap(0, FAMFS_LOG_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, lfd, 0);
+	ASSERT_NE(addr, MAP_FAILED);
+	sb = (struct famfs_superblock *)addr;
+
+	memset(sb, 0, FAMFS_SUPERBLOCK_SIZE);
+	memset(logp, 0, FAMFS_LOG_LEN);
+
+	/* First mkfs should succeed */
+	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, device_size, 0, 0);
+	ASSERT_EQ(rc, 0);
+
+	/* Repeat should fail because there is a valid superblock */
+	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, device_size, 0, 0);
+	ASSERT_NE(rc, 0);
+
+	/* Repeat with kill and force should succeed */
+	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, device_size, 1, 1);
+	ASSERT_EQ(rc, 0);
+
+	/* Repeat without force should succeed because we wiped out the old superblock */
+	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, device_size, 0, 0);
+	ASSERT_EQ(rc, 0);
+
+	/* Repeat without force should fail because there is a valid sb again */
+	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, device_size, 0, 0);
+	ASSERT_NE(rc, 0);
+
+	/* Repeat with force should succeed because of force */
+	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, device_size, 1, 0);
+	ASSERT_EQ(rc, 0);
+
+	close(lfd);
+	close(sfd);
+
+	/* This leaves a valid superblock and log at /tmp/famfs/.meta ... */
+
 }
 
-/* Create a file and init */
-TEST(famfs, famfs_mkfile)
+TEST(famfs, famfs_super_test)
 {
-	//rc = famfs
+	u64 device_size = 1024 * 1024 * 1024;
+	struct famfs_superblock *sb = NULL;
+	struct famfs_log *logp;
+	int rc;
+
+	/* null superblock should fail */
+	rc = famfs_check_super(sb);
+	ASSERT_EQ(rc, -1);
+
+	sb = (struct famfs_superblock *)calloc(1, sizeof(*sb));
+	logp = (struct famfs_log *)calloc(1, FAMFS_LOG_LEN);
+
+	/* Make a fake file system with our fake sb and log */
+	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, device_size, 0, 0);
+	ASSERT_EQ(rc, 0);
+
+	rc = famfs_check_super(sb);
+	ASSERT_EQ(rc, 0);
+
+	sb->ts_magic--; /* bad magic number */
+	rc = famfs_check_super(sb);
+	ASSERT_EQ(rc, -1);
+
+	sb->ts_magic++; /* good magic number */
+	rc = famfs_check_super(sb);
+	ASSERT_EQ(rc, 0);
+
+	sb->ts_version++;  /* unrecognized version */
+	rc = famfs_check_super(sb);
+	ASSERT_EQ(rc, -1);
+
+	sb->ts_version = FAMFS_CURRENT_VERSION;  /* version good again */
+	rc = famfs_check_super(sb);
+	ASSERT_EQ(rc, 0);
+
+	sb->ts_crc++; /* bad crc */
+	rc = famfs_check_super(sb);
+	ASSERT_EQ(rc, -1);
+
+	sb->ts_crc = famfs_gen_superblock_crc(sb);
+	rc = famfs_check_super(sb);
+	ASSERT_EQ(rc, 0); /* good crc */
+
 }
-
-/* Verify file */
-
-/* posix read and verify, exact length */
-
-/* posix read under length */
-
-/* posix read over length should be truncated */
-
-
-
-/* These are unit tests */
-
-#if 0
-
-/* Create a pool with invalid alignment (not power of 2) */
-TEST(cursor_heap, invalidcreate1)
-{
-    size_t        total = 1048576;
-    struct cheap *h;
-
-    h = cheap_create(3, total);
-    ASSERT_EQ(0UL, h);
-    cheap_destroy(h);
-}
-
-/* Valid create with alignment=1 */
-TEST(cheap_test, valid_create0)
-{
-    size_t        total = 1048576;
-    struct cheap *h;
-
-    h = cheap_create(1, total);
-    ASSERT_NE(0UL, (u_int64_t)h);
-    cheap_destroy(h);
-}
-
-/* Valid create with alignment=2 */
-TEST(cheap_test, valid_create1)
-{
-    size_t        total = 1048576;
-    struct cheap *h;
-
-    h = cheap_create(2, total);
-    ASSERT_NE(0UL, (u_int64_t)h);
-    cheap_destroy(h);
-}
-
-/* Valid create with alignment=8 */
-TEST(cheap_test, valid_fill0)
-{
-    int           rc;
-    size_t        size = 4096;
-    size_t        total = 1048576;
-    struct cheap *h = 0;
-
-    h = cheap_create(8, total);
-    ASSERT_NE(0UL, (u_int64_t)h);
-
-    total = cheap_avail(h);
-
-    rc = cheap_fill_test(h, size); /* Allocate all, but don't use */
-    ASSERT_EQ((total / size), rc);
-    cheap_destroy(h);
-}
-
-/* Valid create with alignment=8 */
-TEST(cheap_test, verify_test1)
-{
-    int           rc;
-    size_t        total = 1048576;
-    struct cheap *h = 0;
-
-    h = cheap_create(8, total);
-    ASSERT_NE(0UL, (u_int64_t)h);
-
-    rc = cheap_verify_test1(h, 4, 4096);
-    ASSERT_EQ(0, rc);
-    cheap_destroy(h);
-}
-
-/* Valid create with alignment=8 */
-TEST(cheap_test, verify_test2)
-{
-    int           rc;
-    size_t        total = 104857600;
-    struct cheap *h = 0;
-
-    h = cheap_create(8, total);
-    ASSERT_NE(0UL, (u_int64_t)h);
-
-    rc = cheap_verify_test1(h, 4, 8192);
-    ASSERT_EQ(0, rc);
-    cheap_destroy(h);
-}
-
-/* Fill and verify, alignment 0 */
-TEST(cheap_test, verify_test3)
-{
-    int           rc;
-    size_t        total = 104857600;
-    struct cheap *h = 0;
-
-    h = cheap_create(0, total);
-    ASSERT_NE(0UL, (u_int64_t)h);
-
-    rc = cheap_verify_test1(h, 8, 64);
-    ASSERT_EQ(0, rc);
-    cheap_destroy(h);
-}
-
-/* Fill and verify, alignment 0 */
-TEST(cheap_test, verify_test4)
-{
-    int           rc;
-    size_t        total = 104857600;
-    struct cheap *h = 0;
-
-    h = cheap_create(0, total);
-    ASSERT_NE(0UL, (u_int64_t)h);
-
-    /* Very small allocations */
-    rc = cheap_verify_test1(h, 1, 64);
-    ASSERT_EQ(0, rc);
-    cheap_destroy(h);
-}
-
-/* Valid create with alignment=4 */
-TEST(cheap_test, zero_test1)
-{
-    int           rc;
-    size_t        total = 1048576;
-    struct cheap *h = 0;
-
-    h = cheap_create(8, total);
-    ASSERT_NE(0UL, (u_int64_t)h);
-
-    rc = cheap_zero_test1(h, 4, 4096);
-    ASSERT_EQ(0, rc);
-    cheap_destroy(h);
-}
-
-/* Valid create with alignment=4 */
-TEST(cheap_test, zero_test2)
-{
-    int           rc;
-    size_t        total = 104857600;
-    struct cheap *h = 0;
-
-    h = cheap_create(8, total);
-    ASSERT_NE(0UL, (u_int64_t)h);
-
-    rc = cheap_zero_test1(h, 4, 8192);
-    ASSERT_EQ(0, rc);
-    cheap_destroy(h);
-}
-
-/* Fill and zero, alignment 0 */
-TEST(cheap_test, zero_test3)
-{
-    int           rc;
-    size_t        total = 104857600;
-    struct cheap *h = 0;
-
-    h = cheap_create(0, total);
-    ASSERT_NE(0UL, (u_int64_t)h);
-
-    rc = cheap_zero_test1(h, 8, 64);
-    ASSERT_EQ(0, rc);
-    cheap_destroy(h);
-}
-
-/* Fill and verify, alignment 0 */
-TEST(cheap_test, zero_test4)
-{
-    int           rc;
-    size_t        total = 104857600;
-    struct cheap *h = 0;
-
-    h = cheap_create(0, total);
-    ASSERT_NE(0UL, (u_int64_t)h);
-
-    /* Very small allocations */
-    rc = cheap_zero_test1(h, 1, 64);
-    ASSERT_EQ(0, rc);
-    cheap_destroy(h);
-}
-
-/* Test that cheap_used() and cheap_avail() work as expected.
- */
-TEST(cheap_test, cheap_test_used)
-{
-    struct cheap *h;
-    size_t        used, avail;
-    u_int8_t *          p;
-    int           i;
-
-    h = cheap_create(0, 4096);
-    ASSERT_NE(0UL, (u_int64_t)h);
-
-    avail = cheap_avail(h);
-    ASSERT_GT(avail, 1024);
-
-    used = cheap_used(h);
-    ASSERT_EQ(used, 0);
-
-    for (i = 0; i < 7; ++i) {
-        p = (u_int8_t *)cheap_malloc(h, 100);
-        ASSERT_NE(0UL, (u_int64_t)p);
-
-        used = cheap_used(h);
-        ASSERT_EQ(used, (i + 1) * 100);
-    }
-
-    ASSERT_EQ(avail - used, cheap_avail(h));
-
-    cheap_destroy(h);
-}
-
-#if 0
-/* Test that cheap_reset() poisons the memory that would
- * be given out by the next call to cheap_malloc().
- *
- * Note: cheap_reset() poisoning is disabled in release builds.
- */
-TEST(cheap_test, cheap_test_poison)
-{
-    struct cheap *h;
-    u_int8_t *          p;
-    int           i;
-
-    ASSERT_GT(CHEAP_POISON_SZ, 0);
-
-    h = cheap_create(0, CHEAP_POISON_SZ * 4);
-    ASSERT_NE(0UL, (u_int64_t)h);
-
-    p = cheap_malloc(h, CHEAP_POISON_SZ * 2);
-    ASSERT_NE(0UL, (u_int64_t)p);
-
-    for (i = 0; i < CHEAP_POISON_SZ; ++i)
-        p[i] = i;
-
-    cheap_reset(h, CHEAP_POISON_SZ);
-
-    for (i = 0; i < CHEAP_POISON_SZ; ++i) {
-        ASSERT_EQ(i, p[i]);
-        ASSERT_EQ(0xa5, p[i + CHEAP_POISON_SZ]);
-    }
-
-    cheap_destroy(h);
-}
-#endif
-
-
-/* fix uintptr_t */
-
-/* Verify cheap_memalign() works as expected. */
-TEST(cheap_test, cheap_test_memalign)
-{
-    size_t        total = 1024 * 1024 * 1024;
-    struct cheap *h;
-    size_t        align, sz;
-    uintptr_t     p;
-
-    h = cheap_create(0, total);
-    ASSERT_NE(0UL, (u_int64_t)h);
-
-    p = (uintptr_t)cheap_memalign(h, 16, total + 1);
-    ASSERT_EQ(0UL, (u_int64_t)p);
-
-    p = (uintptr_t)cheap_memalign(h, 3, 8);
-    ASSERT_EQ(0UL, (u_int64_t)p);
-
-    sz = cheap_avail(h);
-    ASSERT_GT(sz, total / 2);
-    total = sz;
-
-    for (align = 1; align < total; align *= 2) {
-        p = (uintptr_t)cheap_memalign(h, align, sizeof(p));
-
-        /* cheap allocation alignment is highly non-deterministic
-         * and may not always be able to fulfill an alignment
-         * request that would otherwise succeed if the base of
-         * the cheap were suitably aligned.
-         */
-        if (!p) {
-            ASSERT_GE(align * 2, total);
-            break;
-        }
-
-        ASSERT_TRUE(IS_ALIGNED((uintptr_t)p, align));
-    }
-
-    cheap_destroy(h);
-}
-
-/* Verify cheap_free() works as expected. */
-TEST(cheap_test, cheap_test_free)
-{
-    struct cheap *h;
-    size_t        align;
-
-    for (align = 1; align < 128; align *= 2) {
-        size_t   free, avail, alloc;
-        size_t   cheapsz, allocmax;
-        uint     i, itermax;
-        void *   p0, *p1;
-        uint8_t *prev[256];
-
-        itermax = ((get_cycles() >> 1) % 128) + 3;
-        allocmax = ((get_cycles() >> 1) % 32768) + 1;
-        cheapsz = itermax * ALIGN(allocmax, align) + PAGE_SIZE;
-
-        h = cheap_create(align, cheapsz);
-        ASSERT_NE(0UL, (u_int64_t)h);
-
-        free = cheap_avail(h);
-        ASSERT_GT(free, 0);
-
-        alloc = 0;
-
-        for (i = 0; i < itermax; ++i) {
-            size_t sz = ((get_cycles() >> 1) % allocmax) + 1;
-
-            p0 = cheap_malloc(h, sz);
-            ASSERT_NE(0UL, (u_int64_t)p0);
-
-            memset(p0, 0xff, sz);
-            cheap_free(h, p0);
-            cheap_free(h, p0);
-
-            sz = ALIGN(sz, align);
-            p1 = cheap_malloc(h, sz);
-            ASSERT_NE(0UL, (u_int64_t)p1);
-            ASSERT_EQ(p0, p1);
-
-            /* Mark the last byte in the allocation.
-             */
-            prev[i] = (u_int8_t *)p1 + sz - 1;
-            *(prev[i]) = ~i;
-
-            alloc += sz;
-        }
-
-        /* Check that the last byte of each allocation is intact.
-         */
-        for (i = 0; i < itermax; ++i)
-            ASSERT_EQ(*(prev[i]), (uint8_t)~i);
-
-        /* Allocate an aligned chunk so that the result
-         * from cheap_avail() is aligned.
-         */
-        p1 = cheap_malloc(h, align);
-        ASSERT_NE(0UL, (u_int64_t)p1);
-        alloc += align;
-
-        avail = cheap_avail(h);
-        ASSERT_EQ(free - alloc, avail);
-        free = avail;
-
-        p0 = cheap_malloc(h, align);
-        ASSERT_NE(0UL, (u_int64_t)p0);
-        p1 = cheap_malloc(h, 1);
-        ASSERT_NE(0UL, (u_int64_t)p0);
-        cheap_free(h, p0);
-        cheap_free(h, p1);
-
-        avail = cheap_avail(h);
-        ASSERT_EQ(free - align, avail);
-
-        cheap_free(h, NULL);
-        cheap_free(h, NULL);
-
-        cheap_destroy(h);
-    }
-}
-
-static size_t
-rss(void *mem, size_t maxpg, unsigned char *vec)
-{
-    size_t sz = 0;
-    int    rc;
-    int    i;
-
-    memset(vec, 0, maxpg);
-
-    mem = (void *)((uintptr_t)mem & PAGE_MASK);
-
-    rc = mincore(mem, maxpg * PAGE_SIZE, vec);
-    if (rc)
-        return -1;
-
-    for (i = 0; i < maxpg; ++i)
-        sz += (vec[i] & 0x01) ? PAGE_SIZE : 0;
-
-    return sz;
-}
-
-#if 0
-/* Verify cheap_trim() works as expected. */
-TEST(cheap_test, cheap_test_trim)
-{
-    size_t        maxpg = 256;
-    unsigned char vec[maxpg];
-    size_t        sz;
-    struct cheap *h;
-    uintptr_t     p;
-    int           i;
-
-    h = cheap_create(0, maxpg * PAGE_SIZE);
-    ASSERT_NE(0UL, (u_int64_t)h);
-
-    /* After create at least one page should be resident.
-     */
-    sz = rss(h, maxpg, vec);
-    ASSERT_GE(sz, PAGE_SIZE);
-
-    for (i = 0; i < maxpg - 1; ++i) {
-        p = cheap_memalign(h, PAGE_SIZE, 8);
-        ASSERT_NE(NULL, p);
-        ASSERT_TRUE(IS_ALIGNED((uintptr_t)p, PAGE_SIZE));
-
-        *(int *)p = i;
-    }
-
-    /* After allocating and touching all pages they all
-     * should be resident.
-     */
-    sz = rss(h, maxpg, vec);
-    ASSERT_EQ(sz, maxpg * PAGE_SIZE);
-
-    cheap_reset(h, 0);
-
-    /* After reset all pages should still be resident.
-     */
-    sz = rss(h, maxpg, vec);
-    ASSERT_EQ(sz, maxpg * PAGE_SIZE);
-
-#if MADV_FREE == MADV_DONTNEED
-
-    /* Trim one page.
-     */
-    cheap_trim(h, (maxpg - 1) * PAGE_SIZE);
-    sz = rss(h, maxpg, vec);
-    ASSERT_EQ(sz, (maxpg - 1) * PAGE_SIZE);
-    ASSERT_EQ(0, vec[maxpg - 1] & 0x01);
-
-    /* Trim to half, then check that at most half the pages
-     * are resident.
-     */
-    cheap_trim(h, (maxpg / 2) * PAGE_SIZE);
-    sz = rss(h, maxpg, vec);
-    ASSERT_EQ(sz, (maxpg / 2) * PAGE_SIZE);
-    ASSERT_EQ(0, vec[maxpg / 2] & 0x01);
-
-    /* Trim to half (again), then check that at most half the pages
-     * are still resident.
-     */
-    cheap_trim(h, (maxpg / 2) * PAGE_SIZE);
-    sz = rss(h, maxpg, vec);
-    ASSERT_EQ(sz, (maxpg / 2) * PAGE_SIZE);
-    ASSERT_EQ(0, vec[maxpg / 2] & 0x01);
-
-    /* Trim to a quarter, then check that at most one quarter
-     * of the pages are resident.
-     */
-    cheap_trim(h, (maxpg / 4) * PAGE_SIZE);
-    sz = rss(h, maxpg, vec);
-    ASSERT_EQ(sz, (maxpg / 4) * PAGE_SIZE);
-    ASSERT_EQ(0, vec[maxpg / 4] & 0x01);
-
-    /* Trim to half (again), then check that at most one quarter
-     * of the pages are still resident.
-     */
-    cheap_trim(h, (maxpg / 2) * PAGE_SIZE);
-    sz = rss(h, maxpg, vec);
-    ASSERT_EQ(sz, (maxpg / 4) * PAGE_SIZE);
-    ASSERT_EQ(0, vec[maxpg / 4] & 0x01);
-
-    /* Trim to zero, then check that at most one page is resident.
-     */
-    cheap_trim(h, 0);
-    sz = rss(h, maxpg, vec);
-    ASSERT_EQ(sz, PAGE_SIZE);
-    ASSERT_EQ(1, vec[0] & 0x01);
-
-    /* Trim to half, then check that at most one page is resident.
-     */
-    cheap_trim(h, (maxpg / 2) * PAGE_SIZE);
-    sz = rss(h, maxpg, vec);
-    ASSERT_EQ(sz, PAGE_SIZE);
-    ASSERT_EQ(1, vec[0] & 0x01);
-
-#endif
-
-    cheap_destroy(h);
-}
-#endif
-#endif
 
 //MTF_END_UTEST_COLLECTION(cheap_test)
