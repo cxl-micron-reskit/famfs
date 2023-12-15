@@ -37,5 +37,5 @@ int famfs_cp(const char *srcfile, const char *destfile, int verbose);
 int famfs_clone(const char *srcfile, const char *destfile, int verbose);
 
 int famfs_mkdir(const char *dirpath, mode_t mode, uid_t uid, gid_t gid);
-
+int famfs_mkfs(const char *daxdev, int kill, int force);
 #endif /* _H_FAMFS_LIB */

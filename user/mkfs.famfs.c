@@ -53,16 +53,11 @@ struct option global_options[] = {
 int
 main(int argc, char *argv[])
 {
-	int c, rc;
+	int c;
 
 	int arg_ct = 0;
-	enum extent_type type = HPA_EXTENT;
 	char *daxdev = NULL;
 	int force = 0;
-
-	struct famfs_superblock *sb;
-	struct famfs_log *famfs_logp;
-	size_t devsize;
 
 	/* Process global options, if any */
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
@@ -106,60 +101,5 @@ main(int argc, char *argv[])
 	/* TODO: multiple devices? */
 	daxdev = argv[optind++];
 
-	rc = famfs_get_device_size(daxdev, &devsize, &type);
-	if (rc)
-		return -1;
-
-	printf("devsize: %ld\n", devsize);
-
-	rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &famfs_logp, 0 /* read/write */);
-	if (rc)
-		return -1;
-
-	if ((famfs_check_super(sb) == 0) && !force) {
-		fprintf(stderr, "Device %s already has a famfs superblock\n", daxdev);
-		return -1;
-	}
-
-	memset(sb, 0, FAMFS_SUPERBLOCK_SIZE); /* Zero the memory up to the log */
-
-	if (kill_super) {
-		printf("Famfs superblock killed\n");
-		sb->ts_magic      = 0;
-		return 0;
-	}
-	sb->ts_magic      = FAMFS_SUPER_MAGIC;
-
-	rc = famfs_get_system_uuid(&sb->ts_system_uuid);
-	if (rc) {
-		fprintf(stderr, "mkfs.famfs: unable to get system uuid");
-		return -1;
-	}
-	sb->ts_version    = FAMFS_CURRENT_VERSION;
-	sb->ts_log_offset = FAMFS_LOG_OFFSET;
-	sb->ts_log_len    = FAMFS_LOG_LEN;
-	famfs_uuidgen(&sb->ts_uuid);
-
-	/* Configure the first daxdev */
-	sb->ts_num_daxdevs = 1;
-	sb->ts_devlist[0].dd_size = devsize;
-	strncpy(sb->ts_devlist[0].dd_daxdev, daxdev, FAMFS_DEVNAME_LEN);
-
-	/* Calculate superblock crc */
-	sb->ts_crc = famfs_gen_superblock_crc(sb); /* gotta do this last! */
-
-	/* Zero and setup the log */
-	memset(famfs_logp, 0, FAMFS_LOG_LEN);
-	famfs_logp->famfs_log_magic      = FAMFS_LOG_MAGIC;
-	famfs_logp->famfs_log_len        = FAMFS_LOG_LEN;
-	famfs_logp->famfs_log_next_seqnum    = 0;
-	famfs_logp->famfs_log_next_index = 0;
-	famfs_logp->famfs_log_last_index =
-		((FAMFS_LOG_LEN - offsetof(struct famfs_log, entries))
-		 / sizeof(struct famfs_log_entry));
-
-	famfs_logp->famfs_log_crc = famfs_gen_log_header_crc(famfs_logp);
-	famfs_fsck_scan(sb, famfs_logp, 1, 0);
-	close(rc);
-	return 0;
+	return famfs_mkfs(daxdev, kill_super, force);
 }

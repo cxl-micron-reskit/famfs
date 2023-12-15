@@ -2456,3 +2456,93 @@ err_out:
 		close(dfd);
 	return rc;
 }
+
+/**
+ * __famfs_mkfs()
+ *
+ * This handller can be called by unit tests; the actual device open/mmap is
+ * done by the caller, so an alternate caller can arrange for a superblock and log
+ * to be written to alternate files/locations.
+ */
+static int
+__famfs_mkfs(const char              *daxdev,
+	     struct famfs_superblock *sb,
+	     struct famfs_log        *logp,
+	     u64                      device_size)
+
+{
+	int rc;
+
+	rc = famfs_get_system_uuid(&sb->ts_system_uuid);
+	if (rc) {
+		fprintf(stderr, "mkfs.famfs: unable to get system uuid");
+		return -1;
+	}
+	sb->ts_version    = FAMFS_CURRENT_VERSION;
+	sb->ts_log_offset = FAMFS_LOG_OFFSET;
+	sb->ts_log_len    = FAMFS_LOG_LEN;
+	famfs_uuidgen(&sb->ts_uuid);
+
+	/* Configure the first daxdev */
+	sb->ts_num_daxdevs = 1;
+	sb->ts_devlist[0].dd_size = device_size;
+	strncpy(sb->ts_devlist[0].dd_daxdev, daxdev, FAMFS_DEVNAME_LEN);
+
+	/* Calculate superblock crc */
+	sb->ts_crc = famfs_gen_superblock_crc(sb); /* gotta do this last! */
+
+	/* Zero and setup the log */
+	memset(logp, 0, FAMFS_LOG_LEN);
+	logp->famfs_log_magic      = FAMFS_LOG_MAGIC;
+	logp->famfs_log_len        = FAMFS_LOG_LEN;
+	logp->famfs_log_next_seqnum    = 0;
+	logp->famfs_log_next_index = 0;
+	logp->famfs_log_last_index = ((FAMFS_LOG_LEN - offsetof(struct famfs_log, entries))
+				      / sizeof(struct famfs_log_entry));
+
+	logp->famfs_log_crc = famfs_gen_log_header_crc(logp);
+	famfs_fsck_scan(sb, logp, 1, 0);
+	return 0;
+}
+
+int
+famfs_mkfs(const char *daxdev,
+	   int         kill,
+	   int         force)
+{
+	int rc;
+	size_t devsize;
+	enum extent_type type = HPA_EXTENT;
+	struct famfs_superblock *sb;
+	struct famfs_log *logp;
+
+	rc = famfs_get_device_size(daxdev, &devsize, &type);
+	if (rc)
+		return -1;
+
+	printf("devsize: %ld\n", devsize);
+
+	/* XXX Get role first via read-only sb. If daxdev contains a fs that was not
+	 * created on this host, fail unless force is specified
+	 */
+
+	rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &logp, 0 /* read/write */);
+	if (rc)
+		return -1;
+
+	if ((famfs_check_super(sb) == 0) && !force) {
+		fprintf(stderr, "Device %s already has a famfs superblock\n", daxdev);
+		return -1;
+	}
+
+	memset(sb, 0, FAMFS_SUPERBLOCK_SIZE); /* Zero the memory up to the log */
+
+	if (kill) {
+		printf("Famfs superblock killed\n");
+		sb->ts_magic      = 0;
+		return 0;
+	}
+	sb->ts_magic      = FAMFS_SUPER_MAGIC;
+
+	return __famfs_mkfs(daxdev, sb, logp, devsize);
+}
