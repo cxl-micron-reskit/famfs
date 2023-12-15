@@ -92,6 +92,7 @@ with a number of key limitations.
 * A Linux 6.5 kernel (will migrate t 6.7 soon)
 * A kernel-devel package installed (or source available from custom kernel)
 * Various additional packages that you may discover when you build
+
     Srini: when out try it out, can you send me a list of prereqs you had to install?
 
 # Getting started
@@ -100,5 +101,5 @@ To build the software:
 
     make clean all
 
-Refer oo the Famfs [Userspace repo](user/README.md) for further usage info
+Refer to the Famfs [Userspace repo](user/README.md) for further usage info
 
