@@ -2244,7 +2244,7 @@ famfs_cp(const char *srcfile,
 	rc = stat(destfile, &deststat);
 	if (!rc) {
 		fprintf(stderr, "%s: error: dest destfile (%s) exists\n", __func__, destfile);
-		return rc;
+		return -EEXIST;
 	}
 	rc = stat(srcfile, &srcstat);
 	if (rc) {
