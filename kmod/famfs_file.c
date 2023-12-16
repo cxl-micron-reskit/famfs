@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+// SPDX-License-Identifier: GPL-2.0
 /*
  * famfs - dax file system for shared fabric-attached memory
  *
@@ -73,8 +73,11 @@ fault_count_enable_store(struct kobject        *kobj,
 			 size_t                 count)
 {
 	int value;
+	int rc;
 
-	sscanf(buf, "%d", &value);
+	rc = sscanf(buf, "%d", &value);
+	if (rc != 1)
+		return 0;
 
 	if (value > 0) /* clear fault counters when enabling, but not when disabling */
 		famfs_clear_fault_counters(&ffc);
