@@ -5,10 +5,47 @@ BIN="$CWD/debug"
 SCRIPTS="$CWD/scripts"
 DEV="/dev/pmem0"
 KMOD="../kmod"
+TEST_ERRORS=1
 
-echo "CWD:     $CWD"
-echo "BIN:     $BIN"
-echo "SCRIPTS: $SCRIPTS"
+# Check if we have password-less sudi, which is required
+sudo -n true 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo "Error: password-less sudo capability is required to run smoke tests"
+fi
+# Make famfs is not mounted or loaded
+if (( $(grep -c famfs /proc/mounts) > 0)); then
+   echo "Error: famfs is mounted, and must be unmounted to run smoke tests; run scripts/teardown.sh"
+   exit -1
+fi
+if (( $(lsmod | grep -c famfs) > 0)); then
+    echo "Error: famfs kernel module must be unloaded to run smoke tests; run scripts/teardown.sh"
+    exit -1
+fi
+
+while (( $# > 0)); do
+    flag="$1"
+    shift
+    case "$flag" in
+	(-n|--noerrors)
+	    TEST_ERRORS=0
+	    shift;
+	    ;;
+	*)
+	    remainder="$flag $1";
+	    shift;
+	    while (( $# > 0)); do
+		remainder="$remainder $1"
+		shift
+	    done
+	    echo "ignoring commandline remainder: $remainder"
+	    ;;
+    esac
+done
+
+echo "CWD:         $CWD"
+echo "BIN:         $BIN"
+echo "SCRIPTS:     $SCRIPTS"
+echo "TEST_ERRORS: $TEST_ERRORS"
 
 TEST_FUNCS=$SCRIPTS/test_funcs.sh
 if [ ! -f $TEST_FUNCS ]; then
@@ -36,7 +73,9 @@ sleep 4
 ./smoke/test3.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
 sleep 4
 ./smoke/test4.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
-#sleep 4
-#./test_errors.sh || exit
+if (($TEST_ERRORS > 0)); then
+    sleep 4
+    ./smoke/test_errors.sh || exit
+fi
 #sleep 4
 #./teardown.sh
