@@ -62,9 +62,23 @@ set -x
 verify_mounted $DEV $MPT "test2.sh"
 
 ${CLI} creat -s 3g  ${MPT}/memfile       || fail "can't create memfile for multichase"
+
+# Let's count the faults during the multichase run
+sudo sh -c "echo 1 > /sys/fs/famfs/fault_count_enable"
+
 ${MULTICHASE} -d ${MPT}/memfile -m 2900m || fail "multichase fail"
 
 set +x
+echo -n "pte faults:"
+sudo cat /sys/fs/famfs/pte_fault_ct || fail "cat pte_fault_ct"
+echo
+echo -n "pmd faults: "
+sudo cat /sys/fs/famfs/pmd_fault_ct || fail "cat pmd_fault_ct"
+echo
+echo -n "pud faults: "
+sudo cat /sys/fs/famfs/pud_fault_ct || fail "cat pud_fault_ct"
+echo
+
 echo "*************************************************************************************"
 echo "Test4 (multichase) completed successfully"
 echo "*************************************************************************************"
