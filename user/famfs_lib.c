@@ -2068,6 +2068,9 @@ famfs_mkfile(const char    *filename,
 		return -EBADF;
 	}
 
+	/* If the file doesn't fit, it will be created but then unlinked
+	 * (and never logged). This is probably OK
+	 */
 	rc = famfs_file_alloc(fd, fullpath, mode, uid, gid, size, verbose);
 	if (rc) {
 		fprintf(stderr, "%s: famfs_file_alloc(%s, size=%ld) failed\n",
@@ -2223,6 +2226,19 @@ err_out:
 	return rc;
 }
 
+/**
+ * famfs_cp()
+ *
+ * Copy a file from any file system into famfs. A destination file is created and
+ * allocated, and the data is copied info it.
+ *
+ * Biggest current shortcoming is that globbing and recursion is not suported.
+ * Hopefully we'll get there soon.
+ *
+ * @srcfile
+ * @destfile
+ * @verbose
+ */
 int
 famfs_cp(const char *srcfile,
 	 const char *destfile,
@@ -2252,8 +2268,6 @@ famfs_cp(const char *srcfile,
 		return rc;
 	}
 
-	/* XXX: check wihether new file will fit! */
-
 	/*
 	 * Makefsure we can open and read the source file
 	 */
@@ -2261,11 +2275,15 @@ famfs_cp(const char *srcfile,
 	if (srcfd < 0) {
 		fprintf(stderr, "%s: unable to open srcfile (%s)\n", __func__, srcfile);
 		unlink(destfile);
-		return rc;
+		return srcfd;
 	}
 
 	destfd = famfs_mkfile(destfile, srcstat.st_mode, srcstat.st_uid,
 			      srcstat.st_gid, srcstat.st_size, verbose);
+	if (destfd < 0) {
+		fprintf(stderr, "%s: failed in famfs_mkfile\n", __func__);
+		return destfd;
+	}
 
 	destp = mmap(0, srcstat.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, destfd, 0);
 	if (destp == MAP_FAILED) {
