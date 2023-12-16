@@ -66,10 +66,8 @@ TRACE_EVENT(famfs_filemap_fault,
 #endif
 
 #undef TRACE_INCLUDE_PATH
-#define TRACE_INCLUDE_PATH /home/jmg/w/famfs/kmod
+/* FAMFS_TRACE_PATH must be provided by the Makefile in CFLAGS */
+#define TRACE_INCLUDE_PATH FAMFS_TRACE_PATH
 #define TRACE_INCLUDE_FILE famfs_trace
-
-//#warn TRACE_INCLUDE_PATH
-//#warn TRACE_INCLUDE_FILE
 
 #include <trace/define_trace.h>
