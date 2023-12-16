@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <sys/param.h> /* MIN()/MAX() */
 #include <zlib.h>
+#include <sys/file.h>
 
 #include "famfs.h"
 #include "famfs_ioctl.h"
@@ -1214,6 +1215,19 @@ famfs_log_dir_creation(
 	return famfs_append_log(logp, &le);
 }
 
+int
+famfs_release_log_lock(int fd)
+{
+	int rc;
+
+	assert(fd > 0);
+	rc = flock(fd, LOCK_UN);
+	if (rc)
+		fprintf(stderr, "%s: unlock returned an error\n", __func__);
+	close(fd);
+	return rc;
+}
+
 /**
  * __open_relpath()
  *
@@ -1243,6 +1257,7 @@ __open_relpath(
 	int         read_only,
 	size_t     *size_out,
 	char       *mpt_out,
+	enum lock_opt lockopt,
 	int         no_fscheck)
 {
 	int openmode = (read_only) ? O_RDONLY : O_RDWR;
@@ -1304,6 +1319,18 @@ __open_relpath(
 				fd = open(fullpath, openmode, 0);
 				free(rpath);
 
+				if (lockopt) {
+					int operation = LOCK_EX;
+					if (lockopt == NON_BLOCKING_LOCK)
+						operation |= LOCK_NB;
+					rc = flock(fd, operation);
+					if (rc) {
+						fprintf(stderr, "%s: failed to get lock on %s\n",
+							__func__, fullpath);
+						close(fd);
+						return -1;
+					}
+				}
 				/* Check whether the file we found is actually in famfs;
 				 * Unit tests can disable this check but production code
 				 * should not.
@@ -1344,27 +1371,30 @@ __open_log_file(
 	const char *path,
 	int         read_only,
 	size_t     *sizep,
-	char       *mpt_out)
+	char       *mpt_out,
+	enum lock_opt lockopt)
 {
-	return __open_relpath(path, LOG_FILE_RELPATH, read_only, sizep, mpt_out, 0);
+	return __open_relpath(path, LOG_FILE_RELPATH, read_only, sizep, mpt_out, lockopt, 0);
 }
 
 int
 open_log_file_read_only(
 	const char *path,
 	size_t     *sizep,
-	char       *mpt_out)
+	char       *mpt_out,
+	enum lock_opt lockopt)
 {
-	return __open_log_file(path, 1, sizep, mpt_out);
+	return __open_log_file(path, 1, sizep, mpt_out, lockopt);
 }
 
 static int
 open_log_file_writable(
 	const char *path,
 	size_t     *sizep,
-	char       *mpt_out)
+	char       *mpt_out,
+	enum lock_opt lockopt)
 {
-	return __open_log_file(path, 0, sizep, mpt_out);
+	return __open_log_file(path, 0, sizep, mpt_out, lockopt);
 }
 
 static int
@@ -1374,7 +1404,8 @@ __open_superblock_file(
 	size_t     *sizep,
 	char       *mpt_out)
 {
-	return __open_relpath(path, SB_FILE_RELPATH, read_only, sizep, mpt_out, 0);
+	/* No need to plumb locking for the superblock; use the log for locking */
+	return __open_relpath(path, SB_FILE_RELPATH, read_only, sizep, mpt_out, NO_LOCK, 0);
 }
 
 static int
@@ -1426,7 +1457,8 @@ famfs_map_superblock_by_path(
 static struct famfs_log *
 famfs_map_log_by_path(
 	const char *path,
-	int         read_only)
+	int         read_only,
+	enum lock_opt lockopt)
 {
 	struct famfs_log *logp;
 	int prot = (read_only) ? PROT_READ : PROT_READ | PROT_WRITE;
@@ -1434,7 +1466,7 @@ famfs_map_log_by_path(
 	void *addr;
 	int fd;
 
-	fd = __open_log_file(path, 1 /* read only */, &log_size, NULL);
+	fd = __open_log_file(path, 1 /* read only */, &log_size, NULL, lockopt);
 	if (fd < 0) {
 		fprintf(stderr, "%s: failed to open log file for filesystem %s\n",
 			__func__, path);
@@ -1525,7 +1557,7 @@ famfs_fsck(
 				return -1;
 			}
 
-			logp = famfs_map_log_by_path(path, 1 /* read only */);
+			logp = famfs_map_log_by_path(path, 1 /* read only */, NO_LOCK );
 			if (!logp) {
 				fprintf(stderr, "%s: failed to map log from file %s\n",
 					__func__, path);
@@ -1567,7 +1599,7 @@ famfs_fsck(
 			}
 			close(sfd);
 
-			lfd = open_log_file_read_only(path, NULL, NULL);
+			lfd = open_log_file_read_only(path, NULL, NULL, NO_LOCK);
 			if (lfd < 0) {
 				free(sb);
 				close(sfd);
@@ -1875,6 +1907,10 @@ famfs_alloc_bypath(
  *
  * Alllocate space for a file, making it ready to use
  *
+ * Caller has already done the following:
+ * * Verify that master role via the superblock
+ * * Create the stub of the new file and verify that it is in a famfs file system
+ *
  * @fd
  * @path - full path of file to allocate
  * @mode -
@@ -1905,8 +1941,9 @@ famfs_file_alloc(
 	assert(fd > 0);
 
 	rpath = realpath(path, NULL);
+
 	/* Log file */
-	lfd = open_log_file_writable(rpath, &log_size, mpt);
+	lfd = open_log_file_writable(rpath, &log_size, mpt, BLOCKING_LOCK);
 	if (lfd < 0) {
 		/* If we can't open the log file for writing, don't allocate */
 		free(rpath);
@@ -1919,8 +1956,6 @@ famfs_file_alloc(
 		close(lfd);
 		return -1;
 	}
-	close(lfd);
-	lfd = 0;
 	logp = (struct famfs_log *)addr;
 
 	/* For the log, we need the path relative to the mount point.
@@ -1944,6 +1979,10 @@ famfs_file_alloc(
 				     relpath, mode, uid, gid, size);
 	if (rc)
 		goto out;
+
+	/* Now we can release the log lock - space has been allocated and logged */
+	famfs_release_log_lock(lfd); /* ignore errors, nothing to do */
+	lfd = 0;
 
 	rc =  famfs_file_map_create(path, fd, size, 1, &ext, FAMFS_REG);
 out:
@@ -2193,15 +2232,13 @@ famfs_mkdir(
 	 * For this operation we need to open the log file, which also gets us
 	 * the mount point path
 	 */
-	lfd  = open_log_file_writable(realparent, &log_size, mpt_out);
+	lfd  = open_log_file_writable(realparent, &log_size, mpt_out, BLOCKING_LOCK);
 	addr = mmap(0, log_size, PROT_READ | PROT_WRITE, MAP_SHARED, lfd, 0);
 	if (addr == MAP_FAILED) {
 		fprintf(stderr, "%s: Failed to mmap log file\n", __func__);
 		rc = -1;
 		goto err_out;
 	}
-	close(lfd);
-	lfd  = 0;
 	logp = (struct famfs_log *)addr;
 
 	printf("%s: creating directory %s\n", __func__, fullpath);
@@ -2216,6 +2253,8 @@ famfs_mkdir(
 
 	/* log dir creation */
 	rc = famfs_log_dir_creation(logp, relpath, mode, uid, gid);
+
+	famfs_release_log_lock(lfd);
 
 err_out:
 	if (dirdupe)
@@ -2416,15 +2455,13 @@ famfs_clone(const char *srcfile,
 	 * For this operation we need to open the log file, which also gets us
 	 * the mount point path
 	 */
-	lfd = open_log_file_writable(srcfullpath, &log_size, mpt_out);
+	lfd = open_log_file_writable(srcfullpath, &log_size, mpt_out, BLOCKING_LOCK);
 	addr = mmap(0, log_size, PROT_READ | PROT_WRITE, MAP_SHARED, lfd, 0);
 	if (addr == MAP_FAILED) {
 		fprintf(stderr, "%s: Failed to mmap log file\n", __func__);
 		rc = -1;
 		goto err_out;
 	}
-	close(lfd);
-	lfd = 0;
 	logp = (struct famfs_log *)addr;
 
 	/* Create the destination file. This will be unlinked later if we don't get all
@@ -2484,6 +2521,9 @@ famfs_clone(const char *srcfile,
 		unlink(destfullpath);
 		goto err_out;
 	}
+
+	famfs_release_log_lock(lfd);
+	lfd = 0;
 	/***************/
 
 	close(rc);

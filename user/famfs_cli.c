@@ -178,7 +178,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	}
 	fspath = argv[optind++];
 
-	lfd = open_log_file_read_only(fspath, &log_size, mpt_out);
+	lfd = open_log_file_read_only(fspath, &log_size, mpt_out, NO_LOCK);
 	if (lfd < 0) {
 		fprintf(stderr, "%s: failed to open log file for filesystem %s\n",
 			__func__, fspath);

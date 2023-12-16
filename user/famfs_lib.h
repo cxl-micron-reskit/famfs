@@ -11,7 +11,14 @@
 #define SB_FILE_RELPATH    ".meta/.superblock"
 #define LOG_FILE_RELPATH   ".meta/.log"
 
-int open_log_file_read_only(const char *path, size_t *sizep, char *mpt_out);
+enum lock_opt {
+	NO_LOCK = 0,
+	BLOCKING_LOCK,
+	NON_BLOCKING_LOCK,
+};
+
+
+int open_log_file_read_only(const char *path, size_t *sizep, char *mpt_out, enum lock_opt lo);
 void *mmap_whole_file(const char *fname, int read_only, size_t *sizep);
 
 extern int famfs_get_device_size(const char *fname, size_t *size, enum extent_type *type);
