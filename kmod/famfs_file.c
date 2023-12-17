@@ -582,17 +582,6 @@ famfs_file_ioctl(
 	return rc;
 }
 
-static unsigned long
-famfs_mmu_get_unmapped_area(
-	struct file    *file,
-	unsigned long   addr,
-	unsigned long   len,
-	unsigned long   pgoff,
-	unsigned long   flags)
-{
-	return current->mm->get_unmapped_area(file, addr, len, pgoff, flags);
-}
-
 const char *
 famfs_get_iov_iter_type(struct iov_iter *iovi)
 {
@@ -781,7 +770,7 @@ const struct file_operations famfs_file_operations = {
 	/* Custom famfs operations */
 	.write_iter	   = famfs_dax_write_iter,
 	.read_iter	   = famfs_dax_read_iter,
-	.get_unmapped_area = famfs_mmu_get_unmapped_area,
+	.get_unmapped_area = thp_get_unmapped_area, /* thp will guarantee huge page alignment */
 	.unlocked_ioctl    = famfs_file_ioctl,
 	.mmap		   = famfs_file_mmap,
 
