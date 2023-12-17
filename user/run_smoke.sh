@@ -76,6 +76,8 @@ sleep 4
 if (($TEST_ERRORS > 0)); then
     sleep 4
     ./smoke/test_errors.sh || exit
+else
+    echo "skipping test_errors.sh because -n|--noerrors was specified"
 fi
 #sleep 4
-#./teardown.sh
+#./scripts/teardown.sh
