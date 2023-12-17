@@ -56,7 +56,7 @@ module_param(famfs_verbose, int, 0660);
  * /sys/fs/famfs/
  */
 struct famfs_fault_counters ffc;
-static int fault_count_enable = 1;
+static int fault_count_enable;
 
 static ssize_t
 fault_count_enable_show(struct kobject *kobj,
