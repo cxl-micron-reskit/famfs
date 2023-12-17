@@ -5,10 +5,12 @@ TODO Features
 * Big
 ** TODO get char read/write working
 ** TODO some more stressful automated tests
-** TODO move most of mkfs into famfs_lib.c, so more funcs can be static
-** TODO Get tracepoint(s) working so we can verify huge page faults (PMD)
+** DONE move most of mkfs into famfs_lib.c, so more funcs can be static
+** DONE Get tracepoint(s) working so we can verify huge page faults (PMD)
 
 * Known bugs
+** TODO fix famfs so faults are always (or almost always) 2MiB at a time
+This is essential for high performance
 ** TODO Char device not cleaned up properly on umount
 ** TODO famfs creat: fails with large files (>4G seems to fail)
 ** DONE the 'tagfs creat' invocations in test0.sh have 000 permissions
@@ -37,7 +39,7 @@ Invalidate header and entire log before reading
 ** TODO Review: make sure no writable opens to SB and log happen until role verified
 This is certainly not true yet.
 * Properly serialize allocating and log append
-** TODO Use flock spanning alloc, init and log append
+** DONE Use flock spanning alloc, init and log append
 ** TODO Correct procedure for log append
 1. Alloc log space
 2. Append log
@@ -52,15 +54,15 @@ This is certainly not true yet.
 
 * Log / Logplay
 ** DONE Do an mmap-based logplay for /dev/dax benchmarking
-** TODO files on clients should default to read-only
+** DONE files on clients should default to read-only
 ** DONE Add a crc to log entries
 ** DONE Add a crc to log header
 ** DONE Logplay: check seq numbers
 ** DONE Logplay: check crc on entries
-** TODO famfs logplay: enforce superblock rules
+** DONE famfs logplay: enforce superblock rules
 ** TODO All log opens; do read-only first, and only open writable on the master
-** TODO famfs_log_append: check host_uuid to see if I'm the master
-fail any log writing if not the master
+** DONE famfs_log_append: check host_uuid to see if I'm the master
+fail any log writing if not the master (done, but a bit differently
 
 * fsck, etc.
 ** DONE (bug) on 1T device, famfs thinks it's full way too soon
@@ -76,7 +78,7 @@ Had some regular ints where I needed U64's
 * file operations
 ** TODO famfs mv: rename can work
 ...but only of logplay looks ahead for renames!!
-** TODO files on clients should default to read-only
+** DONE files on clients should default to read-only
 ** TODO famfs cp: semantics like real cp
 *** TODO famfs cp: if multiple sources and target is dir, use basenames on dest files
 do globbing; last arg must be directory if there are more than 2 args. if last arg is dir,
