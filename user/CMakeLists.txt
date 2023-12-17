@@ -63,3 +63,20 @@ ExternalProject_Add(multichase
 )
 
 message("multichase: ${CMAKE_CURRENT_BINARY_DIR}")
+
+#
+# Installation
+#
+install(TARGETS famfs DESTINATION /usr/local/bin)
+install(TARGETS mkfs.famfs DESTINATION /usr/local/bin)
+
+#Install library and header files? Maybe later...
+
+#install(TARGETS libfamfs DESTINATION /usr/local/lib)
+#install(FILES famfs_llib.h DESTINATION /usr/local/include)
+
+#Install man pages? Heck yeah, as soon as we have some...
+
+# You can also install documentation or man pages
+#install(FILES README.md DESTINATION /usr/local/share/doc/my_project)
+#install(FILES famfs.1 DESTINATION /usr/local/share/man/man1)
