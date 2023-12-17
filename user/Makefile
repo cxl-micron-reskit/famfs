@@ -16,8 +16,13 @@ clean:
 install:
 	cd debug; sudo make install
 
+# Run the unit tests
 test:
 	sudo rm -rf /tmp/famfs
 	cd debug; sudo ctest --output-on-failure
 
-.PHONY:	test
+# Run the smoke tests
+smoke:
+	./run_smoke.sh
+
+.PHONY:	test smoke
