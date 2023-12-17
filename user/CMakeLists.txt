@@ -53,3 +53,17 @@ enable_testing()
 add_subdirectory(testlib)
 add_subdirectory(test)
 
+include(ExternalProject)
+
+ExternalProject_Add(multichase
+  PREFIX "${CMAKE_CURRENT_BINARY_DIR}"
+  GIT_REPOSITORY "https://github.com/jagalactic/multichase.git"
+  GIT_TAG dax
+  UPDATE_COMMAND ""
+  BUILD_IN_SOURCE 1
+  CONFIGURE_COMMAND   echo "Empty configure step for jtrace ${CMAKE_CURRENT_BINARY_DIR}"
+  BUILD_COMMAND make clean all
+  INSTALL_COMMAND ""
+)
+
+message("multichase: ${CMAKE_CURRENT_BINARY_DIR}")

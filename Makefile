@@ -1,9 +1,5 @@
 
-multichase:
-	git clone https://github.com/jagalactic/multichase.git
-	cd multichase; make all
-
-all:	multichase FORCE
+all:	FORCE
 	cd kmod; make all
 	mkdir -p user/debug
 	cd user/debug; cmake -DCMAKE_BUILD_TYPE=Debug ..; make
