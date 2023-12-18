@@ -919,7 +919,7 @@ famfs_filemap_fault(
 		pr_notice("%s pgoff %ld\n", __func__, vmf->pgoff);
 
 	/* DAX can shortcut the normal fault path on write faults! */
-	return __famfs_filemap_fault(vmf, PE_SIZE_PTE,
+	return __famfs_filemap_fault(vmf, 0,
 			IS_DAX(file_inode(vmf->vma->vm_file)) && famfs_is_write_fault(vmf));
 }
 
@@ -948,7 +948,7 @@ famfs_filemap_page_mkwrite(
 	if (famfs_verbose)
 		pr_notice("%s\n", __func__);
 
-	return __famfs_filemap_fault(vmf, PE_SIZE_PTE, true);
+	return __famfs_filemap_fault(vmf, 0, true);
 }
 
 /*
@@ -963,7 +963,7 @@ famfs_filemap_pfn_mkwrite(
 	if (famfs_verbose)
 		pr_info("%s\n", __func__);
 
-	return __famfs_filemap_fault(vmf, PE_SIZE_PTE, true);
+	return __famfs_filemap_fault(vmf, 0, true);
 }
 
 static vm_fault_t
