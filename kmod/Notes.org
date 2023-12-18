@@ -66,21 +66,6 @@ Kmod does not need to read superblock. Userspace handles that.
 * DONE Superblock needs a UUID
 * TODO Each file creation log entry needs a UUID (i.e. a file UUID)
 
-** interesting Idea:
-*** Append-only allocation log
-Only used by owner; can make allocations durable long before files get committed.
-And allocations can be freed prior to file commit.
-
-Issue: can I guarantee freeing of space for uncommitted files? If files have UUIDs and
-allocation entries reference the file UUID, we can scan the main log and the allocation log and
-free any allocations that reference UUIDs that are not assoociated with files. File creation
-would have to be totally embargoed during this process.
-
-*** Main log gets file creation entries when committed
-
-
-** DONE Scan log and create allocation bitmap
-All allocations work this way now (except the explicit ones via tagfs creat)
 ** TODO Scan all files and create allocation bitmap
 Do this by scanning files rather than scanning log. Maybe even compare to log-based
 bitmap
@@ -110,6 +95,37 @@ If verbose, list each file that has (-v) over 2MiB of space amp (-vv) any space 
 This would be files that were not created through the proper procedure. Need to figure out
 the right way to do this.
 ** TODO tagfs setmode
+
+
+* char dax debug
+
+copy fails somehow in dax_copy_to_iter, return 0 copied (and -EFAULT)
+    _copy_mc_to_iter()
+kernel wedges in
+
+dax_iomap_rw()
+    dax_iomap_iter()
+        dax_direct_access()
+
+Because: dax_dev->ops->direct access points to dax_direct_access() (which thus calls itself)
+-> so /dev/dax dax_operations need to be comparable to:
+    static const struct dax_operations pmem_dax_ops = {
+	.direct_access = pmem_dax_direct_access,
+	.zero_page_range = pmem_dax_zero_page_range,
+	.recovery_write = pmem_recovery_write,
+    };
+(from drivers/nvimm/pmem.c)
+
+breakpoints:
+
+b famfs_dax_read_iter
+b famfs_iomap_begin
+b dax_iomap_rw
+b dax_iomap_fault
+b dax_iomap_iter
+
+struct dax_device - drivers/dax/super.c (usually dax_dev->)
+struct dev_dax - drivers/dax/dax-private.c (dev_dax->dax_dev points to dax_device)
 
 
 * Page fault debug plan
