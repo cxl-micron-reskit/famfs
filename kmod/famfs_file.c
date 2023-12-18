@@ -770,9 +770,18 @@ const struct file_operations famfs_file_operations = {
 	/* Custom famfs operations */
 	.write_iter	   = famfs_dax_write_iter,
 	.read_iter	   = famfs_dax_read_iter,
-	.get_unmapped_area = thp_get_unmapped_area, /* thp will guarantee huge page alignment */
 	.unlocked_ioctl    = famfs_file_ioctl,
 	.mmap		   = famfs_file_mmap,
+
+	/*
+	 * Note: drivers/dax/device.c:dax_get_unmapped_area() is a pattern
+	 * that would support 1GiB pages. This would make sense if the allocation unit
+	 * could be set to 1GiB
+	 */
+	.get_unmapped_area = thp_get_unmapped_area, /* thp_get_unmapped_area() will guarantee
+						     * PMD page alignment, which guarantees PMD
+						     * faults (rather than PTE) in most cases
+						     */
 
 	/* Generic Operations */
 	.fsync		   = noop_fsync, /* TODO: could to wbinv on range :-/ */
