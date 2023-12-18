@@ -298,10 +298,6 @@ static const struct dax_operations famfs_dax_ops = {
 
 /**************************************************************************************/
 
-#if 0
-int add_dax_ops(struct dax_device *dax_dev,
-		const struct dax_operations *ops);
-#endif
 
 static int
 famfs_open_char_device(
@@ -363,7 +359,7 @@ famfs_open_char_device(
 	 */
 	rc = add_dax_ops(dax_devp, &famfs_dax_holder_ops);
 	if (rc) {
-		pr_info("%s: err attaching famfs_dax_ops\n", __func__);
+		pr_info("%s: err attaching famfs_dax_holder_ops\n", __func__);
 		goto char_err;
 	}
 
