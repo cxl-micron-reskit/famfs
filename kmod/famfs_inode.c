@@ -55,12 +55,21 @@ struct inode *famfs_get_inode(
 	struct inode *inode = new_inode(sb);
 
 	if (inode) {
+#ifdef K67
+		struct timespec64       tv;
+#endif
 		inode->i_ino = get_next_ino();
 		inode_init_owner(&nop_mnt_idmap, inode, dir, mode);
 		inode->i_mapping->a_ops = &ram_aops;
 		mapping_set_gfp_mask(inode->i_mapping, GFP_HIGHUSER);
 		mapping_set_unevictable(inode->i_mapping);
+#ifdef K67
+		tv = inode_set_ctime_current(inode);
+		inode_set_mtime_to_ts(inode, tv);
+		inode_set_atime_to_ts(inode, tv);
+#else
 		inode->i_atime = inode->i_mtime = inode->i_ctime = current_time(inode);
+#endif
 		switch (mode & S_IFMT) {
 		default:
 			init_special_inode(inode, mode, dev);
@@ -101,10 +110,19 @@ famfs_mknod(
 	int error           = -ENOSPC;
 
 	if (inode) {
+#ifdef K67
+		struct timespec64       tv;
+#endif
 		d_instantiate(dentry, inode);
 		dget(dentry);	/* Extra count - pin the dentry in core */
 		error = 0;
+#ifdef K67
+		tv = inode_set_ctime_current(inode);
+		inode_set_mtime_to_ts(inode, tv);
+		inode_set_atime_to_ts(inode, tv);
+#else
 		dir->i_mtime = dir->i_ctime = current_time(dir);
+#endif
 	}
 	return error;
 }
@@ -148,9 +166,19 @@ static int famfs_symlink(
 
 		error = page_symlink(inode, symname, l);
 		if (!error) {
+#ifdef K67
+			struct timespec64       tv;
+#endif
+
 			d_instantiate(dentry, inode);
 			dget(dentry);
+#ifdef K67
+			tv = inode_set_ctime_current(inode);
+			inode_set_mtime_to_ts(inode, tv);
+			inode_set_atime_to_ts(inode, tv);
+#else
 			dir->i_mtime = dir->i_ctime = current_time(dir);
+#endif
 		} else
 			iput(inode);
 	}
@@ -387,6 +415,7 @@ famfs_open_char_device(
 
 #endif /* CONFIG_DEV_DAX_IOMAP */
 
+#ifndef K67
 static void
 famfs_bdev_mark_dead(
        struct block_device     *bdev)
@@ -399,6 +428,7 @@ famfs_bdev_mark_dead(
 static const struct blk_holder_ops famfs_blk_holder_ops = {
 	.mark_dead  = famfs_bdev_mark_dead,
 };
+#endif
 
 /*
  * For block dax
@@ -447,6 +477,7 @@ famfs_open_device(
 		return -EINVAL;
 	}
 
+#ifndef K67
 	/* Open block/dax backing device */
 	bdevp = blkdev_get_by_path(fc->source, famfs_blkdev_mode, fsi,
 				   &famfs_blk_holder_ops);
@@ -463,7 +494,10 @@ famfs_open_device(
 		blkdev_put(bdevp, fsi);
 		return -ENODEV;
 	}
-
+#else
+	#warning "blkdev not opened - bdevp invalid"
+	/* JG: blkdev_get_by_path went away; look what xfs does instead... */
+#endif
 	fsi->bdevp    = bdevp;
 	fsi->dax_devp = dax_devp;
 
