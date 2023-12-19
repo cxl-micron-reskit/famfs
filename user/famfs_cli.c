@@ -423,7 +423,6 @@ famfs_cp_usage(int   argc,
 int
 do_famfs_cli_cp(int argc, char *argv[])
 {
-	int i;
 	int c, rc;
 	int arg_ct = 0;
 	char *srcfile;
@@ -488,22 +487,17 @@ do_famfs_cli_cp(int argc, char *argv[])
 		fprintf(stderr, "%s: source nd destination args are required\n", __func__);
 		return -1;
 	}
-	if (remaining_args > 2) {
-		fprintf(stderr, "%s: too many args; only support source and destination files\n",
-			__func__);
-		printf("args: ");
-		for (i = optind; i < argc; i++)
-			printf("%s ", argv[i]);
+	else if (remaining_args == 2) {
+		srcfile = argv[optind++];
+		destfile = argv[optind++];
 
-		printf("\n");
-		return -1;
+		rc = famfs_cp(srcfile, destfile, verbose);
+		printf("famfs_cp returned %d\n", rc);
+		return rc;
 	}
-	srcfile = argv[optind++];
-	destfile = argv[optind++];
 
-	rc = famfs_cp(srcfile, destfile, verbose);
-	printf("famfs_cp returned %d\n", rc);
-	return rc;
+	/* famfs_cp_multi() will consume the rest of the command line */
+	return famfs_cp_multi(argc - optind, &argv[optind], verbose);
 }
 
 

@@ -105,7 +105,7 @@ ${CLI} mkdir $MPT/subdir && fail "creating existing subdir should fail"
 ${CLI} mkdir $MPT/$F && fail "mkdir that collides with existing file should fail"
 
 #
-# mkdir to relath
+# mkdir to relpath
 #
 cd ${MPT}
 ${CLI} mkdir foo || fail "mkdir relpath"
@@ -114,7 +114,6 @@ ${CLI} mkdir foo/foo/./bar || fail "mkdir relpath 3"
 ${CLI} mkdir ./foo/foo//bar/baz || fail "mkdir relpath 4"
 ${CLI} mkdir ./foo/./foo//bar/baz && fail "mkdir relpath exists should fail"
 cd -
-
 
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp0      || fail "cp0 $F"
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp1      || fail "cp1 $F"
@@ -165,6 +164,48 @@ ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp6 || fail "verify ${F}_cp6"
 ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp7 || fail "verify ${F}_cp7"
 ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp8 || fail "verify ${F}_cp8"
 ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp9 || fail "verify ${F}_cp9"
+
+#
+# Cp wildcard to directory
+#
+${CLI} cp $MPT/subdir/* $MPT/dirtarg || fail "cp wildcard set to directory should succeed"
+# Verify files from wildcard cp
+${CLI} verify -S 42 -f $MPT/dirtarg/${F}_cp0 || fail "verify wildcard ${F}_cp0"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F}_cp1 || fail "verify wildcard ${F}_cp1"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F}_cp2 || fail "verify wildcard ${F}_cp2"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F}_cp3 || fail "verify wildcard ${F}_cp3"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F}_cp4 || fail "verify wildcard ${F}_cp4"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F}_cp5 || fail "verify wildcard ${F}_cp5"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F}_cp6 || fail "verify wildcard ${F}_cp6"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F}_cp7 || fail "verify wildcard ${F}_cp7"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F}_cp8 || fail "verify wildcard ${F}_cp8"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F}_cp9 || fail "verify wildcard ${F}_cp9"
+
+
+${CLI} mkdir $MPT/dirtarg2 || fail "failed to create dirtarg2"
+# This directory wil cause cp * from dirtarg/ to return non-zero since it
+# can't copy the directory
+${CLI} mkdir $MPT/dirtarg/foo || fail "failed to create dir foo"
+
+#
+# This wildcard copy is also via relative paths
+#
+cd $MPT
+${CLI} cp dirtarg/* dirtarg2 && fail "cp wildcard should succeed but return nonzero when there is a directory that matches the wildcard"
+cd -
+
+# Should still be able to verify the files in dirtarg2
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F}_cp0 || fail "verify wildcard 2 ${F}_cp0"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F}_cp1 || fail "verify wildcard 2 ${F}_cp1"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F}_cp2 || fail "verify wildcard 2 ${F}_cp2"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F}_cp3 || fail "verify wildcard 2 ${F}_cp3"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F}_cp4 || fail "verify wildcard 2 ${F}_cp4"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F}_cp5 || fail "verify wildcard 2 ${F}_cp5"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F}_cp6 || fail "verify wildcard 2 ${F}_cp6"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F}_cp7 || fail "verify wildcard 2 ${F}_cp7"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F}_cp8 || fail "verify wildcard 2 ${F}_cp8"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F}_cp9 || fail "verify wildcard 2 ${F}_cp9"
+
 
 ${CLI} fsck $MPT || fail "fsck should succeed"
 ${CLI} fsck -v $MPT || fail "fsck should succeed"

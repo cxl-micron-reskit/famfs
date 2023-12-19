@@ -41,6 +41,7 @@ int famfs_logplay(const struct famfs_log *logp, const char *mpt, int dry_run, in
 int famfs_mkfile(const char *filename, mode_t mode, uid_t uid, gid_t gid, size_t size, int verbose);
 
 int famfs_cp(const char *srcfile, const char *destfile, int verbose);
+int famfs_cp_multi(int argc, char *argv[], int verbose);
 int famfs_clone(const char *srcfile, const char *destfile, int verbose);
 
 int famfs_mkdir(const char *dirpath, mode_t mode, uid_t uid, gid_t gid);

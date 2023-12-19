@@ -2278,9 +2278,7 @@ __famfs_cp(const char *srcfile,
 	   const char *destfile,
 	   int   verbose)
 {
-	char actual_destfile[PATH_MAX] = { 0 };
 	struct stat srcstat;
-	struct stat deststat;
 	int rc, srcfd, destfd;
 	char *destp;
 
@@ -2421,6 +2419,45 @@ famfs_cp(const char *srcfile,
 
 	return __famfs_cp(srcfile, actual_destfile, verbose);
 }
+
+/**
+ * famfs_cp_multi()
+ *
+ * Copy multiple files from anywhere to famfs
+ *
+ * @argc    - number of args
+ * @argv    - array of args
+ * @verbose -
+ *
+ * Rules:
+ * * Last arg must be a directory
+ * * Files will be copied to their basename in the last-arg directory
+ * * Any directories before the last arg will skipped (until we have 'cp -r' implemented
+ * * Everything that can be copied according to these rules will be copied
+ *
+ * Return value:
+ * * 0 if everything succeeded
+ * * non-zero if anything failed
+ */
+int
+famfs_cp_multi(int argc, char *argv[], int verbose)
+{
+	char *dest = argv[argc - 1];
+	int src_argc = argc - 1;
+	int err = 0;
+	int rc;
+	int i;
+
+	for (i = 0; i < src_argc; i++) {
+		rc = famfs_cp(argv[i], dest, verbose);
+		if (rc)
+			err = 1; /* if anything failed, return 1 */
+
+		/* cp continues even if some files were not copied */
+	}
+	return err;
+}
+
 /**
  * famfs_clone()
  *
