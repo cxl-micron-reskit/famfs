@@ -2260,7 +2260,7 @@ err_out:
 }
 
 /**
- * famfs_cp()
+ * __famfs_cp()
  *
  * Copy a file from any file system into famfs. A destination file is created and
  * allocated, and the data is copied info it.
@@ -2268,14 +2268,15 @@ err_out:
  * Biggest current shortcoming is that globbing and recursion is not suported.
  * Hopefully we'll get there soon.
  *
- * @srcfile
- * @destfile
+ * @srcfile  - must exist and be a regular file
+ * @destfile - must not exist (and will be a regular file). If @destfile does not fall
+ *             within a famfs file system, we will clean up and fail
  * @verbose
  */
-int
-famfs_cp(const char *srcfile,
-	 const char *destfile,
-	 int   verbose)
+static int
+__famfs_cp(const char *srcfile,
+	   const char *destfile,
+	   int   verbose)
 {
 	char actual_destfile[PATH_MAX] = { 0 };
 	struct stat srcstat;
@@ -2286,44 +2287,7 @@ famfs_cp(const char *srcfile,
 	size_t chunksize, remainder, offset;
 	ssize_t bytes;
 
-	/**
-	 * Check the destination file first, since that is constrained in several ways:
-	 * * Dest must be in a famfs file system
-	 * * Dest must not exist already
-	 */
-	rc = stat(destfile, &deststat);
-	if (!rc) {
-		switch (deststat.st_mode & S_IFMT) {
-		case S_IFDIR: {
-			char destpath[PATH_MAX];
-			char src[PATH_MAX];
-
-			/* Destination is directory;  get the realpath and append the basename
-			 * from the source */
-			if (realpath(destfile, destpath) == 0) {
-				fprintf(stderr, "%s: failed to rationalize destath path (%s)\n",
-					__func__, destfile);
-				return 1;
-			}
-			strncpy(src, srcfile, PATH_MAX - 1);
-			snprintf(destpath, PATH_MAX - 1, "%s/%s", destfile, basename(src));
-			strncpy(actual_destfile, destpath, PATH_MAX - 1);
-			break;
-		}
-		case S_IFREG:
-			strncpy(actual_destfile, destfile, PATH_MAX - 1);
-			break;
-		default:
-			fprintf(stderr,
-				"%s: error: dest destfile (%s) exists and is not a directoory\n",
-				__func__, destfile);
-			return -EEXIST;
-		}
-	}
-	else {
-		strncpy(actual_destfile, destfile, PATH_MAX - 1);
-	}
-
+	/* Validate source file */
 	rc = stat(srcfile, &srcstat);
 	if (rc) {
 		fprintf(stderr, "%s: unable to stat srcfile (%s)\n", __func__, srcfile);
@@ -2357,7 +2321,12 @@ famfs_cp(const char *srcfile,
 		return srcfd;
 	}
 
-	destfd = famfs_mkfile(actual_destfile, srcstat.st_mode, srcstat.st_uid,
+	/* XXX famfs_mkfile() calls famfs_file_alloc()
+	 * famfs_file_alloc() allocates and logs the file under log lock
+	 * but this function copies the data into the file after the log lock is released
+	 * Need a way of holding the lock until the data is copied.
+	 */
+	destfd = famfs_mkfile(destfile, srcstat.st_mode, srcstat.st_uid,
 			      srcstat.st_gid, srcstat.st_size, verbose);
 	if (destfd < 0) {
 		fprintf(stderr, "%s: failed in famfs_mkfile\n", __func__);
@@ -2367,7 +2336,7 @@ famfs_cp(const char *srcfile,
 	destp = mmap(0, srcstat.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, destfd, 0);
 	if (destp == MAP_FAILED) {
 		fprintf(stderr, "%s: dest mmap failed\n", __func__);
-		unlink(actual_destfile);
+		unlink(destfile);
 		return -1; /* XXX */
 	}
 
@@ -2403,6 +2372,55 @@ famfs_cp(const char *srcfile,
 	return 0;
 }
 
+int
+famfs_cp(const char *srcfile,
+	 const char *destfile,
+	 int   verbose)
+{
+	char actual_destfile[PATH_MAX] = { 0 };
+	struct stat deststat;
+	int rc;
+
+	/* Figure out what the destination is; possibilities:
+	 *
+	 * * A non-existing path whose parent directory is in famfs
+	 * * An existing path do a directory in famfs
+	 */
+	rc = stat(destfile, &deststat);
+	if (!rc) {
+		switch (deststat.st_mode & S_IFMT) {
+		case S_IFDIR: {
+			char destpath[PATH_MAX];
+			char src[PATH_MAX];
+
+			/* Destination is directory;  get the realpath and append the basename
+			 * from the source */
+			if (realpath(destfile, destpath) == 0) {
+				fprintf(stderr, "%s: failed to rationalize destath path (%s)\n",
+					__func__, destfile);
+				return 1;
+			}
+			strncpy(src, srcfile, PATH_MAX - 1);
+			snprintf(destpath, PATH_MAX - 1, "%s/%s", destfile, basename(src));
+			strncpy(actual_destfile, destpath, PATH_MAX - 1);
+			break;
+		}
+		default:
+			fprintf(stderr,
+				"%s: error: destination file (%s) exists and is not a directory\n",
+				__func__, destfile);
+			return -EEXIST;
+		}
+	}
+	else {
+		/* File does not exist;
+		 * the check whether it is in famfs will happen after the file is created
+		 */
+		strncpy(actual_destfile, destfile, PATH_MAX - 1);
+	}
+
+	return __famfs_cp(srcfile, actual_destfile, verbose);
+}
 /**
  * famfs_clone()
  *
