@@ -423,11 +423,13 @@ famfs_cp_usage(int   argc,
 int
 do_famfs_cli_cp(int argc, char *argv[])
 {
+	int i;
 	int c, rc;
 	int arg_ct = 0;
 	char *srcfile;
 	char *destfile;
 	int verbose = 0;
+	int remaining_args;
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option cp_options[] = {
@@ -479,12 +481,29 @@ do_famfs_cli_cp(int argc, char *argv[])
 		}
 	}
 
+	remaining_args = argc - optind;
+	printf("Remaining args: %d\n", remaining_args);
+
+	if (remaining_args < 2) {
+		fprintf(stderr, "%s: source nd destination args are required\n", __func__);
+		return -1;
+	}
+	if (remaining_args > 2) {
+		fprintf(stderr, "%s: too many args; only support source and destination files\n",
+			__func__);
+		printf("args: ");
+		for (i = optind; i < argc; i++)
+			printf("%s ", argv[i]);
+
+		printf("\n");
+		return -1;
+	}
 	srcfile = argv[optind++];
 	destfile = argv[optind++];
 
 	rc = famfs_cp(srcfile, destfile, verbose);
 	printf("famfs_cp returned %d\n", rc);
-	return 0;
+	return rc;
 }
 
 

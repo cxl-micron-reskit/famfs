@@ -2283,6 +2283,7 @@ famfs_cp(const char *srcfile,
 	 const char *destfile,
 	 int   verbose)
 {
+	char actual_destfile[PATH_MAX] = { 0 };
 	struct stat srcstat;
 	struct stat deststat;
 	int rc, srcfd, destfd;
@@ -2298,26 +2299,71 @@ famfs_cp(const char *srcfile,
 	 */
 	rc = stat(destfile, &deststat);
 	if (!rc) {
-		fprintf(stderr, "%s: error: dest destfile (%s) exists\n", __func__, destfile);
-		return -EEXIST;
+		switch (deststat.st_mode & S_IFMT) {
+		case S_IFDIR: {
+			char destpath[PATH_MAX];
+			char src[PATH_MAX];
+
+			/* Destination is directory;  get the realpath and append the basename
+			 * from the source */
+			if (realpath(destfile, destpath) == 0) {
+				fprintf(stderr, "%s: failed to rationalize destath path (%s)\n",
+					__func__, destfile);
+				return 1;
+			}
+			strncpy(src, srcfile, PATH_MAX - 1);
+			snprintf(destpath, PATH_MAX - 1, "%s/%s", destfile, basename(src));
+			strncpy(actual_destfile, destpath, PATH_MAX - 1);
+			break;
+		}
+		case S_IFREG:
+			strncpy(actual_destfile, destfile, PATH_MAX - 1);
+			break;
+		default:
+			fprintf(stderr,
+				"%s: error: dest destfile (%s) exists and is not a directoory\n",
+				__func__, destfile);
+			return -EEXIST;
+		}
 	}
+	else {
+		strncpy(actual_destfile, destfile, PATH_MAX - 1);
+	}
+
 	rc = stat(srcfile, &srcstat);
 	if (rc) {
 		fprintf(stderr, "%s: unable to stat srcfile (%s)\n", __func__, srcfile);
 		return rc;
 	}
+	switch (srcstat.st_mode & S_IFMT) {
+	case S_IFREG:
+		/* Source is a file - all good */
+		break;
+
+	case S_IFDIR:
+		/* source is a directory; fail for now
+		 * (should this be mkdir? Probably... at least if it's a recursive copy)
+		 */
+		fprintf(stderr, "%s: -r not specified; omitting directory '%s'\n",
+			__func__, srcfile);
+		return 1;
+
+	default:
+		fprintf(stderr,
+			"%s: error: src %s is not a regular file \n", __func__, srcfile);
+		return -EINVAL;
+	}
 
 	/*
-	 * Makefsure we can open and read the source file
+	 * Make sure we can open and read the source file
 	 */
 	srcfd = open(srcfile, O_RDONLY, 0);
 	if (srcfd < 0) {
 		fprintf(stderr, "%s: unable to open srcfile (%s)\n", __func__, srcfile);
-		unlink(destfile);
 		return srcfd;
 	}
 
-	destfd = famfs_mkfile(destfile, srcstat.st_mode, srcstat.st_uid,
+	destfd = famfs_mkfile(actual_destfile, srcstat.st_mode, srcstat.st_uid,
 			      srcstat.st_gid, srcstat.st_size, verbose);
 	if (destfd < 0) {
 		fprintf(stderr, "%s: failed in famfs_mkfile\n", __func__);
@@ -2327,7 +2373,7 @@ famfs_cp(const char *srcfile,
 	destp = mmap(0, srcstat.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, destfd, 0);
 	if (destp == MAP_FAILED) {
 		fprintf(stderr, "%s: dest mmap failed\n", __func__);
-		unlink(destfile);
+		unlink(actual_destfile);
 		return -1; /* XXX */
 	}
 

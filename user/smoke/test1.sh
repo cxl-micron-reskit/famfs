@@ -107,6 +107,11 @@ ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp7      || fail "cp7 $F"
 ${CLI} cp -v $MPT/$F $MPT/subdir/${F}_cp8      || fail "cp8 $F"
 ${CLI} cp -v $MPT/$F $MPT/subdir/${F}_cp9      || fail "cp9 $F"
 
+${CLI} mkdir $MPT/dirtarg || fail "failed to create subdir dirtarg"
+# cp file to directory (name should be basename of source file)
+${CLI} cp $MPT/$F $MPT/dirtarg      || fail "cp to dir $F"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F} || fail "verify dirtarg/${F}"
+
 ${CLI} logplay -n $MPT
 
 ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp0 || fail "verify ${F}_cp0"
