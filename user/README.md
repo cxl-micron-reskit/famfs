@@ -4,6 +4,7 @@
 # Quick Links
 - [Famfs CLI Reference](markdown/famfs-cli-reference.md)
 - [Buillding a famfs-compatible kernel](markdown/building-a-6.5-kernel.md)
+- [Famfs Usage - Getting Started](markdown/famfs-usage.mk)
 
 # Preparing to build famfs
 Famfs is comprised of a kernel module and a set of user space tools and libraries.
@@ -11,7 +12,7 @@ The whole thing can be built from the top directory of the repo, but there are a
 few prerequisites that must be met.
 
 * You must currentlly be running a Linux 6.5 kernel. See
-  [Buillding a famfs-compatible kernel](markdown/building-a-6.5-kernell.md)
+  [Buillding a famfs-compatible kernel](markdown/building-a-6.5-kernel.md)
 * You need the appropriate set of development tools. On fedora 39, the following are
   required
     - Group: "Development Tools"
