@@ -25,4 +25,4 @@ test:
 smoke:
 	./run_smoke.sh
 
-.PHONY:	test smoke
+.PHONY:	test smoke debug release
