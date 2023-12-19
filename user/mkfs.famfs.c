@@ -28,13 +28,15 @@ print_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
-	       "Create one or more HPA based extent:\n"
-	       "    %s -n <num_extents> -o <hpa> -l <len> [-o <hpa> -l <len> ... ] <filename>\n"
-	       "\n", progname);
-	printf(
-	       "Create one or more dax-based extents:"
-	       "    %s --daxdev <daxdev> -n <num_extents> -o <offset> -l <len> [-o <offset> -l <len> ... ] <filename>\n"
-	       "\n", progname);
+	       "Create a famfs file system:\n"
+	       "    %s [args] <memdevice>  # Example memdevices: /dev/pmem0 or /dev/dax0.0\n"
+	       "\n"
+	       "Arguments\n"
+	       "    -h|-?      - Print this message\n"
+	       "    -f|--force - Will create the file system even if there is allready a superblock\n"
+	       "    -k|--kill  - Will 'kill' the superblock (also requires -f)\n"
+	       "\n",
+	       progname);
 }
 
 int verbose_flag;

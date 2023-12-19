@@ -73,14 +73,15 @@ famfs_logplay_usage(int   argc,
 
 	printf("\n"
 	       "Play the log into a famfs file system\n"
-	       "    %s [Options] <fspath>\n"
+	       "This administrative command is necessary after mounting a famfs file system\n"
+	       "and performing a 'famfs mkmeta' to instantiate all logged files\n"
+	       "    %s [args] <mount_point>\n"
 	       "\n"
-	       "<fspath> must be the mount point or a path that falls within a famfs file system\n"
-	       "\n"
-	       "Options:\n"
-	       "  --read|-r  Get the log via posix read\n"
-	       "  --mmap|-m  - Get the log via mmap\n"
-	       "  --client|-c - force \"client mode\" (all files read-only)\n"
+	       "Arguments:\n"
+	       "    -r|--read   - Get the superblock and log via posix read\n"
+	       "    -m--mmap    - Get the log via mmap\n"
+	       "    -c|--client - force \"client mode\" (all files read-only)\n"
+	       "    -n|--dryrun - Process the log but don't instantiate the files & directories\n"
 	       "\n"
 	       "\n",
 	       progname);
@@ -232,7 +233,11 @@ famfs_mkmeta_usage(int   argc,
 
 	printf("\n"
 	       "Expose the meta files of a famfs file system\n"
-	       "    %s <memdevice>\n"
+	       "This administrative command is necessary after performing a mount\n"
+	       "    %s <memdevice>  # Example memdevices: /dev/pmem0 or /dev/dax0.0\n"
+	       "\n"
+	       "Arguments:\n"
+	       "    -?           - Print this message\n"
 	       "\n", progname);
 }
 
@@ -319,9 +324,17 @@ famfs_fsck_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
-	       "Check a famfs file system\n"
-	       "    %s <memdevice>\n"
-	       "\n", progname);
+	       "Check an unmounted famfs file system\n"
+	       "    %s [args] <memdevice>  # Example memdevices: /dev/pmem0 or /dev/dax0.0\n"
+	       "Check a mounted famfs file system:\n"
+	       "    %s [args] <mount point>\n"
+	       "\n"
+	       "Arguments:\n"
+	       "    -?           - Print this message\n"
+	       "    -m|--mmap    - Access the superblock and log via mmap\n"
+	       "    -h|--human   - Print sizes in a human-friendly form\n"
+	       "    -v|--verbose - Print debugging output while executing the command\n"
+	       "\n", progname, progname);
 }
 
 /* TODO: add recursive copy? */
@@ -412,11 +425,18 @@ famfs_cp_usage(int   argc,
 
 	printf("\n"
 	       "Copy a file into a famfs file system\n"
-	       "    %s cp <srcfile> <destfile>\n"
+	       "    %s cp [args] <srcfile> <destfile>\n"
+	       "Copy a file into a directory of a famfs file system with the same basename\n"
+	       "    %s cp [args] <srcfile> <famfs_dir>\n"
+	       "Copy a wildcard set of files to a directory\n"
+	       "    %s cp [args]/path/to/* <dirpath>\n"
 	       "\n"
+	       "Arguments\n"
+	       "    -h|-?      - Print this message\n"
+	       "    -v|verbose - print debugging output while executing the command\n\n"
 	       "NOTE: you need this tool to copy a file into a famfs file system,\n"
 	       "but the standard \'cp\' can be used to copy FROM a famfs file system.\n",
-	       progname);
+	       progname, progname, progname);
 }
 
 /* TODO: add recursive copy? */
@@ -433,7 +453,6 @@ do_famfs_cli_cp(int argc, char *argv[])
 	/* XXX can't use any of the same strings as the global args! */
 	struct option cp_options[] = {
 		/* These options set a */
-		{"filename",    required_argument,             0,  'f'},
 		{"verbose",     no_argument,                   0,  'v'},
 		{0, 0, 0, 0}
 	};
@@ -510,8 +529,13 @@ famfs_getmap_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
-	       "Get the allocation map of a file:\n"
-	       "    %s <filename>\n"
+	       "This administrative command gets the allocation map of a file:\n"
+	       "    %s [args] <filename>\n"
+	       "\n"
+	       "Arguments:\n"
+	       "    -?           - Print this message\n"
+	       "\n"
+	       "This is similar to the xfs_bmap command and is only used for testing\n"
 	       "\n", progname);
 }
 
@@ -623,9 +647,14 @@ famfs_clone_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
+	       "This administrative command is only useful in testing, and leaves the\n"
+	       "file system in cross-linked state. Don't use it!\n\n"
 	       "Clone a file, creating a second file with the same extent list:\n"
 	       "    %s <src_file> <dest_file>\n"
-	       "\nNOTE: this creates a file system error and is for tesstsing only!!\n"
+	       "\n"
+	       "Arguments:\n"
+	       "    -?           - Print this message\n"
+	       "\nNOTE: this creates a file system error and is for testing only!!\n"
 	       "\n", progname);
 }
 
@@ -714,19 +743,24 @@ famfs_creat_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
+	       "This testing tool allocates a file and optionally fills it with seeded data\n"
+	       "that can be verified later\n\n"
 	       "Create a file backed by free space:\n"
 	       "    %s -s <size> <filename>\n\n"
 	       "\nCreate a file containing randomized data from a specific seed:\n"
 	       "    %s -s size --randomize --seed <myseed> <filename>"
 	       "Create a file backed by free space, with octal mode 0644:\n"
 	       "    %s -s <size> -m 0644 <filename>\n\n"
-	       "Options:\n"
-	       "--size|-s <size>[kKmMgG]   - Required file size\n"
-	       "--seed|-S <random-seed>    - Optional seed for randomization\n"
-	       "--randomize|-r             - Optional - will randomize with provided seed\n"
-	       "--mode|-m <octal-mode>     - Default is 0644\n"
-	       "--uid|-u <int uid>         - Default is caller's uid\n"
-	       "--gid|-g <int gid>         - Default is caller's gid\n"
+	       "\n"
+	       "Arguments:\n"
+	       "    -?                       - Print this message\n"
+	       "    -s|--size <size>[kKmMgG] - Required file size\n"
+	       "    -S|--seed <random-seed>  - Optional seed for randomization\n"
+	       "    -r|--randomize           - Optional - will randomize with provided seed\n"
+	       "    -m|--mode <octal-mode>   - Default is 0644\n"
+	       "    -u|--uid <int uid>       - Default is caller's uid\n"
+	       "    -g|--gid <int gid>       - Default is caller's gid\n"
+	       "    -v|--verbose             - Print debugging output while executing the command\n"
 	       "\n",
 	       progname, progname, progname);
 }
@@ -942,7 +976,8 @@ famfs_mkdir_usage(int   argc,
 	       "Create a directory in a famfs file system:\n"
 	       "    %s <dirname>\n\n"
 	       "\n"
-	       "(the mkdir will be logged\n\n",
+	       "(the mkdir will be logged\n"
+	       "Wishlist: 'mkdir -p' is not implemented yet\n",
 	       progname);
 }
 
@@ -1027,8 +1062,13 @@ famfs_verify_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
-	       "Verify the contents of a file:\n"
+	       "Verify the contents of a file that was created with 'famfs creat':\n"
 	       "    %s -S <seed> -f <filename>\n"
+	       "\n"
+	       "Arguments:\n"
+	       "    -?                        - Print this message\n"
+	       "    -f|--fillename <filename> - Required file path\n"
+	       "    -S|--seed <random-seed>   - Required seed for data verification\n"
 	       "\n", progname);
 }
 
@@ -1148,15 +1188,15 @@ static void do_famfs_cli_help(int argc, char **argv);
 struct
 famfs_cli_cmd famfs_cli_cmds[] = {
 
-	{"creat",   do_famfs_cli_creat,   famfs_creat_usage},
-	{"mkdir",   do_famfs_cli_mkdir,   famfs_mkdir_usage},
-	{"verify",  do_famfs_cli_verify,  famfs_verify_usage},
-	{"getmap",  do_famfs_cli_getmap,  famfs_getmap_usage},
-	{"clone",   do_famfs_cli_clone,   famfs_clone_usage},
-	{"cp",      do_famfs_cli_cp,      famfs_cp_usage},
 	{"fsck",    do_famfs_cli_fsck,    famfs_fsck_usage},
+	{"mkdir",   do_famfs_cli_mkdir,   famfs_mkdir_usage},
+	{"cp",      do_famfs_cli_cp,      famfs_cp_usage},
+	{"creat",   do_famfs_cli_creat,   famfs_creat_usage},
+	{"verify",  do_famfs_cli_verify,  famfs_verify_usage},
 	{"mkmeta",  do_famfs_cli_mkmeta,  famfs_mkmeta_usage},
 	{"logplay", do_famfs_cli_logplay, famfs_logplay_usage},
+	{"getmap",  do_famfs_cli_getmap,  famfs_getmap_usage},
+	{"clone",   do_famfs_cli_clone,   famfs_clone_usage},
 
 	{NULL, NULL, NULL}
 };
