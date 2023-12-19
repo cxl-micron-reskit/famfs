@@ -18,6 +18,7 @@ This is certainly not true yet.
 ** TODO File create: allow non-privileged if the user has write perm in the directory?
 Log write still requires root. Hmm...
 ** TODO mkdir: same thing, non-privileged allowed if perms check out on parent dir
+** DONE mkdir of relpath (relative to cwd) fails even if the path is good
 
 * dev_dax support (character device)
 Current state: works for mmap but not or read/write

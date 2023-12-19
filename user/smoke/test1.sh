@@ -52,7 +52,13 @@ done
 
 echo "DEVTYPE=$DEVTYPE"
 MKFS="sudo $VG $BIN/mkfs.famfs"
-CLI="sudo $VG $BIN/famfs"
+
+# Reference famfs cli by its full path
+CLI_FULLPATH=$(realpath "$BIN/famfs")
+CLI="sudo $VG ${CLI_FULLPATH}"
+
+echo "CLI_FULLLPATH: ${CLI_FULLPATH}"
+echo "CLI: ${CLI}"
 
 source $SCRIPTS/test_funcs.sh
 # Above this line should be the same for all smoke tests
@@ -91,9 +97,23 @@ ${CLI} verify -S 42 -f $MPT/$F                 || fail "$F mismatch"
 ${CLI} cp $MPT/$F $MPT/${F}_cp      || fail "cp $F"
 ${CLI} verify -S 42 -f $MPT/${F}_cp || fail "verify ${F}_cp"
 
+#
+# mkdir with absolute path
+#
 ${CLI} mkdir $MPT/subdir || fail "failed to create subdir"
 ${CLI} mkdir $MPT/subdir && fail "creating existing subdir should fail"
 ${CLI} mkdir $MPT/$F && fail "mkdir that collides with existing file should fail"
+
+#
+# mkdir to relath
+#
+cd ${MPT}
+${CLI} mkdir foo || fail "mkdir relpath"
+${CLI} mkdir ./foo/foo || fail "mkdir relpath 2"
+${CLI} mkdir foo/foo/./bar || fail "mkdir relpath 3"
+${CLI} mkdir ./foo/foo//bar/baz || fail "mkdir relpath 4"
+${CLI} mkdir ./foo/./foo//bar/baz && fail "mkdir relpath exists should fail"
+cd -
 
 
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp0      || fail "cp0 $F"
@@ -107,6 +127,9 @@ ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp7      || fail "cp7 $F"
 ${CLI} cp -v $MPT/$F $MPT/subdir/${F}_cp8      || fail "cp8 $F"
 ${CLI} cp -v $MPT/$F $MPT/subdir/${F}_cp9      || fail "cp9 $F"
 
+#
+# cp to an existing dir target
+#
 ${CLI} mkdir $MPT/dirtarg || fail "failed to create subdir dirtarg"
 # cp file to directory (name should be basename of source file)
 ${CLI} cp $MPT/$F $MPT/dirtarg      || fail "cp to dir $F"

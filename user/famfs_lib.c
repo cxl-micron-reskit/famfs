@@ -2200,11 +2200,6 @@ famfs_mkdir(
 
 	/* full dirpath should not exist, but the parentdir path must exist and be a directory */
 	parentdir = dirname(dirdupe);
-	if (strcmp(parentdir, ".") == 0) {
-		fprintf(stderr, "%s: bad dirpath %s\n", __func__, dirpath);
-		rc = -1;
-		goto err_out;
-	}
 	rc = stat(parentdir, &st);
 	if ((st.st_mode & S_IFMT) != S_IFDIR) {
 		fprintf(stderr, "%s: parent (%s) of path %s is not a directory\n",
@@ -2213,7 +2208,7 @@ famfs_mkdir(
 		goto err_out;
 	}
 
-	/* parentdir exists and is a directory; rationalize the path with realpath */
+	/* Parentdir exists and is a directory; rationalize the path with realpath */
 	if (realpath(parentdir, realparent) == 0) {
 		fprintf(stderr, "%s: failed to rationalize parentdir path (%s)\n",
 			__func__, parentdir);
@@ -2261,7 +2256,6 @@ err_out:
 		free(dirdupe);
 	if (basedupe)
 		free(basedupe);
-
 	return rc;
 }
 

@@ -957,7 +957,7 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 {
 	int c;
 
-	mode_t mode = S_IRUSR|S_IWUSR;
+	mode_t mode = 0644;
 	char *dirpath   = NULL;
 	uid_t uid = geteuid();
 	gid_t gid = getegid();
@@ -1022,7 +1022,6 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 	}
 
 	dirpath  = argv[optind++];
-
 	return famfs_mkdir(dirpath, mode, uid, gid);
 }
 
