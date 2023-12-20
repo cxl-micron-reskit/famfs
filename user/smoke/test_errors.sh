@@ -51,6 +51,7 @@ while (( $# > 0)); do
 done
 
 echo "DEVTYPE=$DEVTYPE"
+echo "SCRIPTS=$SCRIPTS"
 MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI="sudo $VG $BIN/famfs"
 
@@ -58,6 +59,8 @@ source $SCRIPTS/test_funcs.sh
 # Above this line should be the same for all smoke tests
 
 set -x
+
+full_mount $DEV $MPT "${MOUNT_OPTS}" "test_errors full_mount"
 
 verify_mounted $DEV $MPT "test2.sh"
 
@@ -74,13 +77,12 @@ ${CLI} verify -S $N -f $MPT/${FILE}_clone1 || fail "${FILE}_clone1 mismatch"
 
 sudo umount $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
-full_mount $DEV $MPT "test1.sh"
+full_mount $DEV $MPT "${MOUNT_OPTS}" "test1.sh"
 verify_mounted $DEV $MPT "test1.sh"
 
-# TODO: make logplay drop files that have allocation collisions
-#test -f $MPT/bigtest0_clone && fail "cloned file should disappear after remount"
-
 ${CLI} fsck $MPT && fail "fsck if a clone has ever happened should fail"
+
+sudo umount $MPT || fail "umount"
 
 
 set +x

@@ -5,7 +5,10 @@ BIN="$CWD/debug"
 SCRIPTS="$CWD/scripts"
 DEV="/dev/pmem0"
 KMOD="../kmod"
+MPT="/mnt/famfs"
+MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 TEST_ERRORS=1
+TEST_ALL=1
 
 # Check if we have password-less sudi, which is required
 sudo -n true 2>/dev/null
@@ -30,6 +33,11 @@ while (( $# > 0)); do
 	    TEST_ERRORS=0
 	    shift;
 	    ;;
+	(-j|-justerrors)
+	    TEST_ERRORS=1
+	    TEST_ALL=0
+	    shift;
+	    ;;
 	*)
 	    remainder="$flag $1";
 	    shift;
@@ -41,6 +49,8 @@ while (( $# > 0)); do
 	    ;;
     esac
 done
+
+CLI="sudo $VG $BIN/famfs"
 
 echo "CWD:         $CWD"
 echo "BIN:         $BIN"
@@ -64,20 +74,25 @@ fi
 
 source $TEST_FUNCS
 
-./smoke/test0.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
-sleep 4
-./smoke/test1.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
-sleep 4
-./smoke/test2.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
-sleep 4
-./smoke/test3.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
-sleep 4
-./smoke/test4.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
+if (($TEST_ALL > 0)); then
+    ./smoke/test0.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
+    sleep 2
+    ./smoke/test1.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
+    sleep 2
+    ./smoke/test2.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
+    sleep 2
+    ./smoke/test3.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
+    sleep 2
+    ./smoke/test4.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
+fi
 if (($TEST_ERRORS > 0)); then
-    sleep 4
-    ./smoke/test_errors.sh || exit
+    sleep 2
+    ./smoke/test_errors.sh  -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
 else
     echo "skipping test_errors.sh because -n|--noerrors was specified"
 fi
+
+full_mount $DEV $MPT "${MOUNT_OPTS}" "run_smoke.sh remount"
+
 #sleep 4
 #./scripts/teardown.sh

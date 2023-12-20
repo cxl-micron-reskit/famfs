@@ -109,7 +109,7 @@ sudo mount $MOUNT_OPTS $DEV $MPT   || fail "mount"
 grep -c famfs /proc/mounts         || fail "famfs not mounted after remount attempt"
 
 echo "this logplay should fail because we haven't done mkmeta yet"
-${CLI} logplay $MPT               && fail "logplay 1 before mkmeta"
+${CLI} logplay -v $MPT               && fail "logplay 1 before mkmeta"
 
 # Post mount, re-create the meta files
 ${CLI} mkmeta $DEV                || fail "mkmeta 2"
@@ -117,11 +117,11 @@ sudo test -f $MPT/.meta/.superblock || fail "no superblock file after mkmeta"
 sudo test -f $MPT/.meta/.log        || fail "no log file after mkmeta"
 
 sudo ls -lR $MPT
-${CLI} logplay  $MPT             || fail "logplay after mkmeta should work"
+${CLI} logplay -v $MPT             || fail "logplay after mkmeta should work"
 ${CLI} mkmeta $DEV               || fail "mkmeta repeat should fail"
 
 # Replay the log, recovering the files that existed befure the umount
-${CLI} logplay  $MPT             || fail "logplay 3 should work but be nop"
+${CLI} logplay -v $MPT             || fail "logplay 3 should work but be nop"
 
 # Re-verify the files from prior to the umount
 ${CLI} verify -S 1 -f $MPT/test1 || fail "verify test1 after replay"

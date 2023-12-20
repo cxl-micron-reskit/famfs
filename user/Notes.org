@@ -3,6 +3,7 @@
 TODO Features
 
 * Miscellaeous
+** DONE Logplay should be quiet unless explicitly verbose
 ** TODO df does not list famfs mounts
 ** TODO du does not work with famfs mounts/paths
 ** TODO Review: make sure no writable opens to SB and log happen until role verified
@@ -13,7 +14,7 @@ This is certainly not true yet.
 ** TODO CLI: go through and update usage printouts to be accurate
 ** TODO logplay: find and optionally delete files that exist but weren't in the log?
 ** TODO logplay: fix file permissions to match the log?
-** TODO famfs cp: accet uid/gid/mode args like creat?
+** TODO famfs cp: accept uid/gid/mode args like creat?
 ** TODO famfs mkdir: accept uid/gid/mode args like creat?
 ** TODO File create: allow non-privileged if the user has write perm in the directory?
 Log write still requires root. Hmm...

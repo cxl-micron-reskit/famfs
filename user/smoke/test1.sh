@@ -72,7 +72,7 @@ verify_not_mounted $DEV $MPT "test1.sh"
 ${CLI} fsck $MPT && fail "fsck by path should fail when not mounted"
 ${CLI} fsck $DEV || fail "fsck by dev should succeed when not mounted"
 
-full_mount $DEV $MPT "test1.sh"
+full_mount $DEV $MPT "${MOUNT_OPTS}" "test1.sh"
 
 ${CLI} fsck $MPT || fail "fsck by path should succeed when mounted"
 
@@ -149,7 +149,7 @@ ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp9 || fail "verify ${F}_cp9"
 
 sudo umount $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
-full_mount $DEV $MPT "test1.sh"
+full_mount $DEV $MPT "${MOUNT_OPTS}" "test1.sh"
 verify_mounted $DEV $MPT "test1.sh"
 
 ${CLI} verify -S 42 -f $MPT/${F}_cp || fail "verify ${F}_cp"

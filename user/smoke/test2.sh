@@ -97,11 +97,8 @@ done
 
 sudo umount $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
-full_mount $DEV $MPT "test1.sh"
+full_mount $DEV $MPT "$MOUNT_OPTS" "test1.sh"
 verify_mounted $DEV $MPT "test1.sh"
-
-# TODO: make logplay drop files that have allocation collisions (?)
-#test -f $MPT/bigtest0_clone && fail "cloned file should disappear after remount"
 
 set +x
 echo "*************************************************************************************"

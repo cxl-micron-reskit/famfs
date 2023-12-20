@@ -78,7 +78,11 @@ echo
 echo -n "pud faults: "
 sudo cat /sys/fs/famfs/pud_fault_ct || fail "cat pud_fault_ct"
 echo
-
+set -x
+verify_mounted $DEV $MPT "test4.sh mounted"
+sudo umount $MPT || fail "test4.sh umount"
+verify_not_mounted $DEV $MPT "test4.sh"
+set +x
 echo "*************************************************************************************"
 echo "Test4 (multichase) completed successfully"
 echo "*************************************************************************************"

@@ -36,8 +36,9 @@ mkmeta_only () {
 full_mount () {
     DEV=$1
     MPT=$2
-    MSG=$3
-    sudo mount $MOUNT_OPTS $DEV $MPT  || fail "full_mount: mount err: $MSG"
+    MO=$3
+    MSG=$4
+    sudo mount $MO $DEV $MPT  || fail "full_mount: mount err: $MSG"
     ${CLI} mkmeta $DEV                || fail "full_mount: mkmeta err: $MSG"
     ${CLI} logplay $MPT               || fail "full_mount: logplay err: $MSG"
 
