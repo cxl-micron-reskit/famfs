@@ -106,6 +106,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	int use_mmap = 0;
 	int use_read = 0;
 	int client_mode = 0;
+	int verbose = 0;
 	
 	/* XXX can't use any of the same strings as the global args! */
 	struct option logplay_options[] = {
@@ -129,7 +130,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+cmnh?",
+	while ((c = getopt_long(argc, argv, "+vcmnh?",
 				logplay_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -156,6 +157,9 @@ do_famfs_cli_logplay(int argc, char *argv[])
 		case 'c':
 			client_mode++;
 			printf("client mode\n");
+			break;
+		case 'v':
+			verbose++;
 			break;
 		default:
 			printf("default (%c)\n", c);
@@ -216,7 +220,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 			total += rc;
 		} while (resid > 0);
 	}
-	famfs_logplay(logp, mpt_out, dry_run, client_mode);
+	famfs_logplay(logp, mpt_out, dry_run, client_mode, verbose);
 	if (use_mmap)
 		munmap(logp, FAMFS_LOG_LEN);
 	close(lfd);

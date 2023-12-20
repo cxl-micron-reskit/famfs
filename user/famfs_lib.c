@@ -867,7 +867,8 @@ famfs_logplay(
 	const struct famfs_log *logp,
 	const char             *mpt,
 	int                     dry_run,
-	int                     client_mode)
+	int                     client_mode,
+	int                     verbose)
 {
 	enum famfs_system_role role;
 	struct famfs_superblock *sb;
@@ -897,7 +898,9 @@ famfs_logplay(
 		return -1;
 	}
 
-	printf("%s: log contains %lld entries\n", __func__, logp->famfs_log_next_index);
+	if (verbose)
+		printf("%s: log contains %lld entries\n", __func__, logp->famfs_log_next_index);
+
 	for (i = 0; i < logp->famfs_log_next_index; i++) {
 		struct famfs_log_entry le = logp->entries[i];
 
@@ -916,8 +919,9 @@ famfs_logplay(
 			int skip_file = 0;
 			int fd;
 
-			printf("%s: %lld file=%s size=%lld\n", __func__, i,
-			       fc->famfs_relpath, fc->famfs_fc_size);
+			if (verbose)
+				printf("%s: %lld file=%s size=%lld\n", __func__, i,
+				       fc->famfs_relpath, fc->famfs_fc_size);
 
 			if (!famfs_log_entry_fc_path_is_relative(fc)) {
 				fprintf(stderr,
@@ -957,8 +961,10 @@ famfs_logplay(
 					__func__, rpath);
 				continue;
 			}
-			printf("%s: creating file %s mode %o\n",
-			       __func__, fc->famfs_relpath, fc->fc_mode);
+			if (verbose)
+				printf("%s: creating file %s mode %o\n",
+				       __func__, fc->famfs_relpath, fc->fc_mode);
+
 			fd = famfs_file_create(rpath, fc->fc_mode, fc->fc_uid, fc->fc_gid,
 					       (role == FAMFS_CLIENT) ? 1 : 0);
 			if (fd < 0) {
@@ -993,7 +999,8 @@ famfs_logplay(
 			int skip_dir = 0;
 			struct stat st;
 
-			printf("%s: %lld mkdir=%s\n", __func__, i, md->famfs_relpath);
+			if (verbose)
+				printf("%s: %lld mkdir=%s\n", __func__, i, md->famfs_relpath);
 
 			if (!famfs_log_entry_md_path_is_relative(md)) {
 				fprintf(stderr,
@@ -1033,7 +1040,9 @@ famfs_logplay(
 				continue;
 			}
 
-			printf("%s: creating directory %s\n", __func__, md->famfs_relpath);
+			if (verbose)
+				printf("%s: creating directory %s\n", __func__, md->famfs_relpath);
+
 			rc = famfs_dir_create(mpt, (char *)md->famfs_relpath, md->fc_mode,
 					      md->fc_uid, md->fc_gid);
 			if (rc) {
@@ -1046,11 +1055,13 @@ famfs_logplay(
 		}
 		case FAMFS_LOG_ACCESS:
 		default:
-			printf("%s: invalid log entry\n", __func__);
+			if (verbose)
+				printf("%s: invalid log entry\n", __func__);
 			break;
 		}
 	}
-	printf("%s: processed %lld log entries\n", __func__, nlog);
+	if (verbose)
+		printf("%s: processed %lld log entries\n", __func__, nlog);
 	return 0;
 }
 
