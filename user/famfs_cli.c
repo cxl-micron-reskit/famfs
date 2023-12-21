@@ -429,17 +429,18 @@ famfs_cp_usage(int   argc,
 
 	printf("\n"
 	       "Copy a file into a famfs file system\n"
-	       "    %s cp [args] <srcfile> <destfile>\n"
+	       "    %s cp [args] <srcfile> <destfile>\n\n"
 	       "Copy a file into a directory of a famfs file system with the same basename\n"
-	       "    %s cp [args] <srcfile> <famfs_dir>\n"
+	       "    %s cp [args] <srcfile> <famfs_dir>\n\n"
 	       "Copy a wildcard set of files to a directory\n"
-	       "    %s cp [args]/path/to/* <dirpath>\n"
+	       "    %s cp [args]/path/to/* <dirpath>\n\n"
 	       "\n"
 	       "Arguments\n"
 	       "    -h|-?      - Print this message\n"
 	       "    -v|verbose - print debugging output while executing the command\n\n"
 	       "NOTE: you need this tool to copy a file into a famfs file system,\n"
-	       "but the standard \'cp\' can be used to copy FROM a famfs file system.\n",
+	       "but the standard \'cp\' can be used to copy FROM a famfs file system.\n"
+	       "\nWishlist: 'mkdir -p' is not implemented yet\n",
 	       progname, progname, progname);
 }
 
@@ -980,7 +981,7 @@ famfs_mkdir_usage(int   argc,
 	       "Create a directory in a famfs file system:\n"
 	       "    %s <dirname>\n\n"
 	       "\n"
-	       "(the mkdir will be logged\n"
+	       "(the mkdir will be logged)\n"
 	       "Wishlist: 'mkdir -p' is not implemented yet\n",
 	       progname);
 }
