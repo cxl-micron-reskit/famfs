@@ -13,13 +13,14 @@ obj-m += famfs.o
 
 famfs-objs += famfs_inode.o famfs_file.o famfs_trace.o
 
-KHOME = ~/w/linux-debug
+KHOME := /lib/modules/$(shell uname -r)/build
+#KHOME := ~/w/linux-6.6
 
 clean:
-	make -k -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+	make -k -C $(KHOME) M=$(PWD) clean
 
 all:
-	make -k -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
+	make -k -C $(KHOME) M=$(PWD) modules
 
 # Put kmod in a kernel tree for gdb debugging
 gdb:
