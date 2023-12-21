@@ -156,7 +156,6 @@ do_famfs_cli_logplay(int argc, char *argv[])
 			break;
 		case 'c':
 			client_mode++;
-			printf("client mode\n");
 			break;
 		case 'v':
 			verbose++;

@@ -643,7 +643,7 @@ famfs_mkmeta(const char *devname)
 		fprintf(stderr, "%s: unable to resolve mount pt from dev %s\n", __func__, devname);
 		return -1;
 	}
-	printf("mpt: %s\n", mpt);
+
 	strncat(dirpath, mpt,     PATH_MAX - 1);
 	strncat(dirpath, "/",     PATH_MAX - 1);
 	strncat(dirpath, ".meta", PATH_MAX - 1);
@@ -740,6 +740,7 @@ famfs_mkmeta(const char *devname)
 
 	close(sbfd);
 	close(logfd);
+	printf("%s: Meta files successfullly created\n", __func__);
 	return 0;
 }
 
@@ -795,7 +796,40 @@ mmap_whole_file(
 }
 
 
-/******/
+/********************************************************************************
+ *
+ * Log play stuff
+ */
+
+struct log_stats {
+	u64 n_entries;
+	u64 f_logged;
+	u64 f_existed;
+	u64 f_created;
+	u64 f_errs;
+	u64 d_logged;
+	u64 d_existed;
+	u64 d_created;
+	u64 d_errs;
+};
+
+static void
+famfs_print_log_stats(const char *msg,
+		      const struct log_stats *ls,
+		      int verbose)
+{
+	printf("%s: processed %llu log entries; %llu new files; %llu new directories\n",
+	       msg, ls->n_entries, ls->f_created, ls->d_created);
+	if (verbose) {
+		printf("\tCreated:  %llu files, %llu directories\n",
+		       ls->f_created, ls->d_created);
+		printf("\tExisted: %llu files, %llu directories\n",
+		       ls->f_existed, ls->d_existed);
+	}
+	if (ls->f_errs || ls->d_errs)
+		printf("\t%llu file errors and %llu dir errors\n",
+		       ls->f_errs, ls->d_errs);
+}
 
 static inline int
 famfs_log_full(const struct famfs_log *logp)
@@ -870,9 +904,9 @@ famfs_logplay(
 	int                     client_mode,
 	int                     verbose)
 {
+	struct log_stats ls = { 0 };
 	enum famfs_system_role role;
 	struct famfs_superblock *sb;
-	u64 nlog = 0;
 	u64 i, j;
 	int rc;
 
@@ -908,7 +942,8 @@ famfs_logplay(
 			fprintf(stderr, "%s: invalid log entry at index %lld\n", __func__, i);
 			return -1;
 		}
-		nlog++;
+		ls.n_entries++;
+
 		switch (le.famfs_log_entry_type) {
 		case FAMFS_LOG_FILE: {
 			const struct famfs_file_creation *fc = &le.famfs_fc;
@@ -919,7 +954,8 @@ famfs_logplay(
 			int skip_file = 0;
 			int fd;
 
-			if (verbose)
+			ls.f_logged++;
+			if (verbose > 1)
 				printf("%s: %lld file=%s size=%lld\n", __func__, i,
 				       fc->famfs_relpath, fc->famfs_fc_size);
 
@@ -927,6 +963,7 @@ famfs_logplay(
 				fprintf(stderr,
 					"%s: ignoring log entry; path is not relative\n",
 					__func__);
+				ls.f_errs++;;
 				skip_file++;
 			}
 
@@ -941,6 +978,7 @@ famfs_logplay(
 					fprintf(stderr,
 						"%s: ERROR file %s has extent with 0 offset\n",
 						__func__, fc->famfs_relpath);
+					ls.f_errs++;
 					skip_file++;
 				}
 			}
@@ -957,8 +995,10 @@ famfs_logplay(
 
 			rc = stat(rpath, &st);
 			if (!rc) {
-				fprintf(stderr, "%s: File (%s) already exists\n",
-					__func__, rpath);
+				if (verbose)
+					fprintf(stderr, "%s: File (%s) already exists\n",
+						__func__, rpath);
+				ls.f_existed++;
 				continue;
 			}
 			if (verbose)
@@ -973,6 +1013,7 @@ famfs_logplay(
 					__func__, fc->famfs_relpath);
 
 				unlink(rpath);
+				ls.f_errs++;
 				continue;
 			}
 
@@ -990,6 +1031,7 @@ famfs_logplay(
 					      fc->famfs_nextents, el, FAMFS_REG);
 			close(fd);
 			free(el);
+			ls.f_created++;
 			break;
 		}
 		case FAMFS_LOG_MKDIR: {
@@ -999,6 +1041,7 @@ famfs_logplay(
 			int skip_dir = 0;
 			struct stat st;
 
+			ls.d_logged++;
 			if (verbose)
 				printf("%s: %lld mkdir=%s\n", __func__, i, md->famfs_relpath);
 
@@ -1006,6 +1049,7 @@ famfs_logplay(
 				fprintf(stderr,
 					"%s: ignoring log mkdir entry; path is not relative\n",
 					__func__);
+				ls.d_errs++;
 				skip_dir++;
 			}
 
@@ -1021,20 +1065,26 @@ famfs_logplay(
 			if (!rc) {
 				switch (st.st_mode & S_IFMT) {
 				case S_IFDIR:
-					fprintf(stderr, "%s: directory (%s) already exists\n",
-						__func__, rpath);
+					if (verbose) {
+						fprintf(stderr,
+							"%s: directory (%s) already exists\n",
+							__func__, rpath);
+						ls.d_existed++;
+					}
 					break;
 
 				case S_IFREG:
 					fprintf(stderr,
 						"%s: file (%s) exists where dir should be\n",
 						__func__, rpath);
+					ls.d_errs++;
 					break;
 
 				default:
 					fprintf(stderr,
 						"%s: something (%s) exists where dir should be\n",
 						__func__, rpath);
+					ls.d_errs++;
 					break;
 				}
 				continue;
@@ -1049,8 +1099,11 @@ famfs_logplay(
 				fprintf(stderr,
 					"%s: error: unable to create directory (%s)\n",
 					__func__, md->famfs_relpath);
+				ls.d_errs++;
+				continue;
 			}
 
+			ls.d_created++;
 			break;
 		}
 		case FAMFS_LOG_ACCESS:
@@ -1060,10 +1113,15 @@ famfs_logplay(
 			break;
 		}
 	}
-	if (verbose)
-		printf("%s: processed %lld log entries\n", __func__, nlog);
+	famfs_print_log_stats(__func__, &ls, verbose);
+
 	return 0;
 }
+
+/********************************************************************************
+ *
+ * Log maintenance / append
+ */
 
 /**
  * famfs_append_log()
