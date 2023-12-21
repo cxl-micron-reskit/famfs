@@ -33,6 +33,12 @@
 #include "famfs_lib.h"
 #include "bitmap.h"
 
+enum lock_opt {
+	NO_LOCK = 0,
+	BLOCKING_LOCK,
+	NON_BLOCKING_LOCK,
+};
+
 static u8 *
 famfs_build_bitmap(const struct famfs_log   *logp,
 		   u64                       dev_size_in,
@@ -50,7 +56,10 @@ famfs_dir_create(
 	gid_t       gid);
 
 static struct famfs_superblock *famfs_map_superblock_by_path(const char *path,int read_only);
-static int famfs_file_create(const char *path, mode_t mode, uid_t uid, gid_t gid, int disable_write);
+static int famfs_file_create(const char *path, mode_t mode, uid_t uid, gid_t gid,
+			     int disable_write);
+static int open_log_file_read_only(const char *path, size_t *sizep,
+				   char *mpt_out, enum lock_opt lo);
 
 static int
 __file_not_famfs(int fd)
@@ -754,7 +763,7 @@ famfs_mkmeta(const char *devname)
  * TODO: this is only used by the cli for file verification. Move to CLI?
  */
 void *
-mmap_whole_file(
+famfs_mmap_whole_file(
 	const char *fname,
 	int         read_only,
 	size_t     *sizep)
@@ -897,7 +906,7 @@ famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index)
  * @client_mode - for testing; play the log as if this is a client node, even on master
  */
 int
-famfs_logplay(
+__famfs_logplay(
 	const struct famfs_log *logp,
 	const char             *mpt,
 	int                     dry_run,
@@ -1113,9 +1122,71 @@ famfs_logplay(
 			break;
 		}
 	}
-	famfs_print_log_stats(__func__, &ls, verbose);
+	famfs_print_log_stats("famfs_logplay", &ls, verbose);
 
 	return 0;
+}
+
+int
+famfs_logplay(
+	const char             *fspath,
+	int                     use_mmap,
+	int                     dry_run,
+	int                     client_mode,
+	int                     verbose)
+{
+	char mpt_out[PATH_MAX];
+	struct famfs_log *logp;
+	size_t log_size;
+	int lfd;
+	int rc;
+
+	lfd = open_log_file_read_only(fspath, &log_size, mpt_out, NO_LOCK);
+	if (lfd < 0) {
+		fprintf(stderr, "%s: failed to open log file for filesystem %s\n",
+			__func__, fspath);
+		return -1;
+	}
+
+	if (use_mmap) {
+		logp = mmap(0, FAMFS_LOG_LEN, PROT_READ, MAP_PRIVATE, lfd, 0);
+		if (logp == MAP_FAILED) {
+			fprintf(stderr, "%s: failed to mmap log file %s/.meta/log\n",
+				__func__, mpt_out);
+			close(lfd);
+			return -1;
+		}
+	} else {
+		size_t resid = 0;
+		size_t total = 0;
+		char *buf;
+
+		/* Get log via posix read */
+		logp = malloc(log_size);
+		if (!logp) {
+			close(lfd);
+			fprintf(stderr, "%s: malloc %ld failed for log\n", __func__, log_size);
+			return -ENOMEM;
+		}
+		resid = log_size;
+		buf = (char *)logp;
+		do {
+			rc = read(lfd, &buf[total], resid);
+			if (rc < 0) {
+				fprintf(stderr, "%s: error %d reading log file\n",
+					__func__, errno);
+				return -errno;
+			}
+			printf("%s: read %d bytes of log\n", __func__, rc);
+			resid -= rc;
+			total += rc;
+		} while (resid > 0);
+	}
+	rc = __famfs_logplay(logp, mpt_out, dry_run, client_mode, verbose);
+	if (use_mmap)
+		munmap(logp, FAMFS_LOG_LEN);
+	close(lfd);
+	return rc;
 }
 
 /********************************************************************************
@@ -1447,7 +1518,7 @@ __open_log_file(
 }
 
 int
-open_log_file_read_only(
+static open_log_file_read_only(
 	const char *path,
 	size_t     *sizep,
 	char       *mpt_out,

@@ -92,17 +92,9 @@ int
 do_famfs_cli_logplay(int argc, char *argv[])
 {
 	int c;
-	int rc;
 	int arg_ct = 0;
-	struct famfs_log *logp;
-	char mpt_out[PATH_MAX];
-	size_t log_size;
 	char *fspath;
-	int lfd;
 	int dry_run = 0;
-	int resid = 0;
-	int total = 0;
-	char *buf = NULL;
 	int use_mmap = 0;
 	int use_read = 0;
 	int client_mode = 0;
@@ -167,7 +159,8 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	}
 
 	if (use_mmap && use_read) {
-		fprintf(stderr, "The --mmap and --read arguments are mutually exclusive\n");
+		fprintf(stderr,
+			"Error: The --mmap and --read arguments are mutually exclusive\n\n");
 		famfs_logplay_usage(argc, argv);
 		return -1;
 	}
@@ -182,48 +175,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	}
 	fspath = argv[optind++];
 
-	lfd = open_log_file_read_only(fspath, &log_size, mpt_out, NO_LOCK);
-	if (lfd < 0) {
-		fprintf(stderr, "%s: failed to open log file for filesystem %s\n",
-			__func__, fspath);
-		return -1;
-	}
-
-	if (use_mmap) {
-		logp = mmap(0, FAMFS_LOG_LEN, PROT_READ, MAP_PRIVATE, lfd, 0);
-		if (logp == MAP_FAILED) {
-			fprintf(stderr, "%s: failed to mmap log file %s/.meta/log\n",
-				__func__, mpt_out);
-			close(lfd);
-			return -1;
-		}
-	} else {
-		/* Get log via posix read */
-		logp = malloc(log_size);
-		if (!logp) {
-			close(lfd);
-			fprintf(stderr, "%s: malloc %ld failed for log\n", __func__, log_size);
-			return -ENOMEM;
-		}
-		resid = log_size;
-		buf = (char *)logp;
-		do {
-			rc = read(lfd, &buf[total], resid);
-			if (rc < 0) {
-				fprintf(stderr, "%s: error %d reading log file\n",
-					__func__, errno);
-				return -errno;
-			}
-			printf("%s: read %d bytes of log\n", __func__, rc);
-			resid -= rc;
-			total += rc;
-		} while (resid > 0);
-	}
-	famfs_logplay(logp, mpt_out, dry_run, client_mode, verbose);
-	if (use_mmap)
-		munmap(logp, FAMFS_LOG_LEN);
-	close(lfd);
-	return 0;
+	return famfs_logplay(fspath, use_mmap, dry_run, client_mode, verbose);
 }
 
 /********************************************************************/
@@ -1161,7 +1113,7 @@ do_famfs_cli_verify(int argc, char *argv[])
 		exit(-1);
 	}
 
-	addr = mmap_whole_file(filename, 0, &fsize);
+	addr = famfs_mmap_whole_file(filename, 0, &fsize);
 	if (!addr) {
 		fprintf(stderr, "%s: randomize mmap failed\n", __func__);
 		exit(-1);
