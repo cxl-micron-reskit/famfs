@@ -2848,12 +2848,18 @@ famfs_mkfs(const char *daxdev,
 	enum extent_type type = HPA_EXTENT;
 	struct famfs_superblock *sb;
 	struct famfs_log *logp;
+	u64 min_devsize = 4 * 1024ll * 1024ll * 1024ll;
 
 	rc = famfs_get_device_size(daxdev, &devsize, &type);
 	if (rc)
 		return -1;
 
 	printf("devsize: %ld\n", devsize);
+
+	if (devsize < min_devsize) {
+		fprintf(stderr, "%s: unsupported memory device size (<4GiB)\n", __func__);
+		return -EINVAL;
+	}
 
 	/* XXX Get role first via read-only sb. If daxdev contains a fs that was not
 	 * created on this host, fail unless force is specified
