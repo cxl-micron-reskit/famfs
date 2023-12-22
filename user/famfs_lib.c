@@ -2389,6 +2389,7 @@ famfs_mkdir(
 	size_t log_size;
 	struct stat st;
 	void *addr;
+	int role;
 	int lfd;
 
 	dirdupe  = strdup(dirpath);  /* call dirname() on this dupe */
@@ -2411,6 +2412,14 @@ famfs_mkdir(
 			__func__, parentdir);
 		rc = -1;
 		goto err_out;
+	}
+
+	/* Role check on parent dir */
+	role = famfs_get_role_by_path(realparent, NULL);
+	if (role != FAMFS_MASTER) {
+		fprintf(stderr, "%s: Error: not running on FAMFS_MASTER node for this FS\n",
+			__func__);
+		return -1;
 	}
 
 	/* Rebuild full path of to-be-createed directory from the rationalized parent dir path */
