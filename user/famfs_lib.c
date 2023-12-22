@@ -2365,7 +2365,7 @@ famfs_dir_create(
 /**
  * libfamfs:
  *
- * famfs_cp(srcfile, destfile)
+ * famfs_mkdir(srcfile, destfile)
  */
 
 int
@@ -2459,6 +2459,8 @@ err_out:
 /**
  * __famfs_cp()
  *
+ * Inner file copy function
+ *
  * Copy a file from any file system into famfs. A destination file is created and
  * allocated, and the data is copied info it.
  *
@@ -2475,12 +2477,22 @@ __famfs_cp(const char *srcfile,
 	   const char *destfile,
 	   int   verbose)
 {
-	struct stat srcstat;
-	int rc, srcfd, destfd;
-	char *destp;
-
 	size_t chunksize, remainder, offset;
+	int rc, srcfd, destfd;
+	struct stat srcstat;
 	ssize_t bytes;
+	char *destp;
+	int role;
+
+	/* It might be good to hoist this check up when copying many files to a directory
+	 * (and then again, this minor inefficiency may not matter
+	 */
+	role = famfs_get_role_by_path(destfile, NULL);
+	if (role != FAMFS_MASTER) {
+		fprintf(stderr, "%s: Error not running on FAMFS_MASTER node for this FS\n",
+			__func__);
+		return -1;
+	}
 
 	/* Validate source file */
 	rc = stat(srcfile, &srcstat);
@@ -2567,6 +2579,16 @@ __famfs_cp(const char *srcfile,
 	return 0;
 }
 
+/**
+ * famfs_cp()
+ *
+ * Mid layer file copy function
+ *
+ * @srcfile  - skipped unless it's a regular file
+ * @destfile - should be a regular file (non-regular files skipped further down the stack
+ *             and skipped
+ * @verbose
+ */
 int
 famfs_cp(const char *srcfile,
 	 const char *destfile,
