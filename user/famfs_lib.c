@@ -60,6 +60,10 @@ static int famfs_file_create(const char *path, mode_t mode, uid_t uid, gid_t gid
 			     int disable_write);
 static int open_log_file_read_only(const char *path, size_t *sizep,
 				   char *mpt_out, enum lock_opt lo);
+static int famfs_mmap_superblock_and_log_raw(const char *devname,
+					     struct famfs_superblock **sbp,
+					     struct famfs_log **logp,
+					     int read_only);
 
 static int
 __file_not_famfs(int fd)
@@ -71,6 +75,21 @@ __file_not_famfs(int fd)
 		return 1;
 
 	return 0;
+}
+
+static int
+file_not_famfs(const char *fname)
+{
+	int fd;
+	int rc;
+
+	fd = open(fname, O_RDONLY);
+	if (fd < 0)
+		return -1;
+
+	rc = __file_not_famfs(fd);
+	close(fd);
+	return rc;
 }
 
 
@@ -182,6 +201,42 @@ famfs_get_role(const struct famfs_superblock *sb)
 		return FAMFS_MASTER;
 
 	return FAMFS_CLIENT;
+}
+
+static int
+famfs_get_role_by_dev(const char *daxdev)
+{
+	struct famfs_superblock *sb;
+	struct famfs_log *logp;
+
+	int rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &logp, 1 /* read only */);
+	if (rc)
+		return rc;
+
+	rc = famfs_get_role(sb);
+	munmap(sb, FAMFS_SUPERBLOCK_SIZE);
+	munmap(logp, FAMFS_LOG_LEN);
+	return rc;
+}
+
+static int
+famfs_get_role_by_path(const char *path, uuid_le *fs_uuid_out)
+{
+	struct famfs_superblock *sb;
+	int role;
+
+	sb = famfs_map_superblock_by_path(path, 1 /* read only */);
+	if (!sb) {
+		fprintf(stderr,
+			"%s: unable to find famfs superblock for path %s\n", __func__, path);
+		return -1;
+	}
+	role = famfs_get_role(sb);
+	if (fs_uuid_out)
+		memcpy(fs_uuid_out, &sb->ts_uuid, sizeof(*fs_uuid_out));
+
+	munmap(sb, FAMFS_SUPERBLOCK_SIZE);
+	return role;
 }
 
 int
@@ -422,7 +477,7 @@ famfs_fsck_scan(
  * @logp
  * @read_only - map sb and log read-only
  */
-int
+static int
 famfs_mmap_superblock_and_log_raw(const char *devname,
 				  struct famfs_superblock **sbp,
 				  struct famfs_log **logp,
@@ -449,8 +504,10 @@ famfs_mmap_superblock_and_log_raw(const char *devname,
 		rc = -1;
 		goto err_out;
 	}
-	*sbp = (struct famfs_superblock *)sb_buf;
-	*logp = (struct famfs_log *)((u64)sb_buf + FAMFS_SUPERBLOCK_SIZE);
+	if (sbp)
+		*sbp = (struct famfs_superblock *)sb_buf;
+	if (logp)
+		*logp = (struct famfs_log *)((u64)sb_buf + FAMFS_SUPERBLOCK_SIZE);
 	close(fd);
 	return 0;
 
@@ -2610,7 +2667,6 @@ famfs_clone(const char *srcfile,
 	    const char *destfile,
 	    int   verbose)
 {
-	struct famfs_superblock *sb;//`, *sb2;
 	struct famfs_ioc_map filemap = {0};
 	struct famfs_extent *ext_list;
 	char srcfullpath[PATH_MAX];
@@ -2624,37 +2680,56 @@ famfs_clone(const char *srcfile,
 	void *addr;
 	size_t log_size;
 	struct famfs_simple_extent *se;
-	uid_t uid = geteuid();
-	gid_t gid = getegid();
-	mode_t mode = S_IRUSR|S_IWUSR;
-	enum famfs_system_role role;
+	int src_role, dest_role;
+	uuid_le src_fs_uuid, dest_fs_uuid;
+	struct stat src_stat;
 	int rc;
 
-	/* srcfile must already exist */
+	/* srcfile must already exist; Go ahead and check that first */
 	if (realpath(srcfile, srcfullpath) == NULL) {
 		fprintf(stderr, "%s: bad source path %s\n", __func__, srcfile);
 		return -1;
 	}
-
-	/*
-	 * Check system role; files can only be created on FAMFS_MASTER system
-	 */
-	sb = famfs_map_superblock_by_path(srcfullpath, 1 /* read-only */);
-	if (!sb)
-		return -1;
-
-	if (famfs_check_super(sb)) {
-		fprintf(stderr, "%s: no valid superblock for path %s\n", __func__, srcfullpath);
+	/* and srcfile must be in famfs... */
+	if (file_not_famfs(srcfullpath)) {
+		fprintf(stderr, "%s: source path (%s) not in a famfs file system\n",
+			__func__, srcfullpath);
 		return -1;
 	}
-	role = famfs_get_role(sb);
+	rc = stat(srcfullpath, &src_stat);
+	if (rc < 0) {
+		fprintf(stderr, "%s: unable to stat srcfile %s\n", __func__, srcfullpath);
+		return -1;
+	}
 
-	if (role != FAMFS_MASTER) {
+	/*
+	 * Need to confirm that both files are inn the same file system. Otherwise,
+	 * the cloned extents will be double-invalid on the second file :(
+	 */
+	src_role = famfs_get_role_by_path(srcfile, &src_fs_uuid);
+	dest_role = famfs_get_role_by_path(destfile, &dest_fs_uuid);
+	if (src_role < 0) {
+		fprintf(stderr, "%s: Error: unable to check role for src file %s\n",
+			__func__, srcfullpath);
+		return -1;
+	}
+	if (dest_role < 0) {
+		fprintf(stderr, "%s: Error: unable to check role for src file %s\n",
+			__func__, destfile);
+		return -1;
+	}
+	if ((src_role != dest_role) ||
+	    memcmp(&src_fs_uuid, &dest_fs_uuid, sizeof(src_fs_uuid)) != 0) {
+		fprintf(stderr,
+			"%s: Error: source and destination must be in the same file system\n",
+			__func__);
+		return -1;
+	}
+	if (src_role != FAMFS_MASTER) {
 		fprintf(stderr, "%s: file creation not allowed on client systems\n", __func__);
 		return -EPERM;
 	}
-
-	/* Make sure both files are in the SAME famfs file system */
+	/* FAMFS_MASTER role now confirmed, and the src and destination are in the same famfs */
 
 	/*
 	 * Open source file and make sure it's a famfs file
@@ -2702,7 +2777,7 @@ famfs_clone(const char *srcfile,
 	/* Create the destination file. This will be unlinked later if we don't get all
 	 * the way through the operation.
 	 */
-	dfd = famfs_file_create(destfile, mode, uid, gid, 0);
+	dfd = famfs_file_create(destfile, src_stat.st_mode, src_stat.st_uid, src_stat.st_gid, 0);
 	if (dfd < 0) {
 		fprintf(stderr, "%s: failed to create file %s\n", __func__, destfile);
 		rc = -1;
@@ -2741,13 +2816,9 @@ famfs_clone(const char *srcfile,
 		goto err_out;
 	}
 
-	/* XXX - famfs_log_file_creation should only be called outside
-	 * famfs_lib.c if we are intentionally doing extent list allocation
-	 * bypassing famfs_lib. This is useful for testing, by generating
-	 * problematic extent lists on purpoose...
-	 */
 	rc = famfs_log_file_creation(logp, filemap.ext_list_count, se,
-				     relpath, O_RDWR, uid, gid, filemap.file_size);
+				     relpath, src_stat.st_mode, src_stat.st_uid, src_stat.st_gid,
+				     filemap.file_size);
 	if (rc) {
 		fprintf(stderr,
 			"%s: failed to log caller-specified allocation\n",
@@ -2849,6 +2920,12 @@ famfs_mkfs(const char *daxdev,
 	struct famfs_superblock *sb;
 	struct famfs_log *logp;
 	u64 min_devsize = 4 * 1024ll * 1024ll * 1024ll;
+
+	rc = famfs_get_role_by_dev(daxdev);
+	if ((rc != FAMFS_MASTER) && !(force && kill)) /* force && kill overrides FAMFS_CLIENT
+						       * Is this how it should be?
+						       */
+		return rc;
 
 	rc = famfs_get_device_size(daxdev, &devsize, &type);
 	if (rc)
