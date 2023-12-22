@@ -2,7 +2,8 @@
 
 This docment is meant as a guide to getting started with using famfs.
 
-# How is Famfs Difference From Conventional File Systems?
+# How is Famfs Different From Conventional File Systems?
+TBD
 
 # Famfs Quirks and Limitations
 

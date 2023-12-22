@@ -2,6 +2,10 @@
 
 TODO Features
 
+* Documentation
+
+** TODO first draft kernel module documentation (to move into Documentation/filesystems/)
+
 * Miscellaeous
 ** DONE Logplay should be quiet unless explicitly verbose
 ** TODO df does not list famfs mounts
@@ -9,11 +13,13 @@ TODO Features
 ** TODO Review: make sure no writable opens to SB and log happen until role verified
 This is certainly not true yet.
 ** TODO All log opens; do read-only first, and only open writable on the master
-** TODO mkfs should fail if the device is not larger than the superblock + log
+** DONE mkfs should fail if the device is not larger than the superblock + log
+Now it fails if dev < 4GiB
 ** TODO Logplay option: find files that don't match logged size / attributes
 ** TODO CLI: go through and update usage printouts to be accurate
 ** TODO logplay: find and optionally delete files that exist but weren't in the log?
-** TODO logplay: fix file permissions to match the log?
+** TODO logplay: fix existing file ownership and permissions to match the log?
+** TODO logplay: fix existing file size to match log?
 ** TODO famfs cp: accept uid/gid/mode args like creat?
 ** TODO famfs mkdir: accept uid/gid/mode args like creat?
 ** TODO File create: allow non-privileged if the user has write perm in the directory?
@@ -42,6 +48,10 @@ Current state: not implemented
 -Re-reading log header must be non-temporal, or must invalidate the cache first
 -May need invalidate the cache before reading log entries?
 
+* Bugs
+** TODO when running logplay manually, first run fails and second run succeeds
+Actually this is probably just a malfunction of the new "-v" option (or lack
+thereof... still need to fix)
 
 * Testing
 ** TODO Need some more stressful automated tests

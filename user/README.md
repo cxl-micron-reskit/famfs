@@ -4,7 +4,7 @@
 # Quick Links
 - [Famfs CLI Reference](markdown/famfs-cli-reference.md)
 - [Buillding a famfs-compatible kernel](markdown/building-a-6.5-kernel.md)
-- [Famfs Usage - Getting Started](markdown/famfs-usage.mk)
+- [Famfs Usage - Getting Started](markdown/famfs-usage.md)
 
 # Preparing to build famfs
 Famfs is comprised of a kernel module and a set of user space tools and libraries.
