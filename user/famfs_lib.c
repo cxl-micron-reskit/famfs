@@ -700,6 +700,7 @@ famfs_mkmeta(const char *devname)
 	struct famfs_superblock *sb;
 	struct famfs_log *logp;
 	struct famfs_simple_extent ext;
+	int role;
 
 	dirpath[0] = 0;
 
@@ -749,7 +750,7 @@ famfs_mkmeta(const char *devname)
 		}
 	}
 
-	rc = famfs_mmap_superblock_and_log_raw(devname, &sb, &logp, 1);
+	rc = famfs_mmap_superblock_and_log_raw(devname, &sb, &logp, 1 /* Read only */);
 	if (rc) {
 		fprintf(stderr, "%s: superblock/log accessfailed\n", __func__);
 		return -1;
@@ -760,8 +761,10 @@ famfs_mkmeta(const char *devname)
 		return -1;
 	}
 
+	role = famfs_get_role(sb);
+
 	/* Create and provide mapping for Superblock file */
-	sbfd = open(sb_file, O_RDWR|O_CREAT, S_IRUSR|S_IWUSR);
+	sbfd = open(sb_file, O_RDWR|O_CREAT, 0444 /* sb file is read-onlly everywhere */);
 	if (sbfd < 0) {
 		fprintf(stderr, "%s: failed to create file %s\n", __func__, sb_file);
 		return -1;
@@ -774,7 +777,7 @@ famfs_mkmeta(const char *devname)
 	if (rc)
 		return -1;
 
-	/* Check if log file already exists, and cleanup of bad */
+	/* Check if log file already exists, and cleanup if bad */
 	rc = stat(log_file, &st);
 	if (rc == 0) {
 		if ((st.st_mode & S_IFMT) == S_IFREG) {
@@ -785,14 +788,16 @@ famfs_mkmeta(const char *devname)
 			}
 		} else {
 			fprintf(stderr,
-				"%s: non-regular file found where superblock expected\n",
+				"%s: non-regular file found where log expected\n",
 				__func__);
 			return -EINVAL;
 		}
 	}
 
-	/* Create and provide mapping for log file */
-	logfd = open(log_file, O_RDWR|O_CREAT, S_IRUSR|S_IWUSR);
+	/* Create and provide mapping for log file
+	 * Log is only writable on the master node
+	 */
+	logfd = open(log_file, O_RDWR|O_CREAT, (role == FAMFS_MASTER) ? 0644 : 0444 );
 	if (logfd < 0) {
 		fprintf(stderr, "%s: failed to create file %s\n", __func__, log_file);
 		return -1;
@@ -2284,7 +2289,6 @@ famfs_mkfile(const char    *filename,
 		return -1;
 	}
 	role = famfs_get_role(sb);
-
 	if (role != FAMFS_MASTER) {
 		fprintf(stderr, "%s: file creation not allowed on client systems\n", __func__);
 		return -EPERM;
