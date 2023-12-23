@@ -94,8 +94,9 @@ struct famfs_superblock {
 };
 
 enum famfs_system_role {
-	FAMFS_MASTER, /* System iss the masster, and can write the log */
-	FAMFS_CLIENT, /* System is a client - cannot write the log or sb */
+	FAMFS_MASTER,  /* System is the master, and can write the log */
+	FAMFS_CLIENT,  /* System is a client - cannot write the log or sb */
+	FAMFS_NOSUPER, /* No valid superblock, so role is ambiguous */
 };
 
 /* Lives at the base of the .meta/log file: */
@@ -103,7 +104,6 @@ struct famfs_log_cb {
 	u64 num_log_entries;
 	u64 next_free_offset; /* Offset where next log entry will go */
 };
-
 
 /* Extent types */
 
