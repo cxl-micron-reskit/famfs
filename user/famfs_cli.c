@@ -693,10 +693,10 @@ famfs_creat_usage(int   argc,
 	       "that can be verified later\n\n"
 	       "Create a file backed by free space:\n"
 	       "    %s -s <size> <filename>\n\n"
-	       "\nCreate a file containing randomized data from a specific seed:\n"
-	       "    %s -s size --randomize --seed <myseed> <filename>"
+	       "Create a file containing randomized data from a specific seed:\n"
+	       "    %s -s size --randomize --seed <myseed> <filename>\n"
 	       "Create a file backed by free space, with octal mode 0644:\n"
-	       "    %s -s <size> -m 0644 <filename>\n\n"
+	       "    %s -s <size> -m 0644 <filename>\n"
 	       "\n"
 	       "Arguments:\n"
 	       "    -?                       - Print this message\n"
@@ -922,8 +922,12 @@ famfs_mkdir_usage(int   argc,
 	       "Create a directory in a famfs file system:\n"
 	       "    %s <dirname>\n\n"
 	       "\n"
-	       "(the mkdir will be logged)\n"
-	       "Wishlist: 'mkdir -p' is not implemented yet\n",
+	       "Arguments:\n"
+	       "    -?              - Print this message\n"
+	       "    -p|--parents    - No error if existing, make parent directories as needed,\n"
+	       "                      the -m option only applies to dirs actually created\n"
+	       "    -m|--mode=MODE  - Set mode (as in chmod)\n"
+	       "    -v|--verbose    - Print debugging output while executing the command\n",
 	       progname);
 }
 
@@ -937,6 +941,8 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 	uid_t uid = geteuid();
 	gid_t gid = getegid();
 	int arg_ct = 0;
+	int parents = 0;
+	int verbose = 0;
 
 	/* TODO: allow passing in uid/gid/mode on command line*/
 
@@ -948,6 +954,8 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 		 * We distinguish them by their indices.
 		 */
 		/*{"dryrun",       no_argument,       0, 'n'}, */
+		{"parents",      no_argument,         0,  'p'},
+		{"mode",        required_argument,    0,  'm'},
 		{0, 0, 0, 0}
 	};
 
@@ -969,7 +977,7 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+h?",
+	while ((c = getopt_long(argc, argv, "+pvm:h?",
 				mkdir_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -985,6 +993,18 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 			famfs_mkdir_usage(argc, argv);
 			return 0;
 
+		case 'p':
+			parents++;
+			break;
+
+		case 'm':
+			mode = strtol(optarg, 0, 8); /* Must be valid octal */
+			break;
+
+		case 'v':
+			verbose++;
+			break;
+
 		default:
 			printf("default (%c)\n", c);
 			return -1;
@@ -997,7 +1017,10 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 	}
 
 	dirpath  = argv[optind++];
-	return famfs_mkdir(dirpath, mode, uid, gid);
+	if (parents)
+		return famfs_mkdir_parents(dirpath, mode, uid, gid, verbose);
+
+	return famfs_mkdir(dirpath, mode, uid, gid, verbose);
 }
 
 /********************************************************************/

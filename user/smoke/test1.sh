@@ -107,12 +107,29 @@ ${CLI} mkdir $MPT/$F && fail "mkdir that collides with existing file should fail
 #
 # mkdir to relpath
 #
-cd ${MPT}
+cd $MPT
 ${CLI} mkdir foo || fail "mkdir relpath"
 ${CLI} mkdir ./foo/foo || fail "mkdir relpath 2"
 ${CLI} mkdir foo/foo/./bar || fail "mkdir relpath 3"
 ${CLI} mkdir ./foo/foo//bar/baz || fail "mkdir relpath 4"
 ${CLI} mkdir ./foo/./foo//bar/baz && fail "mkdir relpath exists should fail"
+cd -
+
+#
+# mkdir -p
+#
+${CLI} mkdir ${MPT}                && fail "mkdir <mount point> should fail"
+${CLI} mkdir -p ${MPT}                || fail "mkdir -p <mount point> should succeed"
+${CLI} mkdir -p ${MPT}/A/B/C          || fail "mkdir -p 1"
+${CLI} mkdir -pv ${MPT}/AAAA/BBBB/CCC  || fail "mkdir -p 2"
+${CLI} mkdir -pv ${MPT}/A/B/C/w/x/y/z  || fail "mkdir -p 3"
+
+sudo chmod 0666 ${MPT}/A
+cd ${MPT}
+pwd
+${CLI} mkdir -p A/x/y/z               || fail "mkdir -p 4"
+${CLI} mkdir -p ./A/x/y/z               || fail "mkdir -p 5"
+
 cd -
 
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp0      || fail "cp0 $F"
@@ -146,6 +163,25 @@ ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp6 || fail "verify ${F}_cp6"
 ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp7 || fail "verify ${F}_cp7"
 ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp8 || fail "verify ${F}_cp8"
 ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp9 || fail "verify ${F}_cp9"
+
+#
+# Cp wildcard to directory from mkdir -p, and verify
+#
+cd ${MPT}
+DEST=A/B/C/w/x/y/z
+${CLI} cp $MPT/subdir/* $MPT/${DEST} || fail "cp wildcard set to directory should succeed"
+# Verify files from wildcard cp, in a deep directory
+${CLI} verify -S 42 -f ${DEST}/${F}_cp0 || fail "verify relpath ${F}_cp0"
+${CLI} verify -S 42 -f ${DEST}/${F}_cp1 || fail "verify relpath ${F}_cp1"
+${CLI} verify -S 42 -f ${DEST}/${F}_cp2 || fail "verify relpath ${F}_cp2"
+${CLI} verify -S 42 -f ${DEST}/${F}_cp3 || fail "verify relpath ${F}_cp3"
+${CLI} verify -S 42 -f ${DEST}/${F}_cp4 || fail "verify relpath ${F}_cp4"
+${CLI} verify -S 42 -f ${DEST}/${F}_cp5 || fail "verify relpath ${F}_cp5"
+${CLI} verify -S 42 -f ${DEST}/${F}_cp6 || fail "verify relpath ${F}_cp6"
+${CLI} verify -S 42 -f ${DEST}/${F}_cp7 || fail "verify relpath ${F}_cp7"
+${CLI} verify -S 42 -f ${DEST}/${F}_cp8 || fail "verify relpath ${F}_cp8"
+${CLI} verify -S 42 -f ${DEST}/${F}_cp9 || fail "verify relpath ${F}_cp9"
+cd -
 
 sudo umount $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
@@ -181,6 +217,22 @@ ${CLI} verify -S 42 -f $MPT/dirtarg/${F}_cp7 || fail "verify wildcard ${F}_cp7"
 ${CLI} verify -S 42 -f $MPT/dirtarg/${F}_cp8 || fail "verify wildcard ${F}_cp8"
 ${CLI} verify -S 42 -f $MPT/dirtarg/${F}_cp9 || fail "verify wildcard ${F}_cp9"
 
+
+#
+# Verify files after remount, from wildcard cp, in a deep directory
+#
+cd $MPT
+${CLI} verify -S 42 -f ${DEST}/${F}_cp0 || fail "verify relpath ${F}_cp0"
+${CLI} verify -S 42 -f ${DEST}/${F}_cp1 || fail "verify relpath ${F}_cp1"
+${CLI} verify -S 42 -f ${DEST}/${F}_cp2 || fail "verify relpath ${F}_cp2"
+${CLI} verify -S 42 -f ${DEST}/${F}_cp3 || fail "verify relpath ${F}_cp3"
+${CLI} verify -S 42 -f ${DEST}/${F}_cp4 || fail "verify relpath ${F}_cp4"
+${CLI} verify -S 42 -f ${DEST}/${F}_cp5 || fail "verify relpath ${F}_cp5"
+${CLI} verify -S 42 -f ${DEST}/${F}_cp6 || fail "verify relpath ${F}_cp6"
+${CLI} verify -S 42 -f ${DEST}/${F}_cp7 || fail "verify relpath ${F}_cp7"
+${CLI} verify -S 42 -f ${DEST}/${F}_cp8 || fail "verify relpath ${F}_cp8"
+${CLI} verify -S 42 -f ${DEST}/${F}_cp9 || fail "verify relpath ${F}_cp9"
+cd -
 
 ${CLI} mkdir $MPT/dirtarg2 || fail "failed to create dirtarg2"
 # This directory wil cause cp * from dirtarg/ to return non-zero since it

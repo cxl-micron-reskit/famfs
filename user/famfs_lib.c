@@ -2601,9 +2601,125 @@ famfs_mkdir(
 	const char *dirpath,
 	mode_t      mode,
 	uid_t       uid,
-	gid_t       gid)
+	gid_t       gid,
+	int         verbose)
 {
 	return __famfs_mkdir(NULL, dirpath, mode, uid, gid);
+}
+
+/**
+ * famfs_make_parent_dir()
+ *
+ * Recurse upwards through the path till we find a directory that exists
+ * On the way back, create the missing directories for "mkdir -p"
+ * If the first vallid path we find is not a directory, that's an error.
+ *
+ * @lp
+ * @path
+ * @mode
+ * @uid
+ * @gid
+ * @depth
+ */
+static int
+famfs_make_parent_dir(
+	struct famfs_locked_log *lp,
+	const char *path,
+	mode_t mode,
+	uid_t uid,
+	gid_t gid,
+	int depth,
+	int verbose)
+{
+	char *dirdupe = strdup(path);
+	char *parentdir;
+	struct stat st;
+	int rc;
+
+	/* Does path already exist? */
+	if (stat(path, &st) == 0) {
+		free(dirdupe);
+		switch (st.st_mode & S_IFMT) {
+		case S_IFDIR:
+			return 0;
+		default:
+			fprintf(stderr, "%s: path %s is not a directory\n", __func__, path);
+			return -1;
+		}
+	}
+
+	/* get parent path */
+	parentdir = dirname(dirdupe);
+	 /* Recurse up :D */
+	rc = famfs_make_parent_dir(lp, parentdir, mode, uid, gid, depth + 1, verbose);
+	if (rc) {
+		fprintf(stderr, "%s: bad path component above (%s)\n", __func__, path);
+		free(dirdupe);
+		return -1;
+	}
+
+	/* Parent dir exists; now we can mkdir path! */
+	free(dirdupe);
+	if (verbose)
+		printf("%s: dir %s depth %d\n", __func__, path, depth);
+
+	return __famfs_mkdir(lp, path, mode, uid, gid);
+}
+
+int
+famfs_mkdir_parents(
+	const char *dirpath,
+	mode_t      mode,
+	uid_t       uid,
+	gid_t       gid,
+	int         verbose)
+{
+	struct famfs_locked_log ll = { 0 };
+	char *cwd = get_current_dir_name();
+	char mpt_out[PATH_MAX];
+	char abspath[PATH_MAX];
+	char *rpath;
+	int lfd;
+	int rc;
+
+	/* dirpath as an indeterminate number of nonexistent dirs, under a path that
+	 * must exist. But the immediate parent may not exist. All existing elements
+	 * in the path must be dirs. By opening the log, we can get the mount point path...
+	 */
+
+	if (dirpath[0] == '/')
+		strncpy(abspath, dirpath, PATH_MAX - 1);
+	else
+		snprintf(abspath, PATH_MAX - 1, "%s/%s", cwd, dirpath);
+
+	if (verbose)
+		printf("%s: cwd %s abspath %s\n", __func__, cwd, abspath);
+
+	rpath = find_real_parent_path(abspath);
+	if (!rpath) {
+		fprintf(stderr, "%s: failed to find real parent dir\n", __func__);
+		return -1;
+	}
+	lfd = open_log_file_read_only(abspath, NULL, mpt_out, NO_LOCK);
+	if (lfd < 0) {
+		fprintf(stderr, "%s: path (%s) apears not to fall in a famfs file system\n",
+			__func__, abspath);
+		return -1;
+	}
+	/* OK, we know were in a FAMFS instance. get a locked log struct */
+	rc = famfs_init_locked_log(&ll, rpath, verbose);
+	if (rc) {
+		free(rpath);
+		return rc;
+	}
+
+	/* Now recurse up fromm abspath till we find an existing parent, and mkdir back down */
+	rc = famfs_make_parent_dir(&ll, abspath, mode, uid, gid, 0, verbose);
+
+	/* Separate function should release ll and lock */
+	famfs_release_log_lock(ll.lfd);
+	free(rpath);
+	return rc;
 }
 
 /**
