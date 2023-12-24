@@ -87,7 +87,6 @@ famfs_logplay_usage(int   argc,
 	       progname);
 }
 
-/* TODO: add recursive copy? */
 int
 do_famfs_cli_logplay(int argc, char *argv[])
 {
@@ -196,7 +195,6 @@ famfs_mkmeta_usage(int   argc,
 	       "\n", progname);
 }
 
-/* TODO: add recursive copy? */
 int
 do_famfs_cli_mkmeta(int argc, char *argv[])
 {
@@ -256,7 +254,7 @@ do_famfs_cli_mkmeta(int argc, char *argv[])
 		fprintf(stderr, "Must specify at least one dax device\n");
 		return -1;
 	}
-	/* TODO: multiple devices? */
+
 	daxdev = argv[optind++];
 	realdaxdev = realpath(daxdev, NULL);
 	if (!realdaxdev) {
@@ -292,7 +290,6 @@ famfs_fsck_usage(int   argc,
 	       "\n", progname, progname);
 }
 
-/* TODO: add recursive copy? */
 int
 do_famfs_cli_fsck(int argc, char *argv[])
 {
@@ -364,7 +361,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 		fprintf(stderr, "Must specify at least one dax device\n");
 		return -1;
 	}
-	/* TODO: multiple devices? */
+
 	daxdev = argv[optind++];
 	return famfs_fsck(daxdev, use_mmap, human, verbose);
 }
@@ -387,15 +384,18 @@ famfs_cp_usage(int   argc,
 	       "    %s cp [args]/path/to/* <dirpath>\n\n"
 	       "\n"
 	       "Arguments\n"
-	       "    -h|-?      - Print this message\n"
-	       "    -v|verbose - print debugging output while executing the command\n\n"
+	       "    -h|-?            - Print this message\n"
+	       "    -m|--mode=<mode> - Set mode (as in chmod) to octal value\n"
+	       "    -u|--uid=<uid>   - Specify uid (default is current user's uid)"
+	       "    -g|--gid=<gid>   - Specify uid (default is current user's gid)"
+	       "    -v|verbose       - print debugging output while executing the command\n"
 	       "NOTE: you need this tool to copy a file into a famfs file system,\n"
+	       "\n"
 	       "but the standard \'cp\' can be used to copy FROM a famfs file system.\n"
-	       "\nWishlist: 'mkdir -p' is not implemented yet\n",
+	       "\nWishlist: 'cp -r' is not implemented yet\n",
 	       progname, progname, progname);
 }
 
-/* TODO: add recursive copy? */
 int
 do_famfs_cli_cp(int argc, char *argv[])
 {
@@ -403,11 +403,17 @@ do_famfs_cli_cp(int argc, char *argv[])
 	int arg_ct = 0;
 	int verbose = 0;
 	int remaining_args;
+	mode_t mode = 0; /* null mode inherits mode form source file */
+	uid_t uid = getuid();
+	gid_t gid = getgid();
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option cp_options[] = {
 		/* These options set a */
-		{"verbose",     no_argument,                   0,  'v'},
+		{"mode",        required_argument,    0,  'm'},
+		{"uid",         required_argument,             0,  'u'},
+		{"gid",         required_argument,             0,  'g'},		
+		{"verbose",     no_argument,          0,  'v'},
 		{0, 0, 0, 0}
 	};
 
@@ -429,7 +435,7 @@ do_famfs_cli_cp(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+vh?",
+	while ((c = getopt_long(argc, argv, "+m:vh?",
 				cp_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -447,6 +453,26 @@ do_famfs_cli_cp(int argc, char *argv[])
 			famfs_cp_usage(argc, argv);
 			return 0;
 
+		case 'm':
+			mode = strtol(optarg, 0, 8); /* Must be valid octal */
+			break;
+
+		case 'u':
+			uid = strtol(optarg, 0, 0);
+			if (uid < 0) {
+				fprintf(stderr, "uid must be positive integer\n");
+				exit(-1);
+			}
+			break;
+
+		case 'g':
+			gid = strtol(optarg, 0, 0);
+			if (gid < 0) {
+				fprintf(stderr, "gid must be positive integer\n");
+				exit(-1);
+			}
+			break;
+
 		default:
 			printf("default (%c)\n", c);
 			return -1;
@@ -462,7 +488,7 @@ do_famfs_cli_cp(int argc, char *argv[])
 	}
 
 	/* famfs_cp_multi() will consume the rest of the command line */
-	return famfs_cp_multi(argc - optind, &argv[optind], verbose);
+	return famfs_cp_multi(argc - optind, &argv[optind], mode, uid, gid, verbose);
 }
 
 
@@ -756,8 +782,6 @@ do_famfs_cli_creat(int argc, char *argv[])
 	int randomize = 0;
 	int verbose = 0;
 
-	/* TODO: allow passing in uid/gid/mode on command line*/
-
 	/* XXX can't use any of the same strings as the global args! */
 	struct option creat_options[] = {
 		/* These options set a flag. */
@@ -923,11 +947,13 @@ famfs_mkdir_usage(int   argc,
 	       "    %s <dirname>\n\n"
 	       "\n"
 	       "Arguments:\n"
-	       "    -?              - Print this message\n"
-	       "    -p|--parents    - No error if existing, make parent directories as needed,\n"
-	       "                      the -m option only applies to dirs actually created\n"
-	       "    -m|--mode=MODE  - Set mode (as in chmod)\n"
-	       "    -v|--verbose    - Print debugging output while executing the command\n",
+	       "    -?               - Print this message\n"
+	       "    -p|--parents     - No error if existing, make parent directories as needed,\n"
+	       "                       the -m option only applies to dirs actually created\n"
+	       "    -m|--mode=<mode> - Set mode (as in chmod) to octal value\n"
+	       "    -u|--uid=<uid>   - Specify uid (default is current user's uid)"
+	       "    -g|--gid=<gid>   - Specify uid (default is current user's gid)"
+	       "    -v|--verbose     - Print debugging output while executing the command\n",
 	       progname);
 }
 
@@ -956,6 +982,8 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 		/*{"dryrun",       no_argument,       0, 'n'}, */
 		{"parents",      no_argument,         0,  'p'},
 		{"mode",        required_argument,    0,  'm'},
+		{"uid",         required_argument,             0,  'u'},
+		{"gid",         required_argument,             0,  'g'},		
 		{0, 0, 0, 0}
 	};
 
@@ -977,7 +1005,7 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+pvm:h?",
+	while ((c = getopt_long(argc, argv, "+pvm:u:g:h?",
 				mkdir_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -999,6 +1027,22 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 
 		case 'm':
 			mode = strtol(optarg, 0, 8); /* Must be valid octal */
+			break;
+
+		case 'u':
+			uid = strtol(optarg, 0, 0);
+			if (uid < 0) {
+				fprintf(stderr, "uid must be positive integer\n");
+				exit(-1);
+			}
+			break;
+
+		case 'g':
+			gid = strtol(optarg, 0, 0);
+			if (gid < 0) {
+				fprintf(stderr, "gid must be positive integer\n");
+				exit(-1);
+			}
 			break;
 
 		case 'v':

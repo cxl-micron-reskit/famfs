@@ -2737,6 +2737,9 @@ famfs_mkdir_parents(
  * @srcfile  - must exist and be a regular file
  * @destfile - must not exist (and will be a regular file). If @destfile does not fall
  *             within a famfs file system, we will clean up and fail
+ * @mode     - If mode is NULL, mode is inherited fro msource file
+ * @uid
+ * @gid
  * @verbose
  */
 static int
@@ -2744,6 +2747,9 @@ __famfs_cp(
 	struct famfs_locked_log  *lp,
 	const char               *srcfile,
 	const char               *destfile,
+	mode_t                    mode,
+	uid_t                     uid,
+	gid_t                     gid,
 	int                       verbose)
 {
 	size_t chunksize, remainder, offset;
@@ -2802,8 +2808,8 @@ __famfs_cp(
 	 * but this function copies the data into the file after the log lock is released
 	 * Need a way of holding the lock until the data is copied.
 	 */
-	destfd = __famfs_mkfile(lp, destfile, srcstat.st_mode, srcstat.st_uid,
-			      srcstat.st_gid, srcstat.st_size, verbose);
+	destfd = __famfs_mkfile(lp, destfile, (mode == 0) ? srcstat.st_mode : mode,
+				uid, gid, srcstat.st_size, verbose);
 	if (destfd < 0) {
 		fprintf(stderr, "%s: failed in __famfs_mkfile\n", __func__);
 		return destfd;
@@ -2862,6 +2868,9 @@ static int
 famfs_cp(struct famfs_locked_log *lp,
 	 const char              *srcfile,
 	 const char              *destfile,
+	 mode_t                   mode,
+	 uid_t                    uid,
+	 gid_t                    gid,
 	 int                      verbose)
 {
 	char actual_destfile[PATH_MAX] = { 0 };
@@ -2906,7 +2915,7 @@ famfs_cp(struct famfs_locked_log *lp,
 		strncpy(actual_destfile, destfile, PATH_MAX - 1);
 	}
 
-	return __famfs_cp(lp, srcfile, actual_destfile, verbose);
+	return __famfs_cp(lp, srcfile, actual_destfile, mode, uid, gid, verbose);
 }
 
 /**
@@ -2929,7 +2938,7 @@ famfs_cp(struct famfs_locked_log *lp,
  * * non-zero if anything failed
  */
 int
-famfs_cp_multi(int argc, char *argv[], int verbose)
+famfs_cp_multi(int argc, char *argv[], mode_t mode, uid_t uid, gid_t gid, int verbose)
 {
 	struct famfs_locked_log ll = { 0 };
 	char *dest = argv[argc - 1];
@@ -2956,7 +2965,7 @@ famfs_cp_multi(int argc, char *argv[], int verbose)
 	}
 
 	for (i = 0; i < src_argc; i++) {
-		rc = famfs_cp(&ll, argv[i], dest, verbose);
+		rc = famfs_cp(&ll, argv[i], dest, mode, uid, gid, verbose);
 		if (rc)
 			err = 1; /* if anything failed, return 1 */
 
