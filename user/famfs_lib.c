@@ -1440,6 +1440,37 @@ famfs_release_log_lock(int fd)
 	return rc;
 }
 
+static char *
+find_real_parent_path(const char *path)
+{
+	char path_copy[PATH_MAX];
+	char *pc = &path_copy[0];
+	int loop_ct = 64; /* This is the max depth the function can handle */
+	char *rpath;
+
+	strncpy(path_copy, path, PATH_MAX - 1);
+	while (1) {
+		if (strlen(pc) <= 1) {
+			fprintf(stderr, "%s: path %s appears not to be in a famfs mount\n",
+				__func__, path);
+			return NULL;
+		}
+
+		rpath = realpath(pc, NULL);
+		if (rpath)
+			return rpath;  /* found a valid path */
+
+		pc = dirname(pc);
+		if (--loop_ct == 0) {
+			fprintf(stderr,
+				"%s: bailed from possible infinite loop; path=%s path_copy=%s\n",
+				__func__, path, pc);
+			return NULL;
+		}
+	}
+	return NULL;
+}
+
 /**
  * __open_relpath()
  *
@@ -1474,37 +1505,15 @@ __open_relpath(
 {
 	int openmode = (read_only) ? O_RDONLY : O_RDWR;
 	char *rpath;
-	char path_copy[PATH_MAX];
-	char *pc = &path_copy[0];
 	struct stat st;
 	int rc, fd;
-	int loop_ct = 15;
 
 	/*
 	 * If path does not exist, ascend canonically until we find something that does
 	 * exist, or until that remaining path string is too short, or until it looks like
 	 * we might be in an infinite loop
 	 */
-	strncpy(path_copy, path, PATH_MAX - 1);
-	while (1) {
-		if (strlen(pc) <= 1) {
-			fprintf(stderr, "%s: path %s appears not to be in a famfs mount\n",
-				__func__, path);
-			return -1;
-		}
-
-		rpath = realpath(pc, NULL);
-		if (rpath)
-			break; /* found a valid path */
-		pc = dirname(pc);
-		if (--loop_ct == 0) {
-			fprintf(stderr,
-				"%s: bailed from possible infinite loop; path=%s path_copy=%s\n",
-				__func__, path, pc);
-			return -1;
-		}
-	}
-
+	rpath = find_real_parent_path(path);
 	if (!rpath)
 		return -1;
 
