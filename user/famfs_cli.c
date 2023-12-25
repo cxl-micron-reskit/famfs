@@ -211,19 +211,11 @@ do_famfs_cli_mkmeta(int argc, char *argv[])
 	};
 
 	if (optind >= argc) {
-		fprintf(stderr, "famfs_cli map: no args\n");
+		fprintf(stderr, "%s: no args\n", __func__);
 		famfs_mkmeta_usage(argc, argv);
 		return -1;
 	}
 
-	/* The next stuff on the command line is file names;
-	 * err if nothing is left
-	 */
-	if (optind >= argc) {
-		fprintf(stderr, "famfs_cli map: no files\n");
-		famfs_mkmeta_usage(argc, argv);
-		return -1;
-	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
@@ -311,19 +303,11 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	};
 
 	if (optind >= argc) {
-		fprintf(stderr, "famfs_cli map: no args\n");
+		fprintf(stderr, "%s: no args\n", __func__);
 		famfs_fsck_usage(argc, argv);
 		return -1;
 	}
 
-	/* The next stuff on the command line is file names;
-	 * err if nothing is left
-	 */
-	if (optind >= argc) {
-		fprintf(stderr, "famfs_cli map: no files\n");
-		famfs_fsck_usage(argc, argv);
-		return -1;
-	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
@@ -418,19 +402,11 @@ do_famfs_cli_cp(int argc, char *argv[])
 	};
 
 	if (optind >= argc) {
-		fprintf(stderr, "famfs_cli map: no args\n");
+		fprintf(stderr, "%s: no args\n", __func__);
 		famfs_cp_usage(argc, argv);
 		return -1;
 	}
 
-	/* The next stuff on the command line is file names;
-	 * err if nothing is left
-	 */
-	if (optind >= argc) {
-		fprintf(stderr, "famfs_cli map: no files\n");
-		famfs_cp_usage(argc, argv);
-		return -1;
-	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
@@ -529,19 +505,11 @@ do_famfs_cli_getmap(int argc, char *argv[])
 	};
 
 	if (optind >= argc) {
-		fprintf(stderr, "famfs_cli map: no args\n");
+		fprintf(stderr, "%s: no args\n", __func__);
 		famfs_getmap_usage(argc, argv);
 		return -1;
 	}
 
-	/* The next stuff on the command line is file names;
-	 * err if nothing is left
-	 */
-	if (optind >= argc) {
-		fprintf(stderr, "famfs_cli map: no files\n");
-		famfs_getmap_usage(argc, argv);
-		return -1;
-	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
@@ -648,19 +616,11 @@ do_famfs_cli_clone(int argc, char *argv[])
 	};
 
 	if (optind >= argc) {
-		fprintf(stderr, "famfs_cli map: no args\n");
+		fprintf(stderr, "%s: no args\n", __func__);
 		famfs_clone_usage(argc, argv);
 		return -1;
 	}
 
-	/* The next stuff on the command line is file names;
-	 * err if nothing is left
-	 */
-	if (optind >= argc) {
-		fprintf(stderr, "famfs_cli map: no files\n");
-		famfs_clone_usage(argc, argv);
-		return -1;
-	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
@@ -800,19 +760,11 @@ do_famfs_cli_creat(int argc, char *argv[])
 	};
 
 	if (optind >= argc) {
-		fprintf(stderr, "famfs_cli creat: no args\n");
+		fprintf(stderr, "%s: no args\n", __func__);
 		famfs_creat_usage(argc, argv);
 		return -1;
 	}
 
-	/* The next stuff on the command line is file names;
-	 * err if nothing is left
-	 */
-	if (optind >= argc) {
-		fprintf(stderr, "famfs_cli creat: no files\n");
-		famfs_creat_usage(argc, argv);
-		return -1;
-	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
@@ -988,19 +940,11 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 	};
 
 	if (optind >= argc) {
-		fprintf(stderr, "famfs_cli mkdir: no args\n");
+		fprintf(stderr, "%s: no args\n", __func__);
 		famfs_mkdir_usage(argc, argv);
 		return -1;
 	}
 
-	/* The next stuff on the command line is file names;
-	 * err if nothing is left
-	 */
-	if (optind >= argc) {
-		fprintf(stderr, "famfs_cli mkdir: no files\n");
-		famfs_mkdir_usage(argc, argv);
-		return -1;
-	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
@@ -1107,19 +1051,11 @@ do_famfs_cli_verify(int argc, char *argv[])
 	};
 
 	if (optind >= argc) {
-		fprintf(stderr, "famfs_cli map: no args\n");
+		fprintf(stderr, "%s: no args\n", __func__);
 		famfs_verify_usage(argc, argv);
 		return -1;
 	}
 
-	/* The next stuff on the command line is file names;
-	 * err if nothing is left
-	 */
-	if (optind >= argc) {
-		fprintf(stderr, "famfs_cli map: no files\n");
-		famfs_verify_usage(argc, argv);
-		return -1;
-	}
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
