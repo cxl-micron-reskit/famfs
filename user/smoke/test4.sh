@@ -61,7 +61,11 @@ set -x
 
 verify_mounted $DEV $MPT "test2.sh"
 
+${CLI} badarg                            && fail "create badarg should fail"
+${CLI} creat  -h                         || fail "creat -h should succeed"
 ${CLI} creat -s 3g  ${MPT}/memfile       || fail "can't create memfile for multichase"
+${CLI} creat -s 100m ${MPT}/memfile1     || fail "creat should succeed with -s 100m"
+${CLI} creat -s 10000k ${MPT}/memfile2   || fail "creat with -s 10000k should succeed"
 
 # Let's count the faults during the multichase run
 sudo sh -c "echo 1 > /sys/fs/famfs/fault_count_enable"

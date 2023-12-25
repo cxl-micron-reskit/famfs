@@ -94,12 +94,15 @@ F=bigtest0
 ${CLI} creat -v -r -S 42 -s 0x800000 $MPT/$F   || fail "creat $F"
 ${CLI} verify -S 42 -f $MPT/$F                 || fail "$F mismatch"
 
+${CLI} cp -h                        || fail "cp -h should succeed"
+
 ${CLI} cp $MPT/$F $MPT/${F}_cp      || fail "cp $F"
 ${CLI} verify -S 42 -f $MPT/${F}_cp || fail "verify ${F}_cp"
 
 #
 # mkdir with absolute path
 #
+${CLI} mkdir -h           || fail "mkdir -h should succeed"
 ${CLI} mkdir $MPT/subdir || fail "failed to create subdir"
 ${CLI} mkdir $MPT/subdir && fail "creating existing subdir should fail"
 ${CLI} mkdir $MPT/$F && fail "mkdir that collides with existing file should fail"
@@ -129,8 +132,9 @@ cd ${MPT}
 pwd
 ${CLI} mkdir -p A/x/y/z               || fail "mkdir -p 4"
 ${CLI} mkdir -p ./A/x/y/z               || fail "mkdir -p 5"
-
 cd -
+
+${CLI} mkdir -pv $MPT/${F}/foo/bar/baz/bing && fail "mkdir -p with a file in path should fail"
 
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp0      || fail "cp0 $F"
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp1      || fail "cp1 $F"
@@ -144,6 +148,12 @@ ${CLI} cp -v $MPT/$F $MPT/subdir/${F}_cp8      || fail "cp8 $F"
 ${CLI} cp -v $MPT/$F $MPT/subdir/${F}_cp9      || fail "cp9 $F"
 
 #
+# Copy stuff that is invalid
+#
+${CLI} cp /tmp/nonexistent_file $MPT/ && fail "cp nonexistent should fail"
+${CLI} cp /dev/zero $MPT/             && fail "cp /dev/zero (cardev) should fail"
+
+
 # cp to an existing dir target
 #
 ${CLI} mkdir $MPT/dirtarg || fail "failed to create subdir dirtarg"
@@ -260,7 +270,8 @@ ${CLI} verify -S 42 -f $MPT/dirtarg2/${F}_cp9 || fail "verify wildcard 2 ${F}_cp
 
 
 ${CLI} fsck $MPT || fail "fsck should succeed"
-${CLI} fsck -v $MPT || fail "fsck should succeed"
+${CLI} fsck -m $MPT || fail "fsck -mh should succeed"
+${CLI} fsck -v $MPT || fail "fsck -v should succeed"
 
 set +x
 echo "*************************************************************************************"

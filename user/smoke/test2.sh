@@ -69,6 +69,10 @@ ${CLI} creat -s 0x400000 $NOT_IN_FAMFS \
 
 # Famfs getmap should succeed on a file that exists
 LOG=$MPT/.meta/.log
+${CLI} getmap -h   || fail "getmap -h should succeed"
+${CLI} getmap      && fail "getmap with no file arg should fail"
+${CLI} getmap badfile  && fail "getmap on nonexistent file should fail"
+${CLI} getmap /etc/passwd && fail "getmap on non-famfs file should fail"
 ${CLI} getmap $LOG || fail "getmap should succeed on the famfs log file"
 
 

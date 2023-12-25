@@ -68,8 +68,9 @@ ${CLI} fsck $MPT || fail "fsck should not fail when nothing cloned"
 
 N="10"
 FILE="bigtest$N"
+${CLI} clone -h                                      || fail "clone -h should succeed"
 ${CLI} clone $MPT/${FILE} $MPT/${FILE}_clone         || fail "clone $F "
-${CLI} clone $MPT/${FILE} $MPT/${FILE}_clone1        || fail "clone $F "
+${CLI} clone -v $MPT/${FILE} $MPT/${FILE}_clone1        || fail "clone $F "
 
 ${CLI} fsck $MPT && fail "fsck should fail after cloning "
 ${CLI} verify -S $N -f $MPT/${FILE}_clone  || fail "${FILE}_clone mismatch"

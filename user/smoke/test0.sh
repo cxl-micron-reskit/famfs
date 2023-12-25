@@ -64,6 +64,9 @@ sudo mkdir -p $MPT || fail "mkdir"
 grep -c famfs /proc/mounts         && fail "famfs is currently mounted"
 
 # destroy famfs file system, if any
+${MKFS} -h            || fail "mkfs -h should work"
+${MKFS}               && fail "mkfs without dev argument should fail"
+${MKFS} /tmp/nonexistent && fail "mkfs on nonexistent dev should fail"
 ${MKFS} -f -k $DEV    || fail "mkfs/kill"
 ${MKFS}  $DEV         || fail "mkfs"
 ${MKFS}  $DEV         && fail "mkfs redo" # fail, fs exists
@@ -85,8 +88,13 @@ sudo test -f $MPT/.meta/.superblock || fail "no superblock file after mkmeta"
 sudo test -f $MPT/.meta/.log        || fail "no log file after mkmeta"
 
 # Create 1 file and verify
+${CLI} creat -h                           || fail "creat -h should succeed"
 ${CLI} creat -r -s 4096 -S 1 $MPT/test1   || fail "creat test1"
+
+${CLI} verify -h                 || fail "verify -h should succeed"
 ${CLI} verify -S 1 -f $MPT/test1 || fail "verify 1 after creat"
+${CLI} verify -S 99 -f $MPT/test1 && fail "verify with wrong seed shoud fail"
+
 
 # Create 2 more files
 ${CLI} creat -r -s 4096 -S 2 $MPT/test2   || fail "creat test2"
@@ -100,7 +108,14 @@ ${CLI} verify -S 3 -f $MPT/test3 || fail "verify 3 after multi creat"
 # Create same file should fail
 ${CLI} creat -r -s 4096 -S 1 $MPT/test1   && fail "Create should fail if file exists"
 
+# Create outside famfs should fail
+${CLI} creat -r -s 4096 -S 1 /tmp/test1   && fail "Create should fail if file exists"
+
 # Unmount and remount
+${CLI} logplay -h                  || fail "logplay -h should work"
+${CLI} logplay -rc $MPT            || fail "logplay -rc should succeed"
+${CLI} logplay -rm $MPT            && fail "logplay with -m and -r should fail"
+${CLI} logplay                     && fail "logplay without MPT arg should fail"
 sudo umount $MPT || fail "umount"
 grep -c famfs /proc/mounts         && fail "famfs is still mounted after umount attempt"
 
@@ -110,7 +125,7 @@ grep -c famfs /proc/mounts         || fail "famfs not mounted after remount atte
 
 echo "this logplay should fail because we haven't done mkmeta yet"
 ${CLI} logplay -v $MPT               && fail "logplay 1 before mkmeta"
-
+${CLI} logplay                       && fail "logplay should fail with no args"
 # Post mount, re-create the meta files
 ${CLI} mkmeta $DEV                || fail "mkmeta 2"
 sudo test -f $MPT/.meta/.superblock || fail "no superblock file after mkmeta"
@@ -118,17 +133,24 @@ sudo test -f $MPT/.meta/.log        || fail "no log file after mkmeta"
 
 sudo ls -lR $MPT
 ${CLI} logplay -v $MPT             || fail "logplay after mkmeta should work"
+${CLI} mkmeta                    && fail "mkmeta with no args should fail"
+${CLI} mkmeta -h                 || fail "mkmeta -h should succeed"
+${CLI} mkmeta /tmp/nonexistent   && fail "mkmeta on non-existing device should fail"
 ${CLI} mkmeta $DEV               || fail "mkmeta repeat should fail"
 
 # Replay the log, recovering the files that existed befure the umount
-${CLI} logplay -v $MPT             || fail "logplay 3 should work but be nop"
+${CLI} logplay -vr $MPT             || fail "logplay 3 should work but be nop"
+${CLI} logplay -m $MPT             || fail "logplay 3 should work but be nop"
 
 # Re-verify the files from prior to the umount
 ${CLI} verify -S 1 -f $MPT/test1 || fail "verify test1 after replay"
 ${CLI} verify -S 2 -f $MPT/test2 || fail "verify test2 after replay"
 ${CLI} verify -S 3 -f $MPT/test3 || fail "verify test3 after replay"
 
+${CLI} fsck -?  || fail "fsck -h should succeed"x
 ${CLI} fsck $MPT || fail "fsck should succeed"
+${CLI} fsck --human $MPT || fail "fsck --human should succeed"
+
 
 set +x
 echo "*************************************************************************************"
