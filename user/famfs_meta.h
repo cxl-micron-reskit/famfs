@@ -111,8 +111,10 @@ enum famfs_log_ext_type {
 	FAMFS_EXT_SIMPLE,
 };
 
+/* TODO: get rid of this extent type, and use the one from the kernel instead
+ * (which will avoid silly translations... */
 struct famfs_simple_extent {
-	/* Tihs extent is on the dax device with the superblock */
+	/* This extent is on the dax device with the superblock */
 	u64 famfs_extent_offset;
 	u64 famfs_extent_len;
 };
