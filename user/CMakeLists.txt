@@ -1,11 +1,12 @@
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.15)
 
 set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -ggdb -Wall ")
 
 project(famfs_unit)
+
 
 include_directories("${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}/../kmod")
@@ -19,6 +20,12 @@ include_directories("${PROJECT_SOURCE_DIR}/testlib")
 message(STATUS "PROJECT_SOURCE_DIR=${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}../famfs")
+
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/CMakeModules)
+if(CMAKE_COMPILER_IS_GNUCXX AND FAMFS_TEST_COVERAGE)
+    include(CodeCoverage)
+    append_coverage_compiler_flags()
+endif()
 
 add_library(libfamfs famfs_lib.c  )
 
@@ -73,7 +80,7 @@ install(TARGETS mkfs.famfs DESTINATION /usr/local/bin)
 #Install library and header files? Maybe later...
 
 #install(TARGETS libfamfs DESTINATION /usr/local/lib)
-#install(FILES famfs_llib.h DESTINATION /usr/local/include)
+#install(FILES famfs_lib.h DESTINATION /usr/local/include)
 
 #Install man pages? Heck yeah, as soon as we have some...
 
