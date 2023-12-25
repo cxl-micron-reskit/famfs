@@ -37,6 +37,7 @@ TEST(famfs, dummy)
 	ASSERT_EQ(0, 0);
 }
 
+
 TEST(famfs, famfs_mkfs)
 {
 	char *buf  = (char *)calloc(1, FAMFS_LOG_LEN);
@@ -168,6 +169,8 @@ TEST(famfs, famfs_open_relpath)
 {
 	int rc;
 
+	/* TODO: add relative path checks (getcwd(), chdir(), use rellative paths, chdir back) */
+
 	/* /tmp/famfs should already exist and have a superblock and log in it */
 	system("mkdir -p /tmp/famfs/0000/1111/2222/3333/4444/5555");
 
@@ -186,7 +189,8 @@ TEST(famfs, famfs_open_relpath)
 	close(rc);
 
 	/* Good but deep path */
-	rc = __open_relpath("/tmp/famfs/0000/1111/2222/3333/4444/5555", LOG_RELPATH, 1, NULL, NULL, 1);
+	rc = __open_relpath("/tmp/famfs/0000/1111/2222/3333/4444/5555",
+			    LOG_RELPATH, 1, NULL, NULL, 1);
 	ASSERT_GT(rc, 0);
 	close(rc);
 
