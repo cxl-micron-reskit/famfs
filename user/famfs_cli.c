@@ -121,7 +121,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+vcmnh?",
+	while ((c = getopt_long(argc, argv, "+vrcmnh?",
 				logplay_options, &optind)) != EOF) {
 		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
 
@@ -1281,9 +1281,9 @@ main(int argc, char **argv)
 		}
 	}
 
-	fprintf(stderr, "%s: Unrecognized command %s\n", argv[0], optarg);
+	fprintf(stderr, "famfs cli: Unrecognized command %s\n", argv[optind]);
 	do_famfs_cli_help(argc, argv);
 
-	return 0;
+	return -1;
 }
 
