@@ -268,8 +268,25 @@ TEST(famfs, famfs_random_buffer)
 	rc = validate_random_buffer(buf, 0, 11);
 	ASSERT_EQ(rc, -1);
 #if 0
-	rnum = generate_random_u_int32_t(1, 10);
+	rnum = generate_random_u32(1, 10);
 	ASSERT_GT(rnum, 0);
 	ASSERT_LT(rnum, 11);
 #endif
+}
+
+#define booboofile "/tmp/booboo"
+TEST(famfs, famfs_file_not_famfs)
+{
+	int sfd;
+	int rc;
+
+	system("rm -rf" booboofile);
+	sfd = open(booboofile, O_RDWR | O_CREAT, 0666);
+	ASSERT_GT(sfd, 0);
+	rc = __file_not_famfs(sfd);
+	ASSERT_NE(rc, 0);
+	close(sfd);
+
+	rc = file_not_famfs(booboofile);
+	ASSERT_NE(rc, 0);
 }

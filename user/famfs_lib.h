@@ -38,6 +38,8 @@ int famfs_mkfs(const char *daxdev, int kill, int force);
 #ifdef FAMFS_UNIT_TEST
 #include "famfs_meta.h"
 /* Only exported for unit tests */
+int __file_not_famfs(int fd);
+int file_not_famfs(const char *fname);
 unsigned long famfs_gen_superblock_crc(const struct famfs_superblock *sb);
 unsigned long famfs_gen_log_header_crc(const struct famfs_log *logp);
 int __famfs_mkfs(const char *daxdev, struct famfs_superblock *sb, struct famfs_log *logp,

@@ -74,7 +74,7 @@ static int famfs_mmap_superblock_and_log_raw(const char *devname,
 					     struct famfs_log **logp,
 					     int read_only);
 
-static int
+int
 __file_not_famfs(int fd)
 {
 	int rc;
@@ -86,7 +86,7 @@ __file_not_famfs(int fd)
 	return 0;
 }
 
-static int
+int
 file_not_famfs(const char *fname)
 {
 	int fd;
