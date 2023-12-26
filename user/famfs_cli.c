@@ -123,11 +123,6 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	 */
 	while ((c = getopt_long(argc, argv, "+vrcmnh?",
 				logplay_options, &optind)) != EOF) {
-		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
-
-		/* Detect the end of the options. */
-		if (c == -1)
-			break;
 
 		arg_ct++;
 		switch (c) {
@@ -222,11 +217,6 @@ do_famfs_cli_mkmeta(int argc, char *argv[])
 	 */
 	while ((c = getopt_long(argc, argv, "+h?",
 				mkmeta_options, &optind)) != EOF) {
-		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
-
-		/* Detect the end of the options. */
-		if (c == -1)
-			break;
 
 		arg_ct++;
 		switch (c) {
@@ -314,11 +304,6 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	 */
 	while ((c = getopt_long(argc, argv, "+vh?m",
 				fsck_options, &optind)) != EOF) {
-		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
-
-		/* Detect the end of the options. */
-		if (c == -1)
-			break;
 
 		arg_ct++;
 		switch (c) {
@@ -413,11 +398,6 @@ do_famfs_cli_cp(int argc, char *argv[])
 	 */
 	while ((c = getopt_long(argc, argv, "+m:vh?",
 				cp_options, &optind)) != EOF) {
-		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
-
-		/* Detect the end of the options. */
-		if (c == -1)
-			break;
 
 		arg_ct++;
 		switch (c) {
@@ -516,11 +496,6 @@ do_famfs_cli_getmap(int argc, char *argv[])
 	 */
 	while ((c = getopt_long(argc, argv, "+h?",
 				cp_options, &optind)) != EOF) {
-		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
-
-		/* Detect the end of the options. */
-		if (c == -1)
-			break;
 
 		arg_ct++;
 		switch (c) {
@@ -627,11 +602,6 @@ do_famfs_cli_clone(int argc, char *argv[])
 	 */
 	while ((c = getopt_long(argc, argv, "+vh?",
 				cp_options, &optind)) != EOF) {
-		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
-
-		/* Detect the end of the options. */
-		if (c == -1)
-			break;
 
 		arg_ct++;
 		switch (c) {
@@ -772,10 +742,6 @@ do_famfs_cli_creat(int argc, char *argv[])
 	while ((c = getopt_long(argc, argv, "+s:S:m:u:g:rh?v",
 				creat_options, &optind)) != EOF) {
 		char *endptr;
-
-		/* Detect the end of the options. */
-		if (c == -1)
-			break;
 
 		arg_ct++;
 		switch (c) {
@@ -951,11 +917,6 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 	 */
 	while ((c = getopt_long(argc, argv, "+pvm:u:g:h?",
 				mkdir_options, &optind)) != EOF) {
-		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
-
-		/* Detect the end of the options. */
-		if (c == -1)
-			break;
 
 		arg_ct++;
 		switch (c) {
@@ -1062,11 +1023,6 @@ do_famfs_cli_verify(int argc, char *argv[])
 	 */
 	while ((c = getopt_long(argc, argv, "+f:S:h?",
 				map_options, &optind)) != EOF) {
-		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
-
-		/* Detect the end of the options. */
-		if (c == -1)
-			break;
 
 		arg_ct++;
 		switch (c) {
@@ -1187,11 +1143,6 @@ main(int argc, char **argv)
 	 */
 	while ((c = getopt_long(argc, argv, "+h?:",
 				global_options, &optind)) != EOF) {
-		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
-
-		/* Detect the end of the options. */
-		if (c == -1)
-			break;
 
 		switch (c) {
 		case 'h':
