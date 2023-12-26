@@ -17,7 +17,7 @@ coverage:
 
 release:
 	mkdir -p release
-	cd release; cmake ..
+	cd release; cmake ..; make
 
 all:	debug
 
