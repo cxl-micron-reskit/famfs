@@ -9,6 +9,7 @@ MPT="/mnt/famfs"
 MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 TEST_ERRORS=1
 TEST_ALL=1
+SLEEP_TIME=2
 
 # Check if we have password-less sudi, which is required
 sudo -n true 2>/dev/null
@@ -31,12 +32,17 @@ while (( $# > 0)); do
     case "$flag" in
 	(-n|--noerrors)
 	    TEST_ERRORS=0
-	    shift;
 	    ;;
 	(-j|-justerrors)
 	    TEST_ERRORS=1
 	    TEST_ALL=0
-	    shift;
+	    ;;
+	(-N|--nosleep)
+	    SLEEP_TIME=0
+	    ;;
+	(-r|--release)
+	    BIN="$CWD/release"
+	    echo "hello release BIN=$BIN"
 	    ;;
 	*)
 	    remainder="$flag $1";
@@ -62,7 +68,7 @@ if [ ! -f $TEST_FUNCS ]; then
     echo "Can't source $TEST_FUNCS"
     exit -1
 fi
-BIN=debug
+#BIN=debug
 if [ ! -d $BIN ]; then
     echo "Can't find executables"
     exit -1
@@ -76,17 +82,18 @@ source $TEST_FUNCS
 
 if (($TEST_ALL > 0)); then
     ./smoke/test0.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
-    sleep 2
+    sleep "${SLEEP_TIME}"
     ./smoke/test1.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
-    sleep 2
+    sleep "${SLEEP_TIME}"
     ./smoke/test2.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
-    sleep 2
+    sleep "${SLEEP_TIME}"
     ./smoke/test3.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
-    sleep 2
+    sleep "${SLEEP_TIME}"
     ./smoke/test4.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
 fi
 if (($TEST_ERRORS > 0)); then
-    sleep 2
+    sleep "${SLEEP_TIME}"
+
     ./smoke/test_errors.sh  -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
 else
     echo "skipping test_errors.sh because -n|--noerrors was specified"
