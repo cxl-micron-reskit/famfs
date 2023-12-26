@@ -70,9 +70,9 @@ thereof... still need to fix)
 ** TODO Proper test for logplay --client
 ** TODO integrate with gcov via cmake
 ** TODO Need a test that tests wide range of odd file sizes
-** DONE Test mkdir -m
-** TODO Test cp -mug
-** TODO Test creat -mug
+** DONE Test mkdir -mug
+** DONE Test cp -mug
+** DONE Test creat -mug
 ** TODO Need some more stressful automated tests
 ** TODO Tests that fully validate log behavior
 ** TODO test filling up a tagfs file system

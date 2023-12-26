@@ -2467,10 +2467,11 @@ famfs_dir_create(
 
 	if (uid && gid) {
 		rc = chown(fullpath, uid, gid);
-		if (rc)
+		if (rc) {
 			fprintf(stderr, "%s: chown returned %d errno %d\n",
 				__func__, rc, errno);
-		return -1;
+			return -1;
+		}
 	}
 	return 0;
 }
@@ -2663,7 +2664,8 @@ famfs_make_parent_dir(
 	if (verbose)
 		printf("%s: dir %s depth %d\n", __func__, path, depth);
 
-	return __famfs_mkdir(lp, path, mode, uid, gid);
+	rc = __famfs_mkdir(lp, path, mode, uid, gid);
+	return rc;
 }
 
 int
@@ -2719,6 +2721,7 @@ famfs_mkdir_parents(
 	/* Separate function should release ll and lock */
 	famfs_release_log_lock(ll.lfd);
 	free(rpath);
+	close(lfd);
 	return rc;
 }
 

@@ -375,6 +375,7 @@ do_famfs_cli_cp(int argc, char *argv[])
 	mode_t mode = 0; /* null mode inherits mode form source file */
 	uid_t uid = getuid();
 	gid_t gid = getgid();
+	mode_t current_umask;
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option cp_options[] = {
@@ -396,7 +397,7 @@ do_famfs_cli_cp(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+m:vh?",
+	while ((c = getopt_long(argc, argv, "+m:u:g:vh?",
 				cp_options, &optind)) != EOF) {
 
 		arg_ct++;
@@ -436,12 +437,16 @@ do_famfs_cli_cp(int argc, char *argv[])
 	}
 
 	remaining_args = argc - optind;
-	printf("Remaining args: %d\n", remaining_args);
 
 	if (remaining_args < 2) {
 		fprintf(stderr, "%s: source nd destination args are required\n", __func__);
 		return -1;
 	}
+
+	/* This is horky, but OK for the cli */
+	current_umask = umask(0022);
+	umask(current_umask);
+	mode &= ~(current_umask);
 
 	/* famfs_cp_multi() will consume the rest of the command line */
 	return famfs_cp_multi(argc - optind, &argv[optind], mode, uid, gid, verbose);
@@ -660,6 +665,8 @@ famfs_creat_usage(int   argc,
 	       "    -S|--seed <random-seed>  - Optional seed for randomization\n"
 	       "    -r|--randomize           - Optional - will randomize with provided seed\n"
 	       "    -m|--mode <octal-mode>   - Default is 0644\n"
+	       "                               Note: mode is ored with ~umask, so the actual mode\n"
+	       "                               may be less permissive; see umask for more info\n"
 	       "    -u|--uid <int uid>       - Default is caller's uid\n"
 	       "    -g|--gid <int gid>       - Default is caller's gid\n"
 	       "    -v|--verbose             - Print debugging output while executing the command\n"
@@ -711,6 +718,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 	s64 seed;
 	int randomize = 0;
 	int verbose = 0;
+	mode_t current_umask;
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option creat_options[] = {
@@ -815,7 +823,10 @@ do_famfs_cli_creat(int argc, char *argv[])
 		exit(-1);
 	}
 
-	printf("mode: %o\n", mode);
+	/* This is horky, but OK for the cli */
+	current_umask = umask(0022);
+	umask(current_umask);
+	mode &= ~(current_umask);
 	fd = famfs_mkfile(filename, mode, uid, gid, fsize, verbose);
 	if (fd < 0) {
 		fprintf(stderr, "%s: failed to create file %s\n", __func__, filename);
@@ -887,6 +898,7 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 	int arg_ct = 0;
 	int parents = 0;
 	int verbose = 0;
+	mode_t current_umask;
 
 	/* TODO: allow passing in uid/gid/mode on command line*/
 
@@ -964,6 +976,11 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 		fprintf(stderr, "Must specify at least one dax device\n");
 		return -1;
 	}
+
+	/* This is horky, but OK for the cli */
+	current_umask = umask(0022);
+	umask(current_umask);
+	mode &= ~(current_umask);
 
 	dirpath  = argv[optind++];
 	if (parents)

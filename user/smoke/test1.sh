@@ -176,10 +176,13 @@ ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp9 || fail "verify ${F}_cp9"
 
 #
 # Cp wildcard to directory from mkdir -p, and verify
-#
+# (with custom mode/uid/gid)
+MODE="600"
+UID=$(id -u)
+GID=$(id -g)
 cd ${MPT}
 DEST=A/B/C/w/x/y/z
-${CLI} cp $MPT/subdir/* $MPT/${DEST} || fail "cp wildcard set to directory should succeed"
+${CLI} cp -m $MODE -u $UID -g $GID  $MPT/subdir/* $MPT/${DEST} || fail "cp wildcard set to directory should succeed"
 # Verify files from wildcard cp, in a deep directory
 ${CLI} verify -S 42 -f ${DEST}/${F}_cp0 || fail "verify relpath ${F}_cp0"
 ${CLI} verify -S 42 -f ${DEST}/${F}_cp1 || fail "verify relpath ${F}_cp1"
@@ -193,10 +196,40 @@ ${CLI} verify -S 42 -f ${DEST}/${F}_cp8 || fail "verify relpath ${F}_cp8"
 ${CLI} verify -S 42 -f ${DEST}/${F}_cp9 || fail "verify relpath ${F}_cp9"
 cd -
 
+
+# Check the custom cp mode/uid/gid on one of the files
+FILE="$MPT/${DEST}/${F}_cp0"
+MODE_OUT="$(sudo stat --format='%a' ${FILE})"
+if [[ $MODE != $MODE_OUT ]]; then
+    fail "cp -m err $MODE ${MODE_OUT}"
+fi
+UID_OUT="$(sudo stat --format='%u' ${FILE})"
+if [[ $UID != $UID_OUT ]]; then
+    fail "cp -u err $UID ${UID_OUT}"
+fi
+GID_OUT="$(sudo stat --format='%g' ${FILE})"
+if [[ $GID != $GID_OUT ]]; then
+    fail "cp -g err $GID ${GID_OUT}"
+fi
+
 sudo umount $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
 full_mount $DEV $MPT "${MOUNT_OPTS}" "test1.sh"
 verify_mounted $DEV $MPT "test1.sh"
+
+# re-check the custom cp mode/uid/gid on one of the files
+MODE_OUT="$(sudo stat --format='%a' ${FILE})"
+if [[ $MODE != $MODE_OUT ]]; then
+    fail "cp -m err $MODE ${MODE_OUT} after remount"
+fi
+UID_OUT="$(sudo stat --format='%u' ${FILE})"
+if [[ $UID != $UID_OUT ]]; then
+    fail "cp -u err $UID ${UID_OUT} after remount"
+fi
+GID_OUT="$(sudo stat --format='%g' ${FILE})"
+if [[ $GID != $GID_OUT ]]; then
+    fail "cp -g err $GID ${GID_OUT} after remount"
+fi
 
 ${CLI} verify -S 42 -f $MPT/${F}_cp || fail "verify ${F}_cp"
 
