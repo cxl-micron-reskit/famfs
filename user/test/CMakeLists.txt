@@ -2,8 +2,12 @@
 cmake_minimum_required(VERSION 3.15)
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/CMakeModules)
-if(CMAKE_COMPILER_IS_GNUCXX)
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+  if(CMAKE_COMPILER_IS_GNUCXX)
+    message("Compiling for code coverage tests")
     include(CodeCoverage)
+    append_coverage_compiler_flags()
+  endif()
 endif()
 
 include_directories("${PROJECT_SOURCE_DIR}/")
@@ -16,9 +20,6 @@ include_directories("${PROJECT_SOURCE_DIR}/testlib")
 
 file(GLOB tests "${PROJECT_SOURCE_DIR}/test/*.cpp")
 #list(REMOVE_ITEM tests "${PROJECT_SOURCE_DIR}/test/main.cpp")
-
-append_coverage_compiler_flags()
-#add_library(libfamfs_cov ../famfs_lib.c)
 
 set(COVERAGE_EXCLUDES "./debug")
 #  ${PROJECT_SOURCE_DIR}/debug/googletest-src/*" )
@@ -35,16 +36,18 @@ foreach(file ${tests})
   message(STATUS "name=${name}")
   add_test(NAME ${name} COMMAND "${name}_tests")
 
-  if (CMAKE_COMPILER_IS_GNUCXX AND FAMFS_TEST_COVERAGE)
-    #include(CodeCoverage)
-    set(GCOVR_PATH "/usr/bin/gcovr")
+  if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    if (CMAKE_COMPILER_IS_GNUCXX AND FAMFS_TEST_COVERAGE)
+      #include(CodeCoverage)
+      set(GCOVR_PATH "/usr/bin/gcovr")
 
-    # Works
-    setup_target_for_coverage_gcovr_html(
-      NAME "${name}_coverage"
-       EXECUTABLE "${name}_tests"
-       DEPENDENCIES gtest_main libfamfs
-       #BASE_DIRECORY "../"
-    )
+      # Works
+      setup_target_for_coverage_gcovr_html(
+	NAME "${name}_coverage"
+	EXECUTABLE "${name}_tests"
+	DEPENDENCIES gtest_main libfamfs
+	#BASE_DIRECORY "../"
+      )
+    endif()
   endif()
 endforeach()
