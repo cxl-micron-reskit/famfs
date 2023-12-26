@@ -4,7 +4,14 @@ TODO Features
 
 * Documentation
 
-** TODO first draft kernel module documentation (to move into Documentation/filesystems/)
+** DONE first draft kernel module documentation (to move into Documentation/filesystems/)
+** TODO Second draft kmod doc
+
+* Experiments
+** Check verbosity of normal operations
+*** TODO cp, cp *,
+*** TODO mkdir, mkdir -p
+*** TODO logplay
 
 * Miscellaeous
 ** DONE Logplay should be quiet unless explicitly verbose
@@ -20,12 +27,18 @@ Now it fails if dev < 4GiB
 ** TODO logplay: find and optionally delete files that exist but weren't in the log?
 ** TODO logplay: fix existing file ownership and permissions to match the log?
 ** TODO logplay: fix existing file size to match log?
-** TODO famfs cp: accept uid/gid/mode args like creat?
-** TODO famfs mkdir: accept uid/gid/mode args like creat?
+could be an argument --fix
+** DONE famfs cp: accept uid/gid/mode args like creat?
+** DONE famfs mkdir: accept uid/gid/mode args like creat?
+
 ** TODO File create: allow non-privileged if the user has write perm in the directory?
 Log write still requires root. Hmm...
 ** TODO mkdir: same thing, non-privileged allowed if perms check out on parent dir
+** DONE mkdir: plumb verbose
+** DONE mkdir: -m -u -g for mode, uid, gid
 ** DONE mkdir of relpath (relative to cwd) fails even if the path is good
+** TODO mkdir -p: test paths like /foo/bar/../../baz/bing
+** TODO verify superblock 0444 permissions when opening
 
 * dev_dax support (character device)
 Current state: works for mmap but not or read/write
@@ -49,11 +62,17 @@ Current state: not implemented
 -May need invalidate the cache before reading log entries?
 
 * Bugs
-** TODO when running logplay manually, first run fails and second run succeeds
-Actually this is probably just a malfunction of the new "-v" option (or lack
+** DONE when running logplay manually, first run fails and second run succeeds
+Actually this was probably just a malfunction of the new "-v" option (or lack
 thereof... still need to fix)
 
 * Testing
+** TODO Proper test for logplay --client
+** TODO integrate with gcov via cmake
+** TODO Need a test that tests wide range of odd file sizes
+** DONE Test mkdir -m
+** TODO Test cp -mug
+** TODO Test creat -mug
 ** TODO Need some more stressful automated tests
 ** TODO Tests that fully validate log behavior
 ** TODO test filling up a tagfs file system
@@ -73,17 +92,19 @@ Should fail to append file past allocation, but succeed *to* allocation
 ** TODO Compare multichase on pmem, /dev/dax, and famfs file
 
 * Wish List
+** TODO cli: df
 ** TODO un-tar into famfs
 ** TODO famfs cp -r
 Note: cp -r would need a bunch of unit test work; it could easily fill up the log, run the
 FS out of space, or both...
 ** TODO (interim) python program for cp -r?
-** TODO famfs mkdir -p
+** DONE famfs mkdir -p
 ** TODO Sould a log entry be an integer number of cache lines?
 ** TODO famfs mv: rename can work
 ...but only of logplay looks ahead for renames!!
 ** TODO Configurable log size?
 This would require a bunch of tests
+This is complicated, because we use FAMFS_LOG_LEN multiple places
 ** TODO tagfs_mkfile: create in <mpt>/.tmp and then move into place when ready?
 
 * Unit test coverage
