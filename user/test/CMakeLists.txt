@@ -32,7 +32,7 @@ foreach(file ${tests})
     ${file}
     )
 #    "${PROJECT_SOURCE_DIR}/test/main.cpp")
-  target_link_libraries("${name}_tests" gtest_main libfamfs uuid )
+  target_link_libraries("${name}_tests" gtest_main libfamfs famfstest uuid )
   message(STATUS "name=${name}")
   add_test(NAME ${name} COMMAND "${name}_tests")
 

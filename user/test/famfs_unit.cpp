@@ -8,14 +8,19 @@
 #define FAMFS_UNIT_TEST
 
 extern "C" {
-#include "famfs_lib.h"
-#include "famfs_meta.h"
 #include <unistd.h>
 #include <linux/limits.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdlib.h>
+
+
+#include "famfs_lib.h"
+#include "famfs_meta.h"
+#include "famfs_ioctl.h"
+#include "xrand.h"
+#include "random_buffer.h"
 }
 
 /* These are really system test calls that need an actual famfs file system mounted
@@ -226,4 +231,45 @@ TEST(famfs, famfs_open_relpath)
 	close(rc);
 }
 
-//MTF_END_UTEST_COLLECTION(cheap_test)
+TEST(famfs, famfs_get_device_size)
+{
+	enum extent_type type;
+	size_t size;
+	int rc;
+
+	rc = famfs_get_device_size("/dev/zero", &size, &type);
+	ASSERT_NE(rc, 0);
+	rc = famfs_get_device_size("badfile", &size, &type);
+	ASSERT_NE(rc, 0);
+}
+
+TEST(famfs, famfs_xrand64_tls)
+{
+	u_int64_t num;
+	struct xrand xr;
+
+	xrand_init(&xr, 42);
+	ASSERT_NE(num, 0);
+	num = xrand64_tls();
+	ASSERT_NE(num, 0);
+	num = xrand_range64(&xr, 42, 0x100000);
+	ASSERT_NE(num, 0);
+}
+
+TEST(famfs, famfs_random_buffer)
+{
+	struct xrand xr;
+	//u_int32_t rnum;
+	char buf[16];
+	int rc;
+
+	xrand_init(&xr, 42);
+	randomize_buffer(buf, 0, 11);
+	rc = validate_random_buffer(buf, 0, 11);
+	ASSERT_EQ(rc, -1);
+#if 0
+	rnum = generate_random_u_int32_t(1, 10);
+	ASSERT_GT(rnum, 0);
+	ASSERT_LT(rnum, 11);
+#endif
+}
