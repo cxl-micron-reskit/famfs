@@ -934,7 +934,7 @@ famfs_log_entry_md_path_is_relative(const struct famfs_mkdir *md)
 		&& (md->famfs_relpath[0] != '/'));
 }
 
-static int
+int
 famfs_validate_log_header(const struct famfs_log *logp)
 {
 	unsigned long crc = famfs_gen_log_header_crc(logp);
@@ -2326,6 +2326,7 @@ famfs_file_create(const char *path,
 		return fd;
 	}
 
+	/* XXX is this necessary? Have we already checked if it's in famfs? */
 	if (__file_not_famfs(fd)) {
 		close(fd);
 		unlink(path);

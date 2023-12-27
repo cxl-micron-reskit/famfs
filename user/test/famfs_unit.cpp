@@ -164,8 +164,19 @@ TEST(famfs, famfs_super_test)
 	rc = famfs_check_super(sb);
 	ASSERT_EQ(rc, 0); /* good crc */
 
-}
+	logp->famfs_log_magic++;
+	rc = famfs_validate_log_header(logp);
+	ASSERT_LT(rc, 0);
 
+	logp->famfs_log_magic--;
+	logp-> famfs_log_crc++;
+	rc = famfs_validate_log_header(logp);
+	ASSERT_LT(rc, 0);
+
+	logp->famfs_log_crc--;
+	rc = famfs_validate_log_header(logp);
+	ASSERT_EQ(rc, 0);
+}
 
 #define SB_RELPATH ".meta/.superblock"
 #define LOG_RELPATH ".meta/.log"
@@ -241,6 +252,8 @@ TEST(famfs, famfs_get_device_size)
 	ASSERT_NE(rc, 0);
 	rc = famfs_get_device_size("badfile", &size, &type);
 	ASSERT_NE(rc, 0);
+	rc = famfs_get_device_size("/etc/hosts", &size, &type);
+	ASSERT_NE(rc, 0);
 }
 
 TEST(famfs, famfs_xrand64_tls)
@@ -289,4 +302,23 @@ TEST(famfs, famfs_file_not_famfs)
 
 	rc = file_not_famfs(booboofile);
 	ASSERT_NE(rc, 0);
+}
+
+TEST(famfs, famfs_mkmeta)
+{
+	int rc;
+
+	rc = famfs_mkmeta("/dev/bogusdev");
+	ASSERT_NE(rc, 0);
+}
+
+TEST(famfs, mmap_whole_file)
+{
+	size_t size;
+	void *addr;;
+
+	addr = famfs_mmap_whole_file("bogusfile", 1, &size);
+	ASSERT_NE(addr, MAP_FAILED);
+	addr = famfs_mmap_whole_file("/dev/zero", 1, &size);
+	ASSERT_NE(addr, MAP_FAILED);
 }
