@@ -282,7 +282,7 @@ TEST(famfs, famfs_file_not_famfs)
 
 	system("rm -rf" booboofile);
 	sfd = open(booboofile, O_RDWR | O_CREAT, 0666);
-	ASSERT_GT(sfd, 0);
+	ASSERT_NE(sfd, 0);
 	rc = __file_not_famfs(sfd);
 	ASSERT_NE(rc, 0);
 	close(sfd);
