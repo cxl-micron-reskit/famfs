@@ -146,9 +146,6 @@ do_famfs_cli_logplay(int argc, char *argv[])
 		case 'v':
 			verbose++;
 			break;
-		default:
-			printf("default (%c)\n", c);
-			return -1;
 		}
 	}
 
@@ -225,10 +222,6 @@ do_famfs_cli_mkmeta(int argc, char *argv[])
 		case '?':
 			famfs_mkmeta_usage(argc, argv);
 			return 0;
-
-		default:
-			printf("default (%c)\n", c);
-			return -1;
 		}
 	}
 
@@ -319,10 +312,6 @@ do_famfs_cli_fsck(int argc, char *argv[])
 		case '?':
 			famfs_fsck_usage(argc, argv);
 			return 0;
-
-		default:
-			printf("default (%c)\n", c);
-			return -1;
 		}
 	}
 
@@ -429,10 +418,6 @@ do_famfs_cli_cp(int argc, char *argv[])
 				exit(-1);
 			}
 			break;
-
-		default:
-			printf("default (%c)\n", c);
-			return -1;
 		}
 	}
 
@@ -509,10 +494,6 @@ do_famfs_cli_getmap(int argc, char *argv[])
 		case '?':
 			famfs_getmap_usage(argc, argv);
 			return 0;
-
-		default:
-			printf("default (%c)\n", c);
-			return -1;
 		}
 	}
 
@@ -618,10 +599,6 @@ do_famfs_cli_clone(int argc, char *argv[])
 		case '?':
 			famfs_clone_usage(argc, argv);
 			return 0;
-
-		default:
-			printf("default (%c)\n", c);
-			return -1;
 		}
 	}
 
@@ -801,10 +778,6 @@ do_famfs_cli_creat(int argc, char *argv[])
 		case '?':
 			famfs_creat_usage(argc, argv);
 			return 0;
-
-		default:
-			printf("%s: urecognized argument (%c)\n", __func__, c);
-			return -1;
 		}
 	}
 
@@ -965,10 +938,6 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 		case 'v':
 			verbose++;
 			break;
-
-		default:
-			printf("default (%c)\n", c);
-			return -1;
 		}
 	}
 
@@ -1058,10 +1027,6 @@ do_famfs_cli_verify(int argc, char *argv[])
 		case '?':
 			famfs_verify_usage(argc, argv);
 			return 0;
-
-		default:
-			printf("default (%c)\n", c);
-			return -1;
 		}
 	}
 
@@ -1166,9 +1131,6 @@ main(int argc, char **argv)
 		case '?':
 			do_famfs_cli_help(argc, argv);
 			return 0;
-
-		default:
-			return -1;
 		}
 	}
 
