@@ -110,3 +110,16 @@ You can also do this:
 Important note: the unit tests must be run as root or under sudo, primarily because
 getting the system UUID only works as root. We may look into circumventing this...
 
+## Code Coverage
+
+To build for coverage tests, do the following in user:
+
+```
+make clean coverage
+[sudo] ./run_smoke.sh
+cd debug; sudo make famfs_unit_coverage
+```
+The resulting report looks like this as of the last week of December 2023.
+![Image of gcov coverage report](markdown/Screenshot-2023-12-27-at-8.07.17-AM.png)
+
+This is the combined coverage from smoke and unit tests.
