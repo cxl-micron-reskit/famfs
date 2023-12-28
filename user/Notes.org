@@ -67,6 +67,17 @@ Actually this was probably just a malfunction of the new "-v" option (or lack
 thereof... still need to fix)
 
 * Testing
+** TODO mkdir where there is a parent in the path that is not a dir
+** TODO mkdir -p where there is a nonexistent element halfway up the path
+** TODO mkdir -p where immediate parent is nonexistant
+** TODO clone with bogus source
+** TODO clone with source not in famfs
+** TODO clone where src and dest are in different famfs file systems
+** TODO Refactor famfs_logplay to be unit testable
+** TODO test file and dir creation logging when log is full
+** TODO unit: test invalid log entry in build_bitmap
+** TODO tes bitmap_alloc_contiguous out of space
+** TODO Proper test for the log lock preventing bad re-entrancy
 ** TODO Proper test for logplay --client
 ** TODO integrate with gcov via cmake
 ** TODO Need a test that tests wide range of odd file sizes
