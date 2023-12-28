@@ -68,12 +68,6 @@ main(int argc, char *argv[])
 	 */
 	while ((c = getopt_long(argc, argv, "+fkh?",
 				global_options, &optind)) != EOF) {
-		/* printf("optind:argv = %d:%s\n", optind, argv[optind]); */
-
-		/* Detect the end of the options. */
-		if (c == -1)
-			break;
-
 		arg_ct++;
 		switch (c) {
 		case 'k':
