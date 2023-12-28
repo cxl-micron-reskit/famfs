@@ -25,6 +25,7 @@
 #include <sys/param.h> /* MIN()/MAX() */
 #include <zlib.h>
 #include <sys/file.h>
+#include <dirent.h>
 
 #include "famfs.h"
 #include "famfs_ioctl.h"
@@ -40,7 +41,7 @@ enum lock_opt {
 };
 
 struct famfs_locked_log {
-	u64               devsize;
+	s64               devsize;
 	struct famfs_log *logp;
 	int               lfd;
 	u64               nbits;
@@ -497,7 +498,7 @@ famfs_mmap_superblock_and_log_raw(const char *devname,
 				  int read_only)
 {
 	int fd = 0;
-	void *sb_buf;
+	void *sb_buf = NULL;
 	int rc = 0;
 	int openmode = (read_only) ? O_RDONLY : O_RDWR;
 	int mapmode  = (read_only) ? PROT_READ : PROT_READ | PROT_WRITE;
@@ -603,6 +604,7 @@ famfs_get_mpt_by_dev(const char *mtdev)
 				continue;
 			}
 			if (strcmp(dev, mtdev) == 0) {
+				/* XXX Should just return xmpt - which is also malloc'd by libc */
 				answer = strdup(xmpt);
 				free(xmpt);
 				free(line);
@@ -1257,6 +1259,8 @@ famfs_logplay(
 	rc = __famfs_logplay(logp, mpt_out, dry_run, client_mode, verbose);
 	if (use_mmap)
 		munmap(logp, FAMFS_LOG_LEN);
+	else
+		free(logp);
 	close(lfd);
 	return rc;
 }
@@ -1320,7 +1324,7 @@ famfs_relpath_from_fullpath(
 
 	assert(mpt);
 	assert(fullpath);
-	assert(strlen(fullpath) > strlen(mpt));
+	assert(strlen(fullpath) >= strlen(mpt));
 
 	if (strstr(fullpath, mpt) != fullpath) {
 		/* mpt path should be a substring starting at the beginning of fullpath*/
@@ -1331,7 +1335,7 @@ famfs_relpath_from_fullpath(
 
 	/* This assumes relpath() removed any duplicate '/' characters: */
 	relpath = &fullpath[strlen(mpt) + 1];
-	printf("%s: mpt=%s, fullpath=%s relpath=%s\n", __func__, mpt, fullpath, relpath);
+	//printf("%s: mpt=%s, fullpath=%s relpath=%s\n", __func__, mpt, fullpath, relpath);
 	return relpath;
 }
 
@@ -1427,19 +1431,18 @@ famfs_log_dir_creation(
 	return famfs_append_log(logp, &le);
 }
 
-int
-famfs_release_log_lock(int fd)
-{
-	int rc;
-
-	assert(fd > 0);
-	rc = flock(fd, LOCK_UN);
-	if (rc)
-		fprintf(stderr, "%s: unlock returned an error\n", __func__);
-	close(fd);
-	return rc;
-}
-
+/**
+ * find_real_parent_path()
+ *
+ * travel up a path until a real component is found.
+ * The returned path was malloc'd by realpath, and should be freed by the caller
+ * This is useful in mkdir -p, where the path might be several layers deeper than
+ * the deepest existing dir.
+ *
+ * @path
+ *
+ * Returns: a real sub-path, if found
+ */
 static char *
 find_real_parent_path(const char *path)
 {
@@ -1953,7 +1956,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 	int i, j;
 	int rc;
 
-	if (verbose)
+	if (verbose > 1)
 		printf("%s: dev_size %lld nbits %lld bitmap_nbytes %lld\n",
 		       __func__, dev_size_in, nbits, bitmap_nbytes);
 
@@ -1962,7 +1965,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 
 	put_sb_log_into_bitmap(bitmap);
 
-	if (verbose) {
+	if (verbose > 1) {
 		printf("%s: superblock and log in bitmap:", __func__);
 		mu_print_bitmap(bitmap, nbits);
 	}
@@ -1978,7 +1981,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 			const struct famfs_log_extent *ext = fc->famfs_ext_list;
 
 			fsize_sum += fc->famfs_fc_size;
-			if (verbose)
+			if (verbose > 1)
 				printf("%s: file=%s size=%lld\n", __func__,
 				       fc->famfs_relpath, fc->famfs_fc_size);
 
@@ -2086,6 +2089,10 @@ famfs_init_locked_log(struct famfs_locked_log *lp,
 	int role;
 	int rc;
 
+	lp->devsize = famfs_validate_superblock_by_path(fspath);
+	if (lp->devsize < 0)
+		return -1;
+
 	/* famfs_get_role also validates the superblock */
 	role = famfs_get_role_by_path(fspath, NULL);
 	if (role != FAMFS_MASTER) {
@@ -2127,6 +2134,28 @@ err_out:
 	if (lp->lfd)
 		close(lp->lfd);
 	return rc;
+}
+
+static int
+famfs_release_log_lock(int fd)
+{
+	int rc;
+
+	assert(fd > 0);
+	rc = flock(fd, LOCK_UN);
+	if (rc)
+		fprintf(stderr, "%s: unlock returned an error\n", __func__);
+	close(fd);
+	return rc;
+}
+
+static int
+famfs_release_locked_log(struct famfs_locked_log *lp)
+{
+	if (lp->bitmap)
+		free(lp->bitmap);
+
+	return famfs_release_log_lock(lp->lfd);
 }
 
 /**
@@ -2210,7 +2239,7 @@ famfs_file_alloc(
 	char *rpath;
 	s64 offset;
 	void *addr;
-	int lfd;
+	int lfd = 0;
 	int rc;
 
 	assert(fd > 0);
@@ -2460,7 +2489,8 @@ famfs_dir_create(
 	snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, rpath);
 	rc = mkdir(fullpath, mode);
 	if (rc) {
-		fprintf(stderr, "%s: failed to mkdir %s\n", __func__, fullpath);
+		fprintf(stderr, "%s: failed to mkdir %s (rc %d errno %d)\n",
+			__func__, fullpath, rc, errno);
 		return -1;
 	}
 
@@ -2486,7 +2516,7 @@ famfs_dir_create(
  *
  * Inner function would also be callled by 'cp -r' (which doesn't exist quite yet)
  *
- * @lp
+ * @lp         - XXX make lp mandatory?
  * @dirpath
  * @mode
  * @uid
@@ -2503,8 +2533,9 @@ __famfs_mkdir(
 {
 	char realparent[PATH_MAX];
 	char fullpath[PATH_MAX];
-	char mpt_out[PATH_MAX];
+	char mpt_out[PATH_MAX] = { 0 };
 	struct famfs_log *logp;
+	char realdirpath[PATH_MAX];
 	char *dirdupe   = NULL;
 	char *parentdir = NULL;
 	char *basedupe  = NULL;
@@ -2517,41 +2548,56 @@ __famfs_mkdir(
 	int lfd;
 	int rc;
 
-	dirdupe  = strdup(dirpath);  /* call dirname() on this dupe */
-	basedupe = strdup(dirpath); /* call basename() on this dupe */
-	newdir   = basename(basedupe);
+	/* Rationalize dirpath; if it exists, get role based on that */
+	if (realpath(dirpath, realdirpath)) {
+		/* OK, dirpath exists... */
+		/* XXX should we fail? I think so, since only mkdir -p succeeds if a dir
+		 * already exists... */
+		/* XXX if there is a locked log struct, the role has already been
+		 * verified. */
+		role = famfs_get_role_by_path(realdirpath, NULL);
+		sprintf(fullpath, "%s", realdirpath);
+	} else {
+		dirdupe  = strdup(dirpath);  /* call dirname() on this dupe */
+		basedupe = strdup(dirpath); /* call basename() on this dupe */
+		newdir   = basename(basedupe);
 
-	/* full dirpath should not exist, but the parentdir path must exist and be a directory */
-	parentdir = dirname(dirdupe);
-	rc = stat(parentdir, &st);
-	if ((st.st_mode & S_IFMT) != S_IFDIR) {
-		fprintf(stderr, "%s: parent (%s) of path %s is not a directory\n",
-			__func__, dirpath, parentdir);
-		rc = -1;
-		goto err_out;
-	}
+		/* full dirpath should not exist, but the parentdir path must exist and
+		 * be a directory */
+		parentdir = dirname(dirdupe);
+		rc = stat(parentdir, &st);
+		if (rc) {
+			fprintf(stderr, "%s: parent path (%s) stat failed\n", __func__, parentdir);
+		} else if ((st.st_mode & S_IFMT) != S_IFDIR) {
+			fprintf(stderr, "%s: parent (%s) of path %s is not a directory\n",
+				__func__, dirpath, parentdir);
+			rc = -1;
+			goto err_out;
+		}
 
-	/* Parentdir exists and is a directory; rationalize the path with realpath */
-	if (realpath(parentdir, realparent) == 0) {
-		fprintf(stderr, "%s: failed to rationalize parentdir path (%s)\n",
-			__func__, parentdir);
-		rc = -1;
-		goto err_out;
-	}
+		/* Parentdir exists and is a directory; rationalize the path with realpath */
+		if (realpath(parentdir, realparent) == 0) {
+			fprintf(stderr, "%s: failed to rationalize parentdir path (%s)\n",
+				__func__, parentdir);
+			rc = -1;
+			goto err_out;
+		}
 
-	/* Role check on parent dir */
-	role = famfs_get_role_by_path(realparent, NULL);
-	if (role != FAMFS_MASTER) {
-		fprintf(stderr, "%s: Error: not running on FAMFS_MASTER node for this FS\n",
-			__func__);
-		return -1;
-	}
+		/* Role check on parent dir */	/* XXX lotsa role checking; is the locked_log thingy sufficient? */
+		role = famfs_get_role_by_path(realparent, NULL);
+		if (role != FAMFS_MASTER) {
+			fprintf(stderr, "%s: Error: not running on FAMFS_MASTER node for this FS\n",
+				__func__);
+			goto err_out;
+		}
 
-	/* Rebuild full path of to-be-createed directory from the rationalized parent dir path */
-	rc = snprintf(fullpath, PATH_MAX - 1, "%s/%s", realparent, newdir);
-	if (rc < 0) {
-		fprintf(stderr, "%s: fullpath overflow\n", __func__);
-		goto err_out;
+		/* Rebuild full path of to-be-createed directory from the rationalized
+		 * parent dir path */
+		rc = snprintf(fullpath, PATH_MAX - 1, "%s/%s", realparent, newdir);
+		if (rc < 0) {
+			fprintf(stderr, "%s: fullpath overflow\n", __func__);
+			goto err_out;
+		}
 	}
 
 	if (!lp) {
@@ -2559,7 +2605,7 @@ __famfs_mkdir(
 		 * For this operation we need to open the log file, which also gets us
 		 * the mount point path
 		 */
-		lfd  = open_log_file_writable(realparent, &log_size, mpt_out, BLOCKING_LOCK);
+		lfd  = open_log_file_writable(fullpath, &log_size, mpt_out, BLOCKING_LOCK);
 		addr = mmap(0, log_size, PROT_READ | PROT_WRITE, MAP_SHARED, lfd, 0);
 		if (addr == MAP_FAILED) {
 			fprintf(stderr, "%s: Failed to mmap log file\n", __func__);
@@ -2578,6 +2624,11 @@ __famfs_mkdir(
 	printf("%s: creating directory %s\n", __func__, fullpath);
 
 	relpath = famfs_relpath_from_fullpath(mpt_out, fullpath);
+	if (strcmp(mpt_out, fullpath) == 0) {
+		fprintf(stderr, "%s: failed to create mount point dir: EALREADY\n", __func__);
+		rc = -1;
+		goto err_out;
+	}
 	rc = famfs_dir_create(mpt_out, relpath, mode, uid, gid);
 	if (rc) {
 		fprintf(stderr, "%s: failed to mkdir %s\n", __func__, fullpath);
@@ -2679,10 +2730,10 @@ famfs_mkdir_parents(
 {
 	struct famfs_locked_log ll = { 0 };
 	char *cwd = get_current_dir_name();
-	char mpt_out[PATH_MAX];
+	//char mpt_out[PATH_MAX];
 	char abspath[PATH_MAX];
 	char *rpath;
-	int lfd;
+	//int lfd;
 	int rc;
 
 	/* dirpath as an indeterminate number of nonexistent dirs, under a path that
@@ -2703,12 +2754,14 @@ famfs_mkdir_parents(
 		fprintf(stderr, "%s: failed to find real parent dir\n", __func__);
 		return -1;
 	}
+#if 0
 	lfd = open_log_file_read_only(abspath, NULL, mpt_out, NO_LOCK);
 	if (lfd < 0) {
 		fprintf(stderr, "%s: path (%s) apears not to fall in a famfs file system\n",
 			__func__, abspath);
 		return -1;
 	}
+#endif
 	/* OK, we know were in a FAMFS instance. get a locked log struct */
 	rc = famfs_init_locked_log(&ll, rpath, verbose);
 	if (rc) {
@@ -2720,9 +2773,11 @@ famfs_mkdir_parents(
 	rc = famfs_make_parent_dir(&ll, abspath, mode, uid, gid, 0, verbose);
 
 	/* Separate function should release ll and lock */
-	famfs_release_log_lock(ll.lfd);
+	famfs_release_locked_log(&ll);
 	free(rpath);
-	close(lfd);
+	if (cwd)
+		free(cwd);
+	//close(lfd);
 	return rc;
 }
 
@@ -2865,7 +2920,8 @@ __famfs_cp(
  *
  * @lp       - Locked Log struct (required)
  * @srcfile  - skipped unless it's a regular file
- * @destfile - should be a regular file (non-regular files skipped further down the stack)
+ * @destfile - Nonexistent file, or existing directory. If destfile is a directory, this
+ *             function fill append basename(srcfile) to destfile to get a nonexistent file path
  * @verbose
  */
 static int
@@ -2893,6 +2949,9 @@ famfs_cp(struct famfs_locked_log *lp,
 			char destpath[PATH_MAX];
 			char src[PATH_MAX];
 
+			if (verbose > 1)
+				printf("%s: (%s) -> (%s/)\n", __func__, srcfile, destfile);;
+
 			/* Destination is directory;  get the realpath and append the basename
 			 * from the source */
 			if (realpath(destfile, destpath) == 0) {
@@ -2916,10 +2975,105 @@ famfs_cp(struct famfs_locked_log *lp,
 		/* File does not exist;
 		 * the check whether it is in famfs will happen after the file is created
 		 */
+		if (verbose > 1)
+			printf("%s: (%s) -> (%s)\n", __func__, srcfile, destfile);;
+
 		strncpy(actual_destfile, destfile, PATH_MAX - 1);
 	}
 
 	return __famfs_cp(lp, srcfile, actual_destfile, mode, uid, gid, verbose);
+}
+
+/**
+ * famfs_cp_dir()
+ *
+ * Copy a directory and its contents to a target path
+ *
+ * * @lp (required)
+ * * @src  - src path (must exist and be a directory)
+ * * @dest - must be a directory if it exists
+ */
+int famfs_cp_dir(
+	struct famfs_locked_log *lp,
+	const char *src,
+	const char *dest,
+	mode_t mode,
+	uid_t uid,
+	gid_t gid,
+	int verbose)
+{
+	struct dirent *entry;
+	DIR *directory;
+	struct stat st;
+	int rc;
+	int err = 0;
+
+	if (verbose > 1)
+		printf("%s: (%s) -> (%s)\n", __func__, src, dest);
+
+	/* Does the dest dir exist? */
+	rc = stat(dest, &st);
+	if (rc) {
+		/* The directory doesn't exist yet */
+		rc = __famfs_mkdir(lp, dest, mode, uid, gid);
+		if (rc) {
+			/* Recursive copy can't really recover from a mkdir failure */
+			return rc;
+		}
+	}
+
+	directory = opendir(src);
+	if (directory == NULL) {
+		fprintf(stderr, "%s: failed to open src dir (%s)\n", __func__, src);
+		return -1;
+	}
+
+	/* Loop through the directry entries */
+	while ((entry = readdir(directory)) != NULL) {
+		char srcfullpath[PATH_MAX];
+		struct stat src_stat;
+
+		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+			continue;
+
+		snprintf(srcfullpath, PATH_MAX - 1, "%s/%s", src, entry->d_name);
+		rc = stat(srcfullpath, &src_stat);
+		if (rc) {
+			fprintf(stderr, "%s: failed to stat source path (%s)\n",
+				__func__, srcfullpath);
+			continue;
+		}
+
+		if (verbose)
+			printf("  %s\n", src);
+
+		switch (src_stat.st_mode & S_IFMT) {
+		case S_IFREG:
+			rc = famfs_cp(lp, srcfullpath, dest, mode, uid, gid, verbose);
+			if (rc)
+				err = 1; /* if anything failed, return 1 */
+			break;
+
+		case S_IFDIR: {
+			char newdirpath[PATH_MAX];
+ 			char *src_copy = strdup(srcfullpath);
+
+			snprintf(newdirpath, PATH_MAX - 1, "%s/%s", dest, basename(src_copy));
+			/* Recurse :D */
+			rc = famfs_cp_dir(lp, srcfullpath, newdirpath, mode, uid, gid, verbose);
+			free(src_copy);
+			break;
+		}
+		default:
+			fprintf(stderr,
+				"%s: error: skipping non-file or directory %s\n",
+				__func__, srcfullpath);
+			return -EINVAL;
+		}
+	}
+
+	closedir(directory);
+	return err;
 }
 
 /**
@@ -2929,56 +3083,132 @@ famfs_cp(struct famfs_locked_log *lp,
  *
  * @argc    - number of args
  * @argv    - array of args
+ * @mode
+ * @uid
+ * @gid
+ * @recursive - Recursive copy if true
  * @verbose -
  *
  * Rules:
- * * Last arg must be a directory
- * * Files will be copied to their basename in the last-arg directory
- * * Any directories before the last arg will skipped (until we have 'cp -r' implemented
- * * Everything that can be copied according to these rules will be copied
+ * * non-recuraive
+ *   * If there are more than 2 args, last arg must be a directory
+ *   * In the 2 arg case, last arg can be either a directory or a non-existent file name
+ *   * Files will be copied to their basename in the last-arg directory
+ *   * Any directories before the last arg will skipped (until we have 'cp -r' implemented
+ *   * Everything that can be copied according to these rules will be copied (but the return
+ *     value will be 1 if anything failed
+ *
+ * * Recursive
+ *   * Last arg must be a directory which need not already exist
+ *   * Directories and their contents will be recursively copied
  *
  * Return value:
  * * 0 if everything succeeded
  * * non-zero if anything failed
  */
+
 int
-famfs_cp_multi(int argc, char *argv[], mode_t mode, uid_t uid, gid_t gid, int verbose)
+famfs_cp_multi(
+	int argc,
+	char *argv[],
+	mode_t mode,
+	uid_t uid,
+	gid_t gid,
+	int recursive,
+	int verbose)
 {
 	struct famfs_locked_log ll = { 0 };
 	char *dest = argv[argc - 1];
 	int src_argc = argc - 1;
 	char *dirdupe   = NULL;
 	char *parentdir = NULL;
-	char *rpath;
+	struct stat dest_stat;
+	char *dest_rpath;
 	int err = 0;
 	int rc;
 	int i;
 
-	dirdupe = strdup(dest); /* dest should not exist yet; get parent path which should */
+	/* Parent directory of destination must exist */
+	dirdupe = strdup(dest);
 	parentdir = dirname(dirdupe);
-	rpath = realpath(parentdir, NULL);
-	if (!rpath) {
-		fprintf(stderr, "%s: unable to get realpath for %s\n", __func__, dest);
+	dest_rpath = realpath(parentdir, NULL);
+	if (!dest_rpath) {
+		free(dirdupe);
+		fprintf(stderr, "%s: unable to get realpath for (%s)\n", __func__, dest);
 		return -1;
 	}
 
-	rc = famfs_init_locked_log(&ll, rpath, verbose);
+	/* Check to see if the parent of the destination (last arg) is a directory.
+	 * if not, error out
+	 */
+	rc = stat(dest_rpath, &dest_stat);
+	if (!rc) {
+		switch (dest_stat.st_mode & S_IFMT) {
+		case S_IFDIR:
+			/* It's a directory - all good */
+			break;
+		default:
+			fprintf(stderr,
+				"%s: Error: destination (%s) exists and is not a directory\n",
+				__func__, dest_rpath);
+			free(dirdupe);
+			return -1;
+		}
+
+	}
+
+	rc = famfs_init_locked_log(&ll, dest_rpath, verbose);
 	if (rc) {
-		free(rpath);
+		free(dest_rpath);
+		free(dirdupe);
 		return rc;
 	}
 
 	for (i = 0; i < src_argc; i++) {
-		rc = famfs_cp(&ll, argv[i], dest, mode, uid, gid, verbose);
-		if (rc)
-			err = 1; /* if anything failed, return 1 */
+		struct stat src_stat;
+
+		/* Need to handle source files and directries differently */
+		rc = stat(argv[i], &src_stat);
+		if (verbose)
+			printf("  %s\n", argv[i]);
+
+		switch (src_stat.st_mode & S_IFMT) {
+		case S_IFREG:
+			/* Dest is a directory and files will be copied into it */
+			rc = famfs_cp(&ll, argv[i], dest, mode, uid, gid, verbose);
+			if (rc)
+				err = 1; /* if anything failed, return 1 */
+			break;
+
+		case S_IFDIR:
+			if (recursive) {
+				rc = famfs_cp_dir(&ll, argv[i], dest, mode, uid,
+						  gid, verbose);
+				if (rc)
+					err = 1;
+			} else {
+				fprintf(stderr, "%s: -r not specified; omitting directory '%s'\n",
+					__func__, argv[i]);
+				err = 1;
+			}
+			break;
+		default:
+			fprintf(stderr,
+				"%s: error: skipping non-file or directoory %s\n",
+				__func__, argv[i]);
+			err = -EINVAL;
+			goto err_out;
+		}
 
 		/* cp continues even if some files were not copied */
 	}
 
+err_out:
 	/* Separate function should release ll and lock */
-	famfs_release_log_lock(ll.lfd);
-	free(rpath);
+	free(dirdupe);
+	famfs_release_locked_log(&ll);
+	free(dest_rpath);
+	printf("%s: returning %d\n", __func__, err);
 	return err;
 }
 

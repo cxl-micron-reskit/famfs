@@ -145,8 +145,9 @@ do_famfs_cli_logplay(int argc, char *argv[])
 		use_mmap ++;
 	}
 	if (optind >= argc) {
-		fprintf(stderr, "Must specify at least path "
-			"(which must fall within a mounted famfs file system)\n");
+		fprintf(stderr, "Must specify mount_point "
+			"(actually any path within a famfs file system will work)\n");
+		famfs_logplay_usage(argc, argv);
 		return -1;
 	}
 	fspath = argv[optind++];
@@ -350,6 +351,8 @@ do_famfs_cli_cp(int argc, char *argv[])
 	uid_t uid = getuid();
 	gid_t gid = getgid();
 	mode_t current_umask;
+	int recursive = 0;
+	int rc;
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option cp_options[] = {
@@ -371,7 +374,7 @@ do_famfs_cli_cp(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+m:u:g:vh?",
+	while ((c = getopt_long(argc, argv, "+rm:u:g:vh?",
 				cp_options, &optind)) != EOF) {
 
 		arg_ct++;
@@ -383,7 +386,9 @@ do_famfs_cli_cp(int argc, char *argv[])
 		case '?':
 			famfs_cp_usage(argc, argv);
 			return 0;
-
+		case 'r':
+			recursive = 1;
+			break;
 		case 'm':
 			mode = strtol(optarg, 0, 8); /* Must be valid octal */
 			break;
@@ -410,6 +415,7 @@ do_famfs_cli_cp(int argc, char *argv[])
 
 	if (remaining_args < 2) {
 		fprintf(stderr, "%s: source nd destination args are required\n", __func__);
+		famfs_cp_usage(argc, argv);
 		return -1;
 	}
 
@@ -418,8 +424,9 @@ do_famfs_cli_cp(int argc, char *argv[])
 	umask(current_umask);
 	mode &= ~(current_umask);
 
-	/* famfs_cp_multi() will consume the rest of the command line */
-	return famfs_cp_multi(argc - optind, &argv[optind], mode, uid, gid, verbose);
+	rc = famfs_cp_multi(argc - optind, &argv[optind], mode, uid, gid, recursive, verbose);
+	printf("%s: rc %d\n", __func__, rc);
+	return rc;
 }
 
 
@@ -677,7 +684,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 	uid_t uid = geteuid();
 	gid_t gid = getegid();
 	mode_t mode = 0644;
-	s64 seed;
+	s64 seed = 0;
 	int randomize = 0;
 	int verbose = 0;
 	mode_t current_umask;
@@ -1102,6 +1109,7 @@ int
 main(int argc, char **argv)
 {
 	int c, i;
+	int rc;
 
 	/* Process global options, if any */
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
@@ -1128,7 +1136,9 @@ main(int argc, char **argv)
 	for (i = 0; (famfs_cli_cmds[i].cmd); i++) {
 		if (!strcmp(argv[optind], famfs_cli_cmds[i].cmd)) {
 			optind++; /* move past cmd on cmdline */
-			return famfs_cli_cmds[i].run(argc, argv);
+			rc = famfs_cli_cmds[i].run(argc, argv);
+			printf("%s: returning %d\n", __func__, rc);
+			return rc;
 		}
 	}
 
