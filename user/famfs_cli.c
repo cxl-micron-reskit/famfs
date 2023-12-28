@@ -28,21 +28,6 @@ typedef __u64 u64;
 #include "famfs_lib.h"
 #include "random_buffer.h"
 
-/* maybe move to internal lib */
-
-char *
-xbasename(char *str)
-{
-	char *s;
-
-	if (!strstr(str, "/"))
-		return str;
-
-	s = strrchr(str, '/');
-	return s+1;
-}
-
-
 /* Global option related stuff */
 
 struct option global_options[] = {
@@ -1092,7 +1077,7 @@ static void
 do_famfs_cli_help(int argc, char **argv)
 {
 	int i;
-	char *progname = xbasename(argv[0]);
+	char *progname = basename(argv[0]);
 	/* Is there a command after "help" on the command line? */
 	if (optind < argc) {
 		for (i = 0; (famfs_cli_cmds[i].cmd); i++) {
