@@ -545,7 +545,6 @@ famfs_file_ioctl(
 		struct famfs_file_meta *meta = inode->i_private;
 		struct famfs_ioc_map umeta;
 
-
 		memset(&umeta, 0, sizeof(umeta));
 
 		if (meta) {
