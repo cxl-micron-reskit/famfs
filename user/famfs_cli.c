@@ -113,7 +113,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 		switch (c) {
 		case 'n':
 			dry_run++;
-			printf("dry_run selected\n");
+			printf("Logplay: dry_run selected\n");
 			break;
 		case 'h':
 		case '?':
@@ -213,14 +213,15 @@ do_famfs_cli_mkmeta(int argc, char *argv[])
 
 	if (optind >= argc) {
 		fprintf(stderr, "Must specify at least one dax device\n");
+		famfs_mkmeta_usage(argc, argv);
 		return -1;
 	}
 
 	daxdev = argv[optind++];
 	realdaxdev = realpath(daxdev, NULL);
 	if (!realdaxdev) {
-		fprintf(stderr, "%s: realpath(%s) returned %d\n",
-			__func__, realdaxdev, errno);
+		fprintf(stderr, "%s: unable to rationalize daxdev path from (%s) rc %d\n",
+			__func__, daxdev, errno);
 		free(realdaxdev);
 		return -1;
 	}
@@ -303,6 +304,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 
 	if (optind >= argc) {
 		fprintf(stderr, "Must specify at least one dax device\n");
+		famfs_fsck_usage(argc, argv);
 		return -1;
 	}
 
@@ -425,7 +427,6 @@ do_famfs_cli_cp(int argc, char *argv[])
 	mode &= ~(current_umask);
 
 	rc = famfs_cp_multi(argc - optind, &argv[optind], mode, uid, gid, recursive, verbose);
-	printf("%s: rc %d\n", __func__, rc);
 	return rc;
 }
 
@@ -491,11 +492,13 @@ do_famfs_cli_getmap(int argc, char *argv[])
 
 	if (optind >= argc) {
 		fprintf(stderr, "Must specify filename\n");
+		famfs_getmap_usage(argc, argv);
 		return -1;
 	}
 	filename = argv[optind++];
 	if (filename == NULL) {
-		fprintf(stderr, "Must supply filename\n");
+		/* XXX can't be null, right? */
+		fprintf(stderr, "getmap: Must supply filename\n");
 		exit(-1);
 	}
 	fd = open(filename, O_RDONLY, 0);
@@ -596,7 +599,7 @@ do_famfs_cli_clone(int argc, char *argv[])
 
 	/* There should be 2 more arguments */
 	if (optind > (argc - 1)) {
-		fprintf(stderr, "%s: too few arguents\n", __func__);
+		fprintf(stderr, "%s: source and destination filenames required\n", __func__);
 		famfs_clone_usage(argc, argv);
 		return -1;
 	}
@@ -1011,7 +1014,6 @@ do_famfs_cli_verify(int argc, char *argv[])
 
 		case 'f': {
 			filename = optarg;
-			printf("filename: %s\n", filename);
 			/* TODO: make sure filename is in a famfs file system */
 			break;
 		}
@@ -1137,7 +1139,6 @@ main(int argc, char **argv)
 		if (!strcmp(argv[optind], famfs_cli_cmds[i].cmd)) {
 			optind++; /* move past cmd on cmdline */
 			rc = famfs_cli_cmds[i].run(argc, argv);
-			printf("%s: returning %d\n", __func__, rc);
 			return rc;
 		}
 	}
