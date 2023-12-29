@@ -440,12 +440,22 @@ famfs_getmap_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
-	       "This administrative command gets the allocation map of a file:\n"
+	       "This administrative command gets the allocation map of a file, but it\n"
+	       "can also be used to verify that a file is a fully-mapped famfs file:\n"
 	       "    %s getmap [args] <filename>\n"
 	       "\n"
 	       "Arguments:\n"
+	       "    -q|--quiet   - Quiet print output, but exit code confirms whether the\n"
+	       "                   file is famfs\n"
 	       "    -?           - Print this message\n"
 	       "\n"
+	       "Exit codes:\n"
+	       "   0    - The file is a fully-mapped famfs file\n"
+	       "   1    - The file is not in a famfs file system\n"
+	       "   2    - The file is in a famfs file system, but is not mapped\n"
+	       " EINVAL - invalid input\n"
+	       " ENOENT - file not found\n"
+	       " EISDIR - File is not a regular file\n"
 	       "This is similar to the xfs_bmap command and is only used for testing\n"
 	       "\n", progname);
 }
@@ -454,30 +464,31 @@ int
 do_famfs_cli_getmap(int argc, char *argv[])
 {
 	struct famfs_ioc_map filemap = {0};
-	struct famfs_extent *ext_list;
-	int c, i, fd;
+	int c, i;
+	int fd = 0;
 	int rc = 0;
 	char *filename = NULL;
-
 	int arg_ct = 0;
-
+	int quiet = 0;
+	struct stat st = { 0 };
 	/* XXX can't use any of the same strings as the global args! */
 	struct option cp_options[] = {
 		/* These options set a */
+		{"quiet",     no_argument,          0,  'q'},
 		{0, 0, 0, 0}
 	};
 
 	if (optind >= argc) {
 		fprintf(stderr, "%s: no args\n", __func__);
 		famfs_getmap_usage(argc, argv);
-		return -1;
+		return 1;
 	}
 
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+h?",
+	while ((c = getopt_long(argc, argv, "+h?q",
 				cp_options, &optind)) != EOF) {
 
 		arg_ct++;
@@ -487,54 +498,94 @@ do_famfs_cli_getmap(int argc, char *argv[])
 		case '?':
 			famfs_getmap_usage(argc, argv);
 			return 0;
+		case 'q':
+			quiet++;
+			break;
 		}
 	}
 
 	if (optind >= argc) {
-		fprintf(stderr, "Must specify filename\n");
+		fprintf(stderr, "getmap: Must specify filename\n");
 		famfs_getmap_usage(argc, argv);
-		return -1;
+		return EINVAL;
 	}
 	filename = argv[optind++];
 	if (filename == NULL) {
 		/* XXX can't be null, right? */
 		fprintf(stderr, "getmap: Must supply filename\n");
-		exit(-1);
+		return EINVAL;
 	}
+
+	rc = stat(filename, &st);
+	if (rc < 0) {
+		if (!quiet)
+			fprintf(stderr, "getmap: failed to stat file (%s)\n", filename);
+		rc = ENOENT;
+		goto err_out;
+	}
+	if ((st.st_mode & S_IFMT) != S_IFREG) {
+		if (!quiet)
+			fprintf(stderr, "getmap: not a regular file (%s)\n", filename);
+		rc = EISDIR;
+		goto err_out;
+	}
+
 	fd = open(filename, O_RDONLY, 0);
 	if (fd < 0) {
-		fprintf(stderr, "open failed: %s rc %d errno %d\n",
-			filename, rc, errno);
-		exit(-1);
+		fprintf(stderr, "getmap: open failed (%s)\n",filename);
+		return ENOENT;
 	}
+	rc = ioctl(fd, FAMFSIOC_NOP, 0);
+	if (rc) {
+		if (!quiet)
+			fprintf(stderr, "getmap: file (%s) not in a famfs file system\n",
+				filename);
+		rc = 1;
+		goto err_out;
+	}
+
 	rc = ioctl(fd, FAMFSIOC_MAP_GET, &filemap);
 	if (rc) {
-		printf("ioctl returned rc %d errno %d\n", rc, errno);
-		perror("ioctl");
-		return rc;
+		rc = 2;
+		if (!quiet)
+			printf("getmap: file (%s) is famfs, but the map is not populated\n",
+			       filename);
+		goto err_out;
 	}
-	ext_list = calloc(filemap.ext_list_count, sizeof(struct famfs_extent));
-	rc = ioctl(fd, FAMFSIOC_MAP_GETEXT, ext_list);
-	if (rc) {
-		printf("ioctl returned rc %d errno %d\n", rc, errno);
-		perror("ioctl");
+
+	if (!quiet) {
+		struct famfs_extent *ext_list = NULL;
+
+		/* Only bother to retrieve extents if we'll be printing them */
+		ext_list = calloc(filemap.ext_list_count, sizeof(struct famfs_extent));
+		rc = ioctl(fd, FAMFSIOC_MAP_GETEXT, ext_list);
+		if (rc) {
+			/* If we got this far, this should not fail... */
+			fprintf(stderr, "getmap: failed to retrieve ext list for file (%s)\n",
+				filename);
+			free(ext_list);
+			rc = 3;
+			return rc;
+		}
+
+		printf("File:     %s\n",    filename);
+		printf("\tsize:   %ld\n",  filemap.file_size);
+		printf("\textents: %ld\n", filemap.ext_list_count);
+
+		for (i = 0; i < filemap.ext_list_count; i++)
+			printf("\t\t%llx\t%lld\n", ext_list[i].offset, ext_list[i].len);
+
 		free(ext_list);
-		return rc;
 	}
+err_out:
+	if (fd)
+		close(fd);
 
-	printf("File:     %s\n",    filename);
-	printf("\tsize:   %ld\n",  filemap.file_size);
-	printf("\textents: %ld\n", filemap.ext_list_count);
-
-	for (i = 0; i < filemap.ext_list_count; i++)
-		printf("\t\t%llx\t%lld\n", ext_list[i].offset, ext_list[i].len);
-
-	close(rc);
-	free(ext_list);
-	return 0;
+	return rc;
 }
 
 /********************************************************************/
+
 
 void
 famfs_clone_usage(int   argc,
