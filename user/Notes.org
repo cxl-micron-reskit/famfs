@@ -35,7 +35,8 @@ could be an argument --fix
 ** TODO Illegal: mount famfs over direcory IN a different mount
 ** TODO when traversing up paths, can we recognize mount point paths?
 This would be useful for file system spanning operaitons like mkdir -p
-
+** TODO fsck: some info in the verbose output looks fishy
+(negative remainder...)
 ** TODO File create: allow non-privileged if the user has write perm in the directory?
 Log write still requires root. Hmm...
 ** TODO mkdir: same thing, non-privileged allowed if perms check out on parent dir
@@ -75,7 +76,9 @@ Actually this was probably just a malfunction of the new "-v" option (or lack
 thereof... still need to fix)
 
 * Testing
+** TODO cp -r: relative and absolute paths
 ** TODO cp and creat empty file?
+** TODO fsck bogus path
 ** TODO mkdir where there is a parent in the path that is not a dir
 ** TODO mkdir -p where there is a nonexistent element halfway up the path
 ** TODO mkdir -p where immediate parent is nonexistant
@@ -103,6 +106,12 @@ of the FS.
 Should fail to append file past allocation, but succeed *to* allocation
 ** TODO Need test that overflows the log
 ** TODO Good posix I/O test coverage
+** TODO init_locked_log on client (will fail)
+** TODO init_locked_log when no meta files present
+** TODO cause mmap failures (in general)
+** TODO famfs_file_create not within famfs
+** TODO famfs cp: source is directory (__famfs_cp has untested code here
+(if callers check this, refactor to get rid of untested code)
 
 * Cluster testing
 ** TODO Need test that mounts the same memory/pmem device from mulltiple VMs

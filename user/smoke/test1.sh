@@ -302,6 +302,20 @@ ${CLI} verify -S 42 -f $MPT/dirtarg2/${F}_cp7 || fail "verify wildcard 2 ${F}_cp
 ${CLI} verify -S 42 -f $MPT/dirtarg2/${F}_cp8 || fail "verify wildcard 2 ${F}_cp8"
 ${CLI} verify -S 42 -f $MPT/dirtarg2/${F}_cp9 || fail "verify wildcard 2 ${F}_cp9"
 
+${CLI} mkdir $MPT/smalldir || fail "failed to create smalldir"
+${CLI} cp $MPT/dirtarg/${F}_cp0 $MPT/smalldir || fail "cp to smalldir 0"
+${CLI} cp $MPT/dirtarg/${F}_cp1 $MPT/smalldir || fail "cp to smalldir 0"
+${CLI} mkdir $MPT/smalldir2 || fail "failed to create smalldir2"
+
+${CLI} cp -rv $MPT/smalldir/* $MPT/smalldir2 || fail "recursive copy 0"
+sudo diff -r $MPT/smalldir $MPT/smalldir2 || fail "diff -r smalldir smalldir2"
+
+${CLI} cp -r $MPT/A $MPT/A-prime || fail "cp -r A A-prime"
+sudo diff -r $MPT/A $MPT/A-prime || fail "diff -r A A-prime"
+cd $MPT
+${CLI} cp -r A A-double-prime           || fail "cp -r A A-double-prime"
+sudo diff -r A A-double-prime
+cd -
 
 ${CLI} fsck $MPT || fail "fsck should succeed"
 ${CLI} fsck -m $MPT || fail "fsck -mh should succeed"

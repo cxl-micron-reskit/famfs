@@ -104,5 +104,6 @@ fi
 
 full_mount $DEV $MPT "${MOUNT_OPTS}" "run_smoke.sh remount"
 
+exit 0
 #sleep 4
 #./scripts/teardown.sh
