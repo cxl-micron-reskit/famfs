@@ -35,7 +35,7 @@ while (( $# > 0)); do
 	    ;;
 	(-v|--valgrind)
 	    # no argument to -v; just setup for Valgrind
-	    VG="valgrind --leak-check=full --show-leak-kinds=all"
+	    VG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 	    ;;
 	*)
 	    remainder="$flag $1";

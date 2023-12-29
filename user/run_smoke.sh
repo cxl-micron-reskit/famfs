@@ -44,6 +44,9 @@ while (( $# > 0)); do
 	    BIN="$CWD/release"
 	    echo "hello release BIN=$BIN"
 	    ;;
+	(-v|--valgrind)
+	    VGARG="--valgrind"
+	    ;;
 	*)
 	    remainder="$flag $1";
 	    shift;
@@ -81,15 +84,15 @@ fi
 source $TEST_FUNCS
 
 if (($TEST_ALL > 0)); then
-    ./smoke/test0.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
+    ./smoke/test0.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
     sleep "${SLEEP_TIME}"
-    ./smoke/test1.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
+    ./smoke/test1.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
     sleep "${SLEEP_TIME}"
-    ./smoke/test2.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
+    ./smoke/test2.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
     sleep "${SLEEP_TIME}"
-    ./smoke/test3.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
+    ./smoke/test3.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
     sleep "${SLEEP_TIME}"
-    ./smoke/test4.sh -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
+    ./smoke/test4.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
 fi
 if (($TEST_ERRORS > 0)); then
     sleep "${SLEEP_TIME}"

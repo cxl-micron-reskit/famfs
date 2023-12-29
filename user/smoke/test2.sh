@@ -10,6 +10,7 @@ MPT=/mnt/famfs
 MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 KMOD=../../kmod
+VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 
 # Override defaults as needed
 while (( $# > 0)); do
@@ -35,7 +36,7 @@ while (( $# > 0)); do
 	    ;;
 	(-v|--valgrind)
 	    # no argument to -v; just setup for Valgrind
-	    VG="valgrind --leak-check=full --show-leak-kinds=all"
+	    VG=${VALGRIND_ARG}
 	    ;;
 	*)
 	    remainder="$flag $1";
