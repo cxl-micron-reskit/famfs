@@ -15,6 +15,8 @@ TODO Features
 
 * Miscellaeous
 ** DONE Logplay should be quiet unless explicitly verbose
+** TODO cli should have a command to check for bad famfs files
+(i.e. files that hvae not been fully daxified, or are not in the log)
 ** TODO df does not list famfs mounts
 ** TODO du does not work with famfs mounts/paths
 ** TODO Review: make sure no writable opens to SB and log happen until role verified
@@ -30,6 +32,9 @@ Now it fails if dev < 4GiB
 could be an argument --fix
 ** DONE famfs cp: accept uid/gid/mode args like creat?
 ** DONE famfs mkdir: accept uid/gid/mode args like creat?
+** TODO Illegal: mount famfs over direcory IN a different mount
+** TODO when traversing up paths, can we recognize mount point paths?
+This would be useful for file system spanning operaitons like mkdir -p
 
 ** TODO File create: allow non-privileged if the user has write perm in the directory?
 Log write still requires root. Hmm...
@@ -39,6 +44,9 @@ Log write still requires root. Hmm...
 ** DONE mkdir of relpath (relative to cwd) fails even if the path is good
 ** TODO mkdir -p: test paths like /foo/bar/../../baz/bing
 ** TODO verify superblock 0444 permissions when opening
+** TODO cp -v should print list of files copied
+other output should require -vv
+** TODO Strip down the output of commands unless -v, -vv etc. are used
 
 * dev_dax support (character device)
 Current state: works for mmap but not or read/write
@@ -67,9 +75,11 @@ Actually this was probably just a malfunction of the new "-v" option (or lack
 thereof... still need to fix)
 
 * Testing
+** TODO cp and creat empty file?
 ** TODO mkdir where there is a parent in the path that is not a dir
 ** TODO mkdir -p where there is a nonexistent element halfway up the path
 ** TODO mkdir -p where immediate parent is nonexistant
+** TODO pass negative uid/gid to cli commands
 ** TODO clone with bogus source
 ** TODO clone with source not in famfs
 ** TODO clone where src and dest are in different famfs file systems
