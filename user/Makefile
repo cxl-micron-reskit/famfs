@@ -15,6 +15,9 @@ coverage:
 	mkdir -p debug
 	cd debug; cmake -DCMAKE_BUILD_TYPE=Debug -DFAMFS_TEST_COVERAGE="yes" ..; make
 
+coverage_test: 	coverage smoke
+	cd debug; sudo make famfs_unit_coverage
+
 release:
 	mkdir -p release
 	cd release; cmake ..; make
@@ -34,6 +37,11 @@ test:
 
 # Run the smoke tests
 smoke:
+	@scripts/teardown.sh
 	./run_smoke.sh
+
+teardown:
+	pwd
+	@./scripts/teardown.sh
 
 .PHONY:	test smoke debug release coverage
