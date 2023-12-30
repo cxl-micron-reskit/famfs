@@ -57,6 +57,7 @@ MKFS="sudo $VG $BIN/mkfs.famfs"
 # Reference famfs cli by its full path
 CLI_FULLPATH=$(realpath "$BIN/famfs")
 CLI="sudo $VG ${CLI_FULLPATH}"
+CLI_NOSUDO="sudo $VG ${CLI_FULLPATH}"
 
 echo "CLI_FULLLPATH: ${CLI_FULLPATH}"
 echo "CLI: ${CLI}"
@@ -80,6 +81,9 @@ ${CLI} fsck $MPT || fail "fsck by path should succeed when mounted"
 # Try exclusive open in driver to make this test good;
 # (currently succeeds but it should fail)
 ${CLI} fsck $DEV && fail "fsck by dev should fail when mounted"
+
+${CLI} fsck /boguspath          && fail "fsck should fail on bogus path"
+${CLI_NOSUDO} fsck bogusrelpath && fail "fsck should fail on bogus relative path"
 
 verify_mounted $DEV $MPT "test1.sh"
 
@@ -307,11 +311,17 @@ ${CLI} cp $MPT/dirtarg/${F}_cp0 $MPT/smalldir || fail "cp to smalldir 0"
 ${CLI} cp $MPT/dirtarg/${F}_cp1 $MPT/smalldir || fail "cp to smalldir 0"
 ${CLI} mkdir $MPT/smalldir2 || fail "failed to create smalldir2"
 
+#
+# cp -r with absolute paths
+#
 ${CLI} cp -rv $MPT/smalldir/* $MPT/smalldir2 || fail "recursive copy 0"
 sudo diff -r $MPT/smalldir $MPT/smalldir2 || fail "diff -r smalldir smalldir2"
 
 ${CLI} cp -r $MPT/A $MPT/A-prime || fail "cp -r A A-prime"
 sudo diff -r $MPT/A $MPT/A-prime || fail "diff -r A A-prime"
+#
+# cp -r with relative paths
+#
 cd $MPT
 ${CLI} cp -r A A-double-prime           || fail "cp -r A A-double-prime"
 sudo diff -r A A-double-prime

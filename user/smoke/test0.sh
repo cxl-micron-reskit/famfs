@@ -53,6 +53,7 @@ done
 
 MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI="sudo $VG $BIN/famfs"
+CLI_NOSUDO="$VG $BIN/famfs"
 
 source $SCRIPTS/test_funcs.sh
 # Above this line should be the same for all smoke tests
@@ -167,7 +168,7 @@ sudo mount $MOUNT_OPTS $DEV $MPT   || fail "mount"
 grep -c famfs /proc/mounts         || fail "famfs not mounted after remount attempt"
 
 echo "this logplay should fail because we haven't done mkmeta yet"
-${CLI} logplay -v $MPT               && fail "logplay 1 before mkmeta"
+${CLI} logplay -vvv $MPT               && fail "logplay 1 before mkmeta"
 ${CLI} logplay                       && fail "logplay should fail with no args"
 # Post mount, re-create the meta files
 ${CLI} mkmeta $DEV                || fail "mkmeta 2"
@@ -175,7 +176,7 @@ sudo test -f $MPT/.meta/.superblock || fail "no superblock file after mkmeta"
 sudo test -f $MPT/.meta/.log        || fail "no log file after mkmeta"
 
 sudo ls -lR $MPT
-${CLI} logplay -v $MPT             || fail "logplay after mkmeta should work"
+${CLI} logplay -vvv $MPT             || fail "logplay after mkmeta should work"
 ${CLI} mkmeta                    && fail "mkmeta with no args should fail"
 ${CLI} mkmeta -h                 || fail "mkmeta -h should succeed"
 ${CLI} mkmeta /tmp/nonexistent   && fail "mkmeta on non-existing device should fail"
@@ -222,10 +223,11 @@ if [[ $GID != $GID_OUT ]]; then
     fail "mkdir -g err $GID ${GID_OUT}"
 fi
 
+${CLI_NOSUDO} fsck -hv $MPT && fail "fsck without sudo should fail"
+
 ${CLI} fsck -?  || fail "fsck -h should succeed"x
 ${CLI} fsck $MPT || fail "fsck should succeed"
 ${CLI} fsck --human $MPT || fail "fsck --human should succeed"
-
 
 set +x
 echo "*************************************************************************************"

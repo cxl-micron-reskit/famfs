@@ -72,6 +72,11 @@ ${CLI} clone -h                                      || fail "clone -h should su
 ${CLI} clone $MPT/${FILE} $MPT/${FILE}_clone         || fail "clone $F "
 ${CLI} clone -v $MPT/${FILE} $MPT/${FILE}_clone1        || fail "clone $F "
 
+# Error cases
+${CLI} clone -v $MPT/bogusfile $MPT/bogusfile.cllone && fail "clone bogusfile should fail"
+${CLI} clone -v /etc/passwd $MPT/passwd              && fail "clone from outside famfs should fail"
+
+
 ${CLI} fsck $MPT && fail "fsck should fail after cloning "
 ${CLI} verify -S $N -f $MPT/${FILE}_clone  || fail "${FILE}_clone mismatch"
 ${CLI} verify -S $N -f $MPT/${FILE}_clone1 || fail "${FILE}_clone1 mismatch"
@@ -81,10 +86,10 @@ verify_not_mounted $DEV $MPT "test1.sh"
 full_mount $DEV $MPT "${MOUNT_OPTS}" "test1.sh"
 verify_mounted $DEV $MPT "test1.sh"
 
+${CLI} fsck -v $MPT && fail "fsck -v if a clone has ever happened should fail"
 ${CLI} fsck $MPT && fail "fsck if a clone has ever happened should fail"
 
 sudo umount $MPT || fail "umount"
-
 
 set +x
 echo "*************************************************************************************"
