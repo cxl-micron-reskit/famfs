@@ -327,6 +327,12 @@ ${CLI} cp -r A A-double-prime           || fail "cp -r A A-double-prime"
 sudo diff -r A A-double-prime
 cd -
 
+# Bad cp -r
+${CLI} cp -r $MPT/A $MPT/bar/foo     && fail "cp -r to bogus path should fail"
+${CLI} cp -r $MPT/A $MPT/${F}        && fail "cp -r to file"
+${CLI} cp -r $MPT/A $MPT/${F}/foo    && fail "cp -r to path that uses file as dir"
+
+
 sudo touch /tmp/emptyfile
 ${CLI} cp /tmp/emptyfile $MPT/emptyfile2 && fail "cp with empty source file should fail"
 

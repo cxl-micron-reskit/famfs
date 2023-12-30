@@ -3059,8 +3059,8 @@ famfs_cp_multi(
 	int src_argc = argc - 1;
 	char *dirdupe   = NULL;
 	char *parentdir = NULL;
-	struct stat dest_stat;
-	char *dest_rpath;
+	struct stat st;
+	char *dest_parent_path;
 	int err = 0;
 	int rc;
 	int i;
@@ -3068,8 +3068,8 @@ famfs_cp_multi(
 	/* Parent directory of destination must exist */
 	dirdupe = strdup(dest);
 	parentdir = dirname(dirdupe);
-	dest_rpath = realpath(parentdir, NULL);
-	if (!dest_rpath) {
+	dest_parent_path = realpath(parentdir, NULL);
+	if (!dest_parent_path) {
 		free(dirdupe);
 		fprintf(stderr, "%s: unable to get realpath for (%s)\n", __func__, dest);
 		return -1;
@@ -3078,25 +3078,45 @@ famfs_cp_multi(
 	/* Check to see if the parent of the destination (last arg) is a directory.
 	 * if not, error out
 	 */
-	rc = stat(dest_rpath, &dest_stat);
+	rc = stat(dest_parent_path, &st);
 	if (!rc) {
-		switch (dest_stat.st_mode & S_IFMT) {
+		switch (st.st_mode & S_IFMT) {
 		case S_IFDIR:
 			/* It's a directory - all good */
 			break;
 		default:
 			fprintf(stderr,
-				"%s: Error: destination (%s) exists and is not a directory\n",
-				__func__, dest_rpath);
+				"%s: Error: destination parent (%s) exists and is not a directory\n",
+				__func__, dest_parent_path);
 			free(dirdupe);
 			return -1;
 		}
-
 	}
 
-	rc = famfs_init_locked_log(&ll, dest_rpath, verbose);
+	/* If this is a recursive request, or if argc > 2, the destination must be a directory,
+	 * although it nneed not exist yet. But if the destination exists and is not a dir,
+	 * that's an error
+	 */
+	if (recursive || (argc > 2)) {
+		rc = stat(dest, &st);
+		if (!rc) {
+			switch (st.st_mode & S_IFMT) {
+			case S_IFDIR:
+				/* It's a directory - all good */
+				break;
+			default:
+				fprintf(stderr,
+					"%s: Error: destination (%s) exists and is not a directory\n",
+					__func__, dest_parent_path);
+				free(dirdupe);
+				return -1;
+			}
+		}
+	}
+
+	rc = famfs_init_locked_log(&ll, dest_parent_path, verbose);
 	if (rc) {
-		free(dest_rpath);
+		free(dest_parent_path);
 		free(dirdupe);
 		return rc;
 	}
@@ -3156,7 +3176,7 @@ err_out:
 	/* Separate function should release ll and lock */
 	free(dirdupe);
 	famfs_release_locked_log(&ll);
-	free(dest_rpath);
+	free(dest_parent_path);
 	printf("%s: returning %d\n", __func__, err);
 	return err;
 }
