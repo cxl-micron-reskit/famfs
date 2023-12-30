@@ -1335,7 +1335,6 @@ famfs_relpath_from_fullpath(
 
 	/* This assumes relpath() removed any duplicate '/' characters: */
 	relpath = &fullpath[strlen(mpt) + 1];
-	//printf("%s: mpt=%s, fullpath=%s relpath=%s\n", __func__, mpt, fullpath, relpath);
 	return relpath;
 }
 
@@ -1370,7 +1369,6 @@ famfs_log_file_creation(
 		return -ENOMEM;
 	}
 
-	//le.famfs_log_entry_seqnum = logp->famfs_log_next_seqnum++; /* XXX mem ordering */
 	le.famfs_log_entry_type = FAMFS_LOG_FILE;
 
 	fc->famfs_fc_size = size;
@@ -1401,6 +1399,7 @@ famfs_log_file_creation(
 /* TODO: UI would be cleaner if this accepted a fullpath and the mpt, and did the
  * conversion itself. Then pretty much all calls would use the same stuff.
  */
+/* XXX should take famfs_locked_log struct as input */
 static int
 famfs_log_dir_creation(
 	struct famfs_log           *logp,
@@ -2167,6 +2166,7 @@ famfs_release_locked_log(struct famfs_locked_log *lp)
  * XXX This func should go away - always get the bitmap further up the call stack
  * also, the path is only used to validate the superblock, which is redundannt anyway
  */
+#if 0
 static s64
 famfs_alloc_bypath(
 	struct famfs_log *logp,
@@ -2201,6 +2201,7 @@ famfs_alloc_bypath(
 	free(bitmap);
 	return offset;
 }
+#endif
 
 /**
  * famfs_file_alloc()
@@ -2234,39 +2235,20 @@ famfs_file_alloc(
 	struct famfs_simple_extent ext = {0};
 	struct famfs_log *logp;
 	char mpt[PATH_MAX];
-	size_t log_size;
 	char *relpath;
 	char *rpath;
 	s64 offset;
-	void *addr;
 	int lfd = 0;
 	int rc;
 
+	assert(lp);
 	assert(fd > 0);
 
 	rpath = realpath(path, NULL);
 
-	if (!lp) {
-		/* Log file */
-		lfd = open_log_file_writable(rpath, &log_size, mpt, BLOCKING_LOCK);
-		if (lfd < 0) {
-			/* If we can't open the log file for writing, don't allocate */
-			free(rpath);
-			return lfd;
-		}
-
-		addr = mmap(0, log_size, PROT_READ | PROT_WRITE, MAP_SHARED, lfd, 0);
-		if (addr == MAP_FAILED) {
-			fprintf(stderr, "%s: Failed to mmap log file\n", __func__);
-			close(lfd);
-			return -1;
-		}
-		logp = (struct famfs_log *)addr;
-	} else {
-		/* XXX do we need the non-locked-log case? */
-		logp = lp->logp;
-		strncpy(mpt, lp->mpt, PATH_MAX - 1);
-	}
+	/* XXX do we need the non-locked-log case? */
+	logp = lp->logp;
+	strncpy(mpt, lp->mpt, PATH_MAX - 1);
 
 	/* For the log, we need the path relative to the mount point.
 	 * getting this before we allocate is cleaner if the path is sombhow bogus
@@ -2275,10 +2257,7 @@ famfs_file_alloc(
 	if (!relpath)
 		return -EINVAL;
 
-	if (lp)
-		offset = bitmap_alloc_contiguous(lp->bitmap, lp->nbits, size);
-	else
-		offset = famfs_alloc_bypath(logp, rpath, size, verbose);
+	offset = bitmap_alloc_contiguous(lp->bitmap, lp->nbits, size);
 
 	if (offset < 0) {
 		rc = -ENOMEM;
@@ -2292,14 +2271,6 @@ famfs_file_alloc(
 				     relpath, mode, uid, gid, size);
 	if (rc)
 		goto out;
-
-	if (!lp) {
-		/* Now, if we took the lock locally, we can release the log lock -
-		 * space has been allocated and logged
-		 */
-		famfs_release_log_lock(lfd); /* ignore errors, nothing to do */
-		lfd = 0;
-	}
 
 	rc =  famfs_file_map_create(path, fd, size, 1, &ext, FAMFS_REG);
 out:
@@ -2404,6 +2375,8 @@ __famfs_mkfile(
 	char fullpath[PATH_MAX];
 	int fd, rc;
 
+	assert(lp);
+
 	/*
 	 * Check system role; files can only be created on FAMFS_MASTER system
 	 */
@@ -2458,7 +2431,17 @@ famfs_mkfile(
 	size_t            size,
 	int               verbose)
 {
-	return __famfs_mkfile(NULL, filename, mode, uid, gid, size, verbose);
+	struct famfs_locked_log ll;
+	int rc;
+
+	rc = famfs_init_locked_log(&ll, filename, verbose);
+	if (rc)
+		return rc;
+
+	rc  = __famfs_mkfile(&ll, filename, mode, uid, gid, size, verbose);
+
+	famfs_release_locked_log(&ll);
+	return rc;
 }
 
 /**
@@ -2544,18 +2527,16 @@ __famfs_mkdir(
 	size_t log_size;
 	struct stat st;
 	void *addr;
-	int role;
 	int lfd;
 	int rc;
+
+	assert(lp);
 
 	/* Rationalize dirpath; if it exists, get role based on that */
 	if (realpath(dirpath, realdirpath)) {
 		/* OK, dirpath exists... */
 		/* XXX should we fail? I think so, since only mkdir -p succeeds if a dir
 		 * already exists... */
-		/* XXX if there is a locked log struct, the role has already been
-		 * verified. */
-		role = famfs_get_role_by_path(realdirpath, NULL);
 		sprintf(fullpath, "%s", realdirpath);
 	} else {
 		dirdupe  = strdup(dirpath);  /* call dirname() on this dupe */
@@ -2580,14 +2561,6 @@ __famfs_mkdir(
 			fprintf(stderr, "%s: failed to rationalize parentdir path (%s)\n",
 				__func__, parentdir);
 			rc = -1;
-			goto err_out;
-		}
-
-		/* Role check on parent dir */	/* XXX lotsa role checking; is the locked_log thingy sufficient? */
-		role = famfs_get_role_by_path(realparent, NULL);
-		if (role != FAMFS_MASTER) {
-			fprintf(stderr, "%s: Error: not running on FAMFS_MASTER node for this FS\n",
-				__func__);
 			goto err_out;
 		}
 
@@ -2657,7 +2630,24 @@ famfs_mkdir(
 	gid_t       gid,
 	int         verbose)
 {
-	return __famfs_mkdir(NULL, dirpath, mode, uid, gid);
+	char *cwd = get_current_dir_name();
+	struct famfs_locked_log ll;
+	char abspath[PATH_MAX];
+	int rc;
+
+	if (dirpath[0] == '/')
+		strncpy(abspath, dirpath, PATH_MAX - 1);
+	else
+		snprintf(abspath, PATH_MAX - 1, "%s/%s", cwd, dirpath);
+
+	rc = famfs_init_locked_log(&ll, abspath, verbose);
+	if (rc)
+		return rc;
+
+	rc = __famfs_mkdir(&ll, dirpath, mode, uid, gid);
+
+	famfs_release_locked_log(&ll);
+	return rc;
 }
 
 /**
@@ -2688,6 +2678,8 @@ famfs_make_parent_dir(
 	char *parentdir;
 	struct stat st;
 	int rc;
+
+	assert(lp);
 
 	/* Does path already exist? */
 	if (stat(path, &st) == 0) {
@@ -2730,10 +2722,8 @@ famfs_mkdir_parents(
 {
 	struct famfs_locked_log ll = { 0 };
 	char *cwd = get_current_dir_name();
-	//char mpt_out[PATH_MAX];
 	char abspath[PATH_MAX];
 	char *rpath;
-	//int lfd;
 	int rc;
 
 	/* dirpath as an indeterminate number of nonexistent dirs, under a path that
@@ -2754,14 +2744,7 @@ famfs_mkdir_parents(
 		fprintf(stderr, "%s: failed to find real parent dir\n", __func__);
 		return -1;
 	}
-#if 0
-	lfd = open_log_file_read_only(abspath, NULL, mpt_out, NO_LOCK);
-	if (lfd < 0) {
-		fprintf(stderr, "%s: path (%s) apears not to fall in a famfs file system\n",
-			__func__, abspath);
-		return -1;
-	}
-#endif
+
 	/* OK, we know were in a FAMFS instance. get a locked log struct */
 	rc = famfs_init_locked_log(&ll, rpath, verbose);
 	if (rc) {
@@ -2777,7 +2760,7 @@ famfs_mkdir_parents(
 	free(rpath);
 	if (cwd)
 		free(cwd);
-	//close(lfd);
+
 	return rc;
 }
 
@@ -2817,6 +2800,8 @@ __famfs_cp(
 	ssize_t bytes;
 	char *destp;
 	int role;
+
+	assert(lp);
 
 	/* It might be good to hoist this check up when copying many files to a directory
 	 * (and then again, this minor inefficiency may not matter
@@ -2895,6 +2880,7 @@ __famfs_cp(
 				"ofs %ld cur_chunksize %ld remainder %ld\n",
 				__func__, offset, cur_chunksize, remainder);
 			printf("rc=%ld errno=%d\n", bytes, errno);
+			munmap(destp, srcstat.st_size);
 			return -1;
 		}
 		if (bytes < cur_chunksize) {
@@ -2908,6 +2894,7 @@ __famfs_cp(
 		remainder -= bytes;
 	}
 
+	munmap(destp, srcstat.st_size);
 	close(srcfd);
 	close(destfd);
 	return 0;
@@ -2936,6 +2923,8 @@ famfs_cp(struct famfs_locked_log *lp,
 	char actual_destfile[PATH_MAX] = { 0 };
 	struct stat deststat;
 	int rc;
+
+	assert(lp);
 
 	/* Figure out what the destination is; possibilities:
 	 *
@@ -3008,6 +2997,7 @@ int famfs_cp_dir(
 	int rc;
 	int err = 0;
 
+	assert(lp);
 	if (verbose > 1)
 		printf("%s: (%s) -> (%s)\n", __func__, src, dest);
 
