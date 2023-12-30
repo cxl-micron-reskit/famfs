@@ -972,9 +972,9 @@ famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index)
 }
 
 /**
- * famfs_logplay()
+ * __famfs_logplay()
  *
- * Play the log for a famfs file system
+ * Inner function to play the log for a famfs file system
  *
  * @logp        - pointer to a read-only copy or mmap of the log
  * @mpt         - mount point path
@@ -1201,6 +1201,17 @@ __famfs_logplay(
 	return 0;
 }
 
+/**
+ * famfs_logplay()
+ *
+ * Outer function to play the log for a famfs file system
+ *
+ * @fspath      - mount point, or any path within the famfs file system
+ * @use_mmap    - Use mmap rather than reading the log into a buffer
+ * @dry_run     - process the log but don't create the files & directories
+ * @client_mode - for testing; play the log as if this is a client node, even on master
+ * @verbose
+ */
 int
 famfs_logplay(
 	const char             *fspath,
@@ -1283,19 +1294,10 @@ static int
 famfs_append_log(struct famfs_log       *logp,
 		 struct famfs_log_entry *e)
 {
+	assert(logp);
+	assert(e);
+
 	/* XXX This function is not re-entrant */
-	if (!logp || !e)
-		return -EINVAL;
-
-	if (logp->famfs_log_magic != FAMFS_LOG_MAGIC) {
-		fprintf(stderr, "Log has invalid magic number\n");
-		return -EINVAL;
-	}
-
-	if (logp->famfs_log_next_index >= logp->famfs_log_last_index) {
-		fprintf(stderr, "log is full\n");
-		return -E2BIG;
-	}
 
 	e->famfs_log_entry_seqnum = logp->famfs_log_next_seqnum;
 	e->famfs_log_entry_crc = famfs_gen_log_entry_crc(e);
@@ -1340,6 +1342,9 @@ famfs_relpath_from_fullpath(
 
 /**
  * famfs_log_file_creation()
+ *
+ * Returns 0 on success
+ * On error, returns <0. (all failures here should abort multi-file operations)
  */
 /* TODO: UI would be cleaner if this accepted a fullpath and the mpt, and did the
  * conversion itself. Then pretty much all calls would use the same stuff.
@@ -1366,6 +1371,7 @@ famfs_log_file_creation(
 
 	if (famfs_log_full(logp)) {
 		fprintf(stderr, "%s: log full\n", __func__);
+		//assert(0);
 		return -ENOMEM;
 	}
 
@@ -1416,6 +1422,7 @@ famfs_log_dir_creation(
 
 	if (famfs_log_full(logp)) {
 		fprintf(stderr, "%s: log full\n", __func__);
+		//assert(0);
 		return -ENOMEM;
 	}
 
@@ -2037,7 +2044,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
  *
  * Return value: the offset in bytes
  */
-static u64
+static s64
 bitmap_alloc_contiguous(u8 *bitmap,
 			u64 nbits,
 			u64 alloc_size)
@@ -2069,7 +2076,7 @@ bitmap_alloc_contiguous(u8 *bitmap,
 next:
 	}
 	fprintf(stderr, "%s: alloc failed\n", __func__);
-	return 0;
+	return -1;
 }
 
 /**
@@ -2158,52 +2165,6 @@ famfs_release_locked_log(struct famfs_locked_log *lp)
 }
 
 /**
- * famfs_alloc_bypath()
- *
- * @path    - a path within the famfs file system
- * @size    - size in bytes
- *
- * XXX This func should go away - always get the bitmap further up the call stack
- * also, the path is only used to validate the superblock, which is redundannt anyway
- */
-#if 0
-static s64
-famfs_alloc_bypath(
-	struct famfs_log *logp,
-	const char       *path,
-	u64               size,
-	int               verbose)
-{
-	ssize_t daxdevsize;
-	u8 *bitmap;
-	u64 nbits;
-	u64 offset;
-
-	if (size <= 0)
-		return -1;
-
-	/* XXX already done, right? */
-	daxdevsize = famfs_validate_superblock_by_path(path);
-	if (daxdevsize < 0)
-		return daxdevsize;
-
-	bitmap = famfs_build_bitmap(logp, daxdevsize, &nbits, NULL, NULL, NULL, 0);
-	if (verbose) {
-		printf("\nbitmap before:\n");
-		mu_print_bitmap(bitmap, nbits);
-	}
-	offset = bitmap_alloc_contiguous(bitmap, nbits, size);
-	if (verbose) {
-		printf("\nbitmap after:\n");
-		mu_print_bitmap(bitmap, nbits);
-		printf("\nAllocated offset: %lld\n", offset);
-	}
-	free(bitmap);
-	return offset;
-}
-#endif
-
-/**
  * famfs_file_alloc()
  *
  * Alllocate space for a file, making it ready to use
@@ -2219,7 +2180,12 @@ famfs_alloc_bypath(
  * @uid  - 
  * @gid  - 
  * @size - size to alloacte
- * @verbose - 
+ * @verbose -
+ *
+ * Returns 0 on success
+ * On error, returns:
+ * >0 - Errors that should not abort a multi-file operation
+ * <0 - Errors that should cause an abort (such as out of space or log full)
  */
 static int
 famfs_file_alloc(
@@ -2261,6 +2227,8 @@ famfs_file_alloc(
 
 	if (offset < 0) {
 		rc = -ENOMEM;
+		fprintf(stderr, "%s: Out of space!\n", __func__);
+		//assert(0);
 		goto out;
 	}
 
@@ -2349,7 +2317,7 @@ famfs_file_create(const char *path,
  *
  * Inner function to create *and* allocate a file, and logs it.
  *
- * @locked_logp
+ * @locked_logp - We have a writable lock, which also means we're running on the master node
  * @filename
  * @mode
  * @mode
@@ -2359,6 +2327,10 @@ famfs_file_create(const char *path,
  * @verbose
  *
  * Returns an open file descriptor if successful.
+ * On failure, returns:
+ *  0 - The operation failed but it's not fatal to a multi-file operationn
+ * <0 - The operation failed due to a fatal condition like log full or out of space, so
+ *      multi-file operations should abort
  */
 static int
 __famfs_mkfile(
@@ -2370,37 +2342,20 @@ __famfs_mkfile(
 	size_t                   size,
 	int                      verbose)
 {
-	enum famfs_system_role role;
-	struct famfs_superblock *sb;
+	//struct famfs_superblock *sb;
 	char fullpath[PATH_MAX];
 	int fd, rc;
 
 	assert(lp);
 
-	/*
-	 * Check system role; files can only be created on FAMFS_MASTER system
-	 */
-	sb = famfs_map_superblock_by_path(filename, 1 /* read-only */);
-	if (!sb)
-		return -1;
-
-	if (famfs_check_super(sb)) {
-		fprintf(stderr, "%s: no valid superblock for path %s\n", __func__, filename);
-		return -1;
-	}
-	role = famfs_get_role(sb);
-	if (role != FAMFS_MASTER) {
-		fprintf(stderr, "%s: file creation not allowed on client systems\n", __func__);
-		return -EPERM;
-	}
-
 	/* Create the file */
 	fd = famfs_file_create(filename, mode, uid, gid, 0);
-	if (fd < 0)
+	if (fd <= 0)
 		return fd;
 
 	/* Clean up the filename path. (Can't call realpath until the file exists) */
 	if (realpath(filename, fullpath) == NULL) {
+		/* XXX this should not be possible since we created the file. hmmm... */
 		fprintf(stderr, "%s: realpath() unable to rationalize filename %s\n",
 			__func__, filename);
 		close(fd);
@@ -2504,6 +2459,7 @@ famfs_dir_create(
  * @mode
  * @uid
  * @gid
+ * @verbose
  */
 
 static int
@@ -2512,22 +2468,19 @@ __famfs_mkdir(
 	const char *dirpath,
 	mode_t      mode,
 	uid_t       uid,
-	gid_t       gid)
+	gid_t       gid,
+	int         verbose)
 {
 	char realparent[PATH_MAX];
 	char fullpath[PATH_MAX];
 	char mpt_out[PATH_MAX] = { 0 };
-	struct famfs_log *logp;
 	char realdirpath[PATH_MAX];
 	char *dirdupe   = NULL;
 	char *parentdir = NULL;
 	char *basedupe  = NULL;
 	char *newdir    = NULL;
 	char *relpath   = NULL;
-	size_t log_size;
 	struct stat st;
-	void *addr;
-	int lfd;
 	int rc;
 
 	assert(lp);
@@ -2573,28 +2526,10 @@ __famfs_mkdir(
 		}
 	}
 
-	if (!lp) {
-		/*
-		 * For this operation we need to open the log file, which also gets us
-		 * the mount point path
-		 */
-		lfd  = open_log_file_writable(fullpath, &log_size, mpt_out, BLOCKING_LOCK);
-		addr = mmap(0, log_size, PROT_READ | PROT_WRITE, MAP_SHARED, lfd, 0);
-		if (addr == MAP_FAILED) {
-			fprintf(stderr, "%s: Failed to mmap log file\n", __func__);
-			rc = -1;
-			goto err_out;
-		}
-		logp = (struct famfs_log *)addr;
-	} else {
-		/* mkdir not called with struct famfs_locked_log yet
-		 * (may not be called till "cp -r" is implemented)
-		 */
-		logp = lp->logp;
-		strncpy(mpt_out, lp->mpt, PATH_MAX - 1);
-	}
+	strncpy(mpt_out, lp->mpt, PATH_MAX - 1);
 
-	printf("%s: creating directory %s\n", __func__, fullpath);
+	if (verbose)
+		printf("%s: creating directory %s\n", __func__, fullpath);
 
 	relpath = famfs_relpath_from_fullpath(mpt_out, fullpath);
 	if (strcmp(mpt_out, fullpath) == 0) {
@@ -2609,10 +2544,8 @@ __famfs_mkdir(
 		goto err_out;
 	}
 
-	rc = famfs_log_dir_creation(logp, relpath, mode, uid, gid);
+	rc = famfs_log_dir_creation(lp->logp, relpath, mode, uid, gid);
 
-	if (!lp)
-		famfs_release_log_lock(lfd);
 
 err_out:
 	if (dirdupe)
@@ -2644,7 +2577,7 @@ famfs_mkdir(
 	if (rc)
 		return rc;
 
-	rc = __famfs_mkdir(&ll, dirpath, mode, uid, gid);
+	rc = __famfs_mkdir(&ll, dirpath, mode, uid, gid, verbose);
 
 	famfs_release_locked_log(&ll);
 	return rc;
@@ -2708,7 +2641,7 @@ famfs_make_parent_dir(
 	if (verbose)
 		printf("%s: dir %s depth %d\n", __func__, path, depth);
 
-	rc = __famfs_mkdir(lp, path, mode, uid, gid);
+	rc = __famfs_mkdir(lp, path, mode, uid, gid, verbose);
 	return rc;
 }
 
@@ -2783,6 +2716,12 @@ famfs_mkdir_parents(
  * @uid
  * @gid
  * @verbose
+ *
+ * Return values:
+ * 0  - Success
+ * >0 - Something failed but if it is a multi-file copy, it should continue
+ * <0 - A failure that should cause multi-file operations to bail out (such as out of space or
+ *      log fulll...
  */
 static int
 __famfs_cp(
@@ -2817,7 +2756,7 @@ __famfs_cp(
 	rc = stat(srcfile, &srcstat);
 	if (rc) {
 		fprintf(stderr, "%s: unable to stat srcfile (%s)\n", __func__, srcfile);
-		return rc;
+		return 1; /* not an abort condition */
 	}
 	switch (srcstat.st_mode & S_IFMT) {
 	case S_IFREG:
@@ -2835,7 +2774,7 @@ __famfs_cp(
 	default:
 		fprintf(stderr,
 			"%s: error: src %s is not a regular file \n", __func__, srcfile);
-		return -EINVAL;
+		return 1;
 	}
 
 	/*
@@ -2844,7 +2783,7 @@ __famfs_cp(
 	srcfd = open(srcfile, O_RDONLY, 0);
 	if (srcfd < 0) {
 		fprintf(stderr, "%s: unable to open srcfile (%s)\n", __func__, srcfile);
-		return srcfd;
+		return 1;
 	}
 
 	/* XXX famfs_mkfile() calls famfs_file_alloc()
@@ -2854,14 +2793,15 @@ __famfs_cp(
 	 */
 	destfd = __famfs_mkfile(lp, destfile, (mode == 0) ? srcstat.st_mode : mode,
 				uid, gid, srcstat.st_size, verbose);
-	if (destfd < 0) {
+	if (destfd <= 0) {
 		fprintf(stderr, "%s: failed in __famfs_mkfile\n", __func__);
 		return destfd;
 	}
 
 	destp = mmap(0, srcstat.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, destfd, 0);
 	if (destp == MAP_FAILED) {
-		fprintf(stderr, "%s: dest mmap failed\n", __func__);
+		fprintf(stderr, "%s: dest mmap failed (%s) size %ld\n",
+			__func__, destfile, srcstat.st_size);
 		unlink(destfile);
 		return -1; /* XXX */
 	}
@@ -3005,7 +2945,7 @@ int famfs_cp_dir(
 	rc = stat(dest, &st);
 	if (rc) {
 		/* The directory doesn't exist yet */
-		rc = __famfs_mkdir(lp, dest, mode, uid, gid);
+		rc = __famfs_mkdir(lp, dest, mode, uid, gid, verbose);
 		if (rc) {
 			/* Recursive copy can't really recover from a mkdir failure */
 			return rc;
@@ -3015,7 +2955,7 @@ int famfs_cp_dir(
 	directory = opendir(src);
 	if (directory == NULL) {
 		fprintf(stderr, "%s: failed to open src dir (%s)\n", __func__, src);
-		return -1;
+		return 1;
 	}
 
 	/* Loop through the directry entries */
@@ -3031,15 +2971,20 @@ int famfs_cp_dir(
 		if (rc) {
 			fprintf(stderr, "%s: failed to stat source path (%s)\n",
 				__func__, srcfullpath);
+			err = 1;
 			continue;
 		}
 
 		if (verbose)
-			printf("  %s\n", src);
+			printf("%s:  %s/%s\n", __func__, src, entry->d_name);
 
 		switch (src_stat.st_mode & S_IFMT) {
 		case S_IFREG:
 			rc = famfs_cp(lp, srcfullpath, dest, mode, uid, gid, verbose);
+			if (rc < 0) {
+				err = rc;
+				goto bailout;
+			}
 			if (rc)
 				err = 1; /* if anything failed, return 1 */
 			break;
@@ -3061,7 +3006,7 @@ int famfs_cp_dir(
 			return -EINVAL;
 		}
 	}
-
+bailout:
 	closedir(directory);
 	return err;
 }
@@ -3160,13 +3105,19 @@ famfs_cp_multi(
 		/* Need to handle source files and directries differently */
 		rc = stat(argv[i], &src_stat);
 		if (verbose)
-			printf("  %s\n", argv[i]);
+			printf("%s:  %s\n", __func__, argv[i]);
 
 		switch (src_stat.st_mode & S_IFMT) {
 		case S_IFREG:
 			/* Dest is a directory and files will be copied into it */
 			rc = famfs_cp(&ll, argv[i], dest, mode, uid, gid, verbose);
-			if (rc)
+			if (rc < 0) { /* rc < 0 is errors we abort after */
+				fprintf(stderr, "%s: aborting copy due to error\n",
+					__func__);
+				err = rc;
+				goto err_out;
+			}
+			if (rc) /* rc > 0 is errors that we continue after */
 				err = 1; /* if anything failed, return 1 */
 			break;
 
@@ -3174,7 +3125,13 @@ famfs_cp_multi(
 			if (recursive) {
 				rc = famfs_cp_dir(&ll, argv[i], dest, mode, uid,
 						  gid, verbose);
-				if (rc)
+				if (rc < 0) { /* rc < 0 is errors we abort after */
+					fprintf(stderr, "%s: aborting copy due to error\n",
+						__func__);
+					err = rc;
+					goto err_out;
+				}
+				if (rc)  /* rc > 0 is errors that we continue after */
 					err = 1;
 			} else {
 				fprintf(stderr, "%s: -r not specified; omitting directory '%s'\n",
