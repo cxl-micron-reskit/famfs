@@ -101,7 +101,7 @@ ${CLI} verify -S 42 -f $MPT/$F                 || fail "$F mismatch"
 
 ${CLI} cp -h                        || fail "cp -h should succeed"
 
-${CLI} cp $MPT/$F $MPT/${F}_cp      || fail "cp $F"
+${CLI} cp -vvv $MPT/$F $MPT/${F}_cp      || fail "cp $F"
 ${CLI} verify -S 42 -f $MPT/${F}_cp || fail "verify ${F}_cp"
 
 #
@@ -140,6 +140,7 @@ ${CLI} mkdir -p ./A/x/y/z               || fail "mkdir -p 5"
 cd -
 
 ${CLI} mkdir -pv $MPT/${F}/foo/bar/baz/bing && fail "mkdir -p with a file in path should fail"
+${CLI} mkdir -pvvv $MPT/a/y/../../../.. && fail "mkdir -p ../../../.. ascended out of famfs"
 
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp0      || fail "cp0 $F"
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp1      || fail "cp1 $F"

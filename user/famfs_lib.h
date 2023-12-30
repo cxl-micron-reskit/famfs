@@ -46,5 +46,7 @@ int __famfs_mkfs(const char *daxdev, struct famfs_superblock *sb, struct famfs_l
 		 u64 device_size, int force, int kill);
 int __open_relpath(const char *path, const char *relpath, int read_only, size_t *size_out,
 		   char *mpt_out, int no_fscheck);
+int __famfs_cp(struct famfs_locked_log  *lp, const char *srcfile, const char *destfile,
+	       mode_t mode, uid_t uid, gid_t gid, int verbose);
 #endif
 #endif /* _H_FAMFS_LIB */

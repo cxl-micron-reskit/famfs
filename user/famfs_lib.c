@@ -2204,7 +2204,6 @@ famfs_file_alloc(
 	char *relpath;
 	char *rpath;
 	s64 offset;
-	int lfd = 0;
 	int rc;
 
 	assert(lp);
@@ -2242,8 +2241,6 @@ famfs_file_alloc(
 
 	rc =  famfs_file_map_create(path, fd, size, 1, &ext, FAMFS_REG);
 out:
-	if (lfd > 0)
-		close(lfd);
 	if (rpath)
 		free(rpath);
 	return rc;
@@ -2730,7 +2727,7 @@ famfs_mkdir_parents(
  * <0 - A failure that should cause multi-file operations to bail out (such as out of space or
  *      log fulll...
  */
-static int
+int
 __famfs_cp(
 	struct famfs_locked_log  *lp,
 	const char               *srcfile,
@@ -2956,6 +2953,7 @@ int famfs_cp_dir(
 
 	directory = opendir(src);
 	if (directory == NULL) {
+		/* XXX is it possible to get here since we created the dir if it didn't exist? */
 		fprintf(stderr, "%s: failed to open src dir (%s)\n", __func__, src);
 		return 1;
 	}
@@ -3163,7 +3161,7 @@ famfs_cp_multi(
 			break;
 		default:
 			fprintf(stderr,
-				"%s: error: skipping non-file or directoory %s\n",
+				"%s: error: skipping non-file or directory %s\n",
 				__func__, argv[i]);
 			err = -EINVAL;
 			goto err_out;

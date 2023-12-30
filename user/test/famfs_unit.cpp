@@ -322,3 +322,26 @@ TEST(famfs, mmap_whole_file)
 	addr = famfs_mmap_whole_file("/dev/zero", 1, &size);
 	ASSERT_NE(addr, MAP_FAILED);
 }
+
+TEST(famfs, __famfs_cp)
+{
+	int rc;
+
+	/* OK, this is coverage hackery. Beware */
+	rc = __famfs_cp((struct famfs_locked_log *)0xdeadbeef,
+			"badsrcfile",
+			"xx",
+			0, 0, 0, 0);
+	ASSERT_EQ(rc, 1);
+	rc = __famfs_cp((struct famfs_locked_log *)0xdeadbeef,
+			"/etc",
+			"xx",
+			0, 0, 0, 0);
+	ASSERT_EQ(rc, 1);
+	rc = __famfs_cp((struct famfs_locked_log *)0xdeadbeef,
+			"/dev/zero",
+			"xx",
+			0, 0, 0, 0);
+	ASSERT_EQ(rc, 1);
+
+}
