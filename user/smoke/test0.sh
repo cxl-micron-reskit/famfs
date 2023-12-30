@@ -113,6 +113,9 @@ ${CLI} creat -r -s 4096 -S 1 $MPT/test1   && fail "Create should fail if file ex
 # Create outside famfs should fail
 ${CLI} creat -r -s 4096 -S 1 /tmp/test1   && fail "Create should fail if file exists"
 
+# Create an empty file should fail
+${CLI} creat -r -s 0 -S 1 $MPT/emptyfile  && fail "Create empty file should fail"
+
 # Test creat mode/uid/gid options
 # These permissions should make it work without sudo
 MODE="600"

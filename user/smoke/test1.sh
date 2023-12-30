@@ -327,9 +327,12 @@ ${CLI} cp -r A A-double-prime           || fail "cp -r A A-double-prime"
 sudo diff -r A A-double-prime
 cd -
 
+sudo touch /tmp/emptyfile
+${CLI} cp /tmp/emptyfile $MPT/emptyfile2 && fail "cp with empty source file should fail"
+
 ${CLI} fsck $MPT || fail "fsck should succeed"
 ${CLI} fsck -m $MPT || fail "fsck -mh should succeed"
-${CLI} fsck -v $MPT || fail "fsck -v should succeed"
+${CLI} fsck -vv $MPT || fail "fsck -vv should succeed"
 
 set +x
 echo "*************************************************************************************"

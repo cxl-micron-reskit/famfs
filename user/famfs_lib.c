@@ -2347,6 +2347,7 @@ __famfs_mkfile(
 	int fd, rc;
 
 	assert(lp);
+	assert(size > 0);
 
 	/* Create the file */
 	fd = famfs_file_create(filename, mode, uid, gid, 0);
@@ -2388,6 +2389,12 @@ famfs_mkfile(
 {
 	struct famfs_locked_log ll;
 	int rc;
+
+	if (size == 0) {
+		/* We don't allow empty files; what would be the point? */
+		fprintf(stderr, "%s: Creating empty file (%s) not allowed\n",
+			__func__, filename);
+	}
 
 	rc = famfs_init_locked_log(&ll, filename, verbose);
 	if (rc)
@@ -2738,19 +2745,8 @@ __famfs_cp(
 	struct stat srcstat;
 	ssize_t bytes;
 	char *destp;
-	int role;
 
 	assert(lp);
-
-	/* It might be good to hoist this check up when copying many files to a directory
-	 * (and then again, this minor inefficiency may not matter
-	 */
-	role = famfs_get_role_by_path(destfile, NULL);
-	if (role != FAMFS_MASTER) {
-		fprintf(stderr, "%s: Error not running on FAMFS_MASTER node for this FS\n",
-			__func__);
-		return -1;
-	}
 
 	/* Validate source file */
 	rc = stat(srcfile, &srcstat);
@@ -2761,6 +2757,12 @@ __famfs_cp(
 	switch (srcstat.st_mode & S_IFMT) {
 	case S_IFREG:
 		/* Source is a file - all good */
+		if (srcstat.st_size == 0) {
+			if (verbose > 1)
+				fprintf(stderr, "%s: skipping empty file %s\n", __func__, srcfile);
+
+			return 1;
+		}
 		break;
 
 	case S_IFDIR:
