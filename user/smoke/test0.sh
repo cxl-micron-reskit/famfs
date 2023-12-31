@@ -229,6 +229,7 @@ fi
 #
 # test famfs_check
 #
+${CLI} check -?               || fail "famfs check -? should succeed"
 ${CLI_NOSUDO} check $MPT      && fail "famfs check without sudo should fail"
 ${CLI} check $MPT             || fail "famfs check should succeed"
 ${CLI} check "relpath"        && fail "famfs check on relpath should fail"

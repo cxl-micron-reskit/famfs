@@ -104,6 +104,9 @@ ${CLI} cp -h                        || fail "cp -h should succeed"
 ${CLI} cp -vvv $MPT/$F $MPT/${F}_cp      || fail "cp $F"
 ${CLI} verify -S 42 -f $MPT/${F}_cp || fail "verify ${F}_cp"
 
+${CLI} cp --gid=-1 && fail "cp should fail with negative gid"
+${CLI} cp --uid=-1 && fail "cp should fail with negative uid"
+
 #
 # mkdir with absolute path
 #
