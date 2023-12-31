@@ -17,4 +17,4 @@ if [ ! -d $MOUNT_PT ]; then
 fi
 
 sudo umount $MOUNT_PT
-sudo rmmod famfs      || fail "rmmod"
+sudo rmmod famfs

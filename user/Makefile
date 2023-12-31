@@ -37,7 +37,7 @@ test:
 
 # Run the smoke tests
 smoke:
-	@scripts/teardown.sh
+	-scripts/teardown.sh
 	./run_smoke.sh
 
 teardown:
