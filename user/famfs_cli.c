@@ -525,17 +525,18 @@ famfs_getmap_usage(int   argc,
 	       "    %s getmap [args] <filename>\n"
 	       "\n"
 	       "Arguments:\n"
-	       "    -q|--quiet   - Quiet print output, but exit code confirms whether the\n"
-	       "                   file is famfs\n"
-	       "    -?           - Print this message\n"
+	       "    -q|--quiet - Quiet print output, but exit code confirms whether the\n"
+	       "                 file is famfs\n"
+	       "    -?         - Print this message\n"
 	       "\n"
 	       "Exit codes:\n"
 	       "   0    - The file is a fully-mapped famfs file\n"
 	       "   1    - The file is not in a famfs file system\n"
 	       "   2    - The file is in a famfs file system, but is not mapped\n"
-	       " EINVAL - invalid input\n"
+	       " EBADF  - invalid input\n"
 	       " ENOENT - file not found\n"
 	       " EISDIR - File is not a regular file\n"
+	       "\n"
 	       "This is similar to the xfs_bmap command and is only used for testing\n"
 	       "\n", progname);
 }
@@ -550,6 +551,7 @@ do_famfs_cli_getmap(int argc, char *argv[])
 	char *filename = NULL;
 	int arg_ct = 0;
 	int quiet = 0;
+	int continue_on_err = 0;
 	struct stat st = { 0 };
 	/* XXX can't use any of the same strings as the global args! */
 	struct option cp_options[] = {
@@ -568,7 +570,7 @@ do_famfs_cli_getmap(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+h?q",
+	while ((c = getopt_long(argc, argv, "+h?qc",
 				cp_options, &optind)) != EOF) {
 
 		arg_ct++;
@@ -581,81 +583,101 @@ do_famfs_cli_getmap(int argc, char *argv[])
 		case 'q':
 			quiet++;
 			break;
+		case 'c':
+			continue_on_err = 1;
+			break;
 		}
 	}
 
 	if (optind >= argc) {
-		fprintf(stderr, "getmap: Must specify filename\n");
+		fprintf(stderr, "famfs_getmap: Must specify filename\n");
 		famfs_getmap_usage(argc, argv);
 		return EINVAL;
 	}
-	filename = argv[optind++];
-	if (filename == NULL) {
-		/* XXX can't be null, right? */
-		fprintf(stderr, "getmap: Must supply filename\n");
-		return EINVAL;
-	}
+	while (optind < argc) {
+		filename = argv[optind++];
 
-	rc = stat(filename, &st);
-	if (rc < 0) {
-		if (!quiet)
-			fprintf(stderr, "getmap: failed to stat file (%s)\n", filename);
-		rc = ENOENT;
-		goto err_out;
-	}
-	if ((st.st_mode & S_IFMT) != S_IFREG) {
-		if (!quiet)
-			fprintf(stderr, "getmap: not a regular file (%s)\n", filename);
-		rc = EISDIR;
-		goto err_out;
-	}
-
-	fd = open(filename, O_RDONLY, 0);
-	if (fd < 0) {
-		fprintf(stderr, "getmap: open failed (%s)\n",filename);
-		return ENOENT;
-	}
-	rc = ioctl(fd, FAMFSIOC_NOP, 0);
-	if (rc) {
-		if (!quiet)
-			fprintf(stderr, "getmap: file (%s) not in a famfs file system\n",
-				filename);
-		rc = 1;
-		goto err_out;
-	}
-
-	rc = ioctl(fd, FAMFSIOC_MAP_GET, &filemap);
-	if (rc) {
-		rc = 2;
-		if (!quiet)
-			printf("getmap: file (%s) is famfs, but the map is not populated\n",
-			       filename);
-		goto err_out;
-	}
-
-	if (!quiet) {
-		struct famfs_extent *ext_list = NULL;
-
-		/* Only bother to retrieve extents if we'll be printing them */
-		ext_list = calloc(filemap.ext_list_count, sizeof(struct famfs_extent));
-		rc = ioctl(fd, FAMFSIOC_MAP_GETEXT, ext_list);
-		if (rc) {
-			/* If we got this far, this should not fail... */
-			fprintf(stderr, "getmap: failed to retrieve ext list for file (%s)\n",
-				filename);
-			free(ext_list);
-			rc = 3;
-			return rc;
+		rc = stat(filename, &st);
+		if (rc < 0) {
+			if (!quiet)
+				fprintf(stderr, "famfs_getmap: file not found (%s)\n", filename);
+			rc = EBADF;
+			if (!continue_on_err)
+				goto err_out;
+		}
+		if ((st.st_mode & S_IFMT) != S_IFREG) {
+			if (quiet > 1)
+				fprintf(stderr, "getmap: not a regular file (%s)\n", filename);
+			rc = EISDIR;
+			if (continue_on_err) {
+				continue;
+			}
+			goto err_out;
 		}
 
-		printf("File:     %s\n",    filename);
-		printf("\tsize:   %ld\n",  filemap.file_size);
-		printf("\textents: %ld\n", filemap.ext_list_count);
+		fd = open(filename, O_RDONLY, 0);
+		if (fd < 0) {
+			fprintf(stderr, "famfs_getmap: open failed (%s)\n",filename);
+			if (continue_on_err) {
+				continue;
+			}
+			return EBADF;
+		}
+		rc = ioctl(fd, FAMFSIOC_NOP, 0);
+		if (rc) {
+			if (!quiet)
+				fprintf(stderr,
+					"famfs_getmap: file (%s) not in a famfs file system\n",
+					filename);
+			rc = 1;
+			if (continue_on_err) {
+				continue;
+			}
+			goto err_out;
+		}
 
-		for (i = 0; i < filemap.ext_list_count; i++)
-			printf("\t\t%llx\t%lld\n", ext_list[i].offset, ext_list[i].len);
+		rc = ioctl(fd, FAMFSIOC_MAP_GET, &filemap);
+		if (rc) {
+			rc = 2;
+			if (!quiet)
+				printf("famfs_getmap: file (%s) is famfs, but has no map\n",
+				       filename);
+			if (continue_on_err) {
+				continue;
+			}
+			goto err_out;
+		}
 
-		free(ext_list);
+		if (!quiet) {
+			struct famfs_extent *ext_list = NULL;
+
+			/* Only bother to retrieve extents if we'll be printing them */
+			ext_list = calloc(filemap.ext_list_count, sizeof(struct famfs_extent));
+			rc = ioctl(fd, FAMFSIOC_MAP_GETEXT, ext_list);
+			if (rc) {
+				/* If we got this far, this should not fail... */
+				fprintf(stderr, "getmap: failed to retrieve ext list for (%s)\n",
+					filename);
+				free(ext_list);
+				rc = 3;
+				if (continue_on_err) {
+					continue;
+				}
+				return rc;
+			}
+
+			printf("File:     %s\n",    filename);
+			printf("\tsize:   %ld\n",  filemap.file_size);
+			printf("\textents: %ld\n", filemap.ext_list_count);
+
+			for (i = 0; i < filemap.ext_list_count; i++)
+				printf("\t\t%llx\t%lld\n", ext_list[i].offset, ext_list[i].len);
+
+			free(ext_list);
+		}
+		printf("famfs_getmap: good file %s\n", filename);
+		close(fd);
+		fd = 0;
 	}
 err_out:
 	if (fd)
@@ -1193,6 +1215,7 @@ famfs_cli_cmd famfs_cli_cmds[] = {
 	{"logplay", do_famfs_cli_logplay, famfs_logplay_usage},
 	{"getmap",  do_famfs_cli_getmap,  famfs_getmap_usage},
 	{"clone",   do_famfs_cli_clone,   famfs_clone_usage},
+	{"check",   do_famfs_cli_check,   famfs_check_usage},
 
 	{NULL, NULL, NULL}
 };
