@@ -322,23 +322,24 @@ famfs_cp_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
+	       "famfs cp: Copy one or more files and directories into a famfs file system\n"
+	       "\n"
 	       "Copy a file into a famfs file system\n"
 	       "    %s cp [args] <srcfile> <destfile>\n\n"
 	       "Copy a file into a directory of a famfs file system with the same basename\n"
 	       "    %s cp [args] <srcfile> <famfs_dir>\n\n"
 	       "Copy a wildcard set of files to a directory\n"
-	       "    %s cp [args]/path/to/* <dirpath>\n\n"
+	       "    %s cp [args]/path/to/* <dirpath>\n"
 	       "\n"
 	       "Arguments\n"
 	       "    -h|-?            - Print this message\n"
 	       "    -m|--mode=<mode> - Set mode (as in chmod) to octal value\n"
-	       "    -u|--uid=<uid>   - Specify uid (default is current user's uid)"
-	       "    -g|--gid=<gid>   - Specify uid (default is current user's gid)"
+	       "    -u|--uid=<uid>   - Specify uid (default is current user's uid)\n"
+	       "    -g|--gid=<gid>   - Specify uid (default is current user's gid)\n"
 	       "    -v|verbose       - print debugging output while executing the command\n"
-	       "NOTE: you need this tool to copy a file into a famfs file system,\n"
 	       "\n"
-	       "but the standard \'cp\' can be used to copy FROM a famfs file system.\n"
-	       "\nWishlist: 'cp -r' is not implemented yet\n",
+	       "NOTE: you need this tool to copy a file into a famfs file system,\n"
+	       "but the standard \'cp\' can be used to copy FROM a famfs file system.\n\n",
 	       progname, progname, progname);
 }
 
@@ -397,18 +398,10 @@ do_famfs_cli_cp(int argc, char *argv[])
 
 		case 'u':
 			uid = strtol(optarg, 0, 0);
-			if (uid < 0) {
-				fprintf(stderr, "uid must be positive integer\n");
-				exit(-1);
-			}
 			break;
 
 		case 'g':
 			gid = strtol(optarg, 0, 0);
-			if (gid < 0) {
-				fprintf(stderr, "gid must be positive integer\n");
-				exit(-1);
-			}
 			break;
 		}
 	}
@@ -416,7 +409,7 @@ do_famfs_cli_cp(int argc, char *argv[])
 	remaining_args = argc - optind;
 
 	if (remaining_args < 2) {
-		fprintf(stderr, "%s: source nd destination args are required\n", __func__);
+		fprintf(stderr, "famfs cp error: source and destination args are required\n");
 		famfs_cp_usage(argc, argv);
 		return -1;
 	}
@@ -799,18 +792,10 @@ do_famfs_cli_creat(int argc, char *argv[])
 
 		case 'u':
 			uid = strtol(optarg, 0, 0);
-			if (uid < 0) {
-				fprintf(stderr, "uid must be positive integer\n");
-				exit(-1);
-			}
 			break;
 
 		case 'g':
 			gid = strtol(optarg, 0, 0);
-			if (gid < 0) {
-				fprintf(stderr, "gid must be positive integer\n");
-				exit(-1);
-			}
 			break;
 
 		case 'r':
@@ -967,18 +952,10 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 
 		case 'u':
 			uid = strtol(optarg, 0, 0);
-			if (uid < 0) {
-				fprintf(stderr, "uid must be positive integer\n");
-				exit(-1);
-			}
 			break;
 
 		case 'g':
 			gid = strtol(optarg, 0, 0);
-			if (gid < 0) {
-				fprintf(stderr, "gid must be positive integer\n");
-				exit(-1);
-			}
 			break;
 
 		case 'v':
