@@ -3164,6 +3164,7 @@ famfs_cp_multi(
 			fprintf(stderr,
 				"%s: Error: destination parent (%s) exists and is not a directory\n",
 				__func__, dest_parent_path);
+			free(dest_parent_path);
 			free(dirdupe);
 			return -1;
 		}
@@ -3184,6 +3185,7 @@ famfs_cp_multi(
 				fprintf(stderr,
 					"%s: Error: destination (%s) exists and is not a directory\n",
 					__func__, dest_parent_path);
+				free(dest_parent_path);
 				free(dirdupe);
 				return -1;
 			}
