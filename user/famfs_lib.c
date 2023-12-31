@@ -2095,6 +2095,8 @@ famfs_init_locked_log(struct famfs_locked_log *lp,
 	int role;
 	int rc;
 
+	memset(lp, 0, sizeof(*lp));
+
 	lp->devsize = famfs_validate_superblock_by_path(fspath);
 	if (lp->devsize < 0)
 		return -1;
@@ -2125,43 +2127,52 @@ famfs_init_locked_log(struct famfs_locked_log *lp,
 	}
 	lp->logp = (struct famfs_log *)addr;
 
-	lp->bitmap = famfs_build_bitmap(lp->logp, lp->devsize, &lp->nbits,
-					NULL, NULL, NULL, verbose);
-	if (!lp->bitmap) {
-		fprintf(stderr, "%s: failed to allocate bitmap\n", __func__);
-		rc = -1;
-		goto err_out;
-	}
 	return 0;
 
 err_out:
-	if (lp->bitmap)
-		free(lp->bitmap);
 	if (lp->lfd)
 		close(lp->lfd);
 	return rc;
 }
 
-static int
-famfs_release_log_lock(int fd)
+/**
+ * famfs_alloc_contiguous()
+ *
+ * @lp      - locked log struct. Will perform bitmap build if no already done
+ * @size
+ * @verbose
+ */
+static s64
+famfs_alloc_contiguous(struct famfs_locked_log *lp, u64 size, int verbose)
 {
-	int rc;
-
-	assert(fd > 0);
-	rc = flock(fd, LOCK_UN);
-	if (rc)
-		fprintf(stderr, "%s: unlock returned an error\n", __func__);
-	close(fd);
-	return rc;
+	if (!lp->bitmap) {
+		/* Bitmap is needed and hasn't been built yet */
+		lp->bitmap = famfs_build_bitmap(lp->logp, lp->devsize, &lp->nbits,
+						NULL, NULL, NULL, verbose);
+		if (!lp->bitmap) {
+			fprintf(stderr, "%s: failed to allocate bitmap\n", __func__);
+			return -1;
+		}
+	}
+	return bitmap_alloc_contiguous(lp->bitmap, lp->nbits, size);
 }
+
 
 static int
 famfs_release_locked_log(struct famfs_locked_log *lp)
 {
+	int rc;
+
 	if (lp->bitmap)
 		free(lp->bitmap);
 
-	return famfs_release_log_lock(lp->lfd);
+	assert(lp->lfd > 0);
+	rc = flock(lp->lfd, LOCK_UN);
+	if (rc)
+		fprintf(stderr, "%s: unlock returned an error\n", __func__);
+
+	close(lp->lfd);
+	return rc;
 }
 
 /**
@@ -2222,8 +2233,7 @@ famfs_file_alloc(
 	if (!relpath)
 		return -EINVAL;
 
-	offset = bitmap_alloc_contiguous(lp->bitmap, lp->nbits, size);
-
+	offset = famfs_alloc_contiguous(lp, size, verbose);
 	if (offset < 0) {
 		rc = -ENOMEM;
 		fprintf(stderr, "%s: Out of space!\n", __func__);
@@ -2578,12 +2588,15 @@ famfs_mkdir(
 		snprintf(abspath, PATH_MAX - 1, "%s/%s", cwd, dirpath);
 
 	rc = famfs_init_locked_log(&ll, abspath, verbose);
-	if (rc)
+	if (rc) {
+		free(cwd);
 		return rc;
+	}
 
 	rc = __famfs_mkdir(&ll, dirpath, mode, uid, gid, verbose);
 
 	famfs_release_locked_log(&ll);
+	free(cwd);
 	return rc;
 }
 
@@ -3352,7 +3365,7 @@ famfs_clone(const char *srcfile,
 		goto err_out;
 	}
 
-	famfs_release_log_lock(lfd);
+	close(lfd); /* Closing releases the lock */
 	lfd = 0;
 	/***************/
 
