@@ -427,6 +427,93 @@ do_famfs_cli_cp(int argc, char *argv[])
 /********************************************************************/
 
 void
+famfs_check_usage(int   argc,
+	    char *argv[])
+{
+	char *progname = argv[0];
+
+	printf("\n"
+	       "This command checks the state of a mounted famfs file system. It reports\n"
+	       "the presence of files that are not \"fully mapped\", which means they were\n"
+	       "created but not mapped to memory.\n"
+	       "\n"
+	       "    %s check [args] <mount point>\n"
+	       "\n"
+	       "Arguments:\n"
+	       "    -?           - Print this message\n"
+	       "    -v|--verbose - Print debugging output while executing the command\n"
+	       "                   (the verbose arg can be repeated for more verbose output)\n"
+	       "\n"
+	       "Exit codes:\n"
+	       "   0    - All files properlly mapped\n"
+	       "When non-zero, the exit code is the bitwise or of the following values:\n"
+	       "   1    - At least one unmapped file found\n"
+	       "   2    - Superblock file missing or corrupt\n"
+	       "   4    - Log file missing or corrupt\n"
+	       "\n"
+	       "In the future we may support checking whether each file is in the log, and that\n"
+	       "the file properties and map match the log\n"
+	       "\n", progname);
+}
+
+int
+do_famfs_cli_check(int argc, char *argv[])
+{
+	char *path = NULL;
+	int verbose = 0;
+	int arg_ct = 0;
+	int rc = 0;
+	int c;
+
+	/* XXX can't use any of the same strings as the global args! */
+	struct option cp_options[] = {
+		/* These options set a */
+		{"verbose",     no_argument,          0,  'v'},
+		{0, 0, 0, 0}
+	};
+
+	if (optind >= argc) {
+		fprintf(stderr, "%s: no args\n", __func__);
+		famfs_check_usage(argc, argv);
+		return 1;
+	}
+
+	/* Note: the "+" at the beginning of the arg string tells getopt_long
+	 * to return -1 when it sees something that is not recognized option
+	 * (e.g. the command that will mux us off to the command handlers
+	 */
+	while ((c = getopt_long(argc, argv, "+h?qv",
+				cp_options, &optind)) != EOF) {
+
+		arg_ct++;
+		switch (c) {
+
+		case 'h':
+		case '?':
+			famfs_check_usage(argc, argv);
+			return 0;
+
+		case 'v':
+			verbose ++;
+			break;
+		}
+	}
+
+	if (optind >= argc) {
+		fprintf(stderr, "famfs_check: Must specify filename\n");
+		famfs_check_usage(argc, argv);
+		return EINVAL;
+	}
+
+	path = argv[optind++];
+
+	rc = famfs_check(path, verbose);
+	return rc;
+}
+
+/********************************************************************/
+
+void
 famfs_getmap_usage(int   argc,
 	    char *argv[])
 {

@@ -33,6 +33,7 @@ int famfs_clone(const char *srcfile, const char *destfile, int verbose);
 int famfs_mkdir(const char *dirpath, mode_t mode, uid_t uid, gid_t gid, int verbose);
 int famfs_mkdir_parents(const char *dirpath, mode_t mode, uid_t uid, gid_t gid, int verbose);
 int famfs_mkfs(const char *daxdev, int kill, int force);
+int famfs_check(const char *path, int verbose);
 
 #ifdef FAMFS_UNIT_TEST
 #include "famfs_meta.h"

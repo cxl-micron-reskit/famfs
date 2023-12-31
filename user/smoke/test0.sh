@@ -226,6 +226,19 @@ if [[ $GID != $GID_OUT ]]; then
     fail "mkdir -g err $GID ${GID_OUT}"
 fi
 
+#
+# test famfs_check
+#
+${CLI_NOSUDO} check $MPT      && fail "famfs check without sudo should fail"
+${CLI} check $MPT             || fail "famfs check should succeed"
+${CLI} check "relpath"        && fail "famfs check on relpath should fail"
+${CLI} check "/badpath"       && fail "famfs check on bad path should fail"
+sudo touch $MPT/unmapped_file
+${CLI} check -vvv $MPT        && fail "famfs check should fail due to unmapped file"
+sudo rm $MPT/unmapped_file
+${CLI} check -v $MPT          || fail "famfs check should succeed after removing unmapped file"
+
+
 ${CLI_NOSUDO} fsck -hv $MPT && fail "fsck without sudo should fail"
 
 ${CLI} fsck -?  || fail "fsck -h should succeed"x

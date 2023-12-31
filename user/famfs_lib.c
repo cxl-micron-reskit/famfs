@@ -625,6 +625,71 @@ out:
 }
 
 /**
+ * famfs_path_is_mount_pt()
+ *
+ * check whether a path is a famfs mount point via /proc/mounts
+ *
+ * @path
+ * @dev_out - if non-null, the device name will be copied here
+ *
+ * Return values
+ * 1 - the path is an active famfs mount point
+ * 0 - the path is not an active famfs mount point
+ */
+static int
+famfs_path_is_mount_pt(const char *path, char *dev_out)
+{
+	FILE *fp;
+	char *line = NULL;
+	size_t len = 0;
+	ssize_t read;
+	int rc;
+
+	fp = fopen("/proc/mounts", "r");
+	if (fp == NULL)
+		return 0;
+
+	while ((read = getline(&line, &len, fp)) != -1) {
+		char dev[XLEN];
+		char mpt[XLEN];
+		char fstype[XLEN];
+		char args[XLEN];
+		int  x0, x1;
+		char *xmpt = NULL;
+
+		if (strstr(line, "famfs")) {
+			rc = sscanf(line, "%s %s %s %s %d %d",
+				    dev, mpt, fstype, args, &x0, &x1);
+			if (rc <= 0)
+				goto out;
+
+			xmpt = realpath(mpt, NULL);
+			if (!xmpt) {
+				fprintf(stderr, "realpath(%s) errno %d\n", mpt, errno);
+				continue;
+			}
+			if (strcmp(path, xmpt) == 0) {
+				free(xmpt);
+				free(line);
+				fclose(fp);
+				if (dev_out)
+					strcpy(dev_out, dev);
+				return 1;
+			}
+		}
+		if (xmpt)
+			free(xmpt);
+
+	}
+
+out:
+	fclose(fp);
+	if (line)
+		free(line);
+	return 0;
+}
+
+/**
  * famfs_ext_to_simple_ext()
  *
  * Convert a struct famfs_extent list to struct famfs_simple_extent.
@@ -3489,4 +3554,157 @@ famfs_mkfs(const char *daxdev,
 		return -1;
 
 	return __famfs_mkfs(daxdev, sb, logp, devsize, force, kill);
+}
+
+int
+famfs_recursive_check(const char *dirpath,
+		      u64 *nfiles_out,
+		      u64 *ndirs_out,
+		      u64 *nerrs_out,
+		      int verbose)
+{
+	struct dirent *entry;
+	DIR *directory;
+	struct stat st;
+	u64 nfiles = 0;
+	u64 ndirs = 0;
+	int nerrs = 0;
+	int rc;
+
+	directory = opendir(dirpath);
+	if (directory == NULL) {
+		/* XXX is it possible to get here since we created the dir if it didn't exist? */
+		fprintf(stderr, "%s: failed to open src dir (%s)\n", __func__, dirpath);
+		return -1;
+	}
+
+	/* Loop through the directry entries */
+	while ((entry = readdir(directory)) != NULL) {
+		char fullpath[PATH_MAX];
+		struct famfs_ioc_map filemap = {0};
+		int fd;
+
+		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+			continue;
+
+		snprintf(fullpath, PATH_MAX - 1, "%s/%s", dirpath, entry->d_name);
+		rc = stat(fullpath, &st);
+		if (rc) {
+			fprintf(stderr, "%s: failed to stat source path (%s)\n",
+				__func__, fullpath);
+			nerrs++;
+			continue;
+		}
+
+		if (verbose)
+			printf("%s:  %s\n", __func__, fullpath);
+
+		switch (st.st_mode & S_IFMT) {
+		case S_IFREG:
+			nfiles++;
+			fd = open(fullpath, O_RDONLY, 0);
+			if (fd <= 0){
+				fprintf(stderr, "%s: failed to open file %s\n",
+					__func__, fullpath);
+				//nerrs++;
+				continue;
+			}
+			rc = ioctl(fd, FAMFSIOC_MAP_GET, &filemap);
+			if (rc) {
+				fprintf(stderr, "%s: Error file not mapped: %s\n",
+					__func__, fullpath);
+				nerrs++;
+			}
+			close(fd);
+			break;
+
+		case S_IFDIR: {
+			u64 nfiles_out = 0;
+			u64 ndirs_out = 0;
+			u64 nerrs_out = 0;
+
+			ndirs++;
+			/* Recurse :D */
+			rc = famfs_recursive_check(fullpath, &nfiles_out, &ndirs_out,
+						   &nerrs_out, verbose);
+			nfiles += nfiles_out;
+			ndirs += ndirs_out;
+			nerrs += nerrs_out;
+			break;
+		}
+		default:
+			if (verbose)
+				fprintf(stderr,
+					"%s: skipping non-file or directory %s\n",
+					__func__, fullpath);
+		}
+	}
+
+	closedir(directory);
+	if (nfiles_out)
+		*nfiles_out = nfiles;
+	if (ndirs_out)
+		*ndirs_out = ndirs;
+	if (nerrs_out)
+		*nerrs_out = nerrs;
+	rc = (nerrs) ? 1 : 0;
+	return rc;
+}
+
+int
+famfs_check(const char *path,
+	    int verbose)
+{
+	char metadir[PATH_MAX];
+	char logpath[PATH_MAX];
+	char dev_out[PATH_MAX];
+	char sbpath[PATH_MAX];
+	struct stat st;
+	u64 nfiles_out = 0;
+	u64 ndirs_out = 0;
+	u64 nerrs_out = 0;
+	u64 nfiles = 0;
+	u64 ndirs = 0;
+	u64 nerrs = 0;
+	int rc;
+
+	if (path[0] != '/') {
+		fprintf(stderr, "%s: must use absolute path of mount point\n", __func__);;
+		return -1;
+	}
+	if (!famfs_path_is_mount_pt(path, dev_out)) {
+		fprintf(stderr, "%s: path (%s) is not a famfs mount point\n", __func__, path);
+		return -1;
+	}
+
+	snprintf(metadir, PATH_MAX - 1, "%s/.meta", path);
+	snprintf(sbpath, PATH_MAX - 1, "%s/.meta/.superblock", path);
+	snprintf(logpath, PATH_MAX - 1, "%s/.meta/.log", path);
+	rc = stat(metadir, &st);
+	if (rc) {
+		fprintf(stderr, "%s: Need to run mkmeta on device %s for this file system\n",
+			__func__, dev_out);
+		ndirs++;
+		return -1;
+	}
+	rc = stat(sbpath, &st);
+	if (rc) {
+		fprintf(stderr, "%s: superblock file not found for file system %s\n",
+			__func__, path);
+		nerrs++;
+	}
+
+	rc = stat(logpath, &st);
+	if (rc) {
+		fprintf(stderr, "%s: log file not found for file system %s\n",
+			__func__, path);
+		nerrs++;
+	}
+
+	rc = famfs_recursive_check(path, &nfiles_out, &ndirs_out, &nerrs_out, verbose);
+	nfiles += nfiles_out;
+	ndirs += ndirs_out;
+	nerrs += nerrs_out;
+	printf("famfs_check: %lld files, %lld directories, %lld errors\n", nfiles, ndirs, nerrs);
+	return rc;
 }
