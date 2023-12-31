@@ -57,9 +57,11 @@ famfs_logplay_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
-	       "Play the log into a famfs file system\n"
+	       "famfs logplay: Play the log of a mounted famfs file system\n"
+	       "\n"
 	       "This administrative command is necessary after mounting a famfs file system\n"
 	       "and performing a 'famfs mkmeta' to instantiate all logged files\n"
+	       "\n"
 	       "    %s logplay [args] <mount_point>\n"
 	       "\n"
 	       "Arguments:\n"
@@ -164,8 +166,14 @@ famfs_mkmeta_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
-	       "Expose the meta files of a famfs file system\n"
-	       "This administrative command is necessary after performing a mount\n"
+	       "famfs mkmeta:\n"
+	       "\n"
+	       "The famfs file system exposes its superblock and log to its userspace components\n"
+	       "as files. After telling the linux kernel to mount a famfs file system, you need\n"
+	       "to run 'famfs mkmeta' in order to expose the critical metadata, and then run\n"
+	       "'famfs logplay' to play the log. Files will not be visible until these steps\n"
+	       "have been performed.\n"
+	       "\n"
 	       "    %s mkmeta <memdevice>  # Example memdevices: /dev/pmem0 or /dev/dax0.0\n"
 	       "\n"
 	       "Arguments:\n"
@@ -239,6 +247,11 @@ famfs_fsck_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
+	       "famfs fsck: check a famfs file system\n"
+	       "\n"
+	       "This command checks the validity of the superblock and log, and scans the\n"
+	       "superblock for cross-linked files.\n"
+	       "\n"
 	       "Check an unmounted famfs file system\n"
 	       "    %s fsck [args] <memdevice>  # Example memdevices: /dev/pmem0 or /dev/dax0.0\n"
 	       "Check a mounted famfs file system:\n"
@@ -249,6 +262,10 @@ famfs_fsck_usage(int   argc,
 	       "    -m|--mmap    - Access the superblock and log via mmap\n"
 	       "    -h|--human   - Print sizes in a human-friendly form\n"
 	       "    -v|--verbose - Print debugging output while executing the command\n"
+	       "\n"
+	       "Exit codes:\n"
+	       "  0  - No errors were found\n"
+	       " !=0 - Errors were found\n"
 	       "\n", progname, progname);
 }
 
@@ -325,9 +342,11 @@ famfs_cp_usage(int   argc,
 	       "famfs cp: Copy one or more files and directories into a famfs file system\n"
 	       "\n"
 	       "Copy a file into a famfs file system\n"
-	       "    %s cp [args] <srcfile> <destfile>\n\n"
+	       "    %s cp [args] <srcfile> <destfile> # destfile must not already exist\n"
+	       "\n"
 	       "Copy a file into a directory of a famfs file system with the same basename\n"
-	       "    %s cp [args] <srcfile> <famfs_dir>\n\n"
+	       "    %s cp [args] <srcfile> <dirpath>\n"
+	       "\n"
 	       "Copy a wildcard set of files to a directory\n"
 	       "    %s cp [args]/path/to/* <dirpath>\n"
 	       "\n"
@@ -338,8 +357,14 @@ famfs_cp_usage(int   argc,
 	       "    -g|--gid=<gid>   - Specify uid (default is current user's gid)\n"
 	       "    -v|verbose       - print debugging output while executing the command\n"
 	       "\n"
-	       "NOTE: you need this tool to copy a file into a famfs file system,\n"
-	       "but the standard \'cp\' can be used to copy FROM a famfs file system.\n\n",
+	       "NOTE 1: 'famfs cp' will never overwite an existing file, which is a side-effect\n"
+	       "        of the facts that famfs never does delete, truncate or allocate-onn-write\n"
+	       "NOTE 2: you need this tool to copy a file into a famfs file system,\n"
+	       "        but the standard \'cp\' can be used to copy FROM a famfs file system.\n"
+	       "        If you inadvertently copy files into famfs using the standard 'cp' (or\n"
+	       "        other non-famfs tools), the files created will be invalid. Any such files\n"
+	       "        can be found using 'famfs check'.\n"
+	       "\n",
 	       progname, progname, progname);
 }
 
@@ -433,9 +458,19 @@ famfs_check_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
-	       "This command checks the state of a mounted famfs file system. It reports\n"
-	       "the presence of files that are not \"fully mapped\", which means they were\n"
-	       "created but not mapped to memory.\n"
+	       "famfs check: check the contents of a famfs file system.\n"
+	       "\n"
+	       "Unlike fsck, which validates the log and that there are no cross-linked files,\n"
+	       "this command examines every file in a mounted famfs instance and checks that\n"
+	       "the allocation metadata is valid. To get the full picture you need both\n"
+	       "'famfs fsck' and 'famfs check'.\n"
+	       "\n"
+	       "This is imporant for a couple of reasons. Although creating a valid famfs file\n"
+	       "requires use of the famfs cli or api, it is possible to create invalid files with\n"
+	       "the standard system tools (cp, etc.). It is also conceivable that a bug in the\n"
+	       "famfs api and/or cli would leave an improperly configured file in place after\n"
+	       "unsuccessful error recovery. This commmand will find those invalid\n"
+	       "files (if any) and report them.\n"
 	       "\n"
 	       "    %s check [args] <mount point>\n"
 	       "\n"
@@ -452,7 +487,11 @@ famfs_check_usage(int   argc,
 	       "   4    - Log file missing or corrupt\n"
 	       "\n"
 	       "In the future we may support checking whether each file is in the log, and that\n"
-	       "the file properties and map match the log\n"
+	       "the file properties and map match the log, but the files found in the mounted\n"
+	       "file system are not currently compared to the log\n"
+	       "\n"
+	       "TODO: add an option to remove bad files\n"
+	       "TODO: add an option to check that all files match the log (and fix problems)\n"
 	       "\n", progname);
 }
 
@@ -520,8 +559,11 @@ famfs_getmap_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
-	       "This administrative command gets the allocation map of a file, but it\n"
-	       "can also be used to verify that a file is a fully-mapped famfs file:\n"
+	       "famfs getmap: check the validity ofa famfs file, and optionally get the\n"
+	       "mapping info for the file\n"
+	       "\n"
+	       "This command is primarily for testing and validation of a famfs file system\n"
+	       "\n"
 	       "    %s getmap [args] <filename>\n"
 	       "\n"
 	       "Arguments:\n"
@@ -696,8 +738,12 @@ famfs_clone_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
+	       "famfs clone: Clone a file within a famfs file system\n"
+	       "\n"
 	       "This administrative command is only useful in testing, and leaves the\n"
-	       "file system in cross-linked state. Don't use it!\n\n"
+	       "file system in cross-linked state. Don't use it unless yu want to generate\n"
+	       "errors for testing!\n"
+	       "\n"
 	       "Clone a file, creating a second file with the same extent list:\n"
 	       "    %s clone <src_file> <dest_file>\n"
 	       "\n"
@@ -775,8 +821,10 @@ famfs_creat_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
-	       "This testing tool allocates a file and optionally fills it with seeded data\n"
-	       "that can be verified later\n\n"
+	       "famfs creat: Create a file in a famfs file system\n"
+	       "\n"
+	       "This testing tool allocates and creates a file of a specified size.\n"
+	       "\n"
 	       "Create a file backed by free space:\n"
 	       "    %s creat -s <size> <filename>\n\n"
 	       "Create a file containing randomized data from a specific seed:\n"
@@ -795,6 +843,10 @@ famfs_creat_usage(int   argc,
 	       "    -u|--uid <int uid>       - Default is caller's uid\n"
 	       "    -g|--gid <int gid>       - Default is caller's gid\n"
 	       "    -v|--verbose             - Print debugging output while executing the command\n"
+	       "\n"
+	       "NOTE: the --randomize and --seed arguments are useful for testing; the file is\n"
+	       "      randomized based on the seed, making it possible to use the 'famfs verify'\n"
+	       "      command later to validate the contents of the file\n"
 	       "\n",
 	       progname, progname, progname);
 }
@@ -985,16 +1037,17 @@ famfs_mkdir_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
-	       "Create a directory in a famfs file system:\n"
-	       "    %s mkdir <dirname>\n\n"
+	       "famfs mkdir: Create a directory in a famfs file system:\n"
+	       "\n"
+	       "    %s mkdir [args] <dirname>\n\n"
 	       "\n"
 	       "Arguments:\n"
 	       "    -?               - Print this message\n"
 	       "    -p|--parents     - No error if existing, make parent directories as needed,\n"
 	       "                       the -m option only applies to dirs actually created\n"
 	       "    -m|--mode=<mode> - Set mode (as in chmod) to octal value\n"
-	       "    -u|--uid=<uid>   - Specify uid (default is current user's uid)"
-	       "    -g|--gid=<gid>   - Specify uid (default is current user's gid)"
+	       "    -u|--uid=<uid>   - Specify uid (default is current user's uid)\n"
+	       "    -g|--gid=<gid>   - Specify uid (default is current user's gid)\n"
 	       "    -v|--verbose     - Print debugging output while executing the command\n",
 	       progname);
 }
@@ -1098,7 +1151,7 @@ famfs_verify_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
-	       "Verify the contents of a file that was created with 'famfs creat':\n"
+	       "famfs verify: Verify the contents of a file that was created with 'famfs creat':\n"
 	       "    %s verify -S <seed> -f <filename>\n"
 	       "\n"
 	       "Arguments:\n"
@@ -1207,6 +1260,7 @@ struct
 famfs_cli_cmd famfs_cli_cmds[] = {
 
 	{"fsck",    do_famfs_cli_fsck,    famfs_fsck_usage},
+	{"check",   do_famfs_cli_check,   famfs_check_usage},
 	{"mkdir",   do_famfs_cli_mkdir,   famfs_mkdir_usage},
 	{"cp",      do_famfs_cli_cp,      famfs_cp_usage},
 	{"creat",   do_famfs_cli_creat,   famfs_creat_usage},
@@ -1215,7 +1269,6 @@ famfs_cli_cmd famfs_cli_cmds[] = {
 	{"logplay", do_famfs_cli_logplay, famfs_logplay_usage},
 	{"getmap",  do_famfs_cli_getmap,  famfs_getmap_usage},
 	{"clone",   do_famfs_cli_clone,   famfs_clone_usage},
-	{"check",   do_famfs_cli_check,   famfs_check_usage},
 
 	{NULL, NULL, NULL}
 };
