@@ -14,18 +14,22 @@ TODO Features
 *** TODO logplay
 
 * Miscellaeous
+** TODO CLI: go through and update usage printouts to be accurate
 ** DONE Logplay should be quiet unless explicitly verbose
+** TODO cp -r: test source trailing slash behavior (compare to native cp -r)
+cp -r foo/bar frab should lead frab/bar
+cp -r foo/bar/ ... should be the same as cp foo/bar/* ...
+** TODO Make building the bitmap lazy in famfs_locked_log? (mkdir doesn't need it)
 ** TODO cli should have a command to check for bad famfs files
 (i.e. files that hvae not been fully daxified, or are not in the log)
 ** TODO df does not list famfs mounts
 ** TODO du does not work with famfs mounts/paths
 ** TODO Review: make sure no writable opens to SB and log happen until role verified
 This is certainly not true yet.
-** TODO All log opens; do read-only first, and only open writable on the master
+** DONE All log opens; do read-only first, and only open writable on the master
 ** DONE mkfs should fail if the device is not larger than the superblock + log
 Now it fails if dev < 4GiB
 ** TODO Logplay option: find files that don't match logged size / attributes
-** TODO CLI: go through and update usage printouts to be accurate
 ** TODO logplay: find and optionally delete files that exist but weren't in the log?
 ** TODO logplay: fix existing file ownership and permissions to match the log?
 ** TODO logplay: fix existing file size to match log?
@@ -43,7 +47,7 @@ Log write still requires root. Hmm...
 ** DONE mkdir: plumb verbose
 ** DONE mkdir: -m -u -g for mode, uid, gid
 ** DONE mkdir of relpath (relative to cwd) fails even if the path is good
-** TODO mkdir -p: test paths like /foo/bar/../../baz/bing
+** DONE mkdir -p: test paths like /foo/bar/../../baz/bing
 ** TODO verify superblock 0444 permissions when opening
 ** TODO cp -v should print list of files copied
 other output should require -vv
@@ -74,25 +78,28 @@ Current state: not implemented
 ** DONE when running logplay manually, first run fails and second run succeeds
 Actually this was probably just a malfunction of the new "-v" option (or lack
 thereof... still need to fix)
+** DONE after big cp -r: lots of alllocation collisions
 
-* Testing
-** TODO cp -r: relative and absolute paths
+* Smoke Testing
+** DONE logplay -vv -vvv
+** DONE fsck: call from non-privileged user (both mmap and not - should fail)
+** DONE cp -r: relative and absolute paths
 ** TODO cp and creat empty file?
-** TODO fsck bogus path
-** TODO mkdir where there is a parent in the path that is not a dir
+** DONE fsck bogus path
+** DONE mkdir where there is a parent in the path that is not a dir
 ** TODO mkdir -p where there is a nonexistent element halfway up the path
 ** TODO mkdir -p where immediate parent is nonexistant
 ** TODO pass negative uid/gid to cli commands
-** TODO clone with bogus source
-** TODO clone with source not in famfs
+** DONE clone with bogus source
+** DONE clone with source not in famfs
 ** TODO clone where src and dest are in different famfs file systems
 ** TODO Refactor famfs_logplay to be unit testable
 ** TODO test file and dir creation logging when log is full
 ** TODO unit: test invalid log entry in build_bitmap
-** TODO tes bitmap_alloc_contiguous out of space
+** TODO test bitmap_alloc_contiguous out of space
 ** TODO Proper test for the log lock preventing bad re-entrancy
 ** TODO Proper test for logplay --client
-** TODO integrate with gcov via cmake
+** DONE integrate with gcov via cmake
 ** TODO Need a test that tests wide range of odd file sizes
 ** DONE Test mkdir -mug
 ** DONE Test cp -mug
@@ -124,10 +131,9 @@ Should fail to append file past allocation, but succeed *to* allocation
 * Wish List
 ** TODO cli: df
 ** TODO un-tar into famfs
-** TODO famfs cp -r
+** DONE famfs cp -r
 Note: cp -r would need a bunch of unit test work; it could easily fill up the log, run the
 FS out of space, or both...
-** TODO (interim) python program for cp -r?
 ** DONE famfs mkdir -p
 ** TODO Sould a log entry be an integer number of cache lines?
 ** TODO famfs mv: rename can work
@@ -138,6 +144,17 @@ This is complicated, because we use FAMFS_LOG_LEN multiple places
 ** TODO tagfs_mkfile: create in <mpt>/.tmp and then move into place when ready?
 
 * Unit test coverage
+** TODO Append log with bad magic number
+** TODO Append a log that is full (file creation)
+** TODO Append a log that is full (dir creation)
+** TODO famfs_relpath_from_fullpath()
+pass nonsense mpt and fullpath (mpt is not substring starting at the beginning)
+** TODO __open_relpath:
+*** TODO get non-blocking flock
+*** TODO get non-blocking flock while already holding the lock
+*** TODO test the file_not_famfs case (just don't set no_fs_check)
+** TODO famfs_fsck - pass in bad path
+
 ** TODO The bitmap.h functions (there should be bitmap unit tests to pull in from hse...)
 ** DONE __open_relpath()
 ** TODO famfs_get_system_uuid()
@@ -152,7 +169,6 @@ This is complicated, because we use FAMFS_LOG_LEN multiple places
 ** TODO famfs_logpplay()
 use dry run plus mocking the create functions
 ** TODO famfs_append_log()
-** TODO famfs_relpath_from_fullpath()
 ** TODO famfs_log_file_creation()
 ** TODO famfs_log_dir_creation()
 ** TODO famfs_map_superblock_by_path()
