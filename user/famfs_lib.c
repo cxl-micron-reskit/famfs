@@ -40,6 +40,18 @@
 
 int mock_kmod = 0; /* unit tests can set this to avoid ioctl calls and whatnot */
 
+struct famfs_log_stats {
+	u64 n_entries;
+	u64 f_logged;
+	u64 f_existed;
+	u64 f_created;
+	u64 f_errs;
+	u64 d_logged;
+	u64 d_existed;
+	u64 d_created;
+	u64 d_errs;
+};
+
 static u8 *
 famfs_build_bitmap(const struct famfs_log   *logp,
 		   u64                       dev_size_in,
@@ -47,6 +59,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 		   u64                      *alloc_errors_out,
 		   u64                      *size_total_out,
 		   u64                      *alloc_total_out,
+		   struct famfs_log_stats   *log_stats_out,
 		   int                       verbose);
 static int
 famfs_dir_create(
@@ -368,8 +381,9 @@ famfs_fsck_scan(
 	int                            human,
 	int                            verbose)
 {
-	size_t total_log_size;
 	size_t effective_log_size;
+	size_t total_log_size;
+	struct famfs_log_stats ls;
 	u64 nbits;
 	int i;
 	u64 errors = 0;
@@ -416,7 +430,7 @@ famfs_fsck_scan(
 	 * Build the log bitmap to scan for errors
 	 */
 	bitmap = famfs_build_bitmap(logp,  dev_capacity, &nbits, &errors,
-				    &fsize_sum, &alloc_sum, verbose);
+				    &fsize_sum, &alloc_sum, &ls, verbose);
 	if (errors)
 		printf("ERROR: %lld ALLOCATION COLLISIONS FOUND\n", errors);
 	else {
@@ -445,6 +459,12 @@ famfs_fsck_scan(
 		printf("  Percent used:            %.1f%%\n\n", percent_used);
 	}
 
+	/* Log stats */
+	printf("Famfs log:\n");
+	printf("  %lld of %lld entries used\n", ls.n_entries, logp->famfs_log_last_index + 1);
+	printf("  %lld files\n", ls.f_logged);
+	printf("  %lld directories\n\n", ls.d_logged);
+
 	free(bitmap);
 
 	if (verbose) {
@@ -457,7 +477,7 @@ famfs_fsck_scan(
 
 		printf("  last_log_index:    %lld\n", logp->famfs_log_last_index);
 		total_log_size = sizeof(struct famfs_log)
-			+ (sizeof(struct famfs_log_entry) * (1 + logp->famfs_log_last_index));
+			+ (sizeof(struct famfs_log_entry) * logp->famfs_log_last_index);
 		printf("  full log size:     %ld\n", total_log_size);
 		printf("  FAMFS_LOG_LEN:     %d\n", FAMFS_LOG_LEN);
 		printf("  Remainder:         %ld\n", FAMFS_LOG_LEN - total_log_size);
@@ -945,21 +965,9 @@ famfs_mmap_whole_file(
  * Log play stuff
  */
 
-struct log_stats {
-	u64 n_entries;
-	u64 f_logged;
-	u64 f_existed;
-	u64 f_created;
-	u64 f_errs;
-	u64 d_logged;
-	u64 d_existed;
-	u64 d_created;
-	u64 d_errs;
-};
-
 static void
 famfs_print_log_stats(const char *msg,
-		      const struct log_stats *ls,
+		      const struct famfs_log_stats *ls,
 		      int verbose)
 {
 	printf("%s: processed %llu log entries; %llu new files; %llu new directories\n",
@@ -1048,7 +1056,7 @@ __famfs_logplay(
 	int                     client_mode,
 	int                     verbose)
 {
-	struct log_stats ls = { 0 };
+	struct famfs_log_stats ls = { 0 };
 	enum famfs_system_role role;
 	struct famfs_superblock *sb;
 	u64 i, j;
@@ -2000,6 +2008,7 @@ put_sb_log_into_bitmap(u8 *bitmap)
  *                    (excluding double-allocations; space amplification is
  *                     @alloc_sum / @size_total provided there are no double allocations,
  *                     b/c those will increase size_total but not alloc_sum)
+ * @log_stats_out    - Optional pointer to struct log_stats to be copied out
  * @verbose
  */
 /* XXX: should get log size from superblock */
@@ -2010,11 +2019,13 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 		   u64                      *alloc_errors_out,
 		   u64                      *fsize_total_out,
 		   u64                      *alloc_sum_out,
+		   struct famfs_log_stats   *log_stats_out,
 		   int                       verbose)
 {
 	u64 nbits = (dev_size_in - FAMFS_SUPERBLOCK_SIZE - FAMFS_LOG_LEN) / FAMFS_ALLOC_UNIT;
 	u64 bitmap_nbytes = mu_bitmap_size(nbits);
 	u8 *bitmap = calloc(1, bitmap_nbytes);
+	struct famfs_log_stats ls = { 0 }; /* We collect a subset of stats collected by logplay */
 	u64 errors = 0;
 	u64 alloc_sum = 0;
 	u64 fsize_sum  = 0;
@@ -2038,6 +2049,8 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 	for (i = 0; i < logp->famfs_log_next_index; i++) {
 		const struct famfs_log_entry *le = &logp->entries[i];
 
+		ls.n_entries++;
+
 		/* TODO: validate log sequence number */
 
 		switch (le->famfs_log_entry_type) {
@@ -2045,6 +2058,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 			const struct famfs_file_creation *fc = &le->famfs_fc;
 			const struct famfs_log_extent *ext = fc->famfs_ext_list;
 
+			ls.f_logged++;
 			fsize_sum += fc->famfs_fc_size;
 			if (verbose > 1)
 				printf("%s: file=%s size=%lld\n", __func__,
@@ -2074,9 +2088,10 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 			break;
 		}
 		case FAMFS_LOG_MKDIR:
-			/* Ignore directory log entries - no space is used */
+		  ls.d_logged++;
+		  /* Ignore directory log entries - no space is used */
 
-			break;
+		  break;
 		case FAMFS_LOG_ACCESS:
 		default:
 			printf("%s: invalid log entry\n", __func__);
@@ -2091,6 +2106,8 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 		*fsize_total_out = fsize_sum;
 	if (alloc_sum_out)
 		*alloc_sum_out = alloc_sum;
+	if (log_stats_out)
+		memcpy(log_stats_out, &ls, sizeof(ls));
 	return bitmap;
 }
 
@@ -2207,7 +2224,7 @@ famfs_alloc_contiguous(struct famfs_locked_log *lp, u64 size, int verbose)
 	if (!lp->bitmap) {
 		/* Bitmap is needed and hasn't been built yet */
 		lp->bitmap = famfs_build_bitmap(lp->logp, lp->devsize, &lp->nbits,
-						NULL, NULL, NULL, verbose);
+						NULL, NULL, NULL, NULL, verbose);
 		if (!lp->bitmap) {
 			fprintf(stderr, "%s: failed to allocate bitmap\n", __func__);
 			return -1;
@@ -2599,7 +2616,7 @@ __famfs_mkdir(
 	strncpy(mpt_out, lp->mpt, PATH_MAX - 1);
 
 	if (verbose)
-		printf("%s: creating directory %s\n", __func__, fullpath);
+		printf("famfs mkdir: created directory \'%s\'\n", fullpath);
 
 	relpath = famfs_relpath_from_fullpath(mpt_out, fullpath);
 	if (strcmp(mpt_out, fullpath) == 0) {
@@ -2711,7 +2728,7 @@ famfs_make_parent_dir(
 
 	/* Parent dir exists; now we can mkdir path! */
 	free(dirdupe);
-	if (verbose)
+	if (verbose > 2)
 		printf("%s: dir %s depth %d\n", __func__, path, depth);
 
 	/* Parent of path is guaranteed to exist */
@@ -3051,7 +3068,7 @@ int famfs_cp_dir(
 		}
 
 		if (verbose)
-			printf("%s:  %s/%s\n", __func__, src, entry->d_name);
+			printf("famfs cp:  %s/%s\n", dest, entry->d_name);
 
 		switch (src_stat.st_mode & S_IFMT) {
 		case S_IFREG:
@@ -3256,7 +3273,6 @@ err_out:
 	free(dirdupe);
 	famfs_release_locked_log(&ll);
 	free(dest_parent_path);
-	printf("%s: returning %d\n", __func__, err);
 	return err;
 }
 
