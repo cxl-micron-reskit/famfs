@@ -32,22 +32,10 @@
 #include "famfs_meta.h"
 
 #include "famfs_lib.h"
+#include "famfs_lib_internal.h"
 #include "bitmap.h"
 
-enum lock_opt {
-	NO_LOCK = 0,
-	BLOCKING_LOCK,
-	NON_BLOCKING_LOCK,
-};
-
-struct famfs_locked_log {
-	s64               devsize;
-	struct famfs_log *logp;
-	int               lfd;
-	u64               nbits;
-	u8               *bitmap;
-	char              mpt[PATH_MAX];
-};
+int mock_kmod = 0; /* unit tests can set this to avoid ioctl calls and whatnot */
 
 static u8 *
 famfs_build_bitmap(const struct famfs_log   *logp,
@@ -79,6 +67,9 @@ int
 __file_not_famfs(int fd)
 {
 	int rc;
+
+	if (mock_kmod)
+		return 0;
 
 	rc = ioctl(fd, FAMFSIOC_NOP, 0);
 	if (rc)
@@ -2249,14 +2240,15 @@ famfs_release_locked_log(struct famfs_locked_log *lp)
  * * Verify that master role via the superblock
  * * Create the stub of the new file and verify that it is in a famfs file system
  *
- * @lp   - struct famfs_locked_log or NULL
- * @fd   - file descriptor for newly-created empty target file
- * @path - full path of file to allocate (needed for log entry)
- * @mode -
- * @uid  - 
- * @gid  - 
- * @size - size to alloacte
- * @verbose -
+ * @lp       - Struct famfs_locked_log or NULL
+ * @fd       - File descriptor for newly-created empty target file
+ * @path     - Full path of file to allocate (needed for log entry).
+ *             Caller should use realpath to get this.
+ * @mode     -
+ * @uid      -
+ * @gid      -
+ * @size     - size to alloacte
+ * @verbose  -
  *
  * Returns 0 on success
  * On error, returns:
@@ -2278,14 +2270,12 @@ famfs_file_alloc(
 	struct famfs_log *logp;
 	char mpt[PATH_MAX];
 	char *relpath;
-	char *rpath;
+	char *rpath = strdup(path);
 	s64 offset;
-	int rc;
+	int rc = 0;
 
 	assert(lp);
 	assert(fd > 0);
-
-	rpath = realpath(path, NULL);
 
 	/* XXX do we need the non-locked-log case? */
 	logp = lp->logp;
@@ -2314,10 +2304,10 @@ famfs_file_alloc(
 	if (rc)
 		goto out;
 
-	rc =  famfs_file_map_create(path, fd, size, 1, &ext, FAMFS_REG);
+	if (!mock_kmod)
+		rc =  famfs_file_map_create(path, fd, size, 1, &ext, FAMFS_REG);
 out:
-	if (rpath)
-		free(rpath);
+	free(rpath);
 	return rc;
 }
 
@@ -2404,7 +2394,7 @@ famfs_file_create(const char *path,
  * <0 - The operation failed due to a fatal condition like log full or out of space, so
  *      multi-file operations should abort
  */
-static int
+int
 __famfs_mkfile(
 	struct famfs_locked_log *lp,
 	const char              *filename,
@@ -2541,7 +2531,7 @@ famfs_dir_create(
  * @verbose
  */
 
-static int
+int
 __famfs_mkdir(
 	struct famfs_locked_log *lp,
 	const char *dirpath,
@@ -2569,7 +2559,8 @@ __famfs_mkdir(
 		/* OK, dirpath exists... */
 		/* XXX should we fail? I think so, since only mkdir -p succeeds if a dir
 		 * already exists... */
-		sprintf(fullpath, "%s", realdirpath);
+		return -1;
+		//sprintf(fullpath, "%s", realdirpath);
 	} else {
 		dirdupe  = strdup(dirpath);  /* call dirname() on this dupe */
 		basedupe = strdup(dirpath); /* call basename() on this dupe */
@@ -2723,6 +2714,7 @@ famfs_make_parent_dir(
 	if (verbose)
 		printf("%s: dir %s depth %d\n", __func__, path, depth);
 
+	/* Parent of path is guaranteed to exist */
 	rc = __famfs_mkdir(lp, path, mode, uid, gid, verbose);
 	return rc;
 }
@@ -2995,9 +2987,14 @@ famfs_cp(struct famfs_locked_log *lp,
  *
  * Copy a directory and its contents to a target path
  *
- * * @lp (required)
- * * @src  - src path (must exist and be a directory)
- * * @dest - must be a directory if it exists
+ * @lp       - (required)
+ * @src      - src path (must exist and be a directory)
+ * @dest     - Must be a directory if it exists; if dest does not exist, its parent dir
+ *             is required to exist.
+ * @mode
+ * @uid
+ * @gid
+ * @verbose
  */
 int famfs_cp_dir(
 	struct famfs_locked_log *lp,
@@ -3072,7 +3069,10 @@ int famfs_cp_dir(
  			char *src_copy = strdup(srcfullpath);
 
 			snprintf(newdirpath, PATH_MAX - 1, "%s/%s", dest, basename(src_copy));
-			/* Recurse :D */
+			/* Recurse :D
+			 * Parent of newdirpath is guaranteed to exist, because that's a property
+			 * of this recursion
+			 */
 			rc = famfs_cp_dir(lp, srcfullpath, newdirpath, mode, uid, gid, verbose);
 			free(src_copy);
 			break;
@@ -3162,7 +3162,7 @@ famfs_cp_multi(
 			break;
 		default:
 			fprintf(stderr,
-				"%s: Error: destination parent (%s) exists and is not a directory\n",
+				"%s: Error: dest parent (%s) exists and is not a directory\n",
 				__func__, dest_parent_path);
 			free(dest_parent_path);
 			free(dirdupe);
@@ -3171,7 +3171,7 @@ famfs_cp_multi(
 	}
 
 	/* If this is a recursive request, or if argc > 2, the destination must be a directory,
-	 * although it nneed not exist yet. But if the destination exists and is not a dir,
+	 * although it need not exist yet. But if the destination exists and is not a dir,
 	 * that's an error
 	 */
 	if (recursive || (argc > 2)) {
@@ -3223,6 +3223,7 @@ famfs_cp_multi(
 
 		case S_IFDIR:
 			if (recursive) {
+				/* Parent is guaranteed to exist, we verified it above */
 				rc = famfs_cp_dir(&ll, argv[i], dest, mode, uid,
 						  gid, verbose);
 				if (rc < 0) { /* rc < 0 is errors we abort after */
