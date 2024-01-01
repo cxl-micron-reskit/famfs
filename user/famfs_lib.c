@@ -1,4 +1,7 @@
-// SPDX-License-Identifier: GPL-2.0
+// SPDX-License-Identifier: Apache-2.0
+/*
+ * Copyright (C) 2023 Micron Technology, Inc.  All rights reserved.
+ */
 
 #define _GNU_SOURCE
 
@@ -2556,11 +2559,8 @@ __famfs_mkdir(
 
 	/* Rationalize dirpath; if it exists, get role based on that */
 	if (realpath(dirpath, realdirpath)) {
-		/* OK, dirpath exists... */
-		/* XXX should we fail? I think so, since only mkdir -p succeeds if a dir
-		 * already exists... */
+		/* if dirpath already exists in "non -p" mkdir, that's an error */
 		return -1;
-		//sprintf(fullpath, "%s", realdirpath);
 	} else {
 		dirdupe  = strdup(dirpath);  /* call dirname() on this dupe */
 		basedupe = strdup(dirpath); /* call basename() on this dupe */

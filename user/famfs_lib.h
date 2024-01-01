@@ -1,4 +1,8 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+// SPDX-License-Identifier: Apache-2.0
+/*
+ * Copyright (C) 2023 Micron Technology, Inc.  All rights reserved.
+ */
+
 #ifndef _H_FAMFS_LIB
 #define _H_FAMFS_LIB
 
