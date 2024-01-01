@@ -478,9 +478,7 @@ famfs_fsck_scan(
 		printf("  last_log_index:    %lld\n", logp->famfs_log_last_index);
 		total_log_size = sizeof(struct famfs_log)
 			+ (sizeof(struct famfs_log_entry) * logp->famfs_log_last_index);
-		printf("  full log size:     %ld\n", total_log_size);
-		printf("  FAMFS_LOG_LEN:     %d\n", FAMFS_LOG_LEN);
-		printf("  Remainder:         %ld\n", FAMFS_LOG_LEN - total_log_size);
+		printf("  usable log size:   %ld\n", total_log_size);
 		printf("  sizeof(struct famfs_file_creation): %ld\n",
 		       sizeof(struct famfs_file_creation));
 		printf("  sizeof(struct famfs_file_access):   %ld\n",
@@ -1085,7 +1083,7 @@ __famfs_logplay(
 	}
 
 	if (verbose)
-		printf("%s: log contains %lld entries\n", __func__, logp->famfs_log_next_index);
+		printf("famfs logplay: log contains %lld entries\n", logp->famfs_log_next_index);
 
 	for (i = 0; i < logp->famfs_log_next_index; i++) {
 		struct famfs_log_entry le = logp->entries[i];
@@ -1145,15 +1143,19 @@ __famfs_logplay(
 
 			rc = stat(rpath, &st);
 			if (!rc) {
-				if (verbose)
-					fprintf(stderr, "%s: File (%s) already exists\n",
-						__func__, rpath);
+				if (verbose > 1)
+					fprintf(stderr, "famfs logplay: File %s exists\n",
+						rpath);
 				ls.f_existed++;
 				continue;
 			}
-			if (verbose)
-				printf("%s: creating file %s mode %o\n",
-				       __func__, fc->famfs_relpath, fc->fc_mode);
+			if (verbose) {
+				printf("famfs logplay: creating file %s", fc->famfs_relpath);
+				if (verbose > 1)
+					printf(" mode %o", fc->fc_mode);
+
+				printf("\n");
+			}
 
 			fd = famfs_file_create(rpath, fc->fc_mode, fc->fc_uid, fc->fc_gid,
 					       (role == FAMFS_CLIENT) ? 1 : 0);
@@ -1192,8 +1194,6 @@ __famfs_logplay(
 			struct stat st;
 
 			ls.d_logged++;
-			if (verbose)
-				printf("%s: %lld mkdir=%s\n", __func__, i, md->famfs_relpath);
 
 			if (!famfs_log_entry_md_path_is_relative(md)) {
 				fprintf(stderr,
@@ -1215,10 +1215,11 @@ __famfs_logplay(
 			if (!rc) {
 				switch (st.st_mode & S_IFMT) {
 				case S_IFDIR:
-					if (verbose) {
+					/* This is normal for log replay */
+					if (verbose > 1) {
 						fprintf(stderr,
-							"%s: directory (%s) already exists\n",
-							__func__, rpath);
+							"famfs logplay: directory %s exists\n",
+							rpath);
 						ls.d_existed++;
 					}
 					break;
@@ -1241,7 +1242,7 @@ __famfs_logplay(
 			}
 
 			if (verbose)
-				printf("%s: creating directory %s\n", __func__, md->famfs_relpath);
+				printf("famfs logplay: creating directory %s\n", md->famfs_relpath);
 
 			rc = famfs_dir_create(mpt, (char *)md->famfs_relpath, md->fc_mode,
 					      md->fc_uid, md->fc_gid);
