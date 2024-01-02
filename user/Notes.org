@@ -14,63 +14,67 @@ TODO Features
 ** Nightly valgrind runs and automation to find failures & make them easy to debug
 ** Jenkins jobs the check all of the above on pull requests
 
-* Experiments
-** Check verbosity of normal operations
-*** TODO cp, cp *,
-*** TODO mkdir, mkdir -p
-*** TODO logplay
+* Making famfs more user friendly
+** DONE create scripts/mkfs.sh and scripts/mount.sh as easy examples
+** DONE cp -v should print list of files copied
+other output should require -vv
+** DONE Strip down the output of commands unless -v, -vv etc. are used
+** TODO mkmeta: make sure it can clean up missing or corrupt meta files
+** TODO investigate how best to make non-root file creation work
+
+* Bugs
+** TODO if .meta files get deleted, they can't be recreated
+famfs_file_init_dax: inode already has i_private
+Need to investigate. The unlink may not work due to something missing in kmod
+(although ironically, I'd prefer to prevent the unlink if there was a non-hacky method)
+Workaround: unmount and remount
 
 * Miscellaeous
-** TODO CLI: go through and update usage printouts to be accurate
-** DONE Logplay should be quiet unless explicitly verbose
 ** TODO cp -r: test source trailing slash behavior (compare to native cp -r)
 cp -r foo/bar frab should lead frab/bar
 cp -r foo/bar/ ... should be the same as cp foo/bar/* ...
-** DONE Make building the bitmap lazy in famfs_locked_log? (mkdir doesn't need it)
-** DONE cli should have a command to check for bad famfs files
-(i.e. files that hvae not been fully daxified, or are not in the log)
-Done: "famfs check"
 ** TODO df does not list famfs mounts
 ** TODO du does not work with famfs mounts/paths
-** DONE Review: make sure no writable opens to SB and log happen until role verified
-This is certainly not true yet.
-** DONE All log opens; do read-only first, and only open writable on the master
-** DONE mkfs should fail if the device is not larger than the superblock + log
-Now it fails if dev < 4GiB
-** TODO Logplay option: find files that don't match logged size / attributes
-** TODO logplay: find and optionally delete files that exist but weren't in the log?
-** TODO logplay: fix existing file ownership and permissions to match the log?
-** TODO logplay: fix existing file size to match log?
-could be an argument --fix
-** DONE famfs cp: accept uid/gid/mode args like creat?
-** DONE famfs mkdir: accept uid/gid/mode args like creat?
 ** TODO Illegal: mount famfs over direcory IN a different mount
 ** TODO when traversing up paths, can we recognize mount point paths?
 This would be useful for file system spanning operaitons like mkdir -p
-** TODO fsck: some info in the verbose output looks fishy
-(negative remainder...)
 ** TODO File create: allow non-privileged if the user has write perm in the directory?
 Log write still requires root. Hmm...
 ** TODO mkdir: same thing, non-privileged allowed if perms check out on parent dir
-** DONE mkdir: plumb verbose
-** DONE mkdir: -m -u -g for mode, uid, gid
-** DONE mkdir of relpath (relative to cwd) fails even if the path is good
-** DONE mkdir -p: test paths like /foo/bar/../../baz/bing
 ** TODO verify superblock 0444 permissions when opening
-** TODO cp -v should print list of files copied
-other output should require -vv
-** TODO Strip down the output of commands unless -v, -vv etc. are used
 
-* dev_dax support (character device)
+* Larger topics
+** Alllowing non-root users to create files -- known issues:
+*** TODO Make it possible to get the system uuid without being root
+Generate a system uuid and store it in /opt/famfs or some such
+*** TODO Make it possible to write the log without being root
+This should just be a permission change on the log file
+*** TODO Anything else?
+** Getting back to a clean state
+There are some ways that famfs could get into a weird state. if a user uses stock cp and mkdir,
+there will be files that are not famfs files. There could aso be files that got permissions changed,
+truncated, deleted, etc.
+
+The biggest question is whether to try to fix things, or just umount/remount - because
+umount/remount will clean the slate.
+*** Optionally delete and re-create any mismatched files
+*** Optionally populate a hashmap during logplay
+*** Could then do a recursive scan of all files and dirs and clean out those no in the hashmap
+*** TODO Logplay option: find files that don't match logged size / attributes
+*** TODO logplay: find and optionally delete files that exist but weren't in the log?
+*** TODO logplay: fix existing file ownership and permissions to match the log?
+*** TODO logplay: fix existing file size to match log?
+
+** dev_dax support (character device)
 Current state: works for mmap but not or read/write
-** TODO Char device not cleaned up properly on umount
-** TODO get char read/write working
+*** TODO Char device not cleaned up properly on umount
+*** TODO get char read/write working
 
-* Processor cache management
+** Processor cache management
 Current state: not implemented
-** TODO superblock write: flush cache after
-** TODO never open superblock writable once it exists
-** TODO Log append: use appropriate barriers to guarantee append entry is visible by the time it's detectable
+*** TODO superblock write: flush cache after
+*** TODO never open superblock writable once it exists
+*** TODO Log append: use appropriate barriers to guarantee append entry is visible by the time it's detectable
 -For SW coherency:
     -  write new log entry
     - flush
@@ -78,40 +82,19 @@ Current state: not implemented
     - write log header
     - flush
     (check this work)
-** TODO Log play (and read): guarantee that stale cache lines can't be read
+*** TODO Log play (and read): guarantee that stale cache lines can't be read
 -Re-reading log header must be non-temporal, or must invalidate the cache first
 -May need invalidate the cache before reading log entries?
 
+
 * Bugs
-** DONE when running logplay manually, first run fails and second run succeeds
-Actually this was probably just a malfunction of the new "-v" option (or lack
-thereof... still need to fix)
-** DONE after big cp -r: lots of alllocation collisions
+** TODO famfs_lib should use log size from superblock, not FAMFS_LOG_LEN
 
 * Smoke Testing
-** DONE logplay -vv -vvv
-** DONE fsck: call from non-privileged user (both mmap and not - should fail)
-** DONE cp -r: relative and absolute paths
-** DONE cp and creat empty file?
-** DONE fsck bogus path
-** DONE mkdir where there is a parent in the path that is not a dir
-** DONE pass negative uid/gid to cli commands
-** DONE clone with bogus source
-** DONE clone with source not in famfs
 ** TODO clone where src and dest are in different famfs file systems
 Code checks for this, but haven't been testing with more than one dax/pmem device
-** DONE Refactor famfs_logplay to be unit testable
-** TODO test file and dir creation logging when log is full
-** TODO unit: test invalid log entry in build_bitmap
-Can be unit tested now, because logplay cann be unit tested
-** TODO test bitmap_alloc_contiguous out of space
-** TODO Proper test for the log lock preventing bad re-entrancy
 ** TODO Proper test for logplay --client
-** DONE integrate with gcov via cmake
 ** TODO Need a test that tests wide range of odd file sizes
-** DONE Test mkdir -mug
-** DONE Test cp -mug
-** DONE Test creat -mug
 ** TODO Need some more stressful automated tests
 ** TODO Tests that fully validate log behavior
 ** TODO test filling up a famfs file system
@@ -127,10 +110,8 @@ log slots runs out. Hmm...
 ** TODO init_locked_log on client (will fail)
 ** TODO init_locked_log when no meta files present
 ** TODO cause mmap failures (in general)
-Difficult, but if size=0, mmap fails. Might use this mock/hack
-** DONE famfs_file_create not within famfs
-** DONE famfs cp: source is directory (__famfs_cp has untested code here)
-(if callers check this, refactor to get rid of untested code)
+Difficult, but if size=0, mmap fails. Might use this mock/hack.
+Or just assert that mmap worked
 
 * Cluster testing
 ** TODO Need test that mounts the same memory/pmem device from mulltiple VMs
@@ -144,10 +125,6 @@ Difficult, but if size=0, mmap fails. Might use this mock/hack
 ** TODO cli: df
 fsck returns useful info, which needs to be reviewed
 ** TODO un-tar into famfs
-** DONE famfs cp -r
-Note: cp -r would need a bunch of unit test work; it could easily fill up the log, run the
-FS out of space, or both...
-** DONE famfs mkdir -p
 ** TODO Should a log entry be an integer number of cache lines?
 It probably won't help...
 ** TODO famfs mv: rename can work
@@ -158,6 +135,11 @@ This is complicated, because we use FAMFS_LOG_LEN multiple places
 ** TODO famfs_mkfile: create in <mpt>/.tmp and then move into place when ready?
 
 * Unit test coverage
+** TODO test file and dir creation logging when log is full
+** TODO unit: test invalid log entry in build_bitmap
+Can be unit tested now, because logplay cann be unit tested
+** TODO test bitmap_alloc_contiguous out of space
+** TODO Proper test for the log lock preventing bad re-entrancy
 ** TODO Append log with bad magic number
 ** TODO Append a log that is full (file creation)
 ** TODO Append a log that is full (dir creation)
@@ -168,7 +150,6 @@ pass nonsense mpt and fullpath (mpt is not substring starting at the beginning)
 *** TODO get non-blocking flock while already holding the lock
 *** TODO test the file_not_famfs case (just don't set no_fs_check)
 ** TODO famfs_fsck - pass in bad path
-
 ** TODO The bitmap.h functions (there should be bitmap unit tests to pull in from hse...)
 ** DONE __open_relpath()
 ** TODO famfs_get_system_uuid()
@@ -207,6 +188,50 @@ The file gets truncated to zero-length, but then no writing happens
 * Archives
 
 * Done
+** DONE mkdir: plumb verbose
+** DONE mkdir: -m -u -g for mode, uid, gid
+** DONE mkdir of relpath (relative to cwd) fails even if the path is good
+** DONE mkdir -p: test paths like /foo/bar/../../baz/bing
+** DONE fsck: some info in the verbose output looks fishy
+** DONE Review: make sure no writable opens to SB and log happen until role verified
+This is certainly not true yet.
+** DONE All log opens; do read-only first, and only open writable on the master
+** DONE mkfs should fail if the device is not larger than the superblock + log
+Now it fails if dev < 4GiB
+could be an argument --fix
+** DONE famfs cp: accept uid/gid/mode args like creat?
+** DONE famfs mkdir: accept uid/gid/mode args like creat?
+** DONE Make building the bitmap lazy in famfs_locked_log? (mkdir doesn't need it)
+** DONE cli should have a command to check for bad famfs files
+(i.e. files that hvae not been fully daxified, or are not in the log)
+Done: "famfs check"
+** DONE CLI: go through and update usage printouts to be accurate
+** DONE Logplay should be quiet unless explicitly verbose
+** DONE Script to find just the errors from a logged valgrind run
+** DONE famfs cp -r
+Note: cp -r would need a bunch of unit test work; it could easily fill up the log, run the
+FS out of space, or both...
+** DONE famfs mkdir -p
+** DONE when running logplay manually, first run fails and second run succeeds
+Actually this was probably just a malfunction of the new "-v" option (or lack
+thereof... still need to fix)
+** DONE after big cp -r: lots of alllocation collisions
+** DONE logplay -vv -vvv
+** DONE fsck: call from non-privileged user (both mmap and not - should fail)
+** DONE cp -r: relative and absolute paths
+** DONE cp and creat empty file?
+** DONE fsck bogus path
+** DONE mkdir where there is a parent in the path that is not a dir
+** DONE pass negative uid/gid to cli commands
+** DONE clone with bogus source
+** DONE clone with source not in famfs
+** DONE Refactor famfs_logplay to be unit testable
+** DONE integrate with gcov via cmake
+** DONE Test mkdir -mug
+** DONE Test cp -mug
+** DONE Test creat -mug
+** DONE famfs_file_create not within famfs
+** DONE famfs cp: source is directory (__famfs_cp has untested code here)
 ** DONE move most of mkfs into famfs_lib.c, so more funcs can be static
 ** DONE Get tracepoint(s) working so we can verify huge page faults (PMD)
 ** DONE fix famfs so faults are always (or almost always) 2MiB at a time
