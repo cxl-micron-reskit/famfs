@@ -40,6 +40,10 @@ while (( $# > 0)); do
 	    DEV=$1
 	    shift;
 	    ;;
+	(-m|--mpt)
+	    MPT=$1  # Mount point
+	    shift;
+	    ;;
 	(-b|--bin)
 	    BIN=$1
 	    shift
