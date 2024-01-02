@@ -20,6 +20,7 @@ famfs [global_args] <command> [args]
 Global args:
 	--dryrun
 Commands:
+	mount
 	fsck
 	check
 	mkdir
@@ -30,6 +31,23 @@ Commands:
 	logplay
 	getmap
 	clone
+```
+## Famfs mount
+```
+famfs mount: mount a famfs file system and make it ready to use
+
+We recommend using the 'famfs mount' command rather than the native system mount
+command, because there are additional steps necessary to make a famfs file system
+ready to use after the system mount (see mkmeta and logplay). This command takes
+care of the whole job.
+
+ mount <memdevice> <mountpoint>
+
+Arguments:
+    -?             - Print this message
+    -r             - Re-mount
+    -v|--verbose   - Print verbose output
+
 ```
 ## Famfs fsck
 ```

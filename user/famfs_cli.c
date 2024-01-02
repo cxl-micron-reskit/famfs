@@ -97,6 +97,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 		{"mmap",      no_argument,             0,  'm'},
 		{"read",      no_argument,             0,  'r'},
 		{"client",    no_argument,             0,  'c'},
+		{"verbose",    no_argument,            0,  'v'},
 		{0, 0, 0, 0}
 	};
 
@@ -171,8 +172,9 @@ famfs_mount_usage(int   argc,
 	       "    %s mount <memdevice> <mountpoint>\n"
 	       "\n"
 	       "Arguments:\n"
-	       "    -?           - Print this message\n"
-	       "    -r           - Re-mount\n"
+	       "    -?             - Print this message\n"
+	       "    -r             - Re-mount\n"
+	       "    -v|--verbose   - Print verbose output\n"
 	       "\n", progname);
 }
 
@@ -192,6 +194,8 @@ do_famfs_cli_mount(int argc, char *argv[])
 
 	struct option mkmeta_options[] = {
 		/* These options set a */
+		{"replay",     no_argument,            0,  'r'},
+		{"verbose",    no_argument,            0,  'v'},
 		{0, 0, 0, 0}
 	};
 
@@ -286,7 +290,8 @@ famfs_mkmeta_usage(int   argc,
 	       "    %s mkmeta <memdevice>  # Example memdevices: /dev/pmem0 or /dev/dax0.0\n"
 	       "\n"
 	       "Arguments:\n"
-	       "    -?           - Print this message\n"
+	       "    -?               - Print this message\n"
+	       "    -v|--verbose     - Print verbose output\n"
 	       "\n", progname);
 }
 
@@ -1314,10 +1319,10 @@ static void do_famfs_cli_help(int argc, char **argv);
 struct
 famfs_cli_cmd famfs_cli_cmds[] = {
 
+	{"mount",   do_famfs_cli_mount,   famfs_mount_usage},
 	{"fsck",    do_famfs_cli_fsck,    famfs_fsck_usage},
 	{"check",   do_famfs_cli_check,   famfs_check_usage},
 	{"mkdir",   do_famfs_cli_mkdir,   famfs_mkdir_usage},
-	{"mount",   do_famfs_cli_mount,   famfs_mount_usage},
 	{"cp",      do_famfs_cli_cp,      famfs_cp_usage},
 	{"creat",   do_famfs_cli_creat,   famfs_creat_usage},
 	{"verify",  do_famfs_cli_verify,  famfs_verify_usage},
