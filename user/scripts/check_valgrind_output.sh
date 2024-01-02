@@ -16,7 +16,7 @@ fi
 count=$(grep "ERROR SUMMARY" $1 | grep -cv "0 errors from 0 contexts (suppressed: 0 from 0)")
 #echo "$count"
 if (($count == 0)); then
-    echo "Congratulations: no errors found by Vallgrind"
+    echo "Congratulations: no errors found by Valgrind"
     exit 0
 fi
 
