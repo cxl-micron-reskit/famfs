@@ -14,7 +14,7 @@
 #include <sys/ioctl.h>
 #include <string.h>
 #include <stddef.h>
-
+#include <assert.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
@@ -93,10 +93,8 @@ main(int argc, char *argv[])
 		}
 	}
 
-	if (optind >= argc) {
-		fprintf(stderr, "Must specify at least one dax device\n");
-		return -1;
-	}
+	assert(optind < argc);
+
 	/* TODO: multiple devices? */
 	daxdev = argv[optind++];
 
