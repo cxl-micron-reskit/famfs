@@ -12,11 +12,12 @@ debug:
 # The comand above will direct you to html files detailing the measured coverage
 #
 coverage:
-	mkdir -p debug
-	cd debug; cmake -DCMAKE_BUILD_TYPE=Debug -DFAMFS_TEST_COVERAGE="yes" ..; make
+	mkdir -p coverage
+	cd coverage; cmake -DCMAKE_BUILD_TYPE=Debug -DFAMFS_TEST_COVERAGE="yes" ..; make
 
-coverage_test: 	coverage smoke
-	cd debug; sudo make famfs_unit_coverage
+coverage_test:	coverage
+	./run_smoke.sh --coverage
+	cd coverage; sudo make famfs_unit_coverage
 
 release:
 	mkdir -p release
@@ -25,7 +26,7 @@ release:
 all:	debug
 
 clean:
-	sudo rm -rf debug release
+	sudo rm -rf debug release coverage
 
 install:
 	cd debug; sudo make install
@@ -38,7 +39,12 @@ test:
 # Run the smoke tests
 smoke:
 	-scripts/teardown.sh
-	./run_smoke.sh
+	script -c ./run_smoke.sh -O smoke.log
+
+smoke_valgrind: debug
+	-scripts/teardown.sh
+	script -c "./run_smoke.sh --valgrind" -O smoke.log
+	scripts/check_valgrind_output.sh smoke.log
 
 teardown:
 	pwd

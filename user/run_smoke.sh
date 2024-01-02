@@ -25,6 +25,11 @@ if (( $(lsmod | grep -c famfs) > 0)); then
     echo "Error: famfs kernel module must be unloaded to run smoke tests; run scripts/teardown.sh"
     exit -1
 fi
+TEST_FUNCS=$SCRIPTS/test_funcs.sh
+if [ ! -f $TEST_FUNCS ]; then
+    echo "Can't source $TEST_FUNCS"
+    exit -1
+fi
 
 while (( $# > 0)); do
     flag="$1"
@@ -33,7 +38,7 @@ while (( $# > 0)); do
 	(-n|--noerrors)
 	    TEST_ERRORS=0
 	    ;;
-	(-j|-justerrors)
+	(-j|--justerrors)
 	    TEST_ERRORS=1
 	    TEST_ALL=0
 	    ;;
@@ -44,7 +49,12 @@ while (( $# > 0)); do
 	    BIN="$CWD/release"
 	    echo "hello release BIN=$BIN"
 	    ;;
+	(-c|--coverage)
+	    BIN="$CWD/coverage"
+	    echo "hello coverage BIN=$BIN"
+	    ;;
 	(-v|--valgrind)
+	    echo "run_smoke: valgrind mode"
 	    VGARG="--valgrind"
 	    ;;
 	*)
@@ -66,18 +76,13 @@ echo "BIN:         $BIN"
 echo "SCRIPTS:     $SCRIPTS"
 echo "TEST_ERRORS: $TEST_ERRORS"
 
-TEST_FUNCS=$SCRIPTS/test_funcs.sh
-if [ ! -f $TEST_FUNCS ]; then
-    echo "Can't source $TEST_FUNCS"
-    exit -1
-fi
 #BIN=debug
 if [ ! -d $BIN ]; then
     echo "Can't find executables"
     exit -1
 fi
-if [! -x "$BIN/famfs" ]; then
-    echo "famfs cli missing or not built"
+if [ ! -x "$BIN/famfs" ]; then
+    echo "famfs cli missing or not built in subdir $BIN"
     exit -1
 fi
 
