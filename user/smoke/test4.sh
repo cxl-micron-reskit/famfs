@@ -87,6 +87,34 @@ set -x
 verify_mounted $DEV $MPT "test4.sh mounted"
 sudo umount $MPT || fail "test4.sh umount"
 verify_not_mounted $DEV $MPT "test4.sh"
+
+#
+# Test cli 'famfs mount'
+#
+${CLI} mount -vvv $DEV $MPT || fail "famfs mount should succeed when not mounted"
+${CLI} mount -vvv $DEV $MPT 2>/dev/null && fail "famfs mount should fail when already mounted"
+# check that a removed file is restored on remount
+F="/mnt/famfs/test1"
+sudo rm $F
+sudo umount $MPT
+${CLI} mount -?             || fail "famfs mount -? should succeed"
+${CLI} mount                && fail "famfs mount with no args should fail"
+${CLI} mount  a b c         && fail "famfs mount with too many args should fail"
+${CLI} mount baddev $MPT    && fail "famfs mount with bad device path should fail"
+${CLI} mount $DEV badmpt    && fail "famfs mount with bad mount point path should fail"
+
+${CLI} mount -vvv $DEV $MPT || fail "famfs mount 2 should succeed when not mounted"
+sudo test -f $F             || fail "bogusly deleted file did not reappear on remount"
+sudo umount $MPT            || fail "umount should succeed"
+sudo rmmod famfs            || fail "could not unload famfs when unmoounted"
+${CLI} mount -vvv $DEV $MPT && fail "famfs mount should fail when kmod not loaded"
+sudo insmod $KMOD/famfs.ko  || fail "insmod"
+${CLI} mount $DEV $MPT      || fail "famfs mount should succeed after kmod reloaded"
+${CLI} mount -r $DEV $MPT   || fail "famfs mount -r should succeed when nothing is hinky"
+# mount -r needs mkmeta cleanup...
+
+sudo umount $MPT # run_smoke.sh expects the file system unmounted after this test
+
 set +x
 echo "*************************************************************************************"
 echo "Test4 (multichase) completed successfully"

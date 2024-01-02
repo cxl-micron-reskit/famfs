@@ -21,6 +21,7 @@
 #include <sys/user.h>
 #include <sys/param.h> /* MIN()/MAX() */
 #include <libgen.h>
+#include <sys/mount.h>
 
 #include <linux/types.h>
 #include <linux/ioctl.h>
@@ -150,6 +151,119 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	fspath = argv[optind++];
 
 	return famfs_logplay(fspath, use_mmap, dry_run, client_mode, verbose);
+}
+
+/********************************************************************/
+void
+famfs_mount_usage(int   argc,
+	    char *argv[])
+{
+	char *progname = argv[0];
+
+	printf("\n"
+	       "famfs mount: mount a famfs file system and make it ready to use\n"
+	       "\n"
+	       "We recommend using the \'famfs mount\' command rather than the native system mount\n"
+	       "command, because there are additional steps necessary to make a famfs file system\n"
+	       "ready to use after the system mount (see mkmeta and logplay). This command takes\n"
+	       "care of the whole job.\n"
+	       "\n"
+	       "    %s mount <memdevice> <mountpoint>\n"
+	       "\n"
+	       "Arguments:\n"
+	       "    -?           - Print this message\n"
+	       "    -r           - Re-mount\n"
+	       "\n", progname);
+}
+
+int
+do_famfs_cli_mount(int argc, char *argv[])
+{
+	int c;
+	int rc;
+	int arg_ct = 0;
+	int verbose = 0;
+	char *mpt = NULL;
+	int remaining_args;
+	char *daxdev = NULL;
+	char *realmpt = NULL;
+	char *realdaxdev = NULL;
+	unsigned long mflags = MS_NOATIME | MS_NOSUID | MS_NOEXEC | MS_NODEV;
+
+	struct option mkmeta_options[] = {
+		/* These options set a */
+		{0, 0, 0, 0}
+	};
+
+	/* Note: the "+" at the beginning of the arg string tells getopt_long
+	 * to return -1 when it sees something that is not recognized option
+	 * (e.g. the command that will mux us off to the command handlers
+	 */
+	while ((c = getopt_long(argc, argv, "+h?rv",
+				mkmeta_options, &optind)) != EOF) {
+
+		arg_ct++;
+		switch (c) {
+
+		case 'h':
+		case '?':
+			famfs_mount_usage(argc, argv);
+			return 0;
+		case 'v':
+			verbose++;
+			break;
+		case 'r':
+			mflags |= MS_REMOUNT;
+			break;
+		}
+	}
+
+	remaining_args = argc - optind;
+
+	if (remaining_args != 2) {
+		fprintf(stderr, "famfs mount error: <daxdev> and <mountpoint> args are required\n");
+		famfs_mount_usage(argc, argv);
+		return -1;
+	}
+
+	daxdev = argv[optind++];
+	realdaxdev = realpath(daxdev, NULL);
+	if (!realdaxdev) {
+		fprintf(stderr, "famfs mount: daxdev (%s) not found\n",  daxdev);
+		free(realdaxdev);
+		return -1;
+	}
+	mpt = argv[optind++];
+	realmpt = realpath(mpt, NULL);
+	if (!realmpt) {
+		fprintf(stderr, "famfs mount: mount pt (%s) not found\n", mpt);
+		free(realmpt);
+		rc = -1;
+		goto err_out;
+	}
+	if (!famfs_module_loaded(1)) {
+		fprintf(stderr, "famfs mount: famfs kernel module is not loaded!\n");
+		rc = -1;
+		goto err_out;
+	}
+
+	rc = mount(realdaxdev, realmpt, "famfs", mflags, "");
+	if (rc) {
+		fprintf(stderr, "%s: mount returned %d; errno %d\n", __func__, rc, errno);
+		perror("mount fail\n");
+		return rc;
+	}
+
+	rc = famfs_mkmeta(realdaxdev);
+	if (rc)
+		fprintf(stderr, "famfs mount: ignoring err %d from mkmeta\n", rc);
+
+	rc = famfs_logplay(realmpt, 1, 0, 0, verbose);
+
+err_out:
+	free(realdaxdev);
+	free(realmpt);
+	return rc;
 }
 
 /********************************************************************/
@@ -1203,6 +1317,7 @@ famfs_cli_cmd famfs_cli_cmds[] = {
 	{"fsck",    do_famfs_cli_fsck,    famfs_fsck_usage},
 	{"check",   do_famfs_cli_check,   famfs_check_usage},
 	{"mkdir",   do_famfs_cli_mkdir,   famfs_mkdir_usage},
+	{"mount",   do_famfs_cli_mount,   famfs_mount_usage},
 	{"cp",      do_famfs_cli_cp,      famfs_cp_usage},
 	{"creat",   do_famfs_cli_creat,   famfs_creat_usage},
 	{"verify",  do_famfs_cli_verify,  famfs_verify_usage},

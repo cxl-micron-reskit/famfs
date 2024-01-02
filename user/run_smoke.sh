@@ -102,7 +102,8 @@ else
     echo "skipping test_errors.sh because -n|--noerrors was specified"
 fi
 
-full_mount $DEV $MPT "${MOUNT_OPTS}" "run_smoke.sh remount"
+#full_mount $DEV $MPT "${MOUNT_OPTS}" "run_smoke.sh remount"
+${CLI} mount $DEV $MPT || fail "run_smoke: famfs mount"
 
 exit 0
 #sleep 4

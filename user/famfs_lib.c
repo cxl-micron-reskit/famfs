@@ -79,6 +79,34 @@ static int famfs_mmap_superblock_and_log_raw(const char *devname,
 					     struct famfs_log **logp,
 					     int read_only);
 
+/**
+ * famfs_module_loaded()
+ *
+ * This function checks whether the famfs kernel modulle is loaded
+ *
+ * @verbose - print informative output
+ *
+ * Returns: 1 if the module is loaded, and 0 if not
+ */
+#define FAMFS_MODULE_SYSFS "/sys/module/famfs"
+int
+famfs_module_loaded(int verbose)
+{
+	struct stat st;
+	int rc;
+	rc = stat(FAMFS_MODULE_SYSFS, &st);
+	if (rc) {
+		printf("%s: NO\n", __func__);
+		return 0;
+	}
+
+	assert ((st.st_mode & S_IFMT) == S_IFDIR);
+
+	if (verbose)
+		printf("%s: YES\n", __func__);
+	return 1;
+}
+
 int
 __file_not_famfs(int fd)
 {
@@ -823,7 +851,7 @@ famfs_mkmeta(const char *devname)
 	strncat(sb_file, "/.superblock", PATH_MAX - 1);
 	strncat(log_file, "/.log", PATH_MAX - 1);
 
-	/* Check if superblock file already exists, and cleanup of bad */
+	/* Check if superblock file already exists, and cleanup if bad */
 	rc = stat(sb_file, &st);
 	if (rc == 0) {
 		if ((st.st_mode & S_IFMT) == S_IFREG) {
@@ -840,6 +868,7 @@ famfs_mkmeta(const char *devname)
 			return -EINVAL;
 		}
 	}
+	/* Also check if log exists and clean up if bad */
 
 	rc = famfs_mmap_superblock_and_log_raw(devname, &sb, &logp, 1 /* Read only */);
 	if (rc) {
