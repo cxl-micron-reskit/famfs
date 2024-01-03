@@ -32,6 +32,13 @@ From the top level directory:
 This command also works in the ```kmod``` and ```user``` directories, and just builds the kmod
 or user code respectively
 
+# Installing famfs
+
+Famfs does not have packaged installation files yet, once you have built it, you can
+install it with the following command:
+
+    sudo make install
+
 # Preparing to run famfs
 
 In order to run famfs you need either a pmem device (e.g. /dev/pmem0) or a
@@ -74,14 +81,19 @@ Famfs already has a substantial set of tests, though we plan to expand them subs
 
 The famfs smoke tests load the kernel module, create and mount a famfs file system, and
 test its funcionality.
-The smoke tests can be run by a non-privileged user if the user has password-less sudo
-enabled. Otherwise you must run them as root.
+The smoke tests currently must be run by a non-privileged user with passwordless sudo
+enabled. Running the tests as root does not work, because they expect certain operations to
+fail due to non-root privileges.
+
+You can enable passwordless sudo for user 'fred' in your test systems and VMs as follows:
+
+    echo "fred ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/fred
 
 If you have already successfully built famfs and configured a pmem device, you can run smoke tests
 as follows:
 
     cd user
-    ./run_smoke.sh
+    make smoke
 
 You can see an example of the [full output from run_smoke.sh here](markdown/smoke-example.md)
 
@@ -94,13 +106,8 @@ The smoke tests (by default) require the following:
 Famfs uses the googletest framework for unit testing code components, although test coverage
 is still limited.
 
-    cd user/debug
-    sudo ctest
-
-Or you can do this:
-
     cd user
-    sudo make test
+    make test
 
 You can also do this:
 
@@ -110,15 +117,25 @@ You can also do this:
 Important note: the unit tests must be run as root or under sudo, primarily because
 getting the system UUID only works as root. We may look into circumventing this...
 
+## Valgrind Checking
+You can run the smoke tests under valgrind as follows:
+
+    make smoke_valgrind
+
+If the smoke tests complete and valgrind finds no errors, you will see a message such as this:
+
+    Congratulations: no errors found by Valgrind
+
+Otherwise, you will see the valgrind output from just the tests where valgrind found problems.
+
 ## Code Coverage
 
 To build for coverage tests, do the following in user:
 
-```
-make clean coverage
-[sudo] ./run_smoke.sh
-cd debug; sudo make famfs_unit_coverage
-```
+    make clean coverage
+    make coverage_test
+    firefox coverage/famfs_unit_coverage/index.html   # or any other browser
+
 The resulting report looks like this as of the last week of December 2023.
 ![Image of gcov coverage report](markdown/Screenshot-2023-12-27-at-8.07.17-AM.png)
 
