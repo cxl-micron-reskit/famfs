@@ -23,6 +23,40 @@ few prerequisites that must be met.
   probably need to build and install the kernel linked above. If you have installed that
   and are running it, the prereqs for building the famfs kernel module should be met.
 
+## Known Prerequisites
+
+### On a Server for VMs Running Famfs
+
+In order to run VMs that mount famfs file systems on shared dax devices, you should be running
+VMs in efi firmware mode.
+```
+sudo dnf install edk2-ovmf
+```
+
+### Fedora 39 Prerequisites
+On fedora, you probably need to install the following, at minimum
+```
+sudo dnf groupinstall "Development Tools"
+sudo dnf install kernel-devel
+sudo dnf install cmake
+sudo dnf install g++
+sudo dnf install libuuid-devel
+```
+Pay attention to error messages when you build, new dependencies may arise later, and
+different kernel installations may have different missing dependencies.
+
+### Ubuntu 23 Prerequisites
+
+```
+sudo apt install build-essential
+sudo apt install cmake
+sudo apt install uuid-dev
+sudo apt install zlib1g-dev
+sudo apt install daxctl ndctl
+```
+Pay attention to error messages when you build, new dependencies may arise later, and
+different kernel installations may have different missing dependencies.
+
 # Building famfs
 
 From the top level directory:

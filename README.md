@@ -16,6 +16,15 @@ This will eventually split into separate repos:
 * Overview - this document
 * [Getting Started with famfs](user/README.md)
 
+# What is Famfs?
+
+Famfs is a scale-out shared-memory file system. If two or more hosts have shared access
+to memory, a famfs file system can be created in that memory, such that data sets can be
+saved to files in the shared memory.
+
+For apps that can memory map files, memory-mapping a famfs file provides direct access to
+the memory without any page cache involvement (and no faults involving data movement at all).
+
 # Background
 
 In the coming years the emerging CXL standard will enable shared fabric-attached
@@ -30,9 +39,6 @@ access is permitted).
 Why do we need a new fs-dax file system when others (e.g. xfs and ext4) exist? Because the existing
 fs-dax file systems use write-back metadata, which is not compatible with shared memory
 access.
-
-Famfs is a scale-out, shared memory file system that tolerates clients with a stale view
-of metadata. 
 
 [Famfs was introduced at the 2023 Linux Plumbers Conference](https://lpc.events/event/17/contributions/1455/). The linked page contains the abstract, plus links to the slides and a
 youtube video of the talk.
@@ -78,7 +84,8 @@ Famfs an enables a number of advantages when the compute jobs scale out:
 * Large datasets can exist as one shared copy in a famfs file
 * Sharded data need not be re-shuffled if the data is stored in famfs files
 * When an app memory-maps a famfs file, it is directly accessing the memory;
-  unlike block-based file systems, data is not read into local memory in order to be accessed
+  unlike block-based file systems, data is not read (or faulted) into local memory
+  in order to be accessed
 
 Jobs like these can be adapted to using famfs without even recompiling any components,
 through a procedure like this.
@@ -119,7 +126,8 @@ log.
 
 Here are a few more details on the operation of famfs
 
-* Only the Master node (the node that created a famfs file system) can create files
+* Only the Master node (the node that created a famfs file system) can create files.
+  (It may be possible to relax or remove this limitation in future version of famfs.)
 * Files are pre-allocated; famfs never does allocate-on-write
     - This means you can't ignore the fact that it is famfs when creating files
     - The famfs cli provides create and cp functions to create a fully-alllocated file,
@@ -131,8 +139,13 @@ Here are a few more details on the operation of famfs
 * Metadata is never written back to the log; this means that in-memory metadata (inodes etc.)
   are ephemeral.
 * Certain file mutations are not allowed, due to the requirement that clients with stale
-  metadata must be tolerated. Some of these limitations may be relaxable in a future version.
+  metadata must be tolerated. Some of these limitations may be relaxable in the future.
     - No delete
     - No truncate
     - No append
+
+# What is Famfs NOT?
+
+Famfs is not a general purpose file system, and unlike most file systems, it is not a data
+storage tool. Famfs is a data *sharing* tool.
 

@@ -27,3 +27,14 @@ Reboot the system and make sure you're running the new kernel
 Output:
 
     6.5.12+
+
+<div style="border:1px solid black; padding:10px; margin-bottom:10px;">
+    <strong>Important:</strong> This is an important message in a box (I hope)!
+</div>
+
+> **Important:** This is an important message in standard markdown!
+
+`ad-note
+: **Important:** This is an important message in github style!
+
+:bangbang: **Imporant:** important msg with bangbang

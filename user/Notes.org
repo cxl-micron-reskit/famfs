@@ -285,3 +285,22 @@ and complex paths...
 ** DONE famfs fsck on device
 ** DONE famfs mkmeta
 ** DONE famfs getmap
+
+capturing prereqs
+
+* Target system fedora
+** daxctl, ndctl
+** "Development Tools"
+** cmake
+** g++
+** libuuid-devel
+
+* Target system ubuntu 23
+** apt install build-essential
+** apt install cmake
+** apt install uuid-dev
+** zlib1g-dev
+** daxctl, ndctl
+
+* VM server
+** edk2-ovmf
