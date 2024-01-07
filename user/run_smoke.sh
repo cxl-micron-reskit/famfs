@@ -35,6 +35,10 @@ while (( $# > 0)); do
     flag="$1"
     shift
     case "$flag" in
+	(-d|--device)
+	    DEV=$1
+	    shift;
+	    ;;
 	(-n|--noerrors)
 	    TEST_ERRORS=0
 	    ;;
