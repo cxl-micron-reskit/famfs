@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Apache-2.0
+/* SPDX-License-Identifier: Apache-2.0 */
 /*
  * Copyright (C) 2023 Micron Technology, Inc.  All rights reserved.
  */
@@ -116,7 +116,8 @@ enum famfs_log_ext_type {
 };
 
 /* TODO: get rid of this extent type, and use the one from the kernel instead
- * (which will avoid silly translations... */
+ * (which will avoid silly translations...
+ */
 struct famfs_simple_extent {
 	/* This extent is on the dax device with the superblock */
 	u64 famfs_extent_offset;

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+// SPDX-License-Identifier: GPL-2.0
 /*
  * famfs - dax file system for shared fabric-attached memory
  *
@@ -417,8 +417,7 @@ famfs_open_char_device(
 
 #ifndef K67
 static void
-famfs_bdev_mark_dead(
-       struct block_device     *bdev)
+famfs_bdev_mark_dead(struct block_device     *bdev)
 {
 	pr_err("%s: Linux thinks something went wrong with the block device!!\n", __func__);
 	dump_stack();
@@ -599,11 +598,11 @@ static int __init init_famfs_fs(void)
 
 	pr_info("%s\n", __func__);
 	/* See what the different log levels do */
-	pr_debug("%s: KERN_DEBUG \n", __func__);
-	pr_info("%s: KERN_INFO \n", __func__);
-	pr_notice("%s: KERN_NOTICE \n", __func__);
-	pr_warn("%s: KERN_WARNING \n", __func__);
-	pr_err("%s: KERN_ERR \n", __func__);
+	pr_debug("%s: KERN_DEBUG\n", __func__);
+	pr_info("%s: KERN_INFO\n", __func__);
+	pr_notice("%s: KERN_NOTICE\n", __func__);
+	pr_warn("%s: KERN_WARNING\n", __func__);
+	pr_err("%s: KERN_ERR\n", __func__);
 
 #if defined(CONFIG_DEV_DAX_IOMAP)
 	pr_notice("%s: famfs compiled with experimental /dev/dax support\n", __func__);
@@ -612,14 +611,14 @@ static int __init init_famfs_fs(void)
 #endif
 	famfs_kobj = kobject_create_and_add(MODULE_NAME, fs_kobj);
 	if (!famfs_kobj) {
-		printk(KERN_ALERT "Failed to create kobject\n");
+		pr_warn("Failed to create kobject\n");
 		return -ENOMEM;
 	}
 
 	rc = sysfs_create_group(famfs_kobj, &famfs_attr_group);
 	if (rc) {
 		kobject_put(famfs_kobj);
-		printk(KERN_ALERT "%s: Failed to create sysfs group\n", __func__);
+		pr_warn("%s: Failed to create sysfs group\n", __func__);
 		return rc;
 	}
 

@@ -69,7 +69,7 @@ famfs_dir_create(
 	uid_t       uid,
 	gid_t       gid);
 
-static struct famfs_superblock *famfs_map_superblock_by_path(const char *path,int read_only);
+static struct famfs_superblock *famfs_map_superblock_by_path(const char *path, int read_only);
 static int famfs_file_create(const char *path, mode_t mode, uid_t uid, gid_t gid,
 			     int disable_write);
 static int open_log_file_read_only(const char *path, size_t *sizep,
@@ -94,13 +94,14 @@ famfs_module_loaded(int verbose)
 {
 	struct stat st;
 	int rc;
+
 	rc = stat(FAMFS_MODULE_SYSFS, &st);
 	if (rc) {
 		printf("%s: NO\n", __func__);
 		return 0;
 	}
 
-	assert ((st.st_mode & S_IFMT) == S_IFDIR);
+	assert((st.st_mode & S_IFMT) == S_IFDIR);
 
 	if (verbose)
 		printf("%s: YES\n", __func__);
@@ -257,8 +258,8 @@ famfs_get_role_by_dev(const char *daxdev)
 {
 	struct famfs_superblock *sb;
 	struct famfs_log *logp;
-
 	int rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &logp, 1 /* read only */);
+
 	if (rc)
 		return rc;
 
@@ -470,17 +471,17 @@ famfs_fsck_scan(
 		printf("  No allocation errors found\n\n");
 		printf("Capacity:\n");
 		if (!human) {
-			printf("  Device capacity:         %lld\n", dev_capacity);
-			printf("  Bitmap capacity:         %lld\n", bitmap_capacity);
-			printf("  Sum of file sizes:       %lld\n", fsize_sum);
-			printf("  Allocated bytes:         %lld\n", alloc_sum);
-			printf("  Free space:              %lld\n", bitmap_capacity - alloc_sum);
+			printf("  Device capacity:        %lld\n", dev_capacity);
+			printf("  Bitmap capacity:        %lld\n", bitmap_capacity);
+			printf("  Sum of file sizes:      %lld\n", fsize_sum);
+			printf("  Allocated bytes:        %lld\n", alloc_sum);
+			printf("  Free space:             %lld\n", bitmap_capacity - alloc_sum);
 		} else {
-			printf("  Device capacity:         %0.2fG\n", (float)dev_capacity / agig);
-			printf("  Bitmap capacity:         %0.2fG\n", (float)bitmap_capacity/ agig);
-			printf("  Sum of file sizes:       %0.2fG\n", (float)fsize_sum / agig);
-			printf("  Allocated space:         %.2fG\n", (float)alloc_sum / agig);
-			printf("  Free space:              %.2fG\n",
+			printf("  Device capacity:        %0.2fG\n", (float)dev_capacity / agig);
+			printf("  Bitmap capacity:        %0.2fG\n", (float)bitmap_capacity / agig);
+			printf("  Sum of file sizes:      %0.2fG\n", (float)fsize_sum / agig);
+			printf("  Allocated space:        %.2fG\n", (float)alloc_sum / agig);
+			printf("  Free space:             %.2fG\n",
 			       ((float)bitmap_capacity - (float)alloc_sum) / agig);
 		}
 			printf("  Space amplification:     %0.2f\n", space_amp);
@@ -786,7 +787,7 @@ famfs_file_map_create(
 	filemap.ext_list_count = nextents;
 
 	/* TODO: check for overflow (nextents > max_extents) */
-	for (i = 0; i<nextents; i++) {
+	for (i = 0; i < nextents; i++) {
 		filemap.ext_list[i].offset = ext_list[i].famfs_extent_offset;
 		filemap.ext_list[i].len    = ext_list[i].famfs_extent_len;
 	}
@@ -917,7 +918,7 @@ famfs_mkmeta(const char *devname)
 	/* Create and provide mapping for log file
 	 * Log is only writable on the master node
 	 */
-	logfd = open(log_file, O_RDWR|O_CREAT, (role == FAMFS_MASTER) ? 0644 : 0444 );
+	logfd = open(log_file, O_RDWR|O_CREAT, (role == FAMFS_MASTER) ? 0644 : 0444);
 	if (logfd < 0) {
 		fprintf(stderr, "%s: failed to create file %s\n", __func__, log_file);
 		return -1;
@@ -1142,7 +1143,7 @@ __famfs_logplay(
 				fprintf(stderr,
 					"%s: ignoring log entry; path is not relative\n",
 					__func__);
-				ls.f_errs++;;
+				ls.f_errs++;
 				skip_file++;
 			}
 
@@ -1648,6 +1649,7 @@ __open_relpath(
 
 				if (lockopt) {
 					int operation = LOCK_EX;
+
 					if (lockopt == NON_BLOCKING_LOCK)
 						operation |= LOCK_NB;
 					rc = flock(fd, operation);
@@ -1829,7 +1831,7 @@ famfs_fsck(
 	 * * If a dax device (either pmem or /dev/dax) we'll fsck that - but only if the fs
 	 *   is not currently mounted.
 	 * * If any file path from the mount point on down in a mounted famfs file system is
-	 *   specified, we will find the the superblock and log files and fsck the mounted
+	 *   specified, we will find the superblock and log files and fsck the mounted
 	 *   file system.
 	 */
 	switch (st.st_mode & S_IFMT) {
@@ -1875,7 +1877,7 @@ famfs_fsck(
 				return -1;
 			}
 
-			logp = famfs_map_log_by_path(path, 1 /* read only */, NO_LOCK );
+			logp = famfs_map_log_by_path(path, 1 /* read only */, NO_LOCK);
 			if (!logp) {
 				fprintf(stderr, "%s: failed to map log from file %s\n",
 					__func__, path);
@@ -2118,10 +2120,10 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 			break;
 		}
 		case FAMFS_LOG_MKDIR:
-		  ls.d_logged++;
-		  /* Ignore directory log entries - no space is used */
+			ls.d_logged++;
+			/* Ignore directory log entries - no space is used */
+			break;
 
-		  break;
 		case FAMFS_LOG_ACCESS:
 		default:
 			printf("%s: invalid log entry\n", __func__);
@@ -2608,39 +2610,41 @@ __famfs_mkdir(
 	if (realpath(dirpath, realdirpath)) {
 		/* if dirpath already exists in "non -p" mkdir, that's an error */
 		return -1;
-	} else {
-		dirdupe  = strdup(dirpath);  /* call dirname() on this dupe */
-		basedupe = strdup(dirpath); /* call basename() on this dupe */
-		newdir   = basename(basedupe);
+	}
 
-		/* full dirpath should not exist, but the parentdir path must exist and
-		 * be a directory */
-		parentdir = dirname(dirdupe);
-		rc = stat(parentdir, &st);
-		if (rc) {
-			fprintf(stderr, "%s: parent path (%s) stat failed\n", __func__, parentdir);
-		} else if ((st.st_mode & S_IFMT) != S_IFDIR) {
-			fprintf(stderr, "%s: parent (%s) of path %s is not a directory\n",
-				__func__, dirpath, parentdir);
-			rc = -1;
-			goto err_out;
-		}
+	dirdupe  = strdup(dirpath);  /* call dirname() on this dupe */
+	basedupe = strdup(dirpath); /* call basename() on this dupe */
+	newdir   = basename(basedupe);
 
-		/* Parentdir exists and is a directory; rationalize the path with realpath */
-		if (realpath(parentdir, realparent) == 0) {
-			fprintf(stderr, "%s: failed to rationalize parentdir path (%s)\n",
-				__func__, parentdir);
-			rc = -1;
-			goto err_out;
-		}
+	/* full dirpath should not exist, but the parentdir path must exist and
+	 * be a directory
+	 */
+	parentdir = dirname(dirdupe);
+	rc = stat(parentdir, &st);
+	if (rc) {
+		fprintf(stderr, "%s: parent path (%s) stat failed\n", __func__, parentdir);
+	} else if ((st.st_mode & S_IFMT) != S_IFDIR) {
+		fprintf(stderr, "%s: parent (%s) of path %s is not a directory\n",
+			__func__, dirpath, parentdir);
+		rc = -1;
+		goto err_out;
+	}
 
-		/* Rebuild full path of to-be-createed directory from the rationalized
-		 * parent dir path */
-		rc = snprintf(fullpath, PATH_MAX - 1, "%s/%s", realparent, newdir);
-		if (rc < 0) {
-			fprintf(stderr, "%s: fullpath overflow\n", __func__);
-			goto err_out;
-		}
+	/* Parentdir exists and is a directory; rationalize the path with realpath */
+	if (realpath(parentdir, realparent) == 0) {
+		fprintf(stderr, "%s: failed to rationalize parentdir path (%s)\n",
+			__func__, parentdir);
+		rc = -1;
+		goto err_out;
+	}
+
+	/* Rebuild full path of to-be-createed directory from the rationalized
+	 * parent dir path
+	 */
+	rc = snprintf(fullpath, PATH_MAX - 1, "%s/%s", realparent, newdir);
+	if (rc < 0) {
+		fprintf(stderr, "%s: fullpath overflow\n", __func__);
+		goto err_out;
 	}
 
 	strncpy(mpt_out, lp->mpt, PATH_MAX - 1);
@@ -2889,7 +2893,7 @@ __famfs_cp(
 
 	default:
 		fprintf(stderr,
-			"%s: error: src %s is not a regular file \n", __func__, srcfile);
+			"%s: error: src %s is not a regular file\n", __func__, srcfile);
 		return 1;
 	}
 
@@ -2995,10 +2999,11 @@ famfs_cp(struct famfs_locked_log *lp,
 			char src[PATH_MAX];
 
 			if (verbose > 1)
-				printf("%s: (%s) -> (%s/)\n", __func__, srcfile, destfile);;
+				printf("%s: (%s) -> (%s/)\n", __func__, srcfile, destfile);
 
 			/* Destination is directory;  get the realpath and append the basename
-			 * from the source */
+			 * from the source
+			 */
 			if (realpath(destfile, destpath) == 0) {
 				fprintf(stderr, "%s: failed to rationalize destath path (%s)\n",
 					__func__, destfile);
@@ -3015,13 +3020,12 @@ famfs_cp(struct famfs_locked_log *lp,
 				__func__, destfile);
 			return -EEXIST;
 		}
-	}
-	else {
+	} else {
 		/* File does not exist;
 		 * the check whether it is in famfs will happen after the file is created
 		 */
 		if (verbose > 1)
-			printf("%s: (%s) -> (%s)\n", __func__, srcfile, destfile);;
+			printf("%s: (%s) -> (%s)\n", __func__, srcfile, destfile);
 
 		strncpy(actual_destfile, destfile, PATH_MAX - 1);
 	}
@@ -3113,7 +3117,7 @@ int famfs_cp_dir(
 
 		case S_IFDIR: {
 			char newdirpath[PATH_MAX];
- 			char *src_copy = strdup(srcfullpath);
+			char *src_copy = strdup(srcfullpath);
 
 			snprintf(newdirpath, PATH_MAX - 1, "%s/%s", dest, basename(src_copy));
 			/* Recurse :D
@@ -3652,7 +3656,7 @@ famfs_recursive_check(const char *dirpath,
 		case S_IFREG:
 			nfiles++;
 			fd = open(fullpath, O_RDONLY, 0);
-			if (fd <= 0){
+			if (fd <= 0) {
 				fprintf(stderr, "%s: failed to open file %s\n",
 					__func__, fullpath);
 				//nerrs++;
@@ -3718,7 +3722,7 @@ famfs_check(const char *path,
 	int rc;
 
 	if (path[0] != '/') {
-		fprintf(stderr, "%s: must use absolute path of mount point\n", __func__);;
+		fprintf(stderr, "%s: must use absolute path of mount point\n", __func__);
 		return -1;
 	}
 	if (!famfs_path_is_mount_pt(path, dev_out)) {
@@ -3754,6 +3758,6 @@ famfs_check(const char *path,
 	nfiles += nfiles_out;
 	ndirs += ndirs_out;
 	nerrs += nerrs_out;
-	printf("famfs_check: %lld files, %lld directories, %lld errors\n", nfiles, ndirs, nerrs);
+	printf("%s: %lld files, %lld directories, %lld errors\n", __func__, nfiles, ndirs, nerrs);
 	return rc;
 }

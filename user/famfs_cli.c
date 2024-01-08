@@ -89,7 +89,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	int use_read = 0;
 	int client_mode = 0;
 	int verbose = 0;
-	
+
 	/* XXX can't use any of the same strings as the global args! */
 	struct option logplay_options[] = {
 		/* These options set a */
@@ -138,10 +138,9 @@ do_famfs_cli_logplay(int argc, char *argv[])
 			"Error: The --mmap and --read arguments are mutually exclusive\n\n");
 		famfs_logplay_usage(argc, argv);
 		return -1;
-	}
-	else if (! (use_mmap || use_read)) {
+	} else if (!(use_mmap || use_read)) {
 		/* If neither method was explicitly requested, default to mmap */
-		use_mmap ++;
+		use_mmap++;
 	}
 	if (optind > (argc - 1)) {
 		fprintf(stderr, "Must specify mount_point "
@@ -489,7 +488,7 @@ do_famfs_cli_cp(int argc, char *argv[])
 		/* These options set a */
 		{"mode",        required_argument,    0,  'm'},
 		{"uid",         required_argument,             0,  'u'},
-		{"gid",         required_argument,             0,  'g'},		
+		{"gid",         required_argument,             0,  'g'},
 		{"verbose",     no_argument,          0,  'v'},
 		{0, 0, 0, 0}
 	};
@@ -623,7 +622,7 @@ do_famfs_cli_check(int argc, char *argv[])
 			return 0;
 
 		case 'v':
-			verbose ++;
+			verbose++;
 			break;
 		}
 	}
@@ -735,18 +734,18 @@ do_famfs_cli_getmap(int argc, char *argv[])
 			if (quiet > 1)
 				fprintf(stderr, "getmap: not a regular file (%s)\n", filename);
 			rc = EISDIR;
-			if (continue_on_err) {
+			if (continue_on_err)
 				continue;
-			}
+
 			goto err_out;
 		}
 
 		fd = open(filename, O_RDONLY, 0);
 		if (fd < 0) {
-			fprintf(stderr, "famfs_getmap: open failed (%s)\n",filename);
-			if (continue_on_err) {
+			fprintf(stderr, "famfs_getmap: open failed (%s)\n", filename);
+			if (continue_on_err)
 				continue;
-			}
+
 			return EBADF;
 		}
 		rc = ioctl(fd, FAMFSIOC_NOP, 0);
@@ -756,9 +755,9 @@ do_famfs_cli_getmap(int argc, char *argv[])
 					"famfs_getmap: file (%s) not in a famfs file system\n",
 					filename);
 			rc = 1;
-			if (continue_on_err) {
+			if (continue_on_err)
 				continue;
-			}
+
 			goto err_out;
 		}
 
@@ -768,9 +767,9 @@ do_famfs_cli_getmap(int argc, char *argv[])
 			if (!quiet)
 				printf("famfs_getmap: file (%s) is famfs, but has no map\n",
 				       filename);
-			if (continue_on_err) {
+			if (continue_on_err)
 				continue;
-			}
+
 			goto err_out;
 		}
 
@@ -786,9 +785,9 @@ do_famfs_cli_getmap(int argc, char *argv[])
 					filename);
 				free(ext_list);
 				rc = 3;
-				if (continue_on_err) {
+				if (continue_on_err)
 					continue;
-				}
+
 				return rc;
 			}
 
@@ -1151,7 +1150,7 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 		{"parents",      no_argument,         0,  'p'},
 		{"mode",        required_argument,    0,  'm'},
 		{"uid",         required_argument,             0,  'u'},
-		{"gid",         required_argument,             0,  'g'},		
+		{"gid",         required_argument,             0,  'g'},
 		{0, 0, 0, 0}
 	};
 
@@ -1282,7 +1281,7 @@ do_famfs_cli_verify(int argc, char *argv[])
 		fprintf(stderr, "Must specify random seed to verify file data\n");
 		exit(-1);
 	}
-	fd = open(filename, O_RDWR, S_IRUSR|S_IWUSR);
+	fd = open(filename, O_RDWR, 0);
 	if (fd < 0) {
 		fprintf(stderr, "open %s failed; rc %d errno %d\n", filename, rc, errno);
 		exit(-1);
