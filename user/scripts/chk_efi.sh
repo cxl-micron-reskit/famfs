@@ -17,6 +17,7 @@ done
 errs=0
 
 DISTRO=
+EFIDIR=
 # Check if /etc/os-release exists
 if [ -f /etc/os-release ]; then
     source /etc/os-release
@@ -25,12 +26,19 @@ if [ -f /etc/os-release ]; then
     case $ID in
         ubuntu)
 	    DISTRO="ubuntu"
+	    EFIDIR=$DISTRO
             echo "This system is Ubuntu."
             ;;
         fedora)
 	    DISTRO="fedora"
+	    EFIDIR=$DISTRO
             echo "This system is Fedora."
             ;;
+	rhel)
+	    DISTRO="rhel"
+	    EFIDIR="redhat"
+	    echo "This system is rhel $VERSION_ID "
+	    ;;
         *)
             echo "This system is neither Ubuntu nor Fedora. It is identified as $ID."
             ;;
@@ -81,7 +89,7 @@ fi
 #
 # Fedora specific:
 #
-D=/boot/efi/EFI/$DISTRO
+D=/boot/efi/EFI/$EFIDIR
 if [ ! -d "$D" ]; then
     (( errs++ ))
     echo "$D not found; probably not efi"
