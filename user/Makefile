@@ -1,6 +1,6 @@
 
 debug:
-	mkdir -p debug
+	mkdir -p debug; cp testlib/.checkfiles.yml $@
 	cd debug; cmake -DCMAKE_BUILD_TYPE=Debug ..; make #VERBOSE=1
 
 #
@@ -13,7 +13,7 @@ debug:
 # The comand above will direct you to html files detailing the measured coverage
 #
 coverage:
-	mkdir -p coverage
+	mkdir -p coverage; cp testlib/.checkfiles.yml $@
 	cd coverage; cmake -DCMAKE_BUILD_TYPE=Debug -DFAMFS_TEST_COVERAGE="yes" ..; make
 
 # Run the coverage tests
@@ -23,7 +23,7 @@ coverage_test:	coverage
 	cd coverage; sudo make famfs_unit_coverage
 
 release:
-	mkdir -p release
+	mkdir -p release; cp testlib/.checkfiles.yml $@
 	cd release; cmake ..; make
 
 all:	debug
