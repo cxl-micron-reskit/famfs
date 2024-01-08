@@ -21,7 +21,7 @@ include_directories("${PROJECT_SOURCE_DIR}/testlib")
 file(GLOB tests "${PROJECT_SOURCE_DIR}/test/*.cpp")
 #list(REMOVE_ITEM tests "${PROJECT_SOURCE_DIR}/test/main.cpp")
 
-set(COVERAGE_EXCLUDES "./coverage")
+set(COVERAGE_EXCLUDES "./coverage" "./debug")
 #  ${PROJECT_SOURCE_DIR}/debug/googletest-src/*" )
 message(STATUS "tests=${tests}")
 foreach(file ${tests})

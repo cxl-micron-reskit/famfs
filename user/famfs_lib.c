@@ -199,7 +199,7 @@ famfs_get_system_uuid(uuid_le *uuid_out)
 	uuid_t uuid;
 
 	f = fopen(SYS_UUID_PATH, "r");
-	if (!f) {
+	if (f < 0) {
 		fprintf(stderr, "%s: unable to open system uuid at %s\n",
 			__func__, SYS_UUID_PATH);
 		return -errno;

@@ -290,12 +290,17 @@ TEST(famfs, famfs_file_not_famfs)
 {
 	int sfd;
 	int rc;
+	extern int mock_kmod;
+	int mock_kmod_save = mock_kmod;
 
 	system("rm -rf" booboofile);
 	sfd = open(booboofile, O_RDWR | O_CREAT, 0666);
 	ASSERT_NE(sfd, 0);
+
+	mock_kmod = 0;
 	rc = __file_not_famfs(sfd);
 	ASSERT_NE(rc, 0);
+	mock_kmod = mock_kmod_save;
 	close(sfd);
 
 	rc = file_not_famfs(booboofile);
@@ -313,12 +318,19 @@ TEST(famfs, famfs_mkmeta)
 TEST(famfs, mmap_whole_file)
 {
 	size_t size;
-	void *addr;;
+	void *addr;
+	int sfd;
 
 	addr = famfs_mmap_whole_file("bogusfile", 1, &size);
 	ASSERT_NE(addr, MAP_FAILED);
 	addr = famfs_mmap_whole_file("/dev/zero", 1, &size);
 	ASSERT_NE(addr, MAP_FAILED);
+
+	sfd = open("/tmp/famfs/frab", O_RDWR | O_CREAT, 0666); /* make empty file */
+	ASSERT_GT(sfd, 0);
+	close(sfd);
+	addr = famfs_mmap_whole_file("/tmp/famfs/frab", 1, 0); /* empty file */
+	ASSERT_EQ((long long)addr, 0);
 }
 
 TEST(famfs, __famfs_cp)

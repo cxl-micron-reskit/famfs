@@ -86,10 +86,6 @@ main(int argc, char *argv[])
 		case '?':
 			print_usage(argc, argv);
 			return 0;
-
-		default:
-			printf("default (%c)\n", c);
-			return -1;
 		}
 	}
 
