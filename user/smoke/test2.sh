@@ -73,8 +73,10 @@ LOG=$MPT/.meta/.log
 ${CLI} getmap -h   || fail "getmap -h should succeed"
 ${CLI} getmap      && fail "getmap with no file arg should fail"
 ${CLI} getmap badfile  && fail "getmap on nonexistent file should fail"
+${CLI} getmap -c badfile  && fail "getmap -c on nonexistent file should fail"
 ${CLI} getmap /etc/passwd && fail "getmap on non-famfs file should fail"
 ${CLI} getmap $LOG || fail "getmap should succeed on the famfs log file"
+${CLI} getmap -q $LOG || fail "getmap -q should succeed on the famfs log file"
 
 
 # famfs getmap should fail on a file that does not exist

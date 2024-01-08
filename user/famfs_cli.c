@@ -1049,10 +1049,6 @@ do_famfs_cli_creat(int argc, char *argv[])
 		return -1;
 	}
 	filename = argv[optind++];
-	if (filename == NULL) {
-		fprintf(stderr, "Must supply filename\n");
-		exit(-1);
-	}
 
 	if (!fsize) {
 		fprintf(stderr, "Non-zero file size is required\n");
