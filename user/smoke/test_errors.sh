@@ -38,13 +38,7 @@ while (( $# > 0)); do
 	    VG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 	    ;;
 	*)
-	    remainder="$flag $1";
-	    shift;
-	    while (( $# > 0)); do
-		remainder="$remainder $1"
-		shift
-	    done
-	    echo "ignoring commandline remainder: $remainder"
+	    echo "Unrecognized command line arg: $flag"
 	    ;;
 
     esac

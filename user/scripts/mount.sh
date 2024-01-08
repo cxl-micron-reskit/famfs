@@ -62,13 +62,7 @@ while (( $# > 0)); do
 	    VG=${VALGRIND_ARG}
 	    ;;
 	*)
-	    remainder="$flag $1";
-	    shift;
-	    while (( $# > 0)); do
-		remainder="$remainder $1"
-		shift
-	    done
-	    echo "ignoring commandline remainder: $remainder"
+	    echo "Unrecognized command line arg: $flag"
 	    ;;
 
     esac
