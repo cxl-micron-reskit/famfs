@@ -1,4 +1,8 @@
 *~
 build/
 debug/
+coverage/
 *.log
+Module.symvers
+modules.order
+.[Mm]odule*
