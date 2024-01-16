@@ -438,8 +438,10 @@ famfs_open_device(
 	struct famfs_fs_info *fsi = sb->s_fs_info;
 	struct block_device  *bdevp;
 	struct dax_device    *dax_devp;
-	struct bdev_handle   *handlep;
 	u64 start_off = 0;
+#ifdef K67
+	struct bdev_handle   *handlep;
+#endif
 
 	if (fsi->dax_devp) {
 		pr_err("%s: already mounted\n", __func__);

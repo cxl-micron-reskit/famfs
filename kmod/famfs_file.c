@@ -930,7 +930,7 @@ static vm_fault_t
 famfs_filemap_huge_fault(
 	struct vm_fault	       *vmf,
 #ifndef K67
-	enum page_entry_size	pe_size
+	enum page_entry_size	pe_size)
 #else
 	unsigned int	pe_size)
 #endif
