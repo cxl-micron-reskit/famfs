@@ -31,7 +31,6 @@
 #include <linux/path.h>
 #include <linux/namei.h>
 #include <linux/pfn_t.h>
-#include <linux/dax.h>
 #include <linux/blkdev.h>
 
 #include "famfs.h"
@@ -339,7 +338,7 @@ famfs_open_char_device(
 
 	int rc = 0;
 
-	pr_err("%s: Not a block device; trying character dax\n", __func__);
+	pr_err("%s: %s Not a block device; trying character dax\n", __func__, fc->source);
 	fsi->dax_filp = filp_open(fc->source, O_RDWR, 0);
 	pr_info("%s: dax_filp=%llx\n", __func__, (u64)fsi->dax_filp);
 	if (IS_ERR(fsi->dax_filp)) {
@@ -361,26 +360,6 @@ famfs_open_char_device(
 	pr_info("%s: root dev is character dax (%s) dax_devp (%llx)\n",
 	       __func__, fc->source, (u64)dax_devp);
 
-#if 0
-	famfs_dev = kzalloc(sizeof(*famfs_dev));
-	if (IS_ERR(famfs_dev)) {
-		rc = -ENOMEM;
-		goto char_err;
-	}
-
-	/* XXX need to get the phys_addr and some other stuff to store in struct famfs_device
-	 */
-	/* Get phys_addr from dax somehow */
-	famfs_dev->phys_addr = dax_pgoff_to_phys(dev_dax, 0, PAGE_SIZE);
-	famfs_dev->pfn_flags = PFN_DEV;
-
-	xaddr = devm_memremap(dev, pmem->phys_addr,
-				pmem->size, ARCH_MEMREMAP_PMEM);
-	bb_range.start =  res->start;
-	bb_range.end = res->end;
-	pr_notice("%s: is_nd_pfn addr %llx\n",
-		  __func__, (u64)addr);
-#endif
 	/*
 	 * JG: I aded this function to drivers/dax/super.c
 	 * It is compiled if CONFIG_DEV_DAX_IOMAP is defined in the kernel config
