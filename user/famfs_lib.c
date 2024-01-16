@@ -570,7 +570,7 @@ err_out:
 	if (sb_buf)
 		munmap(sb_buf, FAMFS_SUPERBLOCK_SIZE);
 
-	if (fd)
+	if (fd > 0)
 		close(fd);
 	return rc;
 }
@@ -582,6 +582,7 @@ famfs_check_super(const struct famfs_superblock *sb)
 
 	if (!sb)
 		return -1;
+
 	if (sb->ts_magic != FAMFS_SUPER_MAGIC)
 		return -1;
 
@@ -3577,6 +3578,11 @@ famfs_mkfs(const char *daxdev,
 	u64 min_devsize = 4 * 1024ll * 1024ll * 1024ll;
 
 	rc = famfs_get_role_by_dev(daxdev);
+	if (rc < 0) {
+		fprintf(stderr, "%s: failed to establish role\n", __func__);
+		return rc;
+	}
+
 	/* If the role is FAMFS_CLIENT, there is a superblock already;
 	 * if the role is not FAMFS_CLIENT, its' either FAMFS_MASTER OR FAMFS_NOSUPER;
 	 * In either of those cases it's ok to mkfs.
