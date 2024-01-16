@@ -38,13 +38,22 @@ TRACE_EVENT(famfs_meta_to_dax_offset,
 )
 
 TRACE_EVENT(famfs_filemap_fault,
+#ifndef K67
 	TP_PROTO(struct inode *ip, enum page_entry_size pe_size,
 		 bool write_fault),
+#else
+	TP_PROTO(struct inode *ip, unsigned int pe_size,
+		 bool write_fault),
+#endif
 	TP_ARGS(ip, pe_size, write_fault),
 	TP_STRUCT__entry(
 		__field(dev_t, dev)
 		__field(famfs_ino_t, ino)
+#ifndef K67
 		__field(enum page_entry_size, pe_size)
+#else
+		__field(unsigned int, pe_size)
+#endif
 		__field(bool, write_fault)
 	),
 	TP_fast_assign(
@@ -57,9 +66,15 @@ TRACE_EVENT(famfs_filemap_fault,
 		  MAJOR(__entry->dev), MINOR(__entry->dev),
 		  __entry->ino,
 		  __print_symbolic(__entry->pe_size,
+#ifndef K67
 			{ PE_SIZE_PTE,	"PTE" },
 			{ PE_SIZE_PMD,	"PMD" },
 			{ PE_SIZE_PUD,	"PUD" }),
+#else
+			{ 0,    "PTE" },
+			{ PMD_ORDER,    "PMD" },
+			{ PUD_ORDER,    "PUD" }),
+#endif
 		  __entry->write_fault)
 )
 

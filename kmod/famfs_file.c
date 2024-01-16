@@ -868,7 +868,11 @@ const struct iomap_ops famfs_iomap_ops = {
 static vm_fault_t
 __famfs_filemap_fault(
 	struct vm_fault		*vmf,
+#ifndef K67
 	enum page_entry_size	pe_size,
+#else
+	unsigned int	pe_size,
+#endif
 	bool			write_fault)
 {
 	struct inode		*inode = file_inode(vmf->vma->vm_file);
@@ -925,7 +929,11 @@ famfs_filemap_fault(
 static vm_fault_t
 famfs_filemap_huge_fault(
 	struct vm_fault	       *vmf,
-	enum page_entry_size	pe_size)
+#ifndef K67
+	enum page_entry_size	pe_size
+#else
+	unsigned int	pe_size)
+#endif
 {
 	if (famfs_verbose)
 		pr_notice("%s pgoff %ld\n", __func__, vmf->pgoff);

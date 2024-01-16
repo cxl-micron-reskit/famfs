@@ -438,7 +438,7 @@ famfs_open_device(
 	struct famfs_fs_info *fsi = sb->s_fs_info;
 	struct block_device  *bdevp;
 	struct dax_device    *dax_devp;
-
+	struct bdev_handle   *handlep;
 	u64 start_off = 0;
 
 	if (fsi->dax_devp) {
@@ -459,6 +459,11 @@ famfs_open_device(
 	/* Open block/dax backing device */
 	bdevp = blkdev_get_by_path(fc->source, famfs_blkdev_mode, fsi,
 				   &famfs_blk_holder_ops);
+#else
+	handlep = bdev_open_by_path(fc->source, famfs_blkdev_mode, fsi,
+					&fs_holder_ops);
+	bdevp = handlep->bdev;
+#endif
 	if (IS_ERR(bdevp)) {
 		pr_err("%s: failed blkdev_get_by_path(%s)\n", __func__, fc->source);
 		return PTR_ERR(bdevp);
@@ -472,10 +477,6 @@ famfs_open_device(
 		blkdev_put(bdevp, fsi);
 		return -ENODEV;
 	}
-#else
-	#warning "blkdev not opened - bdevp invalid"
-	/* JG: blkdev_get_by_path went away; look what xfs does instead... */
-#endif
 	fsi->bdevp    = bdevp;
 	fsi->dax_devp = dax_devp;
 
