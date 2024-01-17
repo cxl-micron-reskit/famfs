@@ -79,8 +79,65 @@ In order to run famfs you need either a pmem device (e.g. /dev/pmem0) or a
 devdax device (e.g. /dev/dax0.0). To run in a shared mode, you need more than one
 system that shares a memory device.
 
-As of late 2023, a pmem device is recommended, as the devdax support requires an
+As of early 2024, a pmem device is recommended, as the /dev/dax support requires an
 experimental kernel patch.
+
+## Preparing to create simulated /dev/dax and /dev/pmem devices
+
+This documentation assumes that your system is configured with EFI firmware and boot
+process. This can be non-trivial with VMs, but please do it with both your physical
+and virtual machines.:
+
+You will need to edit the kernel command line and then tell the system to put that into
+the config file that grub reads during boot. This does not work the same on all distros,
+so you may need to become an expert.
+
+## Configuring a simulated /dev/dax device
+There are two reasons you might want to create a simulated dax device. One
+is for a private dax device within a VM. The other is to create a dax deice on a host,
+to be shared with one or more VMs. Either way, the procedure is the same.
+
+Add the following to your kernel command line:
+
+    efi_fake_mem=8G@8G:0x40000 memhp_default_state=offline
+
+The first argument marks an 8G range at offset 8G into physical memory with the EFI_MEMORY_SP bit,
+which will cause Linux to treat it as a dax device. The second argument asks Linux not to
+automatically online the dax device after boot.
+
+*NOTE:* If you specify an offset and length that don't fall within system memory, we have
+observed cases where the device is still created, but (of course) it does not work
+properly. Just don't do that.
+
+*NOTE:* There are some circumstances where udev rules may "online" your dax memory as
+system-ram after boot. YOu
+
+After boot it is likely that your /dev/dax device will be in system-ram mode; if so,
+you will need to convert it to "devdax" mode.
+
+```
+$ daxctl list
+[
+  {
+    "chardev":"dax1.0",
+    "size":8589934592,
+    "target_node":0,
+    "align":2097152,
+    "mode":"system-ram"
+  }
+]
+$ sudo daxctl reconfigure-device --mode=devdax dax1.0
+[
+  {
+    "chardev":"dax1.0",
+    "size":8589934592,
+    "target_node":0,
+    "align":2097152,
+    "mode":"devdax"
+  }
+]
+reconfigured 1 device
+```
 
 ## Configuring a non-shared simulated pmem device
 
@@ -105,7 +162,130 @@ After a reboot, you should see a pmem device.
 
 ## Configuring a set of VMs to share a simulated pmem device
 
-    Jacob to fill in !!
+The best way to share a memory device is:
+
+* Create a simulated dax device on the hypervisor host (or use a real dax device)
+* Create VMs that have a simulated /dev/pmem device backed by the dax device
+* Within the VMs, the pmem device can be used as pmem (in fs-dax mode) or converted to devdax
+  mode, in which case it will morph into a /dev/dax device.
+
+
+### Providing pmem devices to VMs via qemu/libvirt
+
+Qemu supports emulated pmem devices, and libvirt also supports this. To create an emulated
+pmem device for a VM, you can add something similar to the following to the libvirt xml
+for your VM:
+
+```
+<devices> 
+...
+   <memory model='nvdimm' access='shared'>
+      <source>
+        <path>/dev/dax1.0</path>
+        <pmem/>
+      </source>
+      <target>
+        <size>1073739904</size>
+        <node>0</node>
+        <label>
+          <size>1073739904</size>
+        </label>
+      </target>
+      <address type='dimm' slot='1'/>
+    </memory>
+ ...
+ </devices>
+ ```
+Note that the size matches the ```/dev/dax1.0``` device in the example above.
+
+### Providing *shared* pmem devices via qemu/libvirt
+
+Providing shared pmem devices to more than one VM can be done by simply adding the same
+xml (i.e. the same backing file or device) to the xml of more than one VM.
+
+### Using pmem devices
+Famfs supports running on a pmem device in fsdax mode.
+
+### Converting pmem devices between devdax and fsdax modes
+A pmem device can be used in either fsdax or pmem modes:
+```
+$ ndctl list
+[
+  {
+    "dev":"namespace0.0",
+    "mode":"devdax",
+    "map":"dev",
+    "size":8453619712,
+    "uuid":"e183439a-32e8-42e1-90aa-9a8936daca30",
+    "chardev":"dax0.0",
+    "align":2097152
+  }
+]
+$ sudo ndctl create-namespace --force --mode=fsdax --reconfig=namespace0.0
+{
+  "dev":"namespace0.0",
+  "mode":"fsdax",
+  "map":"dev",
+  "size":"7.87 GiB (8.45 GB)",
+  "uuid":"d3fa1f7a-98ff-4c1a-ab7a-abcf8ec7e83a",
+  "sector_size":512,
+  "align":2097152,
+  "blockdev":"pmem0"
+}
+$ ndctl list
+[
+  {
+    "dev":"namespace0.0",
+    "mode":"fsdax",
+    "map":"dev",
+    "size":8453619712,
+    "uuid":"d3fa1f7a-98ff-4c1a-ab7a-abcf8ec7e83a",
+    "sector_size":512,
+    "align":2097152,
+    "blockdev":"pmem0"
+  }
+]
+$ sudo ndctl create-namespace --force --mode=devdax --reconfig=namespace0.0
+{
+  "dev":"namespace0.0",
+  "mode":"devdax",
+  "map":"dev",
+  "size":"7.87 GiB (8.45 GB)",
+  "uuid":"8dd3b99d-fcb5-4963-9ad3-073e28cf85eb",
+  "daxregion":{
+    "id":0,
+    "size":"7.87 GiB (8.45 GB)",
+    "align":2097152,
+    "devices":[
+      {
+        "chardev":"dax0.0",
+        "size":"7.87 GiB (8.45 GB)",
+        "target_node":0,
+        "align":2097152,
+        "mode":"devdax"
+      }
+    ]
+  },
+  "align":2097152
+}
+$ ndctl list
+[
+  {
+    "dev":"namespace0.0",
+    "mode":"devdax",
+    "map":"dev",
+    "size":8453619712,
+    "uuid":"8dd3b99d-fcb5-4963-9ad3-073e28cf85eb",
+    "chardev":"dax0.0",
+    "align":2097152
+  }
+]
+```
+
+We are not aware of direct support for /dev/dax devices via qemu/libvirt, but you can
+convert your pmem devices to /dev/dax devices as follows:
+
+
 
 # Running tests
 Famfs already has a substantial set of tests, though we plan to expand them substantially
