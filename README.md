@@ -29,18 +29,20 @@ the memory without any page cache involvement (and no faults involving data move
 
 In the coming years the emerging CXL standard will enable shared fabric-attached
 memory (FAM). Famfs is intended to provide a viable usage pattern for FAM that many apps
-can use without modification.
+can use without modification. Prototype implementations exist in late 2023.
 
 Famfs is an fs-dax file system that allows multiple hosts to mount the same file system
-from the same shared memory device. The file system is administered by a Master, but can
-be concurrently mounted by Clients (which default to read-only access to files, but writable
-access is permitted).
+from the same shared memory. The file system is administered by a Master, but can
+be concurrently mounted by one or more Clients (which default to read-only access to files,
+but writable access is permitted).
 
 Why do we need a new fs-dax file system when others (e.g. xfs and ext4) exist? Because the existing
-fs-dax file systems use write-back metadata, which is not compatible with shared memory
-access.
+fs-dax file systems use write-back metadata (as pretty much all conventional file systems do).
+Write-back metadata is not compatible with scale-out shared memory access, because two or more hosts
+have no way to agree on the definitive state of metadata (not to mention space allocation).
 
-[Famfs was introduced at the 2023 Linux Plumbers Conference](https://lpc.events/event/17/contributions/1455/). The linked page contains the abstract, plus links to the slides and a
+[Famfs was introduced at the 2023 Linux Plumbers Conference](https://lpc.events/event/17/contributions/1455/).
+The linked page contains the abstract, plus links to the slides and a
 youtube video of the talk.
 
 ## What is dax?
