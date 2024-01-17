@@ -6,8 +6,8 @@
 # Get the directory of the Makefile
 MAKEFILE_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 
-#EXTRA_CFLAGS += -g -DDEBUG -O1 -DK67
-EXTRA_CFLAGS += -g -DDEBUG -O1
+EXTRA_CFLAGS += -g -DDEBUG -O1 -DK67
+#EXTRA_CFLAGS += -g -DDEBUG -O1
 EXTRA_CFLAGS += -DFAMFS_TRACE_PATH=$(MAKEFILE_DIR) # required for famfs_trace.h
 
 obj-m += famfs.o
