@@ -79,6 +79,38 @@ static int famfs_mmap_superblock_and_log_raw(const char *devname,
 					     struct famfs_log **logp,
 					     int read_only);
 
+void famfs_dump_super(struct famfs_superblock *sb)
+{
+	int rc;
+
+	assert(sb);
+	rc = famfs_check_super(sb);
+	if (rc)
+		fprintf(stderr, "invalid superblock\n");
+
+	printf("famfs superblock:\n");
+	printf("\tmagic:       %llx\n", sb->ts_magic);
+	printf("\tversion:     %lld\n", sb->ts_version);
+	printf("\tlog offset:  %lld\n", sb->ts_log_offset);
+	printf("\tlog len:     %lld\n", sb->ts_log_len);
+}
+
+void famfs_dump_log(struct famfs_log *logp)
+{
+	int rc;
+
+	assert(logp);
+	rc = famfs_validate_log_header(logp);
+	if (rc)
+		fprintf(stderr, "Error invalid log header\n");
+
+	printf("famfs log:\n");
+	printf("\tmagic:      %llx\n", logp->famfs_log_magic);
+	printf("\tlen:        %lld\n", logp->famfs_log_len);
+	printf("\tlast index: %lld\n", logp->famfs_log_last_index);
+	printf("\tnext index: %lld\n", logp->famfs_log_next_index);
+}
+
 /**
  * famfs_module_loaded()
  *

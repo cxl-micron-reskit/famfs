@@ -40,6 +40,8 @@ int famfs_mkdir_parents(const char *dirpath, mode_t mode, uid_t uid, gid_t gid, 
 int famfs_mkfs(const char *daxdev, int kill, int force);
 int famfs_check(const char *path, int verbose);
 
+void famfs_dump_log(struct famfs_log *logp);
+void famfs_dump_super(struct famfs_superblock *sb);
 #ifdef FAMFS_UNIT_TEST
 #endif
 #endif /* _H_FAMFS_LIB */

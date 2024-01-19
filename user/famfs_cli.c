@@ -1301,6 +1301,132 @@ do_famfs_cli_verify(int argc, char *argv[])
 }
 
 /********************************************************************/
+void
+famfs_chkread_usage(int   argc,
+	    char *argv[])
+{
+	char *progname = argv[0];
+
+	printf("\n"
+	       "famfs chkread: Chkread the contents of a file that was created with 'famfs creat':\n"
+	       "    %s chkread -S <seed> -f <filename>\n"
+	       "\n"
+	       "Arguments:\n"
+	       "    -?                        - Print this message\n"
+	       "    -f|--fillename <filename> - Required file path\n"
+	       "    -S|--seed <random-seed>   - Required seed for data verification\n"
+	       "\n", progname);
+}
+
+int
+do_famfs_cli_chkread(int argc, char *argv[])
+{
+	int c, fd;
+	char *filename = NULL;
+	int is_log = 0;
+	int is_superblock = 0;
+	size_t fsize = 0;
+	int arg_ct = 0;
+	void *addr;
+	char *buf;
+	int rc = 0;
+	struct stat st;
+
+	/* XXX can't use any of the same strings as the global args! */
+	struct option map_options[] = {
+		/* These options set a */
+		{0, 0, 0, 0}
+	};
+
+	/* Note: the "+" at the beginning of the arg string tells getopt_long
+	 * to return -1 when it sees something that is not recognized option
+	 * (e.g. the command that will mux us off to the command handlers
+	 */
+	while ((c = getopt_long(argc, argv, "+slh?",
+				map_options, &optind)) != EOF) {
+		arg_ct++;
+		switch (c) {
+		case 'h':
+		case '?':
+			famfs_chkread_usage(argc, argv);
+			return 0;
+		case 's':
+			is_superblock = 1;
+			break;
+		case 'l':
+			is_log = 1;
+			break;
+		}
+	}
+	if (optind > (argc - 1)) {
+		fprintf(stderr, "Must specify at least one file\n");
+		return -1;
+	}
+	filename = argv[optind++];
+
+	if (filename == NULL) {
+		fprintf(stderr, "Must supply filename\n");
+		exit(-1);
+	}
+
+	rc = stat(filename, &st);
+	if (rc < 0) {
+		fprintf(stderr, "%s: could not stat file %s\n", __func__, filename);
+		exit(-1);
+	}
+	buf = calloc(1, st.st_size);
+	if (!buf) {
+		fprintf(stderr, "%s: calloc fail\n", __func__);
+		exit(-1);
+	}
+
+	fd = open(filename, O_RDWR, 0);
+	if (fd < 0) {
+		fprintf(stderr, "open %s failed; rc %d errno %d\n", filename, rc, errno);
+		exit(-1);
+	}
+
+	addr = famfs_mmap_whole_file(filename, 0, &fsize);
+	if (!addr) {
+		fprintf(stderr, "%s: randomize mmap failed\n", __func__);
+		exit(-1);
+	}
+	rc = lseek(fd, 0, SEEK_SET);
+	if (rc < 0) {
+		fprintf(stderr, "lseek failed\n");
+		exit(-1);
+	}
+	rc = read(fd, buf, fsize);
+	if (rc < 0) {
+		fprintf(stderr, "read failed\n");
+		exit(-1);
+	}
+	if (rc != fsize) {
+		fprintf(stderr, "short read %d / %d\n", rc, (int)fsize);
+		exit(-1);
+	}
+	if (is_superblock) {
+		printf("superblock by mmap\n");
+		famfs_dump_super((struct famfs_superblock *)addr);
+		printf("superblock by read\n");
+		famfs_dump_super((struct famfs_superblock *)buf);
+	}
+	if (is_log) {
+		printf("Log by mmap\n");
+		famfs_dump_log((struct famfs_log *)addr);
+		printf("Log by read\n");
+		famfs_dump_log((struct famfs_log *)buf);
+	}
+	rc = memcmp(buf, addr, fsize);
+	if (rc) {
+		fprintf(stderr, "Read and mmap miscompare\n");
+		exit(-1);
+	}
+	printf("Read and mmap match\n");
+	return 0;
+}
+
+/********************************************************************/
 
 
 struct famfs_cli_cmd {
@@ -1325,6 +1451,7 @@ famfs_cli_cmd famfs_cli_cmds[] = {
 	{"logplay", do_famfs_cli_logplay, famfs_logplay_usage},
 	{"getmap",  do_famfs_cli_getmap,  famfs_getmap_usage},
 	{"clone",   do_famfs_cli_clone,   famfs_clone_usage},
+	{"chkread", do_famfs_cli_chkread, famfs_chkread_usage},
 
 	{NULL, NULL, NULL}
 };
