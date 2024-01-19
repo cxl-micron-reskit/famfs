@@ -159,12 +159,17 @@ if [[ $GID != $GID_OUT ]]; then
 fi
 
 
-# Unmount and remount
 ${CLI} logplay -h                  || fail "logplay -h should work"
+${CLI} logplay $MPT                || fail "logplay $MPT should succeed"
+
+${CLI} chkread -l $MPT/.meta/.log  || fail "chkread should succeed"
+
 ${CLI} logplay -rc $MPT            || fail "logplay -rc should succeed"
 ${CLI} logplay -rm $MPT            && fail "logplay with -m and -r should fail"
 ${CLI} logplay                     && fail "logplay without MPT arg should fail"
-sudo umount $MPT || fail "umount"
+
+# Unmount and remount
+sudo umount $MPT || fail "umount should succeed"
 grep -c famfs /proc/mounts         && fail "famfs is still mounted after umount attempt"
 
 sudo mount $MOUNT_OPTS $DEV $MPT   || fail "mount"
