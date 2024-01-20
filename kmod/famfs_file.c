@@ -480,7 +480,7 @@ famfs_meta_to_dax_offset(
 			 * iomap->addr is the offset within the dax device where that data
 			 * starts
 			 */
-			iomap->addr    = dax_ext_offset + local_offset; /* "disk offset" */
+			iomap->addr    = dax_ext_offset + local_offset; /* dax dev offset */
 			iomap->offset  = offset; /* file offset */
 			iomap->length  = min_t(loff_t, len, ext_len_remainder);
 			iomap->dax_dev = fsi->dax_devp;
@@ -620,6 +620,11 @@ famfs_dax_read_iter(
 		       __func__, meta->file_size, i_size);
 		return -ENXIO;
 	}
+	if (!IS_DAX(inode)) {
+		pr_err("%s: inode %llx IS_DAX is false\n", __func__, (u64)inode);
+		return 0;
+	}
+
 	max_count = max_t(size_t, 0, i_size - iocb->ki_pos);
 
 	if (count > max_count) {
@@ -662,12 +667,12 @@ famfs_dax_write_iter(
 		       __func__, meta->file_size, i_size);
 		return -ENXIO;
 	}
-	max_count = max_t(size_t, 0, i_size - iocb->ki_pos);
-
 	if (!IS_DAX(inode)) {
 		pr_err("%s: inode %llx IS_DAX is false\n", __func__, (u64)inode);
 		return 0;
 	}
+
+	max_count = max_t(size_t, 0, i_size - iocb->ki_pos);
 
 	/* Starting offset of write is: ioct->ki_pos
 	 * length is iov_iter_count(from)
@@ -834,11 +839,6 @@ famfs_iomap_begin(
 		pr_notice("        iomap flags: %s\n", flag_str);
 	}
 
-	/* TODO: find the right way to trim a write if it overflows the file's allocation
-	 * This isn't quite right yet, and it's reproducible by comparing files with "cmp"
-	 */
-
-	/* If length overhangs i_size, truncate it to i_size */
 	size = i_size_read(inode);
 
 	if (size != meta->file_size)  /* Temporary for debug */

@@ -338,9 +338,9 @@ famfs_open_char_device(
 
 	int rc = 0;
 
-	pr_err("%s: %s Not a block device; trying character dax\n", __func__, fc->source);
+	pr_err("%s: Experimental: opening character dax device %s\n", __func__, fc->source);
+
 	fsi->dax_filp = filp_open(fc->source, O_RDWR, 0);
-	pr_info("%s: dax_filp=%llx\n", __func__, (u64)fsi->dax_filp);
 	if (IS_ERR(fsi->dax_filp)) {
 		pr_err("%s: failed to open dax device %s\n",
 		       __func__, fc->source);
@@ -356,14 +356,7 @@ famfs_open_char_device(
 		rc = -ENODEV;
 		goto char_err;
 	}
-	//dev_dax = dax_get_private(dax_dev);
-	pr_info("%s: root dev is character dax (%s) dax_devp (%llx)\n",
-	       __func__, fc->source, (u64)dax_devp);
 
-	/*
-	 * JG: I aded this function to drivers/dax/super.c
-	 * It is compiled if CONFIG_DEV_DAX_IOMAP is defined in the kernel config
-	 */
 	rc = fs_dax_get(dax_devp, fsi, &famfs_dax_holder_ops);
 	if (rc) {
 		pr_info("%s: err attaching famfs_dax_holder_ops\n", __func__);
@@ -387,8 +380,8 @@ famfs_open_char_device(
 	struct super_block *sb,
 	struct fs_context  *fc)
 {
-	pr_info("%s: Root device is %s, but /dev/dax support compiled out\n",
-		__func__, fc->source);
+	pr_err("%s: Root device is %s, but /dev/dax support compiled out\n",
+	       __func__, fc->source);
 	return -ENODEV;
 }
 
@@ -553,10 +546,14 @@ static void famfs_kill_sb(struct super_block *sb)
 	mutex_destroy(&fsi->fsi_mutex);
 	if (fsi->bdevp)
 		blkdev_put(fsi->bdevp, fsi);
-	if (fsi->dax_filp)
-		filp_close(fsi->dax_filp, NULL);
+
+	/* XXX fs_put_dax clears holder_ops which is needed, but also does an i_put on the
+	 * dax inode. This is right for the blkdev, but I'm not sure it's right for char dax
+	 */
 	if (fsi->dax_devp)
 		fs_put_dax(fsi->dax_devp, fsi);
+	if (fsi->dax_filp) /* This only happens if it's char dax */
+		filp_close(fsi->dax_filp, NULL);
 
 	kfree(sb->s_fs_info);
 	kill_litter_super(sb);
@@ -579,12 +576,6 @@ static int __init init_famfs_fs(void)
 	int rc;
 
 	pr_info("%s\n", __func__);
-	/* See what the different log levels do */
-	pr_debug("%s: KERN_DEBUG\n", __func__);
-	pr_info("%s: KERN_INFO\n", __func__);
-	pr_notice("%s: KERN_NOTICE\n", __func__);
-	pr_warn("%s: KERN_WARNING\n", __func__);
-	pr_err("%s: KERN_ERR\n", __func__);
 
 #if defined(CONFIG_DEV_DAX_IOMAP)
 	pr_notice("%s: famfs compiled with experimental /dev/dax support\n", __func__);
