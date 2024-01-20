@@ -46,6 +46,7 @@ smoke:	debug
 
 smoke_valgrind: debug
 	-scripts/teardown.sh
+	valgrind --version
 	script -c "./run_smoke.sh --valgrind" -O smoke.log
 	scripts/check_valgrind_output.sh smoke.log
 
