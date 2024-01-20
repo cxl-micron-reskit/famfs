@@ -1309,12 +1309,12 @@ famfs_chkread_usage(int   argc,
 
 	printf("\n"
 	       "famfs chkread: Chkread the contents of a file that was created with 'famfs creat':\n"
-	       "    %s chkread -S <seed> -f <filename>\n"
+	       "    %s chkread <famfs-file>\n"
 	       "\n"
 	       "Arguments:\n"
 	       "    -?                        - Print this message\n"
-	       "    -f|--fillename <filename> - Required file path\n"
-	       "    -S|--seed <random-seed>   - Required seed for data verification\n"
+	       "    -s  - File is famfs superblock\n"
+	       "    -l  - File is famfs log\n"
 	       "\n", progname);
 }
 
@@ -1377,33 +1377,38 @@ do_famfs_cli_chkread(int argc, char *argv[])
 	buf = calloc(1, st.st_size);
 	if (!buf) {
 		fprintf(stderr, "%s: calloc fail\n", __func__);
-		exit(-1);
+		return -1;
 	}
 
 	fd = open(filename, O_RDWR, 0);
 	if (fd < 0) {
 		fprintf(stderr, "open %s failed; rc %d errno %d\n", filename, rc, errno);
-		exit(-1);
+		rc = -1;
+		goto err_exit;
 	}
 
 	addr = famfs_mmap_whole_file(filename, 0, &fsize);
 	if (!addr) {
 		fprintf(stderr, "%s: randomize mmap failed\n", __func__);
-		exit(-1);
+		rc = -1;
+		goto err_exit;
 	}
 	rc = lseek(fd, 0, SEEK_SET);
 	if (rc < 0) {
 		fprintf(stderr, "lseek failed\n");
-		exit(-1);
+		rc = -1;
+		goto err_exit;
 	}
 	rc = read(fd, buf, fsize);
 	if (rc < 0) {
 		fprintf(stderr, "read failed\n");
-		exit(-1);
+		rc = -1;
+		goto err_exit;
 	}
 	if (rc != fsize) {
 		fprintf(stderr, "short read %d / %d\n", rc, (int)fsize);
-		exit(-1);
+		rc = -1;
+		goto err_exit;
 	}
 	if (is_superblock) {
 		printf("superblock by mmap\n");
@@ -1420,10 +1425,15 @@ do_famfs_cli_chkread(int argc, char *argv[])
 	rc = memcmp(buf, addr, fsize);
 	if (rc) {
 		fprintf(stderr, "Read and mmap miscompare\n");
-		exit(-1);
+		rc = -1;
+		goto err_exit;
 	}
 	printf("Read and mmap match\n");
-	return 0;
+
+ err_exit:
+	if (buf)
+		free(buf);
+	return rc;
 }
 
 /********************************************************************/
