@@ -78,6 +78,9 @@ CLI_NOSUDO="$VG $BIN/famfs"
 # famfs mkmeta
 # famfs logplay
 #
+# As of early 2024 the entire job can be done by the 'famfs mount' command,
+# which is now the recommended approach.
+#
 
 set -x
 
@@ -88,9 +91,10 @@ ${CLI} fsck $DEV          || fail "fsck"
 # The famfs kernel module is needed, but might already be loaded
 sudo insmod $KMOD/famfs.ko
 
+# The old mount procedure
 sudo mount $MOUNT_OPTS $DEV $MPT || fail "mount"
 
-grep famfs /proc/mounts             || fail "No famfs mounted"
+grep famfs /proc/mounts             || fail "Kernel mount failed"
 grep $DEV /proc/mounts              || fail "dev=$DEV not in /proc/mounts~"
 grep $MPT /proc/mounts              || fail "Mount pt $MPT not in /proc/mounts~"
 
