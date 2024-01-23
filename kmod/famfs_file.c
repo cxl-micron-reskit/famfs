@@ -403,6 +403,26 @@ famfs_file_init_dax(
 	return rc;
 }
 
+/* XXX debug... */
+const char *famfs_file_type(struct famfs_file_meta *meta)
+{
+	if (!meta)
+		return "invalid";
+
+	switch (meta->file_type) {
+		case FAMFS_SUPERBLOCK:
+			return "SUPERBLOCK";
+
+		case FAMFS_LOG:
+			return "LOG";
+
+		case FAMFS_REG:
+			return "REGULAR FILE";
+
+	}
+	return "BAD FILE TYPE";
+}
+
 /**
  * famfs_meta_to_dax_offset()
  *
@@ -436,20 +456,7 @@ famfs_meta_to_dax_offset(
 	iomap->offset = offset; /* file offset */
 
 	if (iomap_verbose)
-		switch (meta->file_type) {
-		case FAMFS_SUPERBLOCK:
-			pr_notice("%s: SUPERBLOCK\n", __func__);
-			break;
-		case FAMFS_LOG:
-			pr_notice("%s: LOG\n", __func__);
-			break;
-		case FAMFS_REG:
-			pr_notice("%s: REGULAR FILE\n", __func__);
-			break;
-		default:
-			pr_err("%s: bad file type\n", __func__);
-			break;
-		}
+		pr_notice("%s: %s\n", __func__, famfs_file_type(meta));
 
 	if (iomap_verbose)
 		pr_notice("%s: File offset %llx len %lld\n", __func__, offset, len);
@@ -704,9 +711,10 @@ famfs_file_mmap(
 	struct vm_area_struct	*vma)
 {
 	struct inode		*inode = file_inode(file);
+	struct famfs_file_meta *meta = (struct famfs_file_meta *)inode->i_private;
 
 	if (famfs_verbose)
-		pr_notice("%s\n", __func__);
+		pr_notice("%s(%s)\n", __func__, famfs_file_type(meta));
 
 	if (!IS_DAX(inode)) {
 		pr_err("%s: inode %llx IS_DAX is false\n", __func__, (u64)inode);
@@ -726,9 +734,13 @@ ssize_t famfs_file_splice_read(struct file *in, loff_t *ppos,
 {
 	ssize_t rc;
 
-	if (famfs_verbose)
-		pr_info("%s: ppos %lld len %ld flags %x\n",
-			__func__, *ppos, len, flags);
+	if (famfs_verbose) {
+		struct inode		*inode = file_inode(in);
+		struct famfs_file_meta *meta = (struct famfs_file_meta *)inode->i_private;
+
+		pr_info("%s(%s): ppos %lld len %ld flags %x\n",
+			__func__, famfs_file_type(meta), *ppos, len, flags);
+	}
 
 	rc = filemap_splice_read(in, ppos, pipe, len, flags);
 	if (famfs_verbose)
@@ -742,10 +754,13 @@ famfs_iter_file_splice_write(struct pipe_inode_info *pipe, struct file *out,
 {
 	ssize_t rc;
 
-	if (famfs_verbose)
-		pr_info("%s: ppos %lld len %ld flags %x\n",
-			__func__, *ppos, len, flags);
+	if (famfs_verbose) {
+		struct inode		*inode = file_inode(out);
+		struct famfs_file_meta *meta = (struct famfs_file_meta *)inode->i_private;
 
+		pr_info("%s(%s): ppos %lld len %ld flags %x\n",
+			__func__, famfs_file_type(meta), *ppos, len, flags);
+	}
 	rc = iter_file_splice_write(pipe, out, ppos, len, flags);
 
 	if (famfs_verbose)
@@ -833,7 +848,10 @@ famfs_iomap_begin(
 
 	/* Dump flags */
 	if (iomap_verbose) {
-		pr_notice("%s: offset %lld length %lld\n", __func__, offset, length);
+		struct famfs_file_meta *meta = (struct famfs_file_meta *)inode->i_private;
+
+		pr_notice("%s(%s): offset %lld length %lld\n",
+			  __func__, famfs_file_type(meta),  offset, length);
 
 		famfs_get_iomap_flags_str(flag_str, flags);
 		pr_notice("        iomap flags: %s\n", flag_str);
