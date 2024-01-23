@@ -334,7 +334,6 @@ famfs_open_char_device(
 	struct famfs_fs_info *fsi = sb->s_fs_info;
 	struct dax_device    *dax_devp;
 	struct inode         *daxdev_inode;
-	//struct dev_dax *dev_dax = filp->private_data;
 
 	int rc = 0;
 

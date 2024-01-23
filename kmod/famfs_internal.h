@@ -53,7 +53,6 @@ struct famfs_mount_opts {
 };
 
 extern int famfs_blkdev_mode;
-//extern const struct dax_holder_operations famfs_dax_holder_operations;
 extern const struct iomap_ops             famfs_iomap_ops;
 extern const struct vm_operations_struct  famfs_file_vm_ops;
 
