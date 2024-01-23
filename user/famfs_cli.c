@@ -1301,6 +1301,32 @@ do_famfs_cli_verify(int argc, char *argv[])
 }
 
 /********************************************************************/
+
+void hex_dump(const u8 *adr, size_t len, const char *str)
+{
+
+	/*unsigned int i,byte;*/
+	int i;
+	int ctr;
+
+	assert(len > 0);
+
+	ctr = 0;
+
+	printf("%s\n", str);
+	while (ctr < len) {
+		/*      printf("%8x - ",ptr); */
+		for (i = 0; i < 16; i++, ctr++) {
+			if (ctr >= len)
+				break;
+
+			printf("%02x ", adr[ctr]);
+		}
+		printf("\n");
+	}
+}
+
+
 void
 famfs_chkread_usage(int   argc,
 	    char *argv[])
@@ -1330,6 +1356,7 @@ do_famfs_cli_chkread(int argc, char *argv[])
 	void *addr;
 	char *buf;
 	int rc = 0;
+	char *readbuf = NULL;
 	struct stat st;
 
 	/* XXX can't use any of the same strings as the global args! */
@@ -1375,54 +1402,46 @@ do_famfs_cli_chkread(int argc, char *argv[])
 		exit(-1);
 	}
 	buf = calloc(1, st.st_size);
-	if (!buf) {
-		fprintf(stderr, "%s: calloc fail\n", __func__);
-		return -1;
-	}
+	assert(buf);
 
 	fd = open(filename, O_RDWR, 0);
-	if (fd < 0) {
-		fprintf(stderr, "open %s failed; rc %d errno %d\n", filename, rc, errno);
-		rc = -1;
-		goto err_exit;
-	}
+	assert(fd > 0);
+
 
 	addr = famfs_mmap_whole_file(filename, 0, &fsize);
-	if (!addr) {
-		fprintf(stderr, "%s: randomize mmap failed\n", __func__);
-		rc = -1;
-		goto err_exit;
-	}
+	assert(addr);
+
 	rc = lseek(fd, 0, SEEK_SET);
-	if (rc < 0) {
-		fprintf(stderr, "lseek failed\n");
-		rc = -1;
-		goto err_exit;
-	}
-	rc = read(fd, buf, fsize);
-	if (rc < 0) {
-		fprintf(stderr, "read failed\n");
-		rc = -1;
-		goto err_exit;
-	}
-	if (rc != fsize) {
-		fprintf(stderr, "short read %d / %d\n", rc, (int)fsize);
-		rc = -1;
-		goto err_exit;
-	}
+	assert(rc == 0);
+
+	rc = posix_memalign((void **)&readbuf, 0x200000, fsize);
+	assert(rc == 0);
+	assert(readbuf);
+	printf("readbuf: %p\n", readbuf);
+
+	rc = read(fd, readbuf, fsize);
+	assert(rc == fsize);
+
+	printf("read tried=%d got=%d\n", (int)fsize, (int)rc);
 	if (is_superblock) {
 		printf("superblock by mmap\n");
 		famfs_dump_super((struct famfs_superblock *)addr);
 		printf("superblock by read\n");
-		famfs_dump_super((struct famfs_superblock *)buf);
+		famfs_dump_super((struct famfs_superblock *)readbuf);
+
+		hex_dump((const u8 *)addr, 32, "Superblock by mmap");
+		hex_dump((const u8 *)readbuf, 32, "Superblock by read");
 	}
 	if (is_log) {
 		printf("Log by mmap\n");
 		famfs_dump_log((struct famfs_log *)addr);
 		printf("Log by read\n");
-		famfs_dump_log((struct famfs_log *)buf);
+		famfs_dump_log((struct famfs_log *)readbuf);
+
+		hex_dump((const u8 *)addr, 64, "Log by mmap");
+		hex_dump((const u8 *)readbuf, 64, "Log by read");
 	}
-	rc = memcmp(buf, addr, fsize);
+	rc = memcmp(readbuf, addr, fsize);
 	if (rc) {
 		fprintf(stderr, "Read and mmap miscompare\n");
 		rc = -1;
@@ -1433,6 +1452,8 @@ do_famfs_cli_chkread(int argc, char *argv[])
  err_exit:
 	if (buf)
 		free(buf);
+	if (readbuf)
+		free(readbuf);
 	return rc;
 }
 
