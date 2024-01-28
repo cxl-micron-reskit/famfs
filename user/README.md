@@ -68,10 +68,14 @@ or user code respectively
 
 # Installing famfs
 
-Famfs does not have packaged installation files yet, once you have built it, you can
-install it with the following command:
+You must load the kernel module in order to use famfs
 
-    sudo make install
+    sudo insmod kmod/famfs.ko
+
+Famfs does not have packaged installation files yet, once you have built it, you can
+install the user space library and cli with the following command:
+
+    cd user; sudo make install
 
 # Preparing to run famfs
 
@@ -79,14 +83,25 @@ In order to run famfs you need either a pmem device (e.g. /dev/pmem0) or a
 devdax device (e.g. /dev/dax0.0). To run in a shared mode, you need more than one
 system that shares a memory device.
 
-As of early 2024, a pmem device is recommended, as the /dev/dax support requires an
-experimental kernel patch.
+As of early 2024, the following types of memory devices can host famfs:
+
+* A /dev/pmem device can host a famfs file system
+* A /dev/dax device can host a famfs file system - if the you are running a kernel with the
+  dev_dax_iomap patches. This is needed because devdax in mainline does not yet support
+  the iomap API (dax_iomap_fault/dax_iomap_rw) that is required by fsdax file systems. The
+  famfs kernel patch set addresses this deficiency
+
+:bangbang: **Important:** as of early 2024 /dev/dax devices that were converted from /dev/pmem are not compatible with famfs due to a kva horkage bug. We expect to fix this kernel bug in the near future
+
 
 ## Preparing to create simulated /dev/dax and /dev/pmem devices
 
 This documentation assumes that your system is configured with EFI firmware and boot
 process. This can be non-trivial with VMs, but please do it with both your physical
-and virtual machines.:
+and virtual machines. You can check whether your system is properly configured for efi
+by running the following script:
+
+    sudo user/scripts/chk_efi.sh
 
 You will need to edit the kernel command line and then tell the system to put that into
 the config file that grub reads during boot. This does not work the same on all distros,
