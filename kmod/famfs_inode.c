@@ -45,6 +45,10 @@ struct dax_device *inode_dax(struct inode *inode);
 static const struct super_operations famfs_ops;
 static const struct inode_operations famfs_dir_inode_operations;
 
+/*
+ * famfs inode_operations: these are currently pretty much boilerplate
+ */
+
 struct inode *famfs_get_inode(
 	struct super_block *sb,
 	const struct inode *dir,
@@ -213,8 +217,15 @@ static const struct inode_operations famfs_dir_inode_operations = {
 	.tmpfile	= famfs_tmpfile,
 };
 
+
 /*
- * Display the mount options in /proc/mounts.
+ * famfs super_operations
+ *
+ * TODO: implement a famfs_statfs() that shows size, free and available space, etc.
+ */
+
+/**
+ * famfs_show_options() - Display the mount options in /proc/mounts.
  */
 static int famfs_show_options(
 	struct seq_file *m,
