@@ -324,6 +324,10 @@ as follows:
     cd user
     make smoke
 
+You can also optionally specify the device as an environment variable when running smoke tests
+
+    DEV=/dev/dax1.0 make smoke
+
 You can see an example of the [full output from run_smoke.sh here](markdown/smoke-example.md)
 
 The smoke tests (by default) require the following:

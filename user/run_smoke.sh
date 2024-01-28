@@ -3,13 +3,18 @@
 CWD=$(pwd)
 BIN="$CWD/debug"
 SCRIPTS="$CWD/scripts"
-DEV="/dev/pmem0"
 KMOD="../kmod"
 MPT="/mnt/famfs"
 MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 TEST_ERRORS=1
 TEST_ALL=1
 SLEEP_TIME=2
+
+# Allow these variables to be set from the environment
+if [ -z "$DEV" ]; then
+    DEV="/dev/pmem0"
+fi
+
 
 # Check if we have password-less sudi, which is required
 sudo -n true 2>/dev/null
