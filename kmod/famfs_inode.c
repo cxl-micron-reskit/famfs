@@ -348,7 +348,7 @@ famfs_open_char_device(
 
 	int rc = 0;
 
-	pr_err("%s: Experimental: opening character dax device %s\n", __func__, fc->source);
+	pr_notice("%s: Opening character dax device %s\n", __func__, fc->source);
 
 	fsi->dax_filp = filp_open(fc->source, O_RDWR, 0);
 	if (IS_ERR(fsi->dax_filp)) {
@@ -390,7 +390,7 @@ famfs_open_char_device(
 	struct super_block *sb,
 	struct fs_context  *fc)
 {
-	pr_err("%s: Root device is %s, but /dev/dax support compiled out\n",
+	pr_err("%s: Root device is %s, but your kernel does not support famfs on /dev/dax\n",
 	       __func__, fc->source);
 	return -ENODEV;
 }
@@ -556,10 +556,6 @@ static void famfs_kill_sb(struct super_block *sb)
 	mutex_destroy(&fsi->fsi_mutex);
 	if (fsi->bdevp)
 		blkdev_put(fsi->bdevp, fsi);
-
-	/* XXX fs_put_dax clears holder_ops which is needed, but also does an i_put on the
-	 * dax inode. This is right for the blkdev, but I'm not sure it's right for char dax
-	 */
 	if (fsi->dax_devp)
 		fs_put_dax(fsi->dax_devp, fsi);
 	if (fsi->dax_filp) /* This only happens if it's char dax */
@@ -588,9 +584,9 @@ static int __init init_famfs_fs(void)
 	pr_info("%s\n", __func__);
 
 #if defined(CONFIG_DEV_DAX_IOMAP)
-	pr_notice("%s: famfs compiled with experimental /dev/dax support\n", __func__);
+	pr_notice("%s: Your kernel supports famfs on /dev/dax\n", __func__);
 #else
-	pr_notice("%s: famfs compiled WITHOUT experimental /dev/dax support\n", __func__);
+	pr_notice("%s: Your kernle does not support famfs on /dev/dax\n", __func__);
 #endif
 	famfs_kobj = kobject_create_and_add(MODULE_NAME, fs_kobj);
 	if (!famfs_kobj) {
