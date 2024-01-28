@@ -1,11 +1,45 @@
 
 
-This RFC patch set introduces famfs - a scale-out fs-dax file system for shared
-fabric-attached memory (FAM). The CXL 3.1 standard introduces scale-out
+This patch set introduces famfs[1] - a scale-out fs-dax file system for sharable
+fabric-attached memory (FAM). The CXL 3.1 standard[2] introduces scale-out
 sharable memory, including support limited support for cache coherency
 and write protection. Shared memory can either be on a true fabric (switched)
 or via multi-ported memory devices (multi-headed devices in CXL parlance).
 
+Famfs creates a simple access method for storing and sharing data in sharable
+memory. 
+
+Contents:
+
+* famfs kernel documentation. Much of what might normally belong in this
+  cover letter is there.
+* dev_dax_iomap patchset - This enables fs-dax to use the iomap interface via
+  a character /dev/dax device (e.g. /dev/dax0.0). For historical reasons the
+  necessasry infrastructure was enabled for /dev/pmem devices (which are
+  dax block devices in order to support existing file systems in dax mode),
+  but it was not enabled for /dev/dax (character) devices. It turns out that
+  an fs-dax file system is useful on sharable cxl memory, even if the memory
+  is not technically persistent.
+* famfs patchset - this introduces the kernel component of famfs into Linux
+
+Sharable memory exists in the lab today, and will be commercially possible
+in 2025 or 2026. The problem is that if we try to support shared memory only
+through custom allocators or key-value stores, adoption difficult (and IMO
+will be unlikely to happen). Famfs supports creating a sharable file system
+backed by sharable memory. Any app that understands files (um, that's
+all apps, I think) will be able to access shared data in famfs.
+
+The Famfs kernel module is not really usable without the famfs user space
+library (and cli). Those can be found here:
+git@github.com:cxl-micron-reskit/famfs.git.  If you build teh famfs user
+space software, you can test and demonstrate famfs in conjunction with this
+kernel patchset. There is also extensive documentation there as to how famfs
+works and how it can be deployed.
+
+[1] https://lpc.events/event/17/contributions/1455/
+[2] https://www.computeexpresslink.org/download-the-specification
+
+###
 Famfs supports creating a file system on a
 sharable dax memory device, such that multiple hosts can mount the file system
 and access the files - subject to permissions. By handling metadata
@@ -38,6 +72,6 @@ memory on CXL is exposed as a character dax device. As a result, this patch
 set needs to enable some necessary infrastructure for character /dev/dax
 devices.
 
-The first 4 patches of this series enable the dax_iomap_rw() and
+The first 4 patches of this series enable the dax_iomap_rw() and 
 dax_iomap_fault() interfaces in the character dax driver. This is
 sufficient to support a famfs file system on a /dev/dax device.
