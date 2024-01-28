@@ -643,6 +643,9 @@ famfs_dax_read_iter(
 	if (!iov_iter_count(to))
 		return 0; /* skip atime */
 
+	if (iomap_verbose)
+		pr_notice("%s: ki_pos=%llx\n", __func__, (u64)iocb->ki_pos);
+
 	ret = dax_iomap_rw(iocb, to, &famfs_iomap_ops);
 
 	file_accessed(iocb->ki_filp);
@@ -701,6 +704,9 @@ famfs_dax_write_iter(
 
 	if (!iov_iter_count(from))
 		return 0; /* skip atime */
+
+	if (iomap_verbose)
+		pr_notice("%s: ki_pos=%llx\n", __func__, (u64)iocb->ki_pos);
 
 	return dax_iomap_rw(iocb, from, &famfs_iomap_ops);
 }
@@ -908,6 +914,9 @@ __famfs_filemap_fault(
 
 		if (fault_count_enable)
 			famfs_inc_fault_counter(&ffc, pe_size);
+
+		if (iomap_verbose)
+			pr_notice("%s: pgoff=%llx\n", __func__, (u64)vmf->pgoff);
 
 		ret = dax_iomap_fault(vmf, pe_size, &pfn, NULL, &famfs_iomap_ops);
 		if (ret & VM_FAULT_NEEDDSYNC)
