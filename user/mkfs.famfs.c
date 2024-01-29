@@ -89,7 +89,10 @@ main(int argc, char *argv[])
 		}
 	}
 
-	assert(optind < argc);
+	if (optind >= argc) {
+		fprintf(stderr, "mkfs.famfs: must specify memory device\n");
+		return -1;
+	}
 
 	/* TODO: multiple devices? */
 	daxdev = argv[optind++];
