@@ -316,7 +316,10 @@ fail due to non-root privileges.
 
 You can enable passwordless sudo for user 'fred' in your test systems and VMs as follows:
 
+    # Substitute your username for "fred", and run this command as root
     echo "fred ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/fred
+
+:bangbang: **Important:** If you do not enable passwordless sudo for your account, smoke tests will not run correctly. If you run the entire smoke test suite under sudo (e.g. ```sudo make smoke```), it it will not work correctly because the smoke tests expect to be running as a non-privileged user except when the smoke tests invoke sudo.
 
 If you have already successfully built famfs and configured a pmem device, you can run smoke tests
 as follows:
