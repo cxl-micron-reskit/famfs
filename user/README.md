@@ -161,7 +161,9 @@ If you just want to build famfs and run basic tests, this is the easiest thing t
 The easiest way to configure a pmem device is to edit your /etc/default/grub file and
 add the following to the GRUB_CMDLINE string:
 
-    memmap=8G!24G
+    memmap=8G!8G
+
+:bangbang: **Important:** For the command line above, you must have at least 16G of memory, because you are reserving 8G starting at a starting offset of 8G. Linux does not error-check this; if you try to use nonexistent memory we observes that it both runs slowly and doesn't work.
 
 This will reserve 8G of memory at offset 24G into system physical RAM as a simulated
 pmem device. You must check your available memory and make sure that you have enough to
