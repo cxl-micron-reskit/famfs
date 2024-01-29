@@ -71,7 +71,7 @@ ${MKFS}  $DEV         && fail "mkfs redo" # fail, fs exists
 ${CLI} -h || fail "cli -h should succeed"
 ${CLI} fsck $DEV          || fail "fsck"
 
-sudo insmod $KMOD/famfs.ko       || fail "insmod"
+sudo modprobe famfs       || fail "modprobe"
 
 sudo mount $MOUNT_OPTS $DEV $MPT || fail "mount"
 #sudo mount $MOUNT_OPTS $DEV $MPT && fail "double mount should fail"

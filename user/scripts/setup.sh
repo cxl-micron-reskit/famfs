@@ -32,7 +32,7 @@ ndctl list  || fail "need ndctl"
 #sudo ndctl create-namespace -f -e namespace0.0 --mode=fsdax
 sudo mkdir -p $MPT        || fail "mkdir"
 #sudo chown $OWNER $MPT
-sudo insmod ../kmod/famfs.ko  || fail "insmod"
+sudo modprobe famfs  || fail "modprobe"
 
 verify_not_mounted $DEV $MPT "Already mounted"
 full_mount $DEV $MPT "setup: mount"

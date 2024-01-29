@@ -89,7 +89,7 @@ sudo mkdir -p $MPT || fail "mkdir"
 ${CLI} fsck $DEV          || fail "fsck"
 
 # The famfs kernel module is needed, but might already be loaded
-sudo insmod $KMOD/famfs.ko
+sudo modprobe famfs
 
 # The old mount procedure
 sudo mount $MOUNT_OPTS $DEV $MPT || fail "mount"

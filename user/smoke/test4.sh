@@ -105,7 +105,7 @@ sudo test -f $F             || fail "bogusly deleted file did not reappear on re
 sudo umount $MPT            || fail "umount should succeed"
 sudo rmmod famfs            || fail "could not unload famfs when unmoounted"
 ${CLI} mount -vvv $DEV $MPT && fail "famfs mount should fail when kmod not loaded"
-sudo insmod $KMOD/famfs.ko  || fail "insmod"
+sudo modprobe famfs         || fail "modprobe"
 ${CLI} mount $DEV $MPT      || fail "famfs mount should succeed after kmod reloaded"
 ${CLI} mount -r $DEV $MPT   || fail "famfs mount -r should succeed when nothing is hinky"
 # mount -r needs mkmeta cleanup...

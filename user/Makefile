@@ -19,6 +19,7 @@ coverage:
 # Run the coverage tests
 coverage_test:	coverage
 	-scripts/teardown.sh
+	-scripts/install_kmod.sh
 	./run_smoke.sh --coverage
 	cd coverage; sudo make famfs_unit_coverage
 
@@ -33,6 +34,7 @@ clean:
 
 install:
 	cd debug; sudo make install
+	-scripts/install_kmod.sh
 
 # Run the unit tests
 test:
@@ -41,6 +43,7 @@ test:
 
 # Run the smoke tests
 smoke:	debug
+	-scripts/install_kmod.sh
 	-scripts/teardown.sh
 	script -c ./run_smoke.sh -O smoke.log
 
