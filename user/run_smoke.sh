@@ -91,6 +91,8 @@ fi
 
 source $TEST_FUNCS
 
+scripts/chk_memdev.sh "$DEV" || fail "Bad memory device $DEV"
+
 if (($TEST_ALL > 0)); then
     ./smoke/test0.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
     sleep "${SLEEP_TIME}"
