@@ -93,6 +93,24 @@ source $TEST_FUNCS
 
 scripts/chk_memdev.sh "$DEV" || fail "Bad memory device $DEV"
 
+# Verify that this script is not running as root
+if [[ $EUID -eq 0 ]]; then
+    echo "ERROR:"
+    echo "You have run the smoke tests as root"
+    echo "This does not work, as some of the tests assume they are running without root privileges"
+    exit -1
+else
+    echo "Not running as root."
+fi
+
+# Verify that we are running with passwordless sudo, because that is a requirement
+if sudo -l &>/dev/null; then
+    echo "user has sudo privileges"
+else
+    echo "Error: this script requires sudo privileges"
+    exit -1
+fi
+
 if (($TEST_ALL > 0)); then
     ./smoke/test0.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
     sleep "${SLEEP_TIME}"
