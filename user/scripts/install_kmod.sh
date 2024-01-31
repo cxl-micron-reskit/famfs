@@ -14,12 +14,22 @@ if [ ! -d $kpath ]; then
     exit -1
 fi
 
-if [ -f "$kpath/fs/famfs/famfs.ko" ]; then
+if (( $# > 0 )); then
+    if [[ "$1" == "--replace" ]]; then
+	# remove famfs from its kernel build location and install the local version
+	sudo rm -rf $kpath/fs/famfs
+    fi
+fi
+
+if [ -f "$kpath/kernel/fs/famfs/famfs.ko" ]; then
     echo "famfs is part of the installed kernel"
     echo "aborting out-of-tree installation"
+    sleep 2
     exit -1
 fi
 
+echo "Installing out-of tree famfs kmod"
 sudo mkdir -p $instpath
 sudo cp $famfs $instpath
 sudo depmod -a
+sleep 2
