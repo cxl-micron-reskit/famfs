@@ -10,22 +10,22 @@ famfs: The kernel component of the famfs scale-out shared memory file system
 
 Introduction
 ============
-Compute Express Link (CXL) creates a mechanism for disaggregated memory. This
-poses some interesing challenges in cases where any form of memory sharing can
-take place. Sharing can be serial or concurrent - serial being that one host
-initializes the memory and then another host acquires non-concurrent access.
-In all sharing cases, the contents must be preserved as appropriate when
-hosts gain and lose access. We use the term "shared" here to include both the
-sequential and current cases.
+Compute Express Link (CXL) creates a mechanism for disaggregated or
+fabric-attached memory (FAM). This poses some interesing challenges in
+cases where any form of memory sharing can take place. Sharing can be serial
+or concurrent - serial being that one host initializes the memory and then
+another host acquires non-concurrent access. In all sharing cases, the
+contents must be preserved as appropriate when hosts gain and lose access.
+We use the term "shared" here to include both the sequential and current
+cases.
 
 Famfs creates a mechanism for multiple hosts to use data in shared memory,
 by giving it a file system interface. With famfs, any app that understands
 files (whch is all of them, right?) can access data sets in shared memory.
 
-The famfs kernel file system is part the famfs framework that provides a
-scale-out file-oriented interface to shared fabric-attached memory (FAM).
-The kernel component of famfs is based on ramfs, with added fs-dax suport.
-A famfs file system is administered from user space by the libfamfs framework.
+The famfs kernel file system is part the famfs framework; a library and cli
+in user space handle metadata and direct the famfs kernel module to
+instantiate files that map to specific memory.
 
 Famfs does not attempt to solve concurrency or coherency problems for apps,
 although it does solve these problems in regard to its own data structures.
@@ -42,9 +42,10 @@ fs-dax support. The user space components (cli, library) maintain superblocks
 and logs, and use the famfs kernel component to provide a file system view of
 shared fabric-attached memory across multiple hosts.
 
-Although files are intended to be shared, each host has an independent instance
-of the famfs kernel module. After mount, files are not instantiated until the
-user space component instantiates them (normally by playing the famfs log).
+Although files are intended to be shared, each host has an independent
+instance of the famfs kernel module. After mount, files are not visible until
+the user space component instantiates them (normally by playing the famfs
+log).
 
 Once instantiated, files on each host can point to the same shared memory,
 but metadata (inodes, etc.) are ephemeral on each host that has a mounted
@@ -57,7 +58,7 @@ Famfs is Not a Conventional File System
 
 Famfs files can be accessed by conventional means, but there are limitations.
 The kernel component of famfs is not involved in space/memory allocation at
-all; user space creates files and passes the allocationextent lists into the
+all; user space creates files and passes the allocation extent lists into the
 kernel. As a practical matter files must be created via the famfs library or
 cli, but they can be consumed as if they were conventional files.
 
@@ -65,7 +66,7 @@ Famfs differs in some important ways from conventional file systems:
 
 * Files must be pre-allocated. Allocation is never performed on write.
   * Because of this files cannot be appended by normal means
-  * Moreover, you can't properly create famfs files withoout using the famfs
+  * Moreover, you can't properly create famfs files without using the famfs
     cli and/or user space library
 * Although truncate can happen locally, it does not affect the memory
   alllocation for the file.
@@ -76,7 +77,8 @@ for mmap. If you're not using mmap, you might be missing the whole point.
 
 Key Requirements
 ================
-The reason famfs exists is to support shared fabric-attached memory. 
+The reason famfs exists is to support shared, disaggregated or fabric-attached
+memory.
 
 1. Must support a file system abstraction backed by sharable dax memory
 2. Files must efficiently handle VMA faults
@@ -106,8 +108,8 @@ Creating a file works as follows.
    * Set the S_DAX flag for the inode
    * Set the size of the file
 
-At this point the file us usable and may be written, read or mmapped (provided
-sufficient permissions).
+At this point the file us usable and may be written, read or mmapped (if the user
+has sufficient permissions).
 
 Mount options
 =============
@@ -117,8 +119,8 @@ not make sense to mount it read-only. That would prevent playing the log to
 make the contents visible. However, two ways of achieving full or partial
 read-only behavior exist:
 
-* CXL supports read-only access to shared memory. If the dax device backing a
-  file is read-only, all files backed by that device will be read-only.
+* CXL 3.1 supports read-only access to shared memory. If the dax device backing
+  a famfs instance is read-only, all files backed by that device will be read-only.
   (Metadata is technicallly still writeable, but it's also ephemeral so that's
   fine.)
 * The user space components may make files read-only for some or all client
@@ -126,4 +128,3 @@ read-only behavior exist:
   read-only except on the system that created the file system - but this
   can be overridden on a per-file basis.)
 
-Atime is not supported.
