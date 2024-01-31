@@ -171,18 +171,9 @@ famfs_get_iomap_flags_str(char *flag_str, unsigned int flags)
 char *
 extent_type_str(enum extent_type et)
 {
-	static char *hpa_extent   = "HPA_EXTENT";
-	static char *dax_extent   = "DAX_EXTENT";
-	static char *fsdax_extent = "FSDAX_EXTENT";
-	static char *tag_extent   = "TAG_EXTENT";
-	static char *unknown_ext  = "(Undefined extent type)";
-
 	switch (et) {
-	case HPA_EXTENT:   return hpa_extent;
-	case DAX_EXTENT:   return dax_extent;
-	case FSDAX_EXTENT: return fsdax_extent;
-	case TAG_EXTENT:   return tag_extent;
-	default:           return unknown_ext;
+	case SIMPLE_DAX_EXTENT:   return "SIMPLE_DAX_EXTENT";
+	default:           return "(Invalid extent type)";
 	}
 }
 
@@ -242,17 +233,8 @@ famfs_debug_dump_imap(struct famfs_ioc_map *imap)
 	}
 
 	switch (imap->extent_type) {
-	case HPA_EXTENT:
-		pr_info(" [HPA_EXTENT] ");
-		break;
-	case DAX_EXTENT:
-		pr_info(" [DAX_EXTENT] ");
-		break;
-	case FSDAX_EXTENT:
-		pr_info(" [FSDAX_EXTENT] ");
-		break;
-	case TAG_EXTENT:
-		pr_info(" [TAG_EXTENT] ");
+	case SIMPLE_DAX_EXTENT:
+		pr_info(" [SIMPLE_DAX_EXTENT] ");
 		break;
 	default:
 		pr_info(" [bogus extent type] ");

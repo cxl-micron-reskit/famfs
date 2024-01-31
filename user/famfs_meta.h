@@ -72,6 +72,8 @@ static inline size_t round_size_to_alloc_unit(u64 size)
 	return ((size + FAMFS_ALLOC_UNIT - 1) / FAMFS_ALLOC_UNIT) * FAMFS_ALLOC_UNIT;
 }
 
+#define FAMFS_DEVNAME_LEN 64
+
 struct famfs_daxdev {
 	size_t              dd_size;
 	uuid_le             dd_uuid;

@@ -816,7 +816,7 @@ famfs_file_map_create(
 
 	filemap.file_type      = type;
 	filemap.file_size      = size;
-	filemap.extent_type    = FSDAX_EXTENT;
+	filemap.extent_type    = SIMPLE_DAX_EXTENT;
 	filemap.ext_list_count = nextents;
 
 	/* TODO: check for overflow (nextents > max_extents) */
@@ -3604,7 +3604,7 @@ famfs_mkfs(const char *daxdev,
 {
 	int rc;
 	size_t devsize;
-	enum extent_type type = HPA_EXTENT;
+	enum extent_type type = SIMPLE_DAX_EXTENT;
 	struct famfs_superblock *sb;
 	struct famfs_log *logp;
 	u64 min_devsize = 4 * 1024ll * 1024ll * 1024ll;

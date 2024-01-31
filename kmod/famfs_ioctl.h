@@ -20,10 +20,8 @@
 #define FAMFS_MAX_EXTENTS 2
 
 enum extent_type {
-	HPA_EXTENT = 13,
-	DAX_EXTENT,
-	FSDAX_EXTENT,
-	TAG_EXTENT,
+	SIMPLE_DAX_EXTENT = 13,
+	INVALID_EXTENT_TYPE,
 };
 
 struct famfs_extent {
@@ -37,7 +35,7 @@ enum famfs_file_type {
 	FAMFS_LOG,
 };
 
-#define FAMFS_DEVNAME_LEN 32
+//#define FAMFS_DEVNAME_LEN 32
 /**
  * struct famfs_ioc_map
  *
@@ -51,31 +49,12 @@ struct famfs_ioc_map {
 	struct famfs_extent       ext_list[FAMFS_MAX_EXTENTS];
 };
 
-static inline size_t tioc_ext_list_size(struct famfs_ioc_map *map)
-{
-	return (map->ext_list_count * sizeof(*map->ext_list));
-}
-
-static inline size_t tioc_ext_count(struct famfs_ioc_map *map)
-{
-	return map->ext_list_count;
-}
-
-/*
- * S means "Set" through a ptr,
- * T means "Tell" directly with the argument value
- * G means "Get": reply by setting through a pointer
- * Q means "Query": response is on the return value
- * X means "eXchange": switch G and S atomically
- * H means "sHift": switch T and Q atomically
- */
 #define FAMFSIOC_MAGIC 'u'
 
-/* TODO: use correct _IO.... macros here */
-#define FAMFSIOC_MAP_CREATE    _IOWR(FAMFSIOC_MAGIC, 1, struct famfs_ioc_map)
-#define FAMFSIOC_MAP_GET       _IOWR(FAMFSIOC_MAGIC, 2, struct famfs_ioc_map)
-#define FAMFSIOC_MAP_GETEXT    _IOWR(FAMFSIOC_MAGIC, 3, struct famfs_extent)
+/* famfs file ioctl opcodes */
+#define FAMFSIOC_MAP_CREATE    _IOW(FAMFSIOC_MAGIC, 1, struct famfs_ioc_map)
+#define FAMFSIOC_MAP_GET       _IOR(FAMFSIOC_MAGIC, 2, struct famfs_ioc_map)
+#define FAMFSIOC_MAP_GETEXT    _IOR(FAMFSIOC_MAGIC, 3, struct famfs_extent)
 #define FAMFSIOC_NOP           _IO(FAMFSIOC_MAGIC, 3)
-
 
 #endif /* FAMFS_IOCTL_H */
