@@ -29,9 +29,8 @@
 #include <zlib.h>
 #include <sys/file.h>
 #include <dirent.h>
+#include <linux/famfs_ioctl.h>
 
-#include "famfs.h"
-#include "famfs_ioctl.h"
 #include "famfs_meta.h"
 
 #include "famfs_lib.h"

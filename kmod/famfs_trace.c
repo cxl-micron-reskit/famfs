@@ -5,7 +5,6 @@
  * Copyright 2023 Micron Technology, Inc.
  */
 
-#include "famfs.h"
 #include "famfs_internal.h"
 #include "famfs_ioctl.h"
 

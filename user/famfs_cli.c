@@ -25,10 +25,8 @@
 
 #include <linux/types.h>
 #include <linux/ioctl.h>
+#include <linux/famfs_ioctl.h>
 
-typedef __u64 u64;
-
-#include "famfs_ioctl.h"
 #include "famfs_lib.h"
 #include "random_buffer.h"
 
@@ -792,8 +790,8 @@ do_famfs_cli_getmap(int argc, char *argv[])
 			}
 
 			printf("File:     %s\n",    filename);
-			printf("\tsize:   %ld\n",  filemap.file_size);
-			printf("\textents: %ld\n", filemap.ext_list_count);
+			printf("\tsize:    %lld\n", filemap.file_size);
+			printf("\textents: %lld\n", filemap.ext_list_count);
 
 			for (i = 0; i < filemap.ext_list_count; i++)
 				printf("\t\t%llx\t%lld\n", ext_list[i].offset, ext_list[i].len);

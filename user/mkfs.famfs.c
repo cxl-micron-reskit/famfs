@@ -18,10 +18,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <linux/famfs_ioctl.h>
 
-typedef __u64 u64;
-
-#include "famfs_ioctl.h"
+#include "famfs.h"
 #include "famfs_lib.h"
 
 void

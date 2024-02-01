@@ -17,9 +17,9 @@
 
 #include <linux/types.h>
 #include <linux/uuid.h>
+#include <linux/famfs_ioctl.h>
 
 #include "famfs.h"
-#include "famfs_ioctl.h"
 
 /**
  * Allocation metadata: superblock and log

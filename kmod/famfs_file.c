@@ -16,7 +16,7 @@
 #include <linux/dax.h>
 #include <linux/uio.h>
 #include <linux/iomap.h>
-#include "famfs.h"
+
 #include "famfs_internal.h"
 #include "famfs_ioctl.h"
 #include "famfs_trace.h"

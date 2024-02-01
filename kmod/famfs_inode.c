@@ -33,7 +33,6 @@
 #include <linux/pfn_t.h>
 #include <linux/blkdev.h>
 
-#include "famfs.h"
 #include "famfs_internal.h"
 #include "famfs_trace.h"
 
