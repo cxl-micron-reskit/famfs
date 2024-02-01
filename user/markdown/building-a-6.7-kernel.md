@@ -18,7 +18,7 @@ the kernel build.
 
 Once you have successfully built the kernel, install it.
 
-    sudo make modules_install headers_install install
+    sudo make modules_install headers_install install INSTALL_HDR_PATH=/usr
 
 Reboot the system and make sure you're running the new kernel
 

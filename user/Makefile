@@ -1,5 +1,11 @@
 
-debug:
+#
+# Make the build fail fast if the famfs uapi include file is not installed
+#
+chk_include:
+	scripts/chk_include.sh
+
+debug:	chk_include
 	mkdir -p debug; cp testlib/.checkfiles.yml $@
 	cd debug; cmake -DCMAKE_BUILD_TYPE=Debug ..; make #VERBOSE=1
 
@@ -23,7 +29,7 @@ coverage_test:	coverage
 	./run_smoke.sh --coverage
 	cd coverage; sudo make famfs_unit_coverage
 
-release:
+release:	chk_include
 	mkdir -p release; cp testlib/.checkfiles.yml $@
 	cd release; cmake ..; make
 
@@ -57,4 +63,4 @@ teardown:
 	pwd
 	@./scripts/teardown.sh
 
-.PHONY:	test smoke debug release coverage
+.PHONY:	test smoke debug release coverage chk_include
