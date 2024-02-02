@@ -1,43 +1,108 @@
 
 
-This patch set introduces famfs[1] - a scale-out fs-dax file system for sharable
-fabric-attached memory (FAM). The CXL 3.1 standard[2] introduces scale-out
-sharable memory, including support limited support for cache coherency
-and write protection. Shared memory can either be on a true fabric (switched)
-or via multi-ported memory devices (multi-headed devices in CXL parlance).
+This patch set introduces famfs[1] - a sharable fs-dax file system for sharable
+disaggregated or fabric-attached memory (FAM). The CXL 3.1 standard[2]
+introduces disaggregated sharable memory, including support limited support
+for cache coherency and write protection. Shared memory can either be on a
+true fabric (switched) or via multi-ported memory devices (multi-headed
+devices in CXL parlance).
 
 Famfs creates a simple access method for storing and sharing data in sharable
-memory. 
+memory. The memory is accessed as memory-mappable dax files.
+
+The famfs kernel file system is part the famfs framework; a library and cli
+in user space[3] handle metadata and direct the famfs kernel module to
+instantiate files that map to specific memory.
+
+Famfs does not attempt to solve concurrency or coherency problems for apps,
+although it does solve these problems in regard to its own data structures.
+Apps may encounter hard concurrency problems, but there are use cases that
+are imminently useful and uncomplicated from a concurrency perspective:
+serial sharing is one (only one host at a time has access), and read-only
+concurrent sharing is another.
 
 Contents:
 
-* famfs kernel documentation. Much of what might normally belong in this
-  cover letter is there.
-* dev_dax_iomap patchset - This enables fs-dax to use the iomap interface via
-  a character /dev/dax device (e.g. /dev/dax0.0). For historical reasons the
-  necessasry infrastructure was enabled for /dev/pmem devices (which are
-  dax block devices in order to support existing file systems in dax mode),
-  but it was not enabled for /dev/dax (character) devices. It turns out that
-  an fs-dax file system is useful on sharable cxl memory, even if the memory
-  is not technically persistent.
-* famfs patchset - this introduces the kernel component of famfs into Linux
+* famfs kernel documentation [patch 1]. Note famfs user documentation is at [3]
+* dev_dax_iomap patchset [patches 2-6] - This enables fs-dax to use the iomap
+  interface via a character /dev/dax device (e.g. /dev/dax0.0). For historical
+  reasons the necessasry infrastructure was enabled for /dev/pmem devices (which
+  are dax block devices, in order to support existing file systems in dax mode),
+  but it was not enabled for /dev/dax (character) devices. As famfs is the
+  first fs-dax file system that works on /dev/dax, this patch series fills in
+  the missing infrastructure.
+* famfs patchset [patches 7-23] - this introduces the kernel component of famfs
+  into the Linux kernel
 
-Sharable memory exists in the lab today, and will be commercially possible
-in 2025 or 2026. The problem is that if we try to support shared memory only
-through custom allocators or key-value stores, adoption difficult (and IMO
-will be unlikely to happen). Famfs supports creating a sharable file system
-backed by sharable memory. Any app that understands files (um, that's
-all apps, I think) will be able to access shared data in famfs.
+Notes about howe cxl 3 memory will work
+
+Sharable CXL 3 memory is expected to come largely if not exclusively from CXL
+dynamic-capacity devices (DCDs). DCDs appeared in the CXL 3.0 standard and were
+fleshed out further in 3.1. DCDs may be fabric-attached (CXL LD-FAM or
+G-FAM), or multi-ported devices - the latter potentially having lower access
+latency than switched fabric. The most important property of a DCD is that it
+effectively has an allocator built in. When sharable capacity is allocated,
+software on hosts that have access will see a "tagged dax device" - with the tag
+being the UUID of the allocation.
+
+Some observations about using sharable CXL memory
+
+* It does not make sense to online sharable memory as system-ram. System-ram
+  gets zeroed when it is onlined, so sharing is basically nonsense.
+* It does not make sense to put struct page's in sharable memory - because
+  those can't be shared. However, separately providing non-sharable tagged
+  capacity to be used for struct page's might be a sensible approach if the size
+  of struct page array for a sharable tag is too large to put in conventional
+  system ram.
+  
+"It's a new paradigm requiring new abstractions" (no, not if we do it well...)
+
+Sharable disaggregated memory exists in the lab today, and will be commercially
+possible fairly soon (I'm avoiding speaking for my employer's schedules here).
+Various work has been done already to demonstrate disaggregated shared
+memory [5] - much of which involves custom allocators and/or key-value stores
+on raw dax devices. These are legitimate approaches, but adoping new
+abstractions limits the ability to enable use cases.
+
+Meet the new abstractions, same as the old abstractions
+
+By enabling shared memory as a file system, famfs aims to enable much any
+app that consumes data from files to experiment with shared memory. Preparing
+a famfs file system involves some special steps (see [3]), but consuming
+data from famfs does not require knowledge that famfs is an unusual file
+system.
+
+Data frames
+
+Data science and AI apps make extensive use of data frames. The data frames
+community already makes a lot of use of shared data sets in memory-mapped
+files. Data frame formats such as Apache Arrow pioneered "zero-copy" data
+frames, which basically means efficiently formatted to be memory-mapped.
+Multiple other data frame formats also zero-copy formats, including
+PANDAS [ref], Dask [ref] and others.
+
+Orchestrators
+
+Orchestrators, such as Kubernetes (or even Ray), are concerned with running
+apps, VMs or containers and providing access to resources. If shared memory
+is a new abstraction, there will be a lot of enablement work to do. If it's
+a file system, these tools already know how to provide access.
+
+
+
 
 The Famfs kernel module is not really usable without the famfs user space
-library (and cli). Those can be found here:
-git@github.com:cxl-micron-reskit/famfs.git.  If you build teh famfs user
-space software, you can test and demonstrate famfs in conjunction with this
-kernel patchset. There is also extensive documentation there as to how famfs
-works and how it can be deployed.
+library (and cli). Those can be found in the famfs userspace repo at [3]
+(and a kernel with this patch set applied is at [4]. With those two repos,
+you should be able to test famfs.
+There is also extensive documentation there as to how famfs works and how it
+can be deployed.
 
 [1] https://lpc.events/event/17/contributions/1455/
 [2] https://www.computeexpresslink.org/download-the-specification
+[3] CMRK famfs github link
+[4] CMRK famfs kernel github link
+[5] https://www.youtube.com/watch?v=IL5CcSO9tDQ
 
 ###
 Famfs supports creating a file system on a
