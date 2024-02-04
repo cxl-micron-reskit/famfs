@@ -241,8 +241,8 @@ famfs_debug_dump_imap(struct famfs_ioc_map *imap)
 		break;
 	}
 
-	pr_info(" [size=%ld] [ext_count=%ld] [ext_list=%llx]\n",
-		imap->file_size, imap->ext_list_count, (long long)imap->ext_list);
+	pr_info(" [size=%lld] [ext_count=%lld] [ext_list=%llx]\n",
+		(u64)imap->file_size, (u64)imap->ext_list_count, (u64)imap->ext_list);
 }
 
 /**
@@ -354,8 +354,8 @@ famfs_file_init_dax(
 	 * to PMD multiples
 	 */
 	if (imap.file_size > extent_total) {
-		pr_err("%s: file size %ld larger than ext list size %ld\n",
-		       __func__, imap.file_size, extent_total);
+		pr_err("%s: file size %lld larger than ext list size %lld\n",
+		       __func__, (u64)imap.file_size, (u64)extent_total);
 		rc = -EINVAL;
 		goto errout;
 	}
