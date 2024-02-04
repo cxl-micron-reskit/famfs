@@ -16,11 +16,14 @@
 #include <linux/fs_parser.h> // bleh...
 #include <linux/atomic.h>
 
-#define FAMFS_MAGIC 0xdeadbeef
+#define FAMFS_MAGIC 0x87b282ff
 
 struct inode *famfs_get_inode(struct super_block *sb, const struct inode *dir,
 	 umode_t mode, dev_t dev);
 extern int famfs_init_fs_context(struct fs_context *fc);
+
+#define is_aligned(POINTER, BYTE_COUNT) \
+       (((uintptr_t)(const void *)(POINTER)) % (BYTE_COUNT) == 0)
 
 #ifdef CONFIG_MMU
 static inline int
