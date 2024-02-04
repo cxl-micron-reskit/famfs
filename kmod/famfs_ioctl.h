@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  * famfs - dax file system for shared fabric-attached memory
  *
@@ -14,9 +14,6 @@
 #include <linux/ioctl.h>
 #include <linux/uuid.h>
 
-#define is_aligned(POINTER, BYTE_COUNT) \
-	(((uintptr_t)(const void *)(POINTER)) % (BYTE_COUNT) == 0)
-
 #define FAMFS_MAX_EXTENTS 2
 
 enum extent_type {
@@ -25,8 +22,8 @@ enum extent_type {
 };
 
 struct famfs_extent {
-	u64              offset;
-	u64              len;
+	__u64              offset;
+	__u64              len;
 };
 
 enum famfs_file_type {
@@ -35,7 +32,6 @@ enum famfs_file_type {
 	FAMFS_LOG,
 };
 
-//#define FAMFS_DEVNAME_LEN 32
 /**
  * struct famfs_ioc_map
  *
@@ -44,8 +40,8 @@ enum famfs_file_type {
 struct famfs_ioc_map {
 	enum extent_type          extent_type;
 	enum famfs_file_type      file_type;
-	size_t                    file_size;
-	size_t                    ext_list_count;
+	__u64                     file_size;
+	__u64                     ext_list_count;
 	struct famfs_extent       ext_list[FAMFS_MAX_EXTENTS];
 };
 
@@ -55,6 +51,6 @@ struct famfs_ioc_map {
 #define FAMFSIOC_MAP_CREATE    _IOW(FAMFSIOC_MAGIC, 1, struct famfs_ioc_map)
 #define FAMFSIOC_MAP_GET       _IOR(FAMFSIOC_MAGIC, 2, struct famfs_ioc_map)
 #define FAMFSIOC_MAP_GETEXT    _IOR(FAMFSIOC_MAGIC, 3, struct famfs_extent)
-#define FAMFSIOC_NOP           _IO(FAMFSIOC_MAGIC, 3)
+#define FAMFSIOC_NOP           _IO(FAMFSIOC_MAGIC,  4)
 
 #endif /* FAMFS_IOCTL_H */
