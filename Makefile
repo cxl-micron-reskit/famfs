@@ -13,7 +13,4 @@ clean:
 doxygen:
 	doxygen Doxyfile
 
-checkfiles:	FORCE
-	@./scripts/checkfiles
-
 FORCE: ;
