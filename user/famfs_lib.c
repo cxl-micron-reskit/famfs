@@ -569,6 +569,7 @@ famfs_mmap_superblock_and_log_raw(const char *devname,
 				  struct famfs_log **logp,
 				  int read_only)
 {
+	struct famfs_superblock *sb;
 	int fd = 0;
 	void *sb_buf = NULL;
 	int rc = 0;
@@ -590,10 +591,20 @@ famfs_mmap_superblock_and_log_raw(const char *devname,
 		rc = -1;
 		goto err_out;
 	}
+	sb = (struct famfs_superblock *)sb_buf;
 	if (sbp)
-		*sbp = (struct famfs_superblock *)sb_buf;
+		*sbp = sb;
 	if (logp)
 		*logp = (struct famfs_log *)((u64)sb_buf + FAMFS_SUPERBLOCK_SIZE);
+
+	/* TODO: using FAMFS_LOG_LEN is slightly risky, as the superblock is authoritative as
+	 * to the log length. Really we should map FAMFS_SUPERBLOCK_SIZE + FAMFS_LOG_SIZE, check
+	 * sb->ts_log_len and then mremap the right size if necessary. Assert for now.
+	 * The smarter test is not needed until the discrepancy becomes possible.
+	 */
+	if (famfs_check_super(sb) == 0)
+		assert((*sbp)->ts_log_len == FAMFS_LOG_LEN);
+
 	close(fd);
 	return 0;
 
