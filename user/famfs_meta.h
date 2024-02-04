@@ -55,8 +55,8 @@
  * TODO: the stuff documented above is not implemented yet...
  */
 
-#define FAMFS_SUPER_MAGIC      0x09211963
-#define FAMFS_CURRENT_VERSION  45
+#define FAMFS_SUPER_MAGIC      0x87b282ff
+#define FAMFS_CURRENT_VERSION  46
 #define FAMFS_MAX_DAXDEVS      64
 
 #define FAMFS_LOG_OFFSET    0x200000 /* 2MiB */
