@@ -13,10 +13,10 @@ extern "C" {
 #include <fcntl.h>
 #include <stdlib.h>
 
+#include <linux/famfs_ioctl.h>
 #include "famfs_lib.h"
 #include "famfs_lib_internal.h"
 #include "famfs_meta.h"
-#include "famfs_ioctl.h"
 #include "xrand.h"
 #include "random_buffer.h"
 }
