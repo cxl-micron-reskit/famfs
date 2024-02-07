@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /*
- * Copyright (C) 2015 Micron Technology, Inc. All rights reserved.
+ * Copyright (C) 2015-2024 Micron Technology, Inc. All rights reserved.
  */
 #ifndef _H_MSE_PLATFORM_BITMAP
 #define _H_MSE_PLATFORM_BITMAP
