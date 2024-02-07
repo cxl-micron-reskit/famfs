@@ -8,7 +8,6 @@ VG=""
 SCRIPTS=../scripts/
 MPT=/mnt/famfs
 BIN=../debug
-KMOD=../../kmod
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 
 # Override defaults as needed
@@ -28,10 +27,6 @@ while (( $# > 0)); do
 	    SCRIPTS=$1
 	    source_root=$1;
 	    shift;
-	    ;;
-	(-k|--kmod)
-	    KMOD=$1
-	    shift
 	    ;;
 	(-v|--valgrind)
 	    # no argument to -v; just setup for Valgrind

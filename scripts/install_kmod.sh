@@ -8,7 +8,9 @@
 kpath=/lib/modules/$(uname -r)
 instpath=$kpath/extra
 inst_famfs=$instpath/famfs.ko
-famfs=../kmod/famfs.ko
+
+# If there is an out of tree build of the kmod, it must be at ./famfs-kmod
+famfs=famfs-kmod/famfs.ko 
 kernel_famfs=$kpath/kernel/fs/famfs/famfs.ko
 
 if [ ! -d $kpath ]; then

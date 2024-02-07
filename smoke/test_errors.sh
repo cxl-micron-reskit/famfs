@@ -9,7 +9,6 @@ SCRIPTS=../scripts
 MPT=/mnt/famfs
 MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
-KMOD=../../kmod
 
 # Override defaults as needed
 while (( $# > 0)); do
@@ -28,10 +27,6 @@ while (( $# > 0)); do
 	    SCRIPTS=$1
 	    source_root=$1;
 	    shift;
-	    ;;
-	(-k|--kmod)
-	    KMOD=$1
-	    shift
 	    ;;
 	(-v|--valgrind)
 	    # no argument to -v; just setup for Valgrind

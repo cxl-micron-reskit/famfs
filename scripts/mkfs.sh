@@ -13,15 +13,12 @@ script_relpath=$(basename $script_relpath) # get rid of ./, if any
 echo "script_repath: $script_relpath"
 if [[ "$script_relpath" == "scripts" ]]; then
     BIN=./debug
-    KMOD=../kmod
     SCRIPTS=./scripts
 else
     BIN=../debug
-    KMOD=../../kmod
     SCRIPTS=../scripts
 fi
 echo "BIN $BIN"
-echo "KMOD $KMOD"
 echo "SCRIPTS $SCRIPTS"
 
 # Defaults
@@ -48,10 +45,6 @@ while (( $# > 0)); do
 	    SCRIPTS=$1
 	    source_root=$1;
 	    shift;
-	    ;;
-	(-k|--kmod)
-	    KMOD=$1
-	    shift
 	    ;;
 	(-v|--valgrind)
 	    # no argument to -v; just setup for Valgrind
