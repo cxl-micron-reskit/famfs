@@ -14,7 +14,7 @@ This will eventually split into separate repos:
 ## Documentation Contents
 
 * Overview - this document
-* [Getting Started with famfs](user/README.md)
+* [Getting Started with famfs](user/getting-started.md)
 
 # What is Famfs?
 
@@ -134,7 +134,7 @@ Here are a few more details on the operation of famfs
     - This means you can't ignore the fact that it is famfs when creating files
     - The famfs cli provides create and cp functions to create a fully-alllocated file,
       or to copy an existing file into famfs (respectively).
-      [Click here for the cli reference](user/markdown/famfs-cli-reference.md).
+      [Click here for the cli reference](markdown/famfs-cli-reference.md).
 * Authoritative metadata is shared as an append-only log within the shared memory. Once
   a famfs file system is mounted and the log has been played, all files are visible.
     - Replaying the log will make visible any files that were created since the last log play

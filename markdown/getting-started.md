@@ -2,9 +2,9 @@
 # Getting started with famfs
 
 # Quick Links
-- [Famfs CLI Reference](markdown/famfs-cli-reference.md)
-- [Buillding a famfs-compatible kernel](markdown/building-a-6.7-kernel.md)
-- [Famfs Usage - Getting Started](markdown/famfs-usage.md)
+- [Famfs CLI Reference](famfs-cli-reference.md)
+- [Buillding a famfs-compatible kernel](building-a-6.7-kernel.md)
+- [Famfs Usage - Getting Started](famfs-usage.md)
 
 # Preparing to build famfs
 Famfs is comprised of a kernel module and a set of user space tools and libraries.
@@ -12,7 +12,7 @@ The whole thing can be built from the top directory of the repo, but there are a
 few prerequisites that must be met.
 
 * You must currentlly be running a Linux 6.7 kernel. See
-  [Buillding a famfs-compatible kernel](markdown/building-a-6.7-kernel.md)
+  [Buillding a famfs-compatible kernel](building-a-6.7-kernel.md)
 * You need the appropriate set of development tools. On fedora 39, the following are
   required
     - Group: "Development Tools"
@@ -333,7 +333,7 @@ You can also optionally specify the device as an environment variable when runni
 
     DEV=/dev/dax1.0 make smoke
 
-You can see an example of the [full output from run_smoke.sh here](markdown/smoke-example.md)
+You can see an example of the [full output from run_smoke.sh here](smoke-example.md)
 
 The smoke tests (by default) require the following:
 
@@ -375,6 +375,6 @@ To build for coverage tests, do the following in user:
     firefox coverage/famfs_unit_coverage/index.html   # or any other browser
 
 The resulting report looks like this as of the last week of December 2023.
-![Image of gcov coverage report](markdown/Screenshot-2024-01-08-at-7.13.09-AM.png)
+![Image of gcov coverage report](Screenshot-2024-01-08-at-7.13.09-AM.png)
 
 This is the combined coverage from smoke and unit tests.
