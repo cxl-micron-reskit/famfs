@@ -5,6 +5,9 @@
 chk_include:
 	scripts/chk_include.sh
 
+cmake-modules:
+	git clone git@github.com:jagalactic/cmake-modules.git
+
 debug:	chk_include
 	mkdir -p debug;
 	cd debug; cmake -DCMAKE_BUILD_TYPE=Debug ..; make #VERBOSE=1
@@ -18,7 +21,7 @@ debug:	chk_include
 #
 # The comand above will direct you to html files detailing the measured coverage
 #
-coverage:
+coverage:	cmake-modules
 	mkdir -p coverage;
 	cd coverage; cmake -DCMAKE_BUILD_TYPE=Debug -DFAMFS_TEST_COVERAGE="yes" ..; make
 

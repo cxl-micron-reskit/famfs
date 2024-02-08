@@ -1332,7 +1332,7 @@ famfs_chkread_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
-	       "famfs chkread: Chkread the contents of a file that was created with 'famfs creat':\n"
+	       "famfs chkread: verify that the contents of a file match via read and mmap\n"
 	       "    %s chkread <famfs-file>\n"
 	       "\n"
 	       "Arguments:\n"
@@ -1342,6 +1342,13 @@ famfs_chkread_usage(int   argc,
 	       "\n", progname);
 }
 
+/**
+ * famfs_chkread()
+ *
+ * This function was added while debugging some dragons in /dev/dax resolution of
+ * faults vs. read/write, and it's a useful test. It just verifies that the contents
+ * of a file are the same whether accessed by read or mmap
+ */
 int
 do_famfs_cli_chkread(int argc, char *argv[])
 {

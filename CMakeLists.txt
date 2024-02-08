@@ -21,7 +21,7 @@ message(STATUS "PROJECT_SOURCE_DIR=${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}../famfs")
 
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/CMakeModules)
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake-modules)
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   if(CMAKE_COMPILER_IS_GNUCXX AND FAMFS_TEST_COVERAGE)
     message("Compiling for code coverage tests")
