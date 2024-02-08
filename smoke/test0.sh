@@ -157,7 +157,8 @@ fi
 ${CLI} logplay -h                  || fail "logplay -h should work"
 ${CLI} logplay $MPT                || fail "logplay $MPT should succeed"
 
-${CLI} chkread -l $MPT/.meta/.log  || fail "chkread should succeed"
+${CLI} chkread -l $MPT/.meta/.log        || fail "chkread should succeed on log"
+${CLI} chkread -s $MPT/.meta/.superblock || fail "chkread should succeed on superblock"
 
 ${CLI} logplay -rc $MPT            || fail "logplay -rc should succeed"
 ${CLI} logplay -rm $MPT            && fail "logplay with -m and -r should fail"
