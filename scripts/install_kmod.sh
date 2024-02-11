@@ -18,29 +18,38 @@ if [ ! -d $kpath ]; then
     exit -1
 fi
 
+echo "***********************************************************************"
 if (( $# > 0 )); then
     if [[ "$1" == "--replace" ]]; then
 	# remove famfs from its kernel build location and install the local version
-	sudo rm $kernel_famfs
+	echo "--replace option specified"
+	if [ ! -f $famfs ]; then
+	    echo "but out of tree module $famfs not found. Bailing..."
+	else
+	    echo "Removing in-tree famfs.ko ($kernel_famfs) from kernel $(uname -r)"
+	    sudo rm $kernel_famfs
+	fi
     fi
 fi
 
 if [ -f $kernel_famfs ]; then
     echo "famfs is part of the installed kernel"
-    echo "aborting out-of-tree installation"
 
     # If kernel-native famfs is installed, remove out-of-tree famfs if any
     if [ -f $inst_famfs ]; then
 	echo "removing out-of-tree famfs module $inst_famfs"
 	sudo rm $inst_famfs
     fi
+    echo "Using in-tree famfs.ko from kernel $(uname -r)"
+    echo "***********************************************************************"
+    echo
     sudo depmod -a
     sleep 2
     exit -1
 fi
 
-echo "Installing out-of tree famfs kmod"
-echo
+echo "Installing out-of tree famfs kmod $famfs"
+echo "***********************************************************************"
 echo
 sudo mkdir -p $instpath
 sudo cp $famfs $instpath
