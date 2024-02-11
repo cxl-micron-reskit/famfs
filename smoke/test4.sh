@@ -84,10 +84,15 @@ verify_not_mounted $DEV $MPT "test4.sh"
 ${CLI} mount -vvv $DEV $MPT || fail "famfs mount should succeed when not mounted"
 #${CLI} mount -vvv $DEV $MPT 2>/dev/null && fail "famfs mount should fail when already mounted"
 
+verify_mounted $DEV $MPT "test4.sh remount"
+
 # check that a removed file is restored on remount
 F="/mnt/famfs/test1"
 sudo rm $F
 sudo umount $MPT            || fail "umount failed"
+
+verify_not_mounted $DEV $MPT "test4.sh 2nd umount"
+
 
 ${CLI} mount -?             || fail "famfs mount -? should succeed"
 ${CLI} mount                && fail "famfs mount with no args should fail"
@@ -95,15 +100,21 @@ ${CLI} mount  a b c         && fail "famfs mount with too many args should fail"
 ${CLI} mount baddev $MPT    && fail "famfs mount with bad device path should fail"
 ${CLI} mount $DEV badmpt    && fail "famfs mount with bad mount point path should fail"
 
+verify_not_mounted $DEV $MPT "test4.sh various bad mount attempts"
+
 ${CLI} mount -vvv $DEV $MPT || fail "famfs mount 2 should succeed when not mounted"
+verify_mounted $DEV $MPT "test4.sh 2nd remount"
+
 sudo test -f $F             || fail "bogusly deleted file did not reappear on remount"
 sudo umount $MPT            || fail "umount should succeed"
 sudo rmmod famfs            || fail "could not unload famfs when unmoounted"
 ${CLI} mount -vvv $DEV $MPT && fail "famfs mount should fail when kmod not loaded"
 sudo modprobe famfs         || fail "modprobe"
 ${CLI} mount $DEV $MPT      || fail "famfs mount should succeed after kmod reloaded"
-${CLI} mount -r $DEV $MPT   || fail "famfs mount -r should succeed when nothing is hinky"
-# mount -r needs mkmeta cleanup...
+
+#TODO troubleshoot remount
+${CLI} mount -R $DEV $MPT   || fail "famfs mount -R should succeed when nothing is hinky"
+# mount -R needs mkmeta cleanup...
 
 sudo umount $MPT # run_smoke.sh expects the file system unmounted after this test
 

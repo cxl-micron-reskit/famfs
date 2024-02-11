@@ -170,7 +170,7 @@ famfs_mount_usage(int   argc,
 	       "\n"
 	       "Arguments:\n"
 	       "    -?             - Print this message\n"
-	       "    -r             - Re-mount\n"
+	       "    -R|--remount   - Re-mount\n"
 	       "    -v|--verbose   - Print verbose output\n"
 	       "\n", progname);
 }
@@ -182,6 +182,8 @@ do_famfs_cli_mount(int argc, char *argv[])
 	int rc;
 	int arg_ct = 0;
 	int verbose = 0;
+	int use_read = 0;
+	int use_mmap = 0;
 	char *mpt = NULL;
 	int remaining_args;
 	char *daxdev = NULL;
@@ -191,7 +193,9 @@ do_famfs_cli_mount(int argc, char *argv[])
 
 	struct option mkmeta_options[] = {
 		/* These options set a */
-		{"replay",     no_argument,            0,  'r'},
+		{"remount",    no_argument,            0,  'R'},
+		{"read",       no_argument,             0,  'r'},
+		{"mmap",       no_argument,             0,  'm'},
 		{"verbose",    no_argument,            0,  'v'},
 		{0, 0, 0, 0}
 	};
@@ -200,7 +204,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+h?rv",
+	while ((c = getopt_long(argc, argv, "+h?Rrmv",
 				mkmeta_options, &optind)) != EOF) {
 
 		arg_ct++;
@@ -213,12 +217,27 @@ do_famfs_cli_mount(int argc, char *argv[])
 		case 'v':
 			verbose++;
 			break;
+		case 'm':
+			use_mmap++;
+			break;
 		case 'r':
+			use_read++;
+			break;
+		case 'R':
 			mflags |= MS_REMOUNT;
 			break;
 		}
 	}
 
+	if (use_mmap && use_read) {
+		fprintf(stderr,
+			"Error: The --mmap and --read arguments are mutually exclusive\n\n");
+		famfs_logplay_usage(argc, argv);
+		return -1;
+	} else if (!(use_mmap || use_read)) {
+		/* If neither method was explicitly requested, default to mmap */
+		use_mmap++;
+	}
 	remaining_args = argc - optind;
 
 	if (remaining_args != 2) {
@@ -259,7 +278,8 @@ do_famfs_cli_mount(int argc, char *argv[])
 	if (rc)
 		fprintf(stderr, "famfs mount: ignoring err %d from mkmeta\n", rc);
 
-	rc = famfs_logplay(realmpt, 1, 0, 0, verbose);
+
+	rc = famfs_logplay(realmpt, use_mmap, 0, 0, verbose);
 
 err_out:
 	free(realdaxdev);
