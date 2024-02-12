@@ -6,8 +6,6 @@
 /*
  * famfs - dax file system for shared fabric-attached memory
  *
- * Copyright 2023 Micron Technology, Inc.
- *
  * This file system, originally based on ramfs the dax support from xfs,
  * is intended to allow multiple host systems to mount a common file system
  * view of dax files that map to shared memory.
@@ -20,40 +18,6 @@
 #include <linux/famfs_ioctl.h>
 
 #include "famfs.h"
-
-/**
- * Allocation metadata: superblock and log
- *
- * Superblock exposed through superblock file (.meta/superblock)
- * Log and log_cb exposed via log file (.meta/log)
- *
- * Filesystem quirks
- *
- * Famfs is a DAX file system based on RAMFS. Files are backed by DAX memory, but (like ramfs)
- * inodes are not persisted to media. This makes sense because famfs is largely aimed at
- * non-persistent dax devices.
- *
- * Famfs Structure
- *
- * A famfs file system has a root dax device. The superblock (struct famfs superblock) lives
- * at offset 0 on the root dax device. The superblock is exposed as a file at .meta/sb via the
- * FAMFSIOC_MAP_SUPERBLOCK ioctl. *fixme*
- *
- * The root log is located in the root dax device, at sb->ts_log_offset. The log length
- * is sb->ts_log_len. The root log is exposed as the file .meta/rootlog via the
- * FAMFSIOC_MAP_ROOTLOG ioctl.
- *
- * Mounting is somewhat non-standard. After issuing the mount command, there is an empty famfs
- * file system. The filesystem is not fully usable until the userspace utility does the following:
- *
- * * Write the 2MiB superblock to offset 0 on the root dax device
- * * Create the superblock file (FAMFSIOC_MAP_SUPERBLOCK)
- * * Create the rootlog file (FAMFSIOC_MAP_ROOTLOG)
- * * Replay the rootlog (and any other logs) into the filesystem, which populates the files
- *   which are mapped to dax memory (likely cxl fam)
- *
- * TODO: the stuff documented above is not implemented yet...
- */
 
 #define FAMFS_SUPER_MAGIC      0x87b282ff
 #define FAMFS_CURRENT_VERSION  46
