@@ -1,9 +1,8 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /*
- * Copyright (C) 2020-2021 Micron Technology, Inc.  All rights reserved.
+ * Copyright (C) 2020-2024 Micron Technology, Inc.  All rights reserved.
  */
 
-//#include <hse_util/arch.h>
 #include <unistd.h>
 #include <time.h>
 #include "xrand.h"

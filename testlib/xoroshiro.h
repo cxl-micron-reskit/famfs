@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: CC0-1.0 */
 /*
- * Copyright (C) 2015-2021 Micron Technology, Inc.  All rights reserved.
+ * Copyright (C) 2015-2024 Micron Technology, Inc.  All rights reserved.
  */
 
 #ifndef XOROSHIRO_H

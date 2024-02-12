@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /*
- * Copyright (C) 2015-2017 Micron Technology, Inc.  All rights reserved.
+ * Copyright (C) 2015-2024 Micron Technology, Inc.  All rights reserved.
  */
 
 #ifndef HSE_CORE_HSE_TEST_RANDOM_BUFFER_H

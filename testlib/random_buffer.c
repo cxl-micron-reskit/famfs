@@ -1,10 +1,7 @@
 /* SPDX-License-Identifier: Apache-2.0 */
 /*
- * Copyright (C) 2015-2017 Micron Technology, Inc.  All rights reserved.
+ * Copyright (C) 2015-2024 Micron Technology, Inc.  All rights reserved.
  */
-
-//#include <hse_test_support/random_buffer.h>
-//#include <hse_util/xrand.h>
 
 #include <string.h>
 #include <assert.h>
