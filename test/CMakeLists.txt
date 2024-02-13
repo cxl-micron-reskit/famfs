@@ -1,7 +1,7 @@
 
 cmake_minimum_required(VERSION 3.15)
 
-set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/CMakeModules)
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake-modules)
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   if(CMAKE_COMPILER_IS_GNUCXX)
     message("Compiling for code coverage tests")
