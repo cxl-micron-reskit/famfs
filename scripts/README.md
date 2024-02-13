@@ -6,6 +6,8 @@ Note the some of these scripts may need to be run from the directory above, e.g.
 |:----------|:--------------|
 | `check_valgrind_output.sh` | Looks for errors in a log containing valgrind tests, and prints just the valgrind outputs containing the errors |
 | `chk_efi.sh` | Check whether the running system is properly configured with efi firmware |
+| `chk_include.sh` | Install famfs_ioctl.h include file if necessary |
+| `chk_memdev.sh` | Check for valid dax device configuration |
 | `fc_disable.sh` | Disable the fault counters in famfs |
 | `fc_enable.sh` | Enable the fault counters in famfs |
 | `fc_print.sh` | Print the fault counters from famfs |

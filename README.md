@@ -1,20 +1,22 @@
 
-# This is the combined kernel & userspace repo for famfs.
+# This repo contains the user space components of the famfs framework
 
-This will eventually split into separate repos:
-* A patched kernel repo with the famfs kernel component (the kmod subdirectory here)
-* A userspace repo with the userspace component (the user subdirectory here)
+You will need to install a kernel with famfs support. 
 
 ## Repository Contents
 
-* *kmod* - The famfs kernel module. A Linux 6.5 kernel is currently required.
-* *user* - The user space components of famfs (which is most of it)
-* *scripts* - A few utiliies
+
+* *markdown* - Various documentation (browseable from here)
+* [*scripts*](scripts/README.md) - Various utility scripts
+* *smoke* - Smoke test worker scripts
+* *src* - The user space source code for the primary famfs components
+* *test* - Some famfs-specific googletest unit tests
+* *testlib* - Utility code that is used in famfs tests
 
 ## Documentation Contents
 
 * Overview - this document
-* [Getting Started with famfs](user/getting-started.md)
+* [Getting Started with famfs](markdown/getting-started.md)
 
 # What is Famfs?
 
@@ -145,6 +147,14 @@ Here are a few more details on the operation of famfs
     - No delete
     - No truncate
     - No append
+
+## Are These Limitations Permanent?
+
+No! Well, some maybe, but most of the famfs limitations can be mitigated or eliminated if
+we decide to write enough code. Those Byzantine generals need to be managed, etc.
+
+The current famfs limitations are chosen to keep the problem manageable and the code
+reasonably sized in the early stages.
 
 # What is Famfs NOT?
 
