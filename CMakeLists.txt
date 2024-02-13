@@ -8,8 +8,7 @@ set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -ggdb -Wall ")
 project(famfs_unit)
 
 
-include_directories("${PROJECT_SOURCE_DIR}")
-include_directories("${PROJECT_SOURCE_DIR}/../kmod")
+include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/testlib")
 
 
@@ -19,7 +18,6 @@ include_directories("${PROJECT_SOURCE_DIR}/testlib")
 
 message(STATUS "PROJECT_SOURCE_DIR=${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}")
-include_directories("${PROJECT_SOURCE_DIR}../famfs")
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake-modules)
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -30,10 +28,10 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   endif()
 endif()
 
-add_library(libfamfs famfs_lib.c  )
+add_library(libfamfs src/famfs_lib.c  )
 
-add_executable(famfs famfs_cli.c )
-add_executable(mkfs.famfs mkfs.famfs.c )
+add_executable(famfs src/famfs_cli.c )
+add_executable(mkfs.famfs src/mkfs.famfs.c )
 
 target_link_libraries(famfs libfamfs famfstest uuid z)
 target_link_libraries(mkfs.famfs libfamfs uuid z)
