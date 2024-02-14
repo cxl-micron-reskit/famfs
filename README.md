@@ -29,9 +29,10 @@ the memory without any page cache involvement (and no faults involving data move
 
 # Background
 
-In the coming years the emerging CXL standard will enable shared fabric-attached
+In the coming years the emerging CXL standard will enable shared, disaggregated memory
+in potential multiple forms - included multi-port memory and fabric-attached
 memory (FAM). Famfs is intended to provide a viable usage pattern for FAM that many apps
-can use without modification. Prototype implementations exist in late 2023.
+can use without modification. Early implementations already exist in early 2024.
 
 Famfs is an fs-dax file system that allows multiple hosts to mount the same file system
 from the same shared memory. The file system is administered by a Master, but can
