@@ -6,9 +6,9 @@ chk_include:
 	scripts/chk_include.sh
 
 cmake-modules:
-	git clone git@github.com:jagalactic/cmake-modules.git
+	git clone https://github.com/jagalactic/cmake-modules.git
 
-debug:	chk_include
+debug:	cmake-modules chk_include
 	mkdir -p debug;
 	cd debug; cmake -DCMAKE_BUILD_TYPE=Debug ..; make #VERBOSE=1
 
@@ -32,7 +32,7 @@ coverage_test:	coverage
 	./run_smoke.sh --coverage
 	cd coverage; sudo make famfs_unit_coverage
 
-release:	chk_include
+release:	cmake-modules chk_include
 	mkdir -p release;
 	cd release; cmake ..; make
 
