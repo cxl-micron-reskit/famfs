@@ -82,7 +82,7 @@ verify_not_mounted $DEV $MPT "test4.sh"
 #
 # Second mount causes fubar on 6.7, but fails as it should on 6.5 TODO: fix it!!
 ${CLI} mount -vvv $DEV $MPT || fail "famfs mount should succeed when not mounted"
-#${CLI} mount -vvv $DEV $MPT 2>/dev/null && fail "famfs mount should fail when already mounted"
+${CLI} mount -vvv $DEV $MPT 2>/dev/null && fail "famfs mount should fail when already mounted"
 
 verify_mounted $DEV $MPT "test4.sh remount"
 
