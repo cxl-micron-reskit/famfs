@@ -1,16 +1,16 @@
-
-# Famfs mkfs
-
+# mkfs.famfs
 ```
+
 Create a famfs file system:
-    debug/mkfs.famfs [args] <memdevice>  # Example memdevices: /dev/pmem0 or /dev/dax0.0
+    mkfs.famfs [args] <memdevice>  # Example memdevices: /dev/pmem0 or /dev/dax0.0
 
 Arguments
     -h|-?      - Print this message
     -f|--force - Will create the file system even if there is allready a superblock
     -k|--kill  - Will 'kill' the superblock (also requires -f)
+
 ```
-# Famfs cli
+# The famfs CLI
 The famfs CLI enables most of the normal maintenance operations with famfs.
 
 ```
@@ -31,9 +31,12 @@ Commands:
 	logplay
 	getmap
 	clone
+	chkread
 ```
-## Famfs mount
+
+## famfs mount
 ```
+
 famfs mount: mount a famfs file system and make it ready to use
 
 We recommend using the 'famfs mount' command rather than the native system mount
@@ -41,15 +44,15 @@ command, because there are additional steps necessary to make a famfs file syste
 ready to use after the system mount (see mkmeta and logplay). This command takes
 care of the whole job.
 
- mount <memdevice> <mountpoint>
+    famfs mount <memdevice> <mountpoint>
 
 Arguments:
     -?             - Print this message
-    -r             - Re-mount
+    -R|--remount   - Re-mount
     -v|--verbose   - Print verbose output
 
 ```
-## Famfs fsck
+## famfs fsck
 ```
 
 famfs fsck: check a famfs file system
@@ -112,8 +115,9 @@ TODO: add an option to remove bad files
 TODO: add an option to check that all files match the log (and fix problems)
 
 ```
-## Famfs mkdir
+## famfs mkdir
 ```
+
 famfs mkdir: Create a directory in a famfs file system:
 
     famfs mkdir [args] <dirname>
@@ -127,11 +131,10 @@ Arguments:
     -u|--uid=<uid>   - Specify uid (default is current user's uid)
     -g|--gid=<gid>   - Specify uid (default is current user's gid)
     -v|--verbose     - Print debugging output while executing the command
-
+```
+## famfs cp
 ```
 
-## Famfs cp
-```
 famfs cp: Copy one or more files and directories into a famfs file system
 
 Copy a file into a famfs file system
@@ -159,8 +162,9 @@ NOTE 2: you need this tool to copy a file into a famfs file system,
         can be found using 'famfs check'.
 
 ```
-## Famfs creat
+## famfs creat
 ```
+
 famfs creat: Create a file in a famfs file system
 
 This testing tool allocates and creates a file of a specified size.
@@ -190,8 +194,9 @@ NOTE: the --randomize and --seed arguments are useful for testing; the file is
       command later to validate the contents of the file
 
 ```
-## Famfs verify
+## famfs verify
 ```
+
 famfs verify: Verify the contents of a file that was created with 'famfs creat':
     famfs verify -S <seed> -f <filename>
 
@@ -201,8 +206,9 @@ Arguments:
     -S|--seed <random-seed>   - Required seed for data verification
 
 ```
-## Famfs mkmeta
+## famfs mkmeta
 ```
+
 famfs mkmeta:
 
 The famfs file system exposes its superblock and log to its userspace components
@@ -214,11 +220,13 @@ have been performed.
     famfs mkmeta <memdevice>  # Example memdevices: /dev/pmem0 or /dev/dax0.0
 
 Arguments:
-    -?           - Print this message
+    -?               - Print this message
+    -v|--verbose     - Print verbose output
 
 ```
-## Famfs logplay
+## famfs logplay
 ```
+
 famfs logplay: Play the log of a mounted famfs file system
 
 This administrative command is necessary after mounting a famfs file system
@@ -232,10 +240,10 @@ Arguments:
     -c|--client - force "client mode" (all files read-only)
     -n|--dryrun - Process the log but don't instantiate the files & directories
 
+
 ```
-## Famfs getmap
+## famfs getmap
 ```
-+ famfs getmap '-?'
 
 famfs getmap: check the validity ofa famfs file, and optionally get the
 mapping info for the file
@@ -260,8 +268,9 @@ Exit codes:
 This is similar to the xfs_bmap command and is only used for testing
 
 ```
-## Famfs clone
+## famfs clone
 ```
+
 famfs clone: Clone a file within a famfs file system
 
 This administrative command is only useful in testing, and leaves the
@@ -275,5 +284,18 @@ Arguments:
     -?           - Print this message
 
 NOTE: this creates a file system error and is for testing only!!
+
+```
+## famfs chkread
+```
+
+famfs chkread: verify that the contents of a file match via read and mmap
+
+    famfs chkread <famfs-file>
+
+Arguments:
+    -?  - Print this message
+    -s  - File is famfs superblock
+    -l  - File is famfs log
 
 ```

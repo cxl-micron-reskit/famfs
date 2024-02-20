@@ -4,7 +4,7 @@ Clone the kernel. The kernel below has patches that enable testing with /dev/dax
 but are not used with /dev/pmem devices. (Running with /dev/pmem devices is currently
 recommended.)
 
-    git clone -b famfs-6.7 https://github.com/jagalactic/linux.git famfs-linux
+    git clone https://github.com/cxl-micron-reskit/famfs-linux.git
 
 Build the kernel
 
@@ -24,17 +24,7 @@ Reboot the system and make sure you're running the new kernel
 
     uname -r
 
-Output:
+Output (as of Feb 2024):
 
-    6.7.0
+    6.8.0-rc4
 
-<div style="border:1px solid black; padding:10px; margin-bottom:10px;">
-    <strong>Important:</strong> This is an important message in a box (I hope)!
-</div>
-
-> **Important:** This is an important message in standard markdown!
-
-`ad-note
-: **Important:** This is an important message in github style!
-
-:bangbang: **Important:** important msg with bangbang
