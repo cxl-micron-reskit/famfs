@@ -50,6 +50,10 @@ while (( $# > 0)); do
 	    TEST_ERRORS=1
 	    TEST_ALL=0
 	    ;;
+	(-4)
+	    TEST_ALL=0
+	    TEST4=1
+	    ;;
 	(-N|--nosleep)
 	    SLEEP_TIME=0
 	    ;;
@@ -111,14 +115,32 @@ else
 fi
 
 if (($TEST_ALL > 0)); then
+    TEST0=1
+    TEST1=1
+    TEST2=1
+    TEST3=1
+    TEST4=1
+fi
+
+./smoke/prepare.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
+
+if (($TEST0 > 0)); then
     ./smoke/test0.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
     sleep "${SLEEP_TIME}"
+fi
+if (($TEST1 > 0)); then
     ./smoke/test1.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
     sleep "${SLEEP_TIME}"
+fi
+if (($TEST2 > 0)); then
     ./smoke/test2.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
     sleep "${SLEEP_TIME}"
+fi
+if (($TEST3 > 0)); then
     ./smoke/test3.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
     sleep "${SLEEP_TIME}"
+fi
+if (($TEST4 > 0)); then
     ./smoke/test4.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
 fi
 if (($TEST_ERRORS > 0)); then
@@ -128,9 +150,6 @@ if (($TEST_ERRORS > 0)); then
 else
     echo "skipping test_errors.sh because -n|--noerrors was specified"
 fi
-
-#full_mount $DEV $MPT "${MOUNT_OPTS}" "run_smoke.sh remount"
-${CLI} mount $DEV $MPT || fail "run_smoke: famfs mount"
 
 exit 0
 #sleep 4

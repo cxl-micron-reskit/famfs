@@ -49,7 +49,7 @@ source $SCRIPTS/test_funcs.sh
 
 set -x
 
-full_mount $DEV $MPT "${MOUNT_OPTS}" "test_errors full_mount"
+#full_mount $DEV $MPT "${MOUNT_OPTS}" "test_errors full_mount"
 
 verify_mounted $DEV $MPT "test2.sh"
 
@@ -70,7 +70,7 @@ ${CLI} fsck $MPT && fail "fsck should fail after cloning "
 ${CLI} verify -S $N -f $MPT/${FILE}_clone  || fail "${FILE}_clone mismatch"
 ${CLI} verify -S $N -f $MPT/${FILE}_clone1 || fail "${FILE}_clone1 mismatch"
 
-sudo umount $MPT || fail "umount"
+sudo strace umount $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
 full_mount $DEV $MPT "${MOUNT_OPTS}" "test1.sh"
 verify_mounted $DEV $MPT "test1.sh"
@@ -78,7 +78,7 @@ verify_mounted $DEV $MPT "test1.sh"
 ${CLI} fsck -v $MPT && fail "fsck -v if a clone has ever happened should fail"
 ${CLI} fsck $MPT && fail "fsck if a clone has ever happened should fail"
 
-sudo umount $MPT || fail "umount"
+#sudo umount $MPT || fail "umount"
 
 set +x
 echo "*************************************************************************************"

@@ -9,6 +9,7 @@ SCRIPTS=../scripts/
 MPT=/mnt/famfs
 BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
+RMMOD=1
 
 # Override defaults as needed
 while (( $# > 0)); do
@@ -32,6 +33,9 @@ while (( $# > 0)); do
 	    # no argument to -v; just setup for Valgrind
 	    VG=${VALGRIND_ARG}
 	    ;;
+	(-n|--no-rmmod)
+	    RMMOD=0
+	    ;;
 	*)
 	    echo "Unrecognized command line arg: $flag"
 	    ;;
@@ -43,6 +47,7 @@ echo "DEVTYPE=$DEVTYPE"
 MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI="sudo $VG $BIN/famfs"
 MULTICHASE="sudo $BIN/src/multichase/multichase"
+UMOUNT="sudo strace umount"
 
 source $SCRIPTS/test_funcs.sh
 # Above this line should be the same for all smoke tests
@@ -74,7 +79,7 @@ sudo cat /sys/fs/famfs/pud_fault_ct || fail "cat pud_fault_ct"
 echo
 set -x
 verify_mounted $DEV $MPT "test4.sh mounted"
-sudo umount $MPT || fail "test4.sh umount"
+$UMOUNT $MPT || fail "test4.sh umount"
 verify_not_mounted $DEV $MPT "test4.sh"
 
 #
@@ -89,7 +94,7 @@ verify_mounted $DEV $MPT "test4.sh remount"
 # check that a removed file is restored on remount
 F="/mnt/famfs/test1"
 sudo rm $F
-sudo umount $MPT            || fail "umount failed"
+$UMOUNT $MPT            || fail "umount failed"
 
 verify_not_mounted $DEV $MPT "test4.sh 2nd umount"
 
@@ -106,18 +111,21 @@ ${CLI} mount -vvv $DEV $MPT || fail "famfs mount 2 should succeed when not mount
 verify_mounted $DEV $MPT "test4.sh 2nd remount"
 
 sudo test -f $F             || fail "bogusly deleted file did not reappear on remount"
-sudo umount $MPT            || fail "umount should succeed"
-sudo rmmod famfs            || fail "could not unload famfs when unmoounted"
-${CLI} mount -vvv $DEV $MPT && fail "famfs mount should fail when kmod not loaded"
-sudo modprobe famfs         || fail "modprobe"
+$UMOUNT $MPT            || fail "umount should succeed"
+
+if ((RMMOD > 0)); then
+    sudo rmmod famfs            || fail "could not unload famfs when unmoounted"
+    ${CLI} mount -vvv $DEV $MPT && fail "famfs mount should fail when kmod not loaded"
+    sudo modprobe famfs         || fail "modprobe"
+fi
 ${CLI} mount $DEV $MPT      || fail "famfs mount should succeed after kmod reloaded"
 
 #TODO troubleshoot remount
 ${CLI} mount -R $DEV $MPT   || fail "famfs mount -R should succeed when nothing is hinky"
 # mount -R needs mkmeta cleanup...
 
-sudo umount $MPT # run_smoke.sh expects the file system unmounted after this test
-
+$UMOUNT $MPT # run_smoke.sh expects the file system unmounted after this test
+${CLI} mount $DEV $MPT || fail "last famfs mount should succeed"
 set +x
 echo "*************************************************************************************"
 echo "Test4 (multichase) completed successfully"

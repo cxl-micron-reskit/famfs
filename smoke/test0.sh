@@ -49,28 +49,6 @@ source $SCRIPTS/test_funcs.sh
 
 set -x
 
-sudo mkdir -p $MPT || fail "mkdir"
-
-# Make sure famfs is not currently mounted
-grep -c famfs /proc/mounts         && fail "famfs is currently mounted"
-
-# destroy famfs file system, if any
-${MKFS} -h            || fail "mkfs -h should work"
-${MKFS}               && fail "mkfs without dev argument should fail"
-${MKFS} /tmp/nonexistent && fail "mkfs on nonexistent dev should fail"
-${MKFS} -f -k $DEV    || fail "mkfs/kill"
-${MKFS}  $DEV         || fail "mkfs"
-${MKFS}  $DEV         && fail "mkfs redo" # fail, fs exists
-
-#debug/famfs mkmeta /dev/pmem0                  || fail "mkmeta"
-${CLI} -h || fail "cli -h should succeed"
-${CLI} fsck $DEV          || fail "fsck"
-
-sudo modprobe famfs       || fail "modprobe"
-
-sudo mount $MOUNT_OPTS $DEV $MPT || fail "mount"
-#sudo mount $MOUNT_OPTS $DEV $MPT && fail "double mount should fail"
-
 grep famfs /proc/mounts             || fail "No famfs mounted"
 grep $DEV /proc/mounts              || fail "dev=$DEV not in /proc/mounts~"
 grep $MPT /proc/mounts              || fail "Mount pt $MPT not in /proc/mounts~"
