@@ -1352,11 +1352,11 @@ famfs_chkread_usage(int   argc,
 	char *progname = argv[0];
 
 	printf("\n"
-	       "famfs chkread: verify that the contents of a file match via read and mmap\n"
+	       "famfs chkread: verify that the contents of a file match via read and mmap\n\n"
 	       "    %s chkread <famfs-file>\n"
 	       "\n"
 	       "Arguments:\n"
-	       "    -?                        - Print this message\n"
+	       "    -?  - Print this message\n"
 	       "    -s  - File is famfs superblock\n"
 	       "    -l  - File is famfs log\n"
 	       "\n", progname);
