@@ -74,7 +74,7 @@ memory map datasets from files. The "zero-copy formats" (e.g. Apache Arrow) are 
 particular interest because they are already oriented to formatting data sets in a way
 that can be efficiently memory-mapped.
 
-Famfs an enables a number of advantages when the compute jobs scale out:
+Famfs enables a number of advantages when the compute jobs scale out:
 
 * Large datasets can exist as one shared copy in a famfs file
 * Sharded data need not be re-shuffled if the data is stored in famfs files
@@ -110,7 +110,7 @@ A few observations about the requirements
 
 # Theory of Operation
 
-Famfs is a Linux file system that is administered from user space - by the code in this repo.
+Famfs is a Linux file system that is administered from user space - enabled by the code in this repo.
 The host device is a dax memory device (either ```/dev/dax``` or ```/dev/pmem```).
 
 The file infrastructure lives in the Linux kernel, which is necessary for Requirement #2

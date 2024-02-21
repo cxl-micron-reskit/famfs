@@ -210,7 +210,7 @@ The following stanza should be added as the last entry in the <devices> section.
         <pmem/>
       </source>
       <target>
-        <size unit='GiB'>32</size>
+        <size unit='GiB'>8</size>
         <node>0</node>
         <label>
           <size unit='MiB'>16</size>
