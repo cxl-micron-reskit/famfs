@@ -35,7 +35,7 @@ This will reserve 8G of memory at offset 24G into system physical RAM as a simul
 pmem device. You must check your available memory and make sure that you have enough to
 back the entire range - if not, it won't work well...
 
-AFter doing that, you willl need too run the following command (assuming your system
+After doing that, you will need too run the following command (assuming your system
 is in efi mode:
 
     sudo grub2-mkconfig -o /boot/efi/EFI/fedora/grub.cfg
@@ -67,7 +67,7 @@ observed cases where the device is still created, but (of course) it does not wo
 properly. Just don't do that.
 
 **NOTE:** There are some circumstances where udev rules may "online" your dax memory as
-system-ram after boot. YOu
+system-ram after boot.
 
 After boot it is likely that your /dev/dax device will be in system-ram mode; if so,
 you will need to convert it to "devdax" mode.
@@ -140,7 +140,7 @@ In this example we will share an 8GiB /dev/dax device from the hypervisor. Each 
 a virtual pmem device backed by the same /dev/dax device. The /dev/dax device can be either
 physical or virtual.
 
-We will use 'virsh edit' to edit the VM
+We will use ```virsh edit``` to edit the VM
 
     virsh edit f38-dev2
 
@@ -175,13 +175,15 @@ Your memory description needs to be as follows:
   <currentMemory unit='GiB'>40</currentMemory>
   ...
 ```
-Now that maxMemory, memory and currentMemory are all required, and the size must be the
-sum of the general purpose memory and the shared device.
+**Note:** maxMemory, memory and currentMemory are all required, and the size of all three must be the
+sum of the general purpose memory and the shared device. In this example, general purpose memory
+is 32G and the dax device is 8G.
 
 **NOTE:** Libvirt will convert the units from GiB to KiB, but using GiB when editing is somewhat
 less error-prone.
 
-You must also create a numa node. This is a libvirt xml requirement.
+You must also create a numa node. This is a libvirt xml requirement in order to make the dax-backed
+pmem device work.
 ```
   </features>
   <cpu mode='host-passthrough' check='none' migratable='on'>
@@ -190,8 +192,9 @@ You must also create a numa node. This is a libvirt xml requirement.
     </numa>
   </cpu>
 ```
-**NOTE:** The size of the numa node should match the size of the general purpose memory, not counting
-the size of the shared dax device.
+
+:bangbang:**NOTE:** The size of the numa node should match the size of the general purpose memory,
+not counting the size of the shared dax device.
 
 **NOTE:** The cpus should be '0-n' for n cpus. Set this correctly for your VM.
 
@@ -203,7 +206,7 @@ The following stanza should be added as the last entry in the <devices> section.
     <memory model='nvdimm' access='shared'>
       <source>
         <path>/dev/dax1.0</path>
-        <alignsize unit='KiB'>2048</alignsize>
+        <alignsize unit='MiB'>2</alignsize>
         <pmem/>
       </source>
       <target>
@@ -217,14 +220,15 @@ The following stanza should be added as the last entry in the <devices> section.
     </memory>
   </devices>
 ```
+Notes:
 - path should reference the shared dax device in the hypervisor host
 - alignsize must be specified as 2MiB (or 2048 KiB)
 - size must match the size of the dax device
 
 ### Test your pmem device
 
-If you edited the above sections correctly, a miracle will occur and your VM will have
-a working pmem device.
+If you edited the above sections correctly, and updated grub, and rebooted...  a miracle will
+occur and your VM will have a working pmem device.
 
 ```
 $ ndctl list

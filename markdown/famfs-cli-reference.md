@@ -6,7 +6,7 @@ Create a famfs file system:
 
 Arguments
     -h|-?      - Print this message
-    -f|--force - Will create the file system even if there is allready a superblock
+    -f|--force - Will create the file system even if there is already a superblock
     -k|--kill  - Will 'kill' the superblock (also requires -f)
 
 ```
@@ -90,7 +90,7 @@ This is imporant for a couple of reasons. Although creating a valid famfs file
 requires use of the famfs cli or api, it is possible to create invalid files with
 the standard system tools (cp, etc.). It is also conceivable that a bug in the
 famfs api and/or cli would leave an improperly configured file in place after
-unsuccessful error recovery. This commmand will find those invalid
+unsuccessful error recovery. This command will find those invalid
 files (if any) and report them.
 
     famfs check [args] <mount point>
@@ -101,7 +101,7 @@ Arguments:
                    (the verbose arg can be repeated for more verbose output)
 
 Exit codes:
-   0    - All files properlly mapped
+   0    - All files properly mapped
 When non-zero, the exit code is the bitwise or of the following values:
    1    - At least one unmapped file found
    2    - Superblock file missing or corrupt
@@ -153,8 +153,8 @@ Arguments
     -g|--gid=<gid>   - Specify uid (default is current user's gid)
     -v|verbose       - print debugging output while executing the command
 
-NOTE 1: 'famfs cp' will never overwite an existing file, which is a side-effect
-        of the facts that famfs never does delete, truncate or allocate-onn-write
+NOTE 1: 'famfs cp' will never overwrite an existing file, which is a side-effect
+        of the facts that famfs never does delete, truncate or allocate-on-write
 NOTE 2: you need this tool to copy a file into a famfs file system,
         but the standard 'cp' can be used to copy FROM a famfs file system.
         If you inadvertently copy files into famfs using the standard 'cp' (or
@@ -202,7 +202,7 @@ famfs verify: Verify the contents of a file that was created with 'famfs creat':
 
 Arguments:
     -?                        - Print this message
-    -f|--fillename <filename> - Required file path
+    -f|--filename <filename> - Required file path
     -S|--seed <random-seed>   - Required seed for data verification
 
 ```
@@ -212,7 +212,7 @@ Arguments:
 famfs mkmeta:
 
 The famfs file system exposes its superblock and log to its userspace components
-as files. After telling the linux kernel to mount a famfs file system, you need
+as files. After telling the Linux kernel to mount a famfs file system, you need
 to run 'famfs mkmeta' in order to expose the critical metadata, and then run
 'famfs logplay' to play the log. Files will not be visible until these steps
 have been performed.
@@ -245,7 +245,7 @@ Arguments:
 ## famfs getmap
 ```
 
-famfs getmap: check the validity ofa famfs file, and optionally get the
+famfs getmap: check the validity of a famfs file, and optionally get the
 mapping info for the file
 
 This command is primarily for testing and validation of a famfs file system
@@ -274,7 +274,7 @@ This is similar to the xfs_bmap command and is only used for testing
 famfs clone: Clone a file within a famfs file system
 
 This administrative command is only useful in testing, and leaves the
-file system in cross-linked state. Don't use it unless yu want to generate
+file system in cross-linked state. Don't use it unless you want to generate
 errors for testing!
 
 Clone a file, creating a second file with the same extent list:

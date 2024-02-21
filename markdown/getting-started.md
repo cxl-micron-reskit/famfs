@@ -66,7 +66,7 @@ You must load the kernel module in order to use famfs
 Famfs does not have packaged installation files yet, once you have built it, you can
 install the user space library and cli with the following command:
 
-    cd sudo make install
+    sudo make install
 
 # Preparing to run famfs
 
@@ -90,7 +90,7 @@ Famfs already has a substantial set of tests, though we plan to expand them subs
 ## Running smoke tests
 
 The famfs smoke tests load the kernel module, create and mount a famfs file system, and
-test its funcionality.
+test its functionality.
 The smoke tests currently must be run by a non-privileged user with passwordless sudo
 enabled. Running the tests as root does not work, because they expect certain operations to
 fail due to non-root privileges.

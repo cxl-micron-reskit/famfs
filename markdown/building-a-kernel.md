@@ -26,5 +26,5 @@ Reboot the system and make sure you're running the new kernel
 
 Output (as of Feb 2024):
 
-    6.8.0-rc4
+    6.8.0-rc4+
 

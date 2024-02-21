@@ -1,5 +1,5 @@
 
-# This is the User Space Repo for the Famfs Shared Memory Filesystem Framework
+# Famfs Shared Memory Filesystem Framework - User Space Repo
 
 # What is Famfs?
 
@@ -41,7 +41,7 @@ youtube video of the talk.
 In Linux, special purpose memory is exposed as a dax device (e.g. ```/dev/dax0.0``` or
 ```/dev/pmem0```).
 Applications can memory map dax memory by opening a dax device calling the mmap() system call
-on the fille descriptor.
+on the file descriptor.
 
 Dax memory can be onlined as system-ram, but that is not appropriate if the memory is
 shared. The first of many reasons for this is that Linux zeroes memory that gets onlined,
@@ -56,14 +56,14 @@ all hosts with shared access identify the memory by its Tag.
 ## What is fs-dax?
 
 Fs-dax is a means of creating a file system that resides in dax memory. A file in an fs-dax
-file system is just a convenient means of accessing the subset of dax memory that is alocated
+file system is just a convenient means of accessing the subset of dax memory that is allocated
 to that file. If an application opens an
 fs-dax file and calls mmap() on the file descriptor, the resulting pointer provides direct
 load/store access to the memory - without
 ever moving data in and out of the page cache (as is the case with mmap() on "normal" files).
 
 Posix read/write are also supported, but those are not the optimal use case for fs-dax;
-read and write effectively amount to mmemcpy() in and out of the file's memory. 
+read and write effectively amount to memcpy() in and out of the file's memory.
 
 
 # How can famfs do interesting work?
@@ -87,7 +87,7 @@ through a procedure like this.
 
 1. Wrangle data into a zero-copy format
 2. Copy the zero-copy files into a shared famfs file system
-3. Component jobs from any node in the clluster can access the data via mmap() from the
+3. Component jobs from any node in the cluster can access the data via mmap() from the
    shared famfs file system
 4. When a job is over, dismount the famfs file system and make the memory available for
    the next job...
@@ -99,7 +99,7 @@ through a procedure like this.
 3. Must support metadata distribution in a sharable way
 4. Must handle clients with a stale copy of metadata
 
-A few observations about the requirments
+A few observations about the requirements
 
 | **Requirement** | **Notes** |
 |-----------------|-----------|
@@ -113,12 +113,12 @@ A few observations about the requirments
 Famfs is a Linux file system that is administered from user space - by the code in this repo.
 The host device is a dax memory device (either ```/dev/dax``` or ```/dev/pmem```).
 
-The file infastructure lives in the Linux kernel, which is necessary for Requirement #2
+The file infrastructure lives in the Linux kernel, which is necessary for Requirement #2
 (must efficiently handle VMA faults). But the majority of the code lives in user space
 and executes via the famfs cli and library.
 
 The "Master" node is the system that created a famfs file system (by running ```mkfs.famfs```).
-The sytem UUID of the master node is stored in the superblock, and the famfs cli and library
+The system UUID of the master node is stored in the superblock, and the famfs cli and library
 prevent client nodes from mutating famfs metadata for a file system that they did not create.
 
 As files and directories are allocated and created, the Master adds those files to the
@@ -164,7 +164,7 @@ known location and size (offset 0, 2MiB - i.e. a single PMD page). The superbloc
 the offset and size of the log. All additional files and directories are created via log entries.
 
 The famfs kernel module never accesses the memory of the dax device - not even the superblock
-and log. This has RAS benefits. If a memory error occurs (non-correctible errors, connectivity
+and log. This has RAS benefits. If a memory error occurs (non-correctable errors, connectivity
 problems, etc.) the process that accessed the memory should receive a SIGBUS, but kernel code
 should not be affected.
 
@@ -195,7 +195,7 @@ Directory creation is slightly simpler, consisting of:
 | ```famfs logplay``` | Master and Clients: Any files and directories created in the log will be instantiated in the mounted instance of famfs. Can be re-run to detect and create files and directories logged since the last logplay. |
 | ```famfs fsck``` | Master and Clients: The allocation map will be checked and errors will be reported|
 | ```famfs check``` | Master and Clients: Any invalid famfs files will be detected. This can happen if famfs files are modified (e.g. created or truncated) by non-famfs tools. Famfs prevents I/O to such files. The file system can be restored to a valid state by unmounting and remounting |
-| ```famfs mkdir [-p]``` | Master only: Create a directory (optionally including parent dirs). This creates a directory in the mounted file system. |
+| ```famfs mkdir [-p]``` | Master only: Create a directory (optionally including missing parent directories). This creates a directory in the mounted file system. |
 | ```famfs creat``` | Master only: Create and allocate a famfs file. |
 | ```famfs cp [-r]``` | Master only: Copy one or more files into a famfs file system|
 | ```read()/write()``` | Master and Clients: any file can be read or written provided the caller has appropriate permissions |
@@ -216,18 +216,6 @@ Most of the operations resulting in invalid files are recoverable.
 | ```famfs rm```| famfs does not support logged removal of files. It is possible to support delete, but an implementation would need to guarantee that all clients have detected the delete before freed memory can be reused. Many use cases can unmount and re-run ```mkfs.famfs``` when it is time to re-use the memory. When CXL dynamic-capacity devices (DCDs), the dax device (aka "tagged capacity") could be freed and made available for new allocations.    | n/a |
 | Linux ```ftruncate```              | If a file's size is changed from the allocated size, it is treated as invalid until it is repaired. Logged truncate seems like a less likely requirement than logged delete, but let's talk if you need it. | umount/remount, possibly logplay |
 | Linux ```cp```                    | Using standard 'cp' where the destination is famfs is invalid. The 'cp' will fail, but it may leave behind an empty and invalid file at the destination.  | umount/remount  |
-
-
-* Authoritative metadata is shared as an append-only log within the shared memory. Once
-  a famfs file system is mounted and the log has been played, all files are visible.
-    - Replaying the log will make visible any files that were created since the last log play
-* Metadata is never written back to the log; this means that in-memory metadata (inodes etc.)
-  are ephemeral.
-* Certain file mutations are not allowed, due to the requirement that clients with stale
-  metadata must be tolerated. Some of these limitations may be relaxable in the future.
-    - No delete
-    - No truncate
-    - No append
 
 ## Are These Limitations Permanent?
 
