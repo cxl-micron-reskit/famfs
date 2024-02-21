@@ -2551,6 +2551,7 @@ famfs_mkfile(
 		/* We don't allow empty files; what would be the point? */
 		fprintf(stderr, "%s: Creating empty file (%s) not allowed\n",
 			__func__, filename);
+		return -EINVAL;
 	}
 
 	rc = famfs_init_locked_log(&ll, filename, verbose);
