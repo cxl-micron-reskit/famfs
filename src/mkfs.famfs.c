@@ -35,7 +35,7 @@ print_usage(int   argc,
 	       "\n"
 	       "Arguments\n"
 	       "    -h|-?      - Print this message\n"
-	       "    -f|--force - Will create the file system even if there is allready a superblock\n"
+	       "    -f|--force - Will create the file system even if there is already a superblock\n"
 	       "    -k|--kill  - Will 'kill' the superblock (also requires -f)\n"
 	       "\n",
 	       progname);
