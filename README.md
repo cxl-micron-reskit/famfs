@@ -100,6 +100,7 @@ through a procedure like this.
 4. Must handle clients with a stale copy of metadata
 
 A few observations about the requirments
+
 | **Requirement** | **Notes** |
 |-----------------|-----------|
 | 1               | Making shared memory accessible as files means that most apps that can consume data from files (especially the ones that use ```mmap()``` can experiment with disaggregated shared memory.         |
