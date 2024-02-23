@@ -82,7 +82,7 @@ sudo cat /sys/fs/famfs/pud_fault_ct || fail "cat pud_fault_ct"
 echo
 set -x
 verify_mounted $DEV $MPT "test4.sh mounted"
-$UMOUNT $MPT || fail "test4.sh umount"
+sudo $UMOUNT $MPT || fail "test4.sh umount"
 verify_not_mounted $DEV $MPT "test4.sh"
 
 #
@@ -97,7 +97,7 @@ verify_mounted $DEV $MPT "test4.sh remount"
 # check that a removed file is restored on remount
 F="/mnt/famfs/test1"
 sudo rm $F
-$UMOUNT $MPT            || fail "umount failed"
+sudo $UMOUNT $MPT            || fail "umount failed"
 
 verify_not_mounted $DEV $MPT "test4.sh 2nd umount"
 
@@ -114,7 +114,7 @@ ${CLI} mount -vvv $DEV $MPT || fail "famfs mount 2 should succeed when not mount
 verify_mounted $DEV $MPT "test4.sh 2nd remount"
 
 sudo test -f $F             || fail "bogusly deleted file did not reappear on remount"
-$UMOUNT $MPT            || fail "umount should succeed"
+sudo $UMOUNT $MPT            || fail "umount should succeed"
 
 if ((RMMOD > 0)); then
     sudo rmmod famfs            || fail "could not unload famfs when unmoounted"
@@ -127,7 +127,7 @@ ${CLI} mount $DEV $MPT      || fail "famfs mount should succeed after kmod reloa
 ${CLI} mount -R $DEV $MPT   || fail "famfs mount -R should succeed when nothing is hinky"
 # mount -R needs mkmeta cleanup...
 
-$UMOUNT $MPT # run_smoke.sh expects the file system unmounted after this test
+sudo $UMOUNT $MPT # run_smoke.sh expects the file system unmounted after this test
 ${CLI} mount $DEV $MPT || fail "last famfs mount should succeed"
 set +x
 echo "*************************************************************************************"
