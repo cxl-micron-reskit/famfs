@@ -1,6 +1,12 @@
 
 # Famfs Shared Memory Filesystem Framework - User Space Repo
 
+This is the famfs user space repo. Also require d is a famfs-enabled Linux kernel. A viable
+kernel can be accessed one of the following ways:
+
+* [v1 patch set at lore.kernel.org](https://lore.kernel.org/linux-fsdevel/cover.1708709155.git.john@groves.net/T/#t)
+* [famfs-linux git repo](https://github.com/cxl-micron-reskit/famfs-linux)
+
 # What is Famfs?
 
 Famfs is a scale-out shared-memory file system. If two or more hosts have shared access
