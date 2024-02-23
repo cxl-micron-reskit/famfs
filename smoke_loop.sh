@@ -7,7 +7,7 @@ while [ true ]; do
     ./run_smoke.sh
     rc="$?"
     echo "============================================================================"
-    echo "smoke_loop.sh: loop $counter (rc=$rc)"
+    echo "smoke_loop.sh: loop $counter (rc=$rc) ($(date))"
     echo "============================================================================"
     ((counter++))
     sleep 3
