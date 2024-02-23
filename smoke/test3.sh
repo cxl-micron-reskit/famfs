@@ -11,6 +11,10 @@ MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 
+if [ -z "$UMOUNT" ]; then
+    UMOUNT="umount"
+fi
+
 # Override defaults as needed
 while (( $# > 0)); do
     flag="$1"
@@ -83,7 +87,7 @@ sudo dd if=$MPT/touchfile of=/dev/null bs=8192 count=1  && fail "dd from touchfi
 sudo dd if=/dev/zero of=$MPT/touchfile bs=8192 count=1  && fail "dd to touchfile should fail"
 
 # unmount and remount
-sudo umount $MPT || fail "umount"
+sudo $UMOUNT $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
 full_mount $DEV $MPT "${MOUNT_OPTS}"  "full_mount"
 verify_mounted $DEV $MPT "test1.sh"

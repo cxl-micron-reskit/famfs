@@ -11,6 +11,10 @@ BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 RMMOD=1
 
+if [ -z "$UMOUNT" ]; then
+    UMOUNT="umount"
+fi
+
 # Override defaults as needed
 while (( $# > 0)); do
     flag="$1"
@@ -47,7 +51,6 @@ echo "DEVTYPE=$DEVTYPE"
 MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI="sudo $VG $BIN/famfs"
 MULTICHASE="sudo $BIN/src/multichase/multichase"
-UMOUNT="sudo strace umount"
 
 source $SCRIPTS/test_funcs.sh
 # Above this line should be the same for all smoke tests

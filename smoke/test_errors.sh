@@ -10,6 +10,10 @@ MPT=/mnt/famfs
 MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 
+if [ -z "$UMOUNT" ]; then
+    UMOUNT="umount"
+fi
+
 # Override defaults as needed
 while (( $# > 0)); do
     flag="$1"
@@ -70,7 +74,7 @@ ${CLI} fsck $MPT && fail "fsck should fail after cloning "
 ${CLI} verify -S $N -f $MPT/${FILE}_clone  || fail "${FILE}_clone mismatch"
 ${CLI} verify -S $N -f $MPT/${FILE}_clone1 || fail "${FILE}_clone1 mismatch"
 
-sudo strace umount $MPT || fail "umount"
+sudo $UMOUNT $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
 full_mount $DEV $MPT "${MOUNT_OPTS}" "test1.sh"
 verify_mounted $DEV $MPT "test1.sh"

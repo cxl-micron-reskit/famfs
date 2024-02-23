@@ -11,6 +11,10 @@ MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 
+if [ -z "$UMOUNT" ]; then
+    UMOUNT="umount"
+fi
+
 # Override defaults as needed
 while (( $# > 0)); do
     flag="$1"
@@ -143,7 +147,7 @@ ${CLI} logplay -rm $MPT            && fail "logplay with -m and -r should fail"
 ${CLI} logplay                     && fail "logplay without MPT arg should fail"
 
 # Unmount and remount
-sudo umount $MPT || fail "umount should succeed"
+sudo $UMOUNT $MPT || fail "umount should succeed"
 grep -c famfs /proc/mounts         && fail "famfs is still mounted after umount attempt"
 
 sudo mount $MOUNT_OPTS $DEV $MPT   || fail "mount"

@@ -11,6 +11,10 @@ MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 
+if [ -z "$UMOUNT" ]; then
+    UMOUNT="umount"
+fi
+
 # Override defaults as needed
 while (( $# > 0)); do
     flag="$1"
@@ -57,7 +61,7 @@ source $SCRIPTS/test_funcs.sh
 set -x
 
 verify_mounted $DEV $MPT "test1.sh"
-sudo umount $MPT || fail "umount"
+sudo $UMOUNT $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
 
 ${CLI} fsck $MPT && fail "fsck by path should fail when not mounted"
@@ -210,7 +214,7 @@ if [[ $GID != $GID_OUT ]]; then
     fail "cp -g err $GID ${GID_OUT}"
 fi
 
-sudo umount $MPT || fail "umount"
+sudo $UMOUNT $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
 full_mount $DEV $MPT "${MOUNT_OPTS}" "test1.sh"
 verify_mounted $DEV $MPT "test1.sh"
