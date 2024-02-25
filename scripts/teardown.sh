@@ -9,12 +9,16 @@ fail () {
     exit 1
 }
 
-MOUNT_PT=/mnt/famfs
-
-if [ ! -d $MOUNT_PT ]; then
-    echo "Error MOUNT_PT ($MOUNT_PT) is not a directory"
-    exit -1
+if [ -z "$UMOUNT" ]; then
+    UMOUNT="umount"
 fi
 
-sudo umount $MOUNT_PT
+# Unmount all mounted instances of famfs
+mount | grep famfs | awk '{print $3}' | while IFS= read -r path; do
+    if [ -d $path ]; then
+	echo "Unmounting $path"
+	sudo umount $path
+    fi
+done
+
 sudo rmmod famfs
