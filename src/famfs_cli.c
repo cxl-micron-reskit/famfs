@@ -263,13 +263,14 @@ do_famfs_cli_mount(int argc, char *argv[])
 	}
 	if (!famfs_module_loaded(1)) {
 		fprintf(stderr, "famfs mount: famfs kernel module is not loaded!\n");
+		fprintf(stderr, "famfs mount: try 'sudo modprobe famfs'\n");
 		rc = -1;
 		goto err_out;
 	}
 
 	rc = mount(realdaxdev, realmpt, "famfs", mflags, "");
 	if (rc) {
-		fprintf(stderr, "%s: mount returned %d; errno %d\n", __func__, rc, errno);
+		fprintf(stderr, "famfs mount: mount returned %d; errno %d\n", rc, errno);
 		perror("mount fail\n");
 		return rc;
 	}
