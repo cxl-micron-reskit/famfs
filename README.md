@@ -219,7 +219,7 @@ Most of the operations resulting in invalid files are recoverable.
 
 | **Invalid Operation** | **Notes** | **Recovery**                     |
 |-----------------------|-----------|----------------------------------|
-| ```famfs rm```| famfs does not support logged removal of files. It is possible to support delete, but an implementation would need to guarantee that all clients have detected the delete before freed memory can be reused. Many use cases can unmount and re-run ```mkfs.famfs``` when it is time to re-use the memory. When CXL dynamic-capacity devices (DCDs), the dax device (aka "tagged capacity") could be freed and made available for new allocations.    | n/a |
+| ```famfs rm```| famfs does not support logged removal of files. It is possible to support delete, but an implementation would need to guarantee that all clients have detected the delete before freed memory can be reused. Many use cases can unmount and re-run ```mkfs.famfs``` when it is time to re-use the memory. When CXL dynamic-capacity devices (DCDs) become available, the dax device (aka "tagged capacity") could be freed and made available for new allocations.    | n/a |
 | Linux ```ftruncate```              | If a file's size is changed from the allocated size, it is treated as invalid until it is repaired. Logged truncate seems like a less likely requirement than logged delete, but let's talk if you need it. | umount/remount, possibly logplay |
 | Linux ```cp```                    | Using standard 'cp' where the destination is famfs is invalid. The 'cp' will fail, but it may leave behind an empty and invalid file at the destination.  | umount/remount  |
 
