@@ -2390,6 +2390,7 @@ famfs_file_alloc(
 		//assert(0);
 		goto out;
 	}
+	/* Allocation at offset 0 is always wrong - the superblock lives there */
 	assert(offset != 0);
 
 	ext.famfs_extent_len    = round_size_to_alloc_unit(size);
