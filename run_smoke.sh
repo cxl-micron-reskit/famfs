@@ -3,13 +3,15 @@
 CWD=$(pwd)
 BIN="$CWD/debug"
 SCRIPTS="$CWD/scripts"
-MPT="/mnt/famfs"
 MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 TEST_ERRORS=1
 TEST_ALL=1
 SLEEP_TIME=2
 
 # Allow these variables to be set from the environment
+if [ -z "$MPT" ]; then
+    MPT=/mnt/famfs
+fi
 if [ -z "$DEV" ]; then
     DEV="/dev/pmem0"
 fi
@@ -20,14 +22,10 @@ sudo -n true 2>/dev/null
 if [ $? -ne 0 ]; then
     echo "Error: password-less sudo capability is required to run smoke tests"
 fi
-# Make famfs is not mounted or loaded
+# Make sure famfs is not mounted
 if (( $(grep -c famfs /proc/mounts) > 0)); then
    echo "Error: famfs is mounted, and must be unmounted to run smoke tests; run scripts/teardown.sh"
    exit -1
-fi
-if (( $(lsmod | grep -c famfs) > 0)); then
-    echo "Error: famfs kernel module must be unloaded to run smoke tests; run scripts/teardown.sh"
-    exit -1
 fi
 TEST_FUNCS=$SCRIPTS/test_funcs.sh
 if [ ! -f $TEST_FUNCS ]; then

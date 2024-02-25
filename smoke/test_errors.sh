@@ -6,10 +6,12 @@ cwd=$(pwd)
 DEV="/dev/pmem0"
 VG=""
 SCRIPTS=../scripts
-MPT=/mnt/famfs
 MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 
+if [ -z "$MPT" ]; then
+    MPT=/mnt/famfs
+fi
 if [ -z "$UMOUNT" ]; then
     UMOUNT="umount"
 fi

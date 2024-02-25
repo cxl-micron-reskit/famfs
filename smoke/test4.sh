@@ -6,11 +6,13 @@ cwd=$(pwd)
 DEV="/dev/pmem0"
 VG=""
 SCRIPTS=../scripts/
-MPT=/mnt/famfs
 BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
-RMMOD=1
+RMMOD=0
 
+if [ -z "$MPT" ]; then
+    MPT=/mnt/famfs
+fi
 if [ -z "$UMOUNT" ]; then
     UMOUNT="umount"
 fi
@@ -95,7 +97,7 @@ ${CLI} mount -vvv $DEV $MPT 2>/dev/null && fail "famfs mount should fail when al
 verify_mounted $DEV $MPT "test4.sh remount"
 
 # check that a removed file is restored on remount
-F="/mnt/famfs/test1"
+F="$MPT/test1"
 sudo rm $F
 sudo $UMOUNT $MPT            || fail "umount failed"
 
@@ -119,8 +121,8 @@ sudo $UMOUNT $MPT            || fail "umount should succeed"
 if ((RMMOD > 0)); then
     sudo rmmod famfs            || fail "could not unload famfs when unmoounted"
     ${CLI} mount -vvv $DEV $MPT && fail "famfs mount should fail when kmod not loaded"
-    sudo modprobe famfs         || fail "modprobe"
 fi
+sudo modprobe famfs         || fail "modprobe"
 ${CLI} mount $DEV $MPT      || fail "famfs mount should succeed after kmod reloaded"
 
 #TODO troubleshoot remount
@@ -133,3 +135,4 @@ set +x
 echo "*************************************************************************************"
 echo "Test4 (multichase) completed successfully"
 echo "*************************************************************************************"
+exit 0

@@ -6,11 +6,13 @@ cwd=$(pwd)
 DEV="/dev/pmem0"
 VG=""
 SCRIPTS=../scripts
-MPT=/mnt/famfs
 MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 
+if [ -z "$MPT" ]; then
+    MPT=/mnt/famfs
+fi
 if [ -z "$UMOUNT" ]; then
     UMOUNT="umount"
 fi
@@ -104,3 +106,4 @@ set +x
 echo "*************************************************************************************"
 echo "Test3 completed successfully"
 echo "*************************************************************************************"
+exit 0

@@ -6,11 +6,13 @@ cwd=$(pwd)
 DEV="/dev/pmem0"
 VG=""
 SCRIPTS=../scripts
-MPT=/mnt/famfs
 MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 
+if [ -z "$MPT" ]; then
+    MPT=/mnt/famfs
+fi
 if [ -z "$UMOUNT" ]; then
     UMOUNT="umount"
 fi
@@ -66,10 +68,10 @@ ${MKFS} -f -k $DEV    || fail "mkfs/kill"
 ${MKFS}  $DEV         || fail "mkfs"
 ${MKFS}  $DEV         && fail "mkfs redo" # fail, fs exists
 
-#debug/famfs mkmeta /dev/pmem0                  || fail "mkmeta"
 ${CLI} -h || fail "cli -h should succeed"
 ${CLI} fsck $DEV          || fail "fsck"
 
+# We now expect the module to already be loaded, but no harm in modprobe to make double sure
 sudo modprobe famfs       || fail "modprobe"
 
 sudo mount $MOUNT_OPTS $DEV $MPT || fail "mount"
@@ -81,14 +83,12 @@ grep $MPT /proc/mounts              || fail "Mount pt $MPT not in /proc/mounts~"
 
 ${CLI} mkmeta $DEV        || fail "mkmeta"
 sudo test -f $MPT/.meta/.superblock || fail "no superblock file after mkmeta"
-sudo test -f $MPT/.meta/.log        || fail "no log file after mkmeta"
+sudo test -f $MPT/.meta/.log        || fail "prep: no log file after mkmeta"
 
-${CLI} fsck --human $MPT || fail "fsck --human should succeed"
+${CLI} fsck --human $MPT || fail "prep: fsck --human should succeed"
 
 set +x
 echo "*************************************************************************************"
 echo "prepare.sh completed successfully"
 echo "*************************************************************************************"
-
-
-
+exit 0

@@ -6,11 +6,13 @@ cwd=$(pwd)
 DEV="/dev/pmem0"
 VG=""
 SCRIPTS=../scripts
-MPT=/mnt/famfs
 MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 
+if [ -z "$MPT" ]; then
+    MPT=/mnt/famfs
+fi
 if [ -z "$UMOUNT" ]; then
     UMOUNT="umount"
 fi
@@ -57,7 +59,7 @@ grep famfs /proc/mounts             || fail "No famfs mounted"
 grep $DEV /proc/mounts              || fail "dev=$DEV not in /proc/mounts~"
 grep $MPT /proc/mounts              || fail "Mount pt $MPT not in /proc/mounts~"
 
-${CLI} mkmeta $DEV        || fail "mkmeta"
+#${CLI} mkmeta $DEV        || fail "mkmeta" # refactored - already fully mounted
 sudo test -f $MPT/.meta/.superblock || fail "no superblock file after mkmeta"
 sudo test -f $MPT/.meta/.log        || fail "no log file after mkmeta"
 
@@ -160,7 +162,7 @@ ${CLI} logplay                       && fail "logplay should fail with no args"
 # Post mount, re-create the meta files
 ${CLI} mkmeta $DEV                || fail "mkmeta 2"
 sudo test -f $MPT/.meta/.superblock || fail "no superblock file after mkmeta"
-sudo test -f $MPT/.meta/.log        || fail "no log file after mkmeta"
+sudo test -f $MPT/.meta/.log        || fail "no log file after mkmeta 2"
 
 sudo ls -lR $MPT
 ${CLI} logplay -vvv $MPT             || fail "logplay after mkmeta should work"
@@ -236,6 +238,4 @@ set +x
 echo "*************************************************************************************"
 echo "Test0 completed successfully"
 echo "*************************************************************************************"
-
-
-
+exit 0
