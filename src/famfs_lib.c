@@ -169,6 +169,18 @@ file_not_famfs(const char *fname)
 	return rc;
 }
 
+static int
+file_has_map(int fd)
+{
+	struct famfs_ioc_map filemap = {0};
+	int rc;
+
+	rc = ioctl(fd, FAMFSIOC_MAP_GET, &filemap);
+	if (rc)
+		return 0; /* It's not a valid famfs file */
+
+	return 1;
+}
 
 static void
 mu_print_bitmap(u8 *bitmap, int num_bits)
@@ -578,9 +590,12 @@ famfs_mmap_superblock_and_log_raw(const char *devname,
 
 	fd = open(devname, openmode, 0);
 	if (fd < 0) {
-		fprintf(stderr, "%s: open %s failed; rc %d errno %d\n",
-			__func__, devname, rc, errno);
-		rc = -1;
+		if (errno == ENOENT)
+			fprintf(stderr, "%s: device %s not found\n", __func__, devname);
+		else
+			fprintf(stderr, "%s: open %s failed; rc %d errno %d\n",
+				__func__, devname, rc, errno);
+		rc = -errno;
 		goto err_out;
 	}
 
@@ -901,9 +916,10 @@ famfs_mkmeta(const char *devname)
 		if ((st.st_mode & S_IFMT) == S_IFREG) {
 			/* Superblock file exists */
 			if (st.st_size != FAMFS_SUPERBLOCK_SIZE) {
-				fprintf(stderr, "%s: unlinking bad superblock file\n",
+				fprintf(stderr,
+					"%s: bad superblock file - umount/remount likely required\n",
 					__func__);
-				unlink(sb_file);
+				//unlink(sb_file);
 			}
 		} else {
 			fprintf(stderr,
@@ -928,18 +944,26 @@ famfs_mkmeta(const char *devname)
 	role = famfs_get_role(sb);
 
 	/* Create and provide mapping for Superblock file */
-	sbfd = open(sb_file, O_RDWR|O_CREAT, 0444 /* sb file is read-onlly everywhere */);
+	sbfd = open(sb_file, O_RDWR|O_CREAT, 0444 /* sb file is read-only everywhere */);
 	if (sbfd < 0) {
 		fprintf(stderr, "%s: failed to create file %s\n", __func__, sb_file);
 		return -1;
 	}
 
-	ext.famfs_extent_offset = 0;
-	ext.famfs_extent_len    = FAMFS_SUPERBLOCK_SIZE;
-	rc = famfs_file_map_create(sb_file, sbfd, FAMFS_SUPERBLOCK_SIZE, 1, &ext,
-				   FAMFS_SUPERBLOCK);
-	if (rc)
-		return -1;
+	if (file_has_map(sbfd)) {
+		fprintf(stderr, "%s: found valid superblock file; doing nothing\n", __func__);
+	} else {
+		ext.famfs_extent_offset = 0;
+		ext.famfs_extent_len    = FAMFS_SUPERBLOCK_SIZE;
+		rc = famfs_file_map_create(sb_file, sbfd, FAMFS_SUPERBLOCK_SIZE, 1, &ext,
+					   FAMFS_SUPERBLOCK);
+		if (rc) {
+			close(sbfd);
+			unlink(sb_file);
+			return -rc;
+		}
+	}
+	close(sbfd);
 
 	/* Check if log file already exists, and cleanup if bad */
 	rc = stat(log_file, &st);
@@ -947,8 +971,10 @@ famfs_mkmeta(const char *devname)
 		if ((st.st_mode & S_IFMT) == S_IFREG) {
 			/* Log file exists; is it the right size? */
 			if (st.st_size != sb->ts_log_len) {
-				fprintf(stderr, "%s: unlinking bad log file\n", __func__);
-				unlink(log_file);
+				fprintf(stderr,
+					"%s: bad log file - umount/mount likely required\n",
+					__func__);
+				//unlink(log_file);
 			}
 		} else {
 			fprintf(stderr,
@@ -967,13 +993,16 @@ famfs_mkmeta(const char *devname)
 		return -1;
 	}
 
-	ext.famfs_extent_offset = sb->ts_log_offset;
-	ext.famfs_extent_len    = sb->ts_log_len;
-	rc = famfs_file_map_create(log_file, logfd, sb->ts_log_len, 1, &ext, FAMFS_LOG);
-	if (rc)
-		return -1;
+	if (file_has_map(sbfd)) {
+		fprintf(stderr, "%s: found valid log file; doing nothing\n", __func__);
+	} else {
+		ext.famfs_extent_offset = sb->ts_log_offset;
+		ext.famfs_extent_len    = sb->ts_log_len;
+		rc = famfs_file_map_create(log_file, logfd, sb->ts_log_len, 1, &ext, FAMFS_LOG);
+		if (rc)
+			return -1;
+	}
 
-	close(sbfd);
 	close(logfd);
 	printf("%s: Meta files successfullly created\n", __func__);
 	return 0;
