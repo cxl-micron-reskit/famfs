@@ -2211,7 +2211,7 @@ bitmap_alloc_contiguous(u8 *bitmap,
 
 		bitmap_remainder = nbits - i;
 		if (alloc_bits > bitmap_remainder) /* Remaining space is not enough */
-			return 0;
+			return -1;
 
 		for (j = i; j < (i+alloc_bits); j++) {
 			if (mse_bitmap_test32(bitmap, j))
@@ -2390,6 +2390,7 @@ famfs_file_alloc(
 		//assert(0);
 		goto out;
 	}
+	assert(offset != 0);
 
 	ext.famfs_extent_len    = round_size_to_alloc_unit(size);
 	ext.famfs_extent_offset = offset;
