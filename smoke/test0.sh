@@ -70,7 +70,7 @@ ${CLI} creat -r -S 1 $MPT/test1           && fail "creat without size should fai
 ${CLI} creat -r -s 4096 -S 1 $MPT/test1   || fail "creat test1"
 
 ${CLI} verify -h                 || fail "verify -h should succeed"
-{$CLI} verify                    && fail "verify with no args should fail"
+${CLI} verify                    && fail "verify with no args should fail"
 ${CLI} verify -f $MPT/test1      && fail "verify with no seed should fail"
 ${CLI} verify -S 1 -f badfile    && fail "verify with bad filename should fail"
 ${CLI} verify -S 1 -f $MPT/test1 || fail "verify 1 after creat"

@@ -22,10 +22,11 @@ sudo -n true 2>/dev/null
 if [ $? -ne 0 ]; then
     echo "Error: password-less sudo capability is required to run smoke tests"
 fi
+
 # Make sure famfs is not mounted
-if (( $(grep -c famfs /proc/mounts) > 0)); then
-   echo "Error: famfs is mounted, and must be unmounted to run smoke tests; run scripts/teardown.sh"
-   exit -1
+
+if (( $(grep famfs /proc/mounts | grep -c $MPT) > 0)); then
+    sudo umount $MPT
 fi
 TEST_FUNCS=$SCRIPTS/test_funcs.sh
 if [ ! -f $TEST_FUNCS ]; then
@@ -149,6 +150,12 @@ else
     echo "skipping test_errors.sh because -n|--noerrors was specified"
 fi
 
+sudo umount $MPT
+
+set +x
+echo "-------------------------------------------------------------------"
+echo "run_smoke completed successfully ($(date))"
+echo "-------------------------------------------------------------------"
 exit 0
 #sleep 4
 #./scripts/teardown.sh
