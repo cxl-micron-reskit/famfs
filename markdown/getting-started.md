@@ -2,7 +2,7 @@
 # Getting started with famfs
 
 At this early stage we are not yet distributing famfs in package-manager bundles (e.g. rpm, deb).
-The famfs kernel module has been [submitted to the Linux community as an RFC](link). The steps
+The famfs kernel module has been [submitted to the Linux community as an RFC](https://lore.kernel.org/linux-fsdevel/cover.1708709155.git.john@groves.net/). The steps
 to test famfs are as follows:
 
 ## Contents
