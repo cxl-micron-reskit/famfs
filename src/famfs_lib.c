@@ -36,6 +36,7 @@
 #include "famfs_lib.h"
 #include "famfs_lib_internal.h"
 #include "bitmap.h"
+#include "mu_mem.h"
 
 int mock_kmod = 0; /* unit tests can set this to avoid ioctl calls and whatnot */
 
@@ -611,6 +612,10 @@ famfs_mmap_superblock_and_log_raw(const char *devname,
 		*sbp = sb;
 	if (logp)
 		*logp = (struct famfs_log *)((u64)sb_buf + FAMFS_SUPERBLOCK_SIZE);
+
+	/* Invalidate the processor cache for the superblock and log */
+	flush_processor_cache(*logp, (*logp)->famfs_log_len);
+	flush_processor_cache(sb, sb->ts_log_offset);
 
 	/* TODO: using FAMFS_LOG_LEN is slightly risky, as the superblock is authoritative as
 	 * to the log length. Really we should map FAMFS_SUPERBLOCK_SIZE + FAMFS_LOG_SIZE, check
@@ -1411,11 +1416,18 @@ famfs_logplay(
 			close(lfd);
 			return -1;
 		}
+		/* Note that this dereferences logp to get the length, and then invalidates the
+		 * cache. I think this is ok...
+		 */
+		flush_processor_cache(logp, logp->famfs_log_len);
 	} else {
 		size_t resid = 0;
 		size_t total = 0;
 		char *buf;
 
+		/* XXX: Hmm, not sure how to invalidate the processor cache before a posix read.
+		 * default is mmap; posix read may not work correctly for non-cache-coherent configs
+		 */
 		/* Get log via posix read */
 		logp = malloc(log_size);
 		if (!logp) {
@@ -1843,6 +1855,7 @@ famfs_map_superblock_by_path(
 		return NULL;
 	}
 	sb = (struct famfs_superblock *)addr;
+	flush_processor_cache(sb, sb_size); /* invalidate processor cache */
 	return sb;
 }
 
@@ -1871,6 +1884,7 @@ famfs_map_log_by_path(
 		return NULL;
 	}
 	logp = (struct famfs_log *)addr;
+	flush_processor_cache(logp, log_size);  /* invalidate processor cache */
 	return logp;
 }
 
@@ -2070,6 +2084,7 @@ famfs_validate_superblock_by_path(const char *path)
 		return -1;
 	}
 	sb = (struct famfs_superblock *)addr;
+	flush_processor_cache(sb, sb_size); /* Invalidate the processor cache for the superblock */
 
 	if (famfs_check_super(sb)) {
 		fprintf(stderr, "%s: invalid superblock\n", __func__);
@@ -2306,7 +2321,7 @@ famfs_init_locked_log(struct famfs_locked_log *lp,
 		goto err_out;
 	}
 	lp->logp = (struct famfs_log *)addr;
-
+	flush_processor_cache(lp->logp, log_size); /* Invalidate the processor cache for the log */
 	return 0;
 
 err_out:
@@ -3028,6 +3043,8 @@ __famfs_cp(
 		offset += bytes;
 		remainder -= bytes;
 	}
+	/* Flush the processor cache for the dest file */
+	flush_processor_cache(destp, srcstat.st_size);
 
 	munmap(destp, srcstat.st_size);
 	close(srcfd);
@@ -3504,6 +3521,8 @@ famfs_clone(const char *srcfile,
 	}
 	logp = (struct famfs_log *)addr;
 
+	/* Clone is only allowed on the master, so we don't need to invalidate the cache */
+
 	/* Create the destination file. This will be unlinked later if we don't get all
 	 * the way through the operation.
 	 */
@@ -3636,6 +3655,10 @@ __famfs_mkfs(const char              *daxdev,
 
 	logp->famfs_log_crc = famfs_gen_log_header_crc(logp);
 	famfs_fsck_scan(sb, logp, 1, 0);
+
+	/* Force a writeback of the log followed by the superblock */
+	flush_processor_cache(logp, logp->famfs_log_len);
+	flush_processor_cache(sb, sb->ts_log_offset);
 	return 0;
 }
 
