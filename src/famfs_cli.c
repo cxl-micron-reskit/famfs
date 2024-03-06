@@ -29,6 +29,7 @@
 
 #include "famfs_lib.h"
 #include "random_buffer.h"
+#include "mu_mem.h"
 
 /* Global option related stuff */
 
@@ -1108,6 +1109,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 		if (!seed)
 			printf("Randomizing buffer with random seed\n");
 		randomize_buffer(buf, fsize, seed);
+		flush_processor_cache(buf, fsize);
 	}
 
 	close(fd);
