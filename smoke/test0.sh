@@ -87,7 +87,10 @@ ${CLI} verify -S 2 -f $MPT/test2 || fail "verify 2 after multi creat"
 ${CLI} verify -S 3 -f $MPT/test3 || fail "verify 3 after multi creat"
 
 # Create same file should fail
-${CLI} creat -r -s 4096 -S 1 $MPT/test1   && fail "Create should fail if file exists"
+${CLI} creat -r -s 4096 -S 99 $MPT/test1 || fail "Create to re-init existing file should succeed"
+${CLI} creat -s 4096 $MPT/test1          && fail "Create existing file without init should fail"
+# Put back data for seed=1 because we're gonna check it later
+${CLI} creat -r -s 4096 -S 1 $MPT/test1  || fail "Create to re-init existing file should succeed"
 
 # Create outside famfs should fail
 ${CLI} creat -r -s 4096 -S 1 /tmp/test1   && fail "Create should fail if file exists"

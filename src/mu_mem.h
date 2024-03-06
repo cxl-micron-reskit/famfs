@@ -14,19 +14,39 @@
 #define CL_SHIFT 6
 
 static inline void
-flush_processor_cache(const void *addr, size_t len)
+__flush_processor_cache(const void *addr, size_t len)
 {
 	int i;
 	const char *buffer = (const char *)addr;
 
-	__sync_synchronize(); /* Full barrier */
-
 	/* Flush the processor cache for the target range */
-	for (i=0; i<len; i+=CL_SIZE) {
+	for (i=0; i<len; i+=CL_SIZE)
 		__builtin_ia32_clflush(&buffer[i]);
-	}
 
-	__sync_synchronize(); /* Full barrier */
+}
+
+/**
+ * flush_processor_cache() - flush data that this host has written to memory
+ */
+static inline void
+flush_processor_cache(const void *addr, size_t len)
+{
+	/* Barier before clflush to guaranntee all prior memory mutations are flushed */
+	__sync_synchronize();
+	__flush_processor_cache(addr, len);
+}
+
+/**
+ * invalidate_processor_cache() - invalidate the cache so we can see data written from elsewhere
+ */
+static inline void
+invalidate_processor_cache(const void *addr, size_t len)
+{
+	__flush_processor_cache(addr, len);
+	__sync_synchronize();
+	/* Barrier after the flush to guarantee all subsequent memory accesses happen
+	 * after the cache is invalidated
+	 */
 }
 
 #endif
