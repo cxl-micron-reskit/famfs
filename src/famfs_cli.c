@@ -69,7 +69,7 @@ famfs_logplay_usage(int   argc,
 	       "\n"
 	       "Arguments:\n"
 	       "    -r|--read   - Get the superblock and log via posix read\n"
-	       "    -m--mmap    - Get the log via mmap\n"
+	       "    -m|--mmap   - Get the log via mmap\n"
 	       "    -c|--client - force \"client mode\" (all files read-only)\n"
 	       "    -n|--dryrun - Process the log but don't instantiate the files & directories\n"
 	       "\n"
@@ -118,10 +118,13 @@ do_famfs_cli_logplay(int argc, char *argv[])
 			famfs_logplay_usage(argc, argv);
 			return 0;
 		case 'm':
-			use_mmap++;
+			use_mmap = 1;
 			break;
 		case 'r':
-			use_read++;
+			fprintf(stderr,
+				"%s: warning: the read option can cause cache coherency problems\n",
+				__func__);
+			use_read = 1;
 			break;
 		case 'c':
 			client_mode++;
@@ -139,7 +142,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 		return -1;
 	} else if (!(use_mmap || use_read)) {
 		/* If neither method was explicitly requested, default to mmap */
-		use_mmap++;
+		use_mmap = 1;
 	}
 	if (optind > (argc - 1)) {
 		fprintf(stderr, "Must specify mount_point "
@@ -219,10 +222,13 @@ do_famfs_cli_mount(int argc, char *argv[])
 			verbose++;
 			break;
 		case 'm':
-			use_mmap++;
+			use_mmap = 1;
 			break;
 		case 'r':
-			use_read++;
+			fprintf(stderr,
+				"%s: warning: the read option can cause cache coherency problems\n",
+				__func__);
+			use_read = 1;
 			break;
 		case 'R':
 			mflags |= MS_REMOUNT;
@@ -237,7 +243,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 		return -1;
 	} else if (!(use_mmap || use_read)) {
 		/* If neither method was explicitly requested, default to mmap */
-		use_mmap++;
+		use_mmap = 1;
 	}
 	remaining_args = argc - optind;
 
@@ -404,6 +410,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	int arg_ct = 0;
 	char *daxdev = NULL;
 	int use_mmap = 0;
+	int use_read = 0;
 	int human = 0; /* -h is no longer --help... */
 	int verbose = 0;
 
@@ -420,13 +427,19 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+vh?m",
+	while ((c = getopt_long(argc, argv, "+vh?mr",
 				fsck_options, &optind)) != EOF) {
 
 		arg_ct++;
 		switch (c) {
 		case 'm':
 			use_mmap = 1;
+			break;
+		case 'r':
+			fprintf(stderr,
+				"%s: warning: the read option can cause cache coherency problems\n",
+				__func__);
+			use_read = 1;
 			break;
 		case 'h':
 			human = 1;
@@ -440,6 +453,15 @@ do_famfs_cli_fsck(int argc, char *argv[])
 		}
 	}
 
+	if (use_mmap && use_read) {
+		fprintf(stderr,
+			"Error: The --mmap and --read arguments are mutually exclusive\n\n");
+		famfs_fsck_usage(argc, argv);
+		return -1;
+	} else if (!(use_mmap || use_read)) {
+		/* If neither method was explicitly requested, default to mmap */
+		use_mmap = 1;
+	}
 	if (optind > (argc - 1)) {
 		fprintf(stderr, "Must specify at least one dax device\n");
 		famfs_fsck_usage(argc, argv);
@@ -993,6 +1015,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 	int randomize = 0;
 	int verbose = 0;
 	mode_t current_umask;
+	struct stat st;
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option creat_options[] = {
@@ -1075,14 +1098,32 @@ do_famfs_cli_creat(int argc, char *argv[])
 		exit(-1);
 	}
 
-	/* This is horky, but OK for the cli */
-	current_umask = umask(0022);
-	umask(current_umask);
-	mode &= ~(current_umask);
-	fd = famfs_mkfile(filename, mode, uid, gid, fsize, verbose);
-	if (fd < 0) {
-		fprintf(stderr, "%s: failed to create file %s\n", __func__, filename);
-		exit(-1);
+	rc = stat(filename, &st);
+	if (rc == 0) {
+		/* If the file exists and it's a regular file, and randomize is selected,
+		 * we'll re-randomize the file. This is convenient for testing.
+		 */
+		if ((st.st_mode & S_IFMT) != S_IFREG) {
+			fprintf(stderr, "%s: Error: file %s exists and is not a regular file\n",
+				__func__, filename);
+			exit(-1);
+		}
+		fd = open(filename, O_RDWR, 0);
+		if (fd < 0) {
+			fprintf(stderr, "%s: Error unable to open existing file %s\n",
+				__func__, filename);
+			exit(-1);
+		}
+	} else if (rc < 0) {
+		/* This is horky, but OK for the cli */
+		current_umask = umask(0022);
+		umask(current_umask);
+		mode &= ~(current_umask);
+		fd = famfs_mkfile(filename, mode, uid, gid, fsize, verbose);
+		if (fd < 0) {
+			fprintf(stderr, "%s: failed to create file %s\n", __func__, filename);
+			exit(-1);
+		}
 	}
 	if (randomize) {
 		struct stat st;
