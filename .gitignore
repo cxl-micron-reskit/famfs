@@ -7,3 +7,5 @@ Module.symvers
 modules.order
 .[Mm]odule*
 cli-ref.md
+html
+latex
