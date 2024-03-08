@@ -4,7 +4,6 @@ CWD=$(pwd)
 BIN="$CWD/debug"
 SCRIPTS="$CWD/scripts"
 MOUNT_OPTS="-t famfs -o noatime -o dax=always "
-TEST_ERRORS=1
 TEST_ALL=1
 SLEEP_TIME=2
 
@@ -15,7 +14,9 @@ fi
 if [ -z "$DEV" ]; then
     DEV="/dev/pmem0"
 fi
-
+if [ -z "$ERRS" ]; then
+    ERRS=1
+fi
 
 # Check if we have password-less sudi, which is required
 sudo -n true 2>/dev/null
@@ -43,10 +44,10 @@ while (( $# > 0)); do
 	    shift;
 	    ;;
 	(-n|--noerrors)
-	    TEST_ERRORS=0
+	    ERRS=0
 	    ;;
 	(-j|--justerrors)
-	    TEST_ERRORS=1
+	    ERRS=1
 	    TEST_ALL=0
 	    ;;
 	(-4)
@@ -76,10 +77,10 @@ done
 
 CLI="sudo $VG $BIN/famfs"
 
-echo "CWD:         $CWD"
-echo "BIN:         $BIN"
-echo "SCRIPTS:     $SCRIPTS"
-echo "TEST_ERRORS: $TEST_ERRORS"
+echo "CWD:      $CWD"
+echo "BIN:      $BIN"
+echo "SCRIPTS:  $SCRIPTS"
+echo "ERRS:     $ERRS"
 
 #BIN=debug
 if [ ! -d $BIN ]; then
@@ -142,7 +143,7 @@ fi
 if (($TEST4 > 0)); then
     ./smoke/test4.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
 fi
-if (($TEST_ERRORS > 0)); then
+if (($ERRS > 0)); then
     sleep "${SLEEP_TIME}"
 
     ./smoke/test_errors.sh  -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
