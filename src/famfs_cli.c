@@ -1355,6 +1355,7 @@ do_famfs_cli_verify(int argc, char *argv[])
 		fprintf(stderr, "%s: randomize mmap failed\n", __func__);
 		exit(-1);
 	}
+	invalidate_processor_cache(addr, fsize);
 	buf = (char *)addr;
 	rc = validate_random_buffer(buf, fsize, seed);
 	if (rc == -1) {
