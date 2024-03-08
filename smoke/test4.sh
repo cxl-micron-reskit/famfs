@@ -110,9 +110,11 @@ ${CLI} mount  a b c         && fail "famfs mount with too many args should fail"
 ${CLI} mount baddev $MPT    && fail "famfs mount with bad device path should fail"
 ${CLI} mount $DEV badmpt    && fail "famfs mount with bad mount point path should fail"
 
+
 verify_not_mounted $DEV $MPT "test4.sh various bad mount attempts"
 
-${CLI} mount -vvv $DEV $MPT || fail "famfs mount 2 should succeed when not mounted"
+${CLI} mount -rm -vvv $DEV $MPT && fail "famfs mount with -r and -m should fail"
+${CLI} mount -r -vvv $DEV $MPT  || fail "famfs mount 2 should succeed when not mounted"
 verify_mounted $DEV $MPT "test4.sh 2nd remount"
 
 sudo test -f $F             || fail "bogusly deleted file did not reappear on remount"

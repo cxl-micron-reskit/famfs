@@ -1153,6 +1153,8 @@ famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index)
  * @mpt         - mount point path
  * @dry_run     - process the log but don't create the files & directories
  * @client_mode - for testing; play the log as if this is a client node, even on master
+ *
+ * Returns value: Number of errors detected (0=complete success)
  */
 int
 __famfs_logplay(
@@ -1374,7 +1376,7 @@ __famfs_logplay(
 	}
 	famfs_print_log_stats("famfs_logplay", &ls, verbose);
 
-	return 0;
+	return (ls.f_errs + ls.d_errs);
 }
 
 /**

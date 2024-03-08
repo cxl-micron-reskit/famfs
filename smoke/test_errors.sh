@@ -66,6 +66,7 @@ FILE="bigtest$N"
 ${CLI} clone -h                                      || fail "clone -h should succeed"
 ${CLI} clone $MPT/${FILE} $MPT/${FILE}_clone         || fail "clone $F "
 ${CLI} clone -v $MPT/${FILE} $MPT/${FILE}_clone1        || fail "clone $F "
+${CLI} clone  && fail "clone with no args should fail"
 
 # Error cases
 ${CLI} clone -v $MPT/bogusfile $MPT/bogusfile.cllone && fail "clone bogusfile should fail"
@@ -80,6 +81,13 @@ sudo $UMOUNT $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
 full_mount $DEV $MPT "${MOUNT_OPTS}" "test1.sh"
 verify_mounted $DEV $MPT "test1.sh"
+
+# Throw a curveball or two at logplay
+sudo rm -rf $MPT/smalldir
+sudo touch $MPT/smalldir
+sudo rm -rf $MPT/smalldir2
+sudo ln -s /tmp $MPT/smalldir2
+${CLI} logplay $MPT && fail "logplay should complain when a file is where a dir should be"
 
 ${CLI} fsck -v $MPT && fail "fsck -v if a clone has ever happened should fail"
 ${CLI} fsck $MPT && fail "fsck if a clone has ever happened should fail"

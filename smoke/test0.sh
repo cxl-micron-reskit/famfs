@@ -68,6 +68,7 @@ ${CLI} creat -h                           || fail "creat -h should succeed"
 ${CLI} creat                              && fail "creat with no args should fail"
 ${CLI} creat -r -S 1 $MPT/test1           && fail "creat without size should fail"
 ${CLI} creat -r -s 4096 -S 1 $MPT/test1   || fail "creat test1"
+${CLI} create $MPT/.meta && fail "creat an existing directory should fail"
 
 ${CLI} verify -h                 || fail "verify -h should succeed"
 ${CLI} verify                    && fail "verify with no args should fail"
@@ -86,7 +87,7 @@ ${CLI} verify -S 1 -f $MPT/test1 || fail "verify 1 after multi creat"
 ${CLI} verify -S 2 -f $MPT/test2 || fail "verify 2 after multi creat"
 ${CLI} verify -S 3 -f $MPT/test3 || fail "verify 3 after multi creat"
 
-# Create same file should fail
+# Create same file should fail unless we're randomizing it
 ${CLI} creat -r -s 4096 -S 99 $MPT/test1 || fail "Create to re-init existing file should succeed"
 ${CLI} creat -s 4096 $MPT/test1          && fail "Create existing file without init should fail"
 # Put back data for seed=1 because we're gonna check it later

@@ -76,10 +76,14 @@ TEST(famfs, famfs_mkfs)
 		ASSERT_NE(addr, MAP_FAILED);
 		sb = (struct famfs_superblock *)addr;
 
+		famfs_dump_super(sb); /* dump invalid superblock */
+
 		/* mmap fake superblock file */
 		addr = mmap(0, FAMFS_LOG_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, lfd, 0);
 		ASSERT_NE(addr, MAP_FAILED);
 		logp = (struct famfs_log *)addr;
+
+		famfs_dump_log(logp); /* dump invalid superblock */
 
 		memset(sb, 0, FAMFS_SUPERBLOCK_SIZE);
 		memset(logp, 0, FAMFS_LOG_LEN);
@@ -296,7 +300,7 @@ TEST(famfs, famfs_file_not_famfs)
 	extern int mock_kmod;
 	int mock_kmod_save = mock_kmod;
 
-	system("rm -rf" booboofile);
+	system("rm -rf " booboofile);
 	sfd = open(booboofile, O_RDWR | O_CREAT, 0666);
 	ASSERT_NE(sfd, 0);
 
@@ -308,6 +312,9 @@ TEST(famfs, famfs_file_not_famfs)
 
 	rc = file_not_famfs(booboofile);
 	ASSERT_NE(rc, 0);
+
+	rc = file_not_famfs("/tmp/non-existent-file");
+	ASSERT_LT(rc, 0);
 }
 
 TEST(famfs, famfs_mkmeta)
