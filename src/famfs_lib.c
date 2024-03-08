@@ -3622,6 +3622,7 @@ __famfs_mkfs(const char              *daxdev,
 	if (kill) {
 		printf("Famfs superblock killed\n");
 		sb->ts_magic      = 0;
+		flush_processor_cache(sb, sb->ts_log_offset);
 		return 0;
 	}
 
