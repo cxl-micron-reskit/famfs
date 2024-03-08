@@ -1009,7 +1009,7 @@ famfs_mkmeta(const char *devname)
 	}
 
 	close(logfd);
-	printf("%s: Meta files successfullly created\n", __func__);
+	printf("%s: Meta files successfully created\n", __func__);
 	return 0;
 }
 
@@ -2937,7 +2937,7 @@ famfs_mkdir_parents(
  * 0  - Success
  * >0 - Something failed but if it is a multi-file copy, it should continue
  * <0 - A failure that should cause multi-file operations to bail out (such as out of space or
- *      log fulll...
+ *      log full...
  */
 int
 __famfs_cp(
