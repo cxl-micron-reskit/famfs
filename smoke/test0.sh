@@ -146,6 +146,8 @@ ${CLI} logplay $MPT                || fail "logplay $MPT should succeed"
 
 ${CLI} chkread -l $MPT/.meta/.log        || fail "chkread should succeed on log"
 ${CLI} chkread -s $MPT/.meta/.superblock || fail "chkread should succeed on superblock"
+${CLI} chkread -?                        || fail "chkread -? should succeed"
+${CLI} chkread                           && fail "chkread with no args should fail"
 
 ${CLI} logplay -rc $MPT            || fail "logplay -rc should succeed"
 ${CLI} logplay -rm $MPT            && fail "logplay with -m and -r should fail"
@@ -231,6 +233,12 @@ ${CLI} check -v $MPT          || fail "famfs check should succeed after removing
 
 
 ${CLI_NOSUDO} fsck -hv $MPT && fail "fsck without sudo should fail"
+
+${CLI} flush -?          || fail "flush -? should work"
+${CLI} flush             && fail "flush with no args should fail"
+${CLI} flush /bogus/file && "flush of a bogus file should fail"
+${CLI} flush $(sudo find $MPT -type f -print) || fail "flush all files should work"
+${CLI} flush -vv $(sudo find $MPT -print)     && fail "this flush should report errors"
 
 ${CLI} fsck      && fail "fsck with no args should fail"
 ${CLI} fsck -?   || fail "fsck -h should succeed"x

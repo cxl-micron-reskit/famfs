@@ -39,6 +39,7 @@
 #include "mu_mem.h"
 
 int mock_kmod = 0; /* unit tests can set this to avoid ioctl calls and whatnot */
+int mock_flush = 0; /* for unit tests to avoid actual flushing */
 
 struct famfs_log_stats {
 	u64 n_entries;
@@ -3865,4 +3866,40 @@ famfs_check(const char *path,
 	nerrs += nerrs_out;
 	printf("%s: %lld files, %lld directories, %lld errors\n", __func__, nfiles, ndirs, nerrs);
 	return rc;
+}
+
+int
+famfs_flush_file(const char *filename, int verbose)
+{
+	struct stat st;
+	size_t size;
+	void *addr;
+	int rc;
+
+	rc = stat(filename, &st);
+	if (rc < 0) {
+		fprintf(stderr, "%s: file not found (%s)\n", __func__, filename);
+		return 3;
+	}
+	if ((st.st_mode & S_IFMT) != S_IFREG) {
+		if (verbose)
+			fprintf(stderr, "%s: not a regular file: (%s)\n", __func__, filename);
+		return 2;
+	}
+
+	/* Only flush regular files */
+
+	addr = famfs_mmap_whole_file(filename, 1, &size);
+	if (!addr) {
+		if (verbose)
+			fprintf(stderr, "%s: failed to mmap(%s)\n", __func__, filename);
+		return 1;
+	}
+
+	if (verbose > 1)
+		printf("%s: flushing: %s\n", __func__, filename);
+
+	/* We don't know caller needs a flush or an invalidate, so barriers on both sides */
+	hard_flush_processor_cache(addr, size);
+	return 0;
 }

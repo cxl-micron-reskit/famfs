@@ -122,7 +122,10 @@ TEST(famfs, famfs_super_test)
 	u64 device_size = 1024 * 1024 * 1024;
 	struct famfs_superblock *sb = NULL;
 	struct famfs_log *logp;
+	extern int mock_flush;
 	int rc;
+
+	mock_flush = 1;
 
 	/* null superblock should fail */
 	rc = famfs_check_super(sb);

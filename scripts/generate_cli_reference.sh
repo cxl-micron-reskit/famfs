@@ -16,7 +16,7 @@ echo '```'            >> $OUTFILE
 mkfs.famfs -h         >> $OUTFILE
 echo '```'            >> $OUTFILE
 
-echo "# The famfs cli"    >> $OUTFILE
+echo "# The famfs CLI"    >> $OUTFILE
 echo "The famfs CLI enables most of the normal maintenance operations with famfs."  >> $OUTFILE
 echo                  >> $OUTFILE
 echo '```'            >> $OUTFILE
@@ -57,6 +57,11 @@ echo '```'            >> $OUTFILE
 echo "## famfs verify" >> $OUTFILE
 echo '```'             >> $OUTFILE
 famfs verify -?        >> $OUTFILE
+echo '```'             >> $OUTFILE
+
+echo "## famfs flush"  >> $OUTFILE
+echo '```'             >> $OUTFILE
+famfs flush -?         >> $OUTFILE
 echo '```'             >> $OUTFILE
 
 echo "## famfs mkmeta" >> $OUTFILE

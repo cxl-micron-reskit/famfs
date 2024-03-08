@@ -42,6 +42,6 @@ int famfs_check(const char *path, int verbose);
 
 void famfs_dump_log(struct famfs_log *logp);
 void famfs_dump_super(struct famfs_superblock *sb);
-#ifdef FAMFS_UNIT_TEST
-#endif
+int famfs_flush_file(const char *filename, int verbose);
+
 #endif /* _H_FAMFS_LIB */
