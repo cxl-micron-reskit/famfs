@@ -373,6 +373,7 @@ TEST(famfs, famfs_log)
 	struct famfs_superblock *sb;
 	struct famfs_log *logp;
 	extern int mock_kmod;
+	extern int mock_role;
 	int rc;
 	int i;
 
@@ -431,12 +432,15 @@ TEST(famfs, famfs_log)
 	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
 	ASSERT_EQ(rc, 0);
 
-	for (i = 0; i < 10; i++) {
+	for (i = 0; i < 503; i++) {
 		char filename[64];
 		int fd;
 		sprintf(filename, "/tmp/famfs/%04d", i);
 		fd = __famfs_mkfile(&ll, filename, 0, 0, 0, 1048576, 0);
-		ASSERT_GT(fd, 0);
+		if (i < 502)
+			ASSERT_GT(fd, 0);
+		else
+			ASSERT_LT(fd, 0); /* out of space */
 		close(fd);
 	}
 
@@ -453,4 +457,88 @@ TEST(famfs, famfs_log)
 
 	rc = famfs_fsck_scan(sb, logp, 1, 3);
 	ASSERT_EQ(rc, 0);
+
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 1 /* mmap */, 1, 1);
+	ASSERT_EQ(rc, 0);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	ASSERT_EQ(rc, 0);
+	rc = famfs_fsck("/tmp/nonexistent-file", 0 /* read */, 1, 1);
+	ASSERT_NE(rc, 0);
+
+	/* Save good copies of the log and superblock */
+	system("cp /tmp/famfs/.meta/.log /tmp/famfs/.meta/.log.save");
+	system("cp /tmp/famfs/.meta/.superblock /tmp/famfs/.meta/.superblock.save");
+
+	truncate("/tmp/famfs/.meta/.superblock", 8192);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	ASSERT_EQ(rc, 0);
+
+	truncate("/tmp/famfs/.meta/.superblock", 7);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	ASSERT_NE(rc, 0);
+
+	truncate("/tmp/famfs/.meta/.log", 8192);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	ASSERT_NE(rc, 0);
+
+	unlink("/tmp/famfs/.meta/.log");
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	ASSERT_NE(rc, 0);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 1 /* mmap */, 1, 1);
+	ASSERT_NE(rc, 0);
+	unlink("/tmp/famfs/.meta/.superblock");
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	ASSERT_NE(rc, 0);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 1 /* mmap */, 1, 1);
+	ASSERT_NE(rc, 0);
+
+	system("chmod 200 /tmp/famfs/.meta/.log");
+	rc = famfs_fsck("/tmp/famfs/.meta/.log", 1 /* mmap */, 1, 1);
+	ASSERT_NE(rc, 0);
+	rc = famfs_fsck("/tmp/famfs/.meta/.log", 0 /* read */, 1, 1);
+	ASSERT_NE(rc, 0);
+
+	system("chmod 200 /tmp/famfs/.meta/.superblock");
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 1 /* mmap */, 1, 1);
+	ASSERT_NE(rc, 0);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	ASSERT_NE(rc, 0);
+
+	system("cp /tmp/famfs/.meta/.log.save /tmp/famfs/.meta/.log");
+	system("cp /tmp/famfs/.meta/.superblock.save /tmp/famfs/.meta/.superblock");
+
+	rc = famfs_release_locked_log(&ll);
+	ASSERT_EQ(rc, 0);
+
+	system("chmod 444 /tmp/famfs/.meta/.log"); /* log file not writable */
+
+	mock_role = FAMFS_CLIENT;
+	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
+	ASSERT_NE(rc, 0);
+
+	mock_role = FAMFS_CLIENT;
+	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
+	ASSERT_NE(rc, 0);
+
+	mock_role = 0;
+
+#if 0
+	/* this stuff is not working as expected. leaving for now. */
+	printf("uuid before: ");
+	famfs_print_uuid(&sb->ts_system_uuid);
+	/* change sys uuid in superblock (crc now wrong) */
+	memset(&sb->ts_system_uuid, 0, sizeof(uuid_le));
+
+	printf("uuid after: ");
+	famfs_print_uuid(&sb->ts_system_uuid);
+
+	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
+	ASSERT_NE(rc, 0);
+
+	/* now fix crc */
+	sb->ts_crc = famfs_gen_superblock_crc(sb);
+	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
+	ASSERT_NE(rc, 0);
+#endif
+
 }

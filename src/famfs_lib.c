@@ -40,6 +40,7 @@
 
 int mock_kmod = 0; /* unit tests can set this to avoid ioctl calls and whatnot */
 int mock_flush = 0; /* for unit tests to avoid actual flushing */
+int mock_role = 0;
 
 struct famfs_log_stats {
 	u64 n_entries;
@@ -280,8 +281,12 @@ static int
 famfs_get_role(const struct famfs_superblock *sb)
 {
 	uuid_le my_uuid;
-	int rc = famfs_get_system_uuid(&my_uuid);
+	int rc;
 
+	if (mock_role)
+		return mock_role;
+
+	rc = famfs_get_system_uuid(&my_uuid);
 	if (rc) {
 		fprintf(stderr, "%s: unable to get system uuid; assuming client role\n",
 			__func__);
@@ -1448,11 +1453,15 @@ famfs_logplay(
 				return -errno;
 			}
 			printf("%s: read %d bytes of log\n", __func__, rc);
+			if (rc == 0)
+				goto err_out; /* if we didn't get the whole log, err out */
 			resid -= rc;
 			total += rc;
 		} while (resid > 0);
 	}
+
 	rc = __famfs_logplay(logp, mpt_out, dry_run, client_mode, verbose);
+err_out:
 	if (use_mmap)
 		munmap(logp, FAMFS_LOG_LEN);
 	else
@@ -1888,6 +1897,12 @@ famfs_map_log_by_path(
 		return NULL;
 	}
 	logp = (struct famfs_log *)addr;
+	if (log_size != logp->famfs_log_len) {
+		fprintf(stderr, "%s: log file length is invalid (%lld / %lld)\n",
+			__func__, (s64)log_size, logp->famfs_log_len);
+		munmap(addr, log_size);
+		return NULL;
+	}
 	flush_processor_cache(logp, log_size);  /* invalidate processor cache */
 	return logp;
 }
@@ -2036,6 +2051,13 @@ famfs_fsck(
 				if (verbose)
 					printf("%s: read %d bytes of log\n", __func__, rc);
 
+				if (rc == 0) {
+					fprintf(stderr, "%s: failed to read the full log\n",
+						__func__);
+					rc = -1;
+					close(lfd);
+					goto err_out;
+				}
 				resid -= rc;
 				total += rc;
 			} while (resid > 0);
@@ -2058,6 +2080,7 @@ famfs_fsck(
 		free(sb);
 		free(logp);
 	}
+err_out:
 	return rc;
 }
 
@@ -2357,7 +2380,7 @@ famfs_alloc_contiguous(struct famfs_locked_log *lp, u64 size, int verbose)
 }
 
 
-static int
+int
 famfs_release_locked_log(struct famfs_locked_log *lp)
 {
 	int rc;
