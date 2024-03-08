@@ -1300,7 +1300,7 @@ do_famfs_cli_verify(int argc, char *argv[])
 	s64 seed = 0;
 	void *addr;
 	char *buf;
-	int rc = 0;
+	s64 rc = 0;
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option map_options[] = {
@@ -1346,7 +1346,7 @@ do_famfs_cli_verify(int argc, char *argv[])
 	}
 	fd = open(filename, O_RDWR, 0);
 	if (fd < 0) {
-		fprintf(stderr, "open %s failed; rc %d errno %d\n", filename, rc, errno);
+		fprintf(stderr, "open %s failed; rc %lld errno %d\n", filename, rc, errno);
 		exit(-1);
 	}
 
@@ -1360,7 +1360,7 @@ do_famfs_cli_verify(int argc, char *argv[])
 	if (rc == -1) {
 		printf("Success: verified %ld bytes in file %s\n", fsize, filename);
 	} else {
-		fprintf(stderr, "Verify fail at offset %d of %ld bytes\n", rc, fsize);
+		fprintf(stderr, "Verify fail at offset %lld of %ld bytes\n", rc, fsize);
 		exit(-1);
 	}
 

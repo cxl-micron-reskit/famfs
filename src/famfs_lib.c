@@ -1487,6 +1487,7 @@ famfs_append_log(struct famfs_log       *logp,
 
 	logp->famfs_log_next_seqnum++;
 	logp->famfs_log_next_index++;
+	flush_processor_cache(logp, logp->famfs_log_len);
 	return 0;
 }
 

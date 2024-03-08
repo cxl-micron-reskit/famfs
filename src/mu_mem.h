@@ -16,7 +16,7 @@
 static inline void
 __flush_processor_cache(const void *addr, size_t len)
 {
-	int i;
+	int64_t i;
 	const char *buffer = (const char *)addr;
 
 	/* Flush the processor cache for the target range */
