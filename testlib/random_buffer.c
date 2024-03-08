@@ -14,7 +14,7 @@ randomize_buffer(void *buf, size_t len, unsigned int seed)
     unsigned int *  tmp = (unsigned int *)buf;
     u_int           last;
     long int        remain = len;
-    int             i;
+    uint64_t        i;
     struct xrand xr;
 
     if (len == 0)
@@ -38,8 +38,8 @@ validate_random_buffer(void *buf, size_t len, unsigned int seed)
     unsigned int    val;
     char *          expect = (char *)&val;
     char *          found;
-    long int        remain = len;
-    int             i;
+    uint64_t        remain = len;
+    uint64_t        i;
     struct xrand xr;
 
     if (len == 0)
