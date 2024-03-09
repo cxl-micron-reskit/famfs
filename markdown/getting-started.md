@@ -32,6 +32,7 @@ sudo dnf install kernel-devel
 sudo dnf install cmake
 sudo dnf install g++
 sudo dnf install libuuid-devel
+sudo dnf install daxctl ndctl
 ```
 Pay attention to error messages when you build, new dependencies may arise later, and
 different kernel installations may have different missing dependencies.
