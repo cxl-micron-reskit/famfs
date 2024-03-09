@@ -1,7 +1,7 @@
 
 # Famfs Shared Memory Filesystem Framework - User Space Repo
 
-This is the famfs user space repo. Also require d is a famfs-enabled Linux kernel. A viable
+This is the famfs user space repo. Also required is a famfs-enabled Linux kernel. A viable
 kernel can be accessed one of the following ways:
 
 * [v1 patch set at lore.kernel.org](https://lore.kernel.org/linux-fsdevel/cover.1708709155.git.john@groves.net/T/#t) - Famfs was published to the Linux community in February 2024.
