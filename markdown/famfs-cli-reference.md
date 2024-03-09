@@ -212,7 +212,7 @@ Arguments:
 
 famfs flush: Flush or invalidate the processor cache for an entire file
 
-This command is useful fur shared memory that is not cache coherent. It should
+This command is useful for shared memory that is not cache coherent. It should
 be called after mutating a file whose mutations need to be visible on other hosts,
 and before accessing any file that may have been mutated on other hosts. Note that
 logplay also takes care of this, but if the log has not been played since the file
