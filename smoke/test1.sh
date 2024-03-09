@@ -338,6 +338,8 @@ ${CLI} cp /tmp/emptyfile $MPT/emptyfile2 && fail "cp with empty source file shou
 ${CLI} fsck $MPT || fail "fsck should succeed"
 ${CLI} fsck -m $MPT || fail "fsck -mh should succeed"
 ${CLI} fsck -vv $MPT || fail "fsck -vv should succeed"
+${CLI} fsck -r $MPT  || fail "fsck -r $MPT should succeed"
+${CLI} fsck -rm $MPT && fail "fsck -r -m $MPT should fail"
 
 set +x
 echo "*************************************************************************************"

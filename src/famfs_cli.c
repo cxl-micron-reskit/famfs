@@ -916,7 +916,7 @@ do_famfs_cli_clone(int argc, char *argv[])
 	}
 
 	/* There should be 2 more arguments */
-	if (optind > (argc - 1)) {
+	if (optind > (argc - 2)) {
 		fprintf(stderr, "%s: source and destination filenames required\n", __func__);
 		famfs_clone_usage(argc, argv);
 		return -1;
@@ -1369,6 +1369,91 @@ do_famfs_cli_verify(int argc, char *argv[])
 }
 
 /********************************************************************/
+void
+famfs_flush_usage(int   argc,
+	    char *argv[])
+{
+	char *progname = argv[0];
+
+	printf("\n"
+	       "famfs flush: Flush or invalidate the processor cache for an entire file\n"
+	       "\n"
+	       "This command is useful for shared memory that is not cache coherent. It should\n"
+	       "be called after mutating a file whose mutations need to be visible on other hosts,\n"
+	       "and before accessing any file that may have been mutated on other hosts. Note that\n"
+	       "logplay also takes care of this, but if the log has not been played since the file\n"
+	       "was mutated, this operation may be needed.\n"
+	       "\n"
+	       "    %s flush [args] <file> [<file> ...]\n"
+	       "\n"
+	       "Arguments:\n"
+	       "    -v           - Verbose output\n"
+	       "    -?           - Print this message\n"
+	       "\nNOTE: this creates a file system error and is for testing only!!\n"
+	       "\n", progname);
+}
+
+int
+do_famfs_cli_flush(int argc, char *argv[])
+{
+	char fullpath[PATH_MAX];
+	char *file = NULL;
+	int verbose = 0;
+	int arg_ct = 0;
+	int errs = 0;
+	int rc;
+	int c;
+
+
+	/* XXX can't use any of the same strings as the global args! */
+	struct option cp_options[] = {
+		/* These options set a */
+		{0, 0, 0, 0}
+	};
+
+	/* Note: the "+" at the beginning of the arg string tells getopt_long
+	 * to return -1 when it sees something that is not recognized option
+	 * (e.g. the command that will mux us off to the command handlers
+	 */
+	while ((c = getopt_long(argc, argv, "+vh?",
+				cp_options, &optind)) != EOF) {
+
+		arg_ct++;
+		switch (c) {
+
+		case 'v':
+			verbose++;
+			break;
+		case 'h':
+		case '?':
+			famfs_flush_usage(argc, argv);
+			return 0;
+		}
+	}
+
+	if (optind > (argc - 1)) {
+		fprintf(stderr, "%s: source and destination filenames required\n", __func__);
+		famfs_clone_usage(argc, argv);
+		return -1;
+	}
+	while (optind < argc) {
+		file = argv[optind++];
+		if (realpath(file, fullpath) == NULL) {
+			fprintf(stderr, "%s: bad source path %s\n", __func__, file);
+			errs++;
+			continue;
+		}
+
+		rc = famfs_flush_file(file, verbose);
+		if (rc)
+			errs++;
+	}
+	if (errs)
+		printf("%s: %d errors were detected\n", __func__, errs);
+	return -errs;
+}
+
+/********************************************************************/
 
 void hex_dump(const u8 *adr, size_t len, const char *str)
 {
@@ -1552,6 +1637,7 @@ famfs_cli_cmd famfs_cli_cmds[] = {
 	{"mkdir",   do_famfs_cli_mkdir,   famfs_mkdir_usage},
 	{"cp",      do_famfs_cli_cp,      famfs_cp_usage},
 	{"creat",   do_famfs_cli_creat,   famfs_creat_usage},
+	{"flush",   do_famfs_cli_flush,   famfs_flush_usage},
 	{"verify",  do_famfs_cli_verify,  famfs_verify_usage},
 	{"mkmeta",  do_famfs_cli_mkmeta,  famfs_mkmeta_usage},
 	{"logplay", do_famfs_cli_logplay, famfs_logplay_usage},

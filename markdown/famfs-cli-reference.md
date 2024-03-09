@@ -26,6 +26,7 @@ Commands:
 	mkdir
 	cp
 	creat
+	flush
 	verify
 	mkmeta
 	logplay
@@ -202,8 +203,28 @@ famfs verify: Verify the contents of a file that was created with 'famfs creat':
 
 Arguments:
     -?                        - Print this message
-    -f|--filename <filename> - Required file path
+    -f|--filename <filename>  - Required file path
     -S|--seed <random-seed>   - Required seed for data verification
+
+```
+## famfs flush
+```
+
+famfs flush: Flush or invalidate the processor cache for an entire file
+
+This command is useful fur shared memory that is not cache coherent. It should
+be called after mutating a file whose mutations need to be visible on other hosts,
+and before accessing any file that may have been mutated on other hosts. Note that
+logplay also takes care of this, but if the log has not been played since the file
+was mutated, this operation may be needed.
+
+    famfs flush [args] <file> [<file> ...]
+
+Arguments:
+    -v           - Verbose output
+    -?           - Print this message
+
+NOTE: this creates a file system error and is for testing only!!
 
 ```
 ## famfs mkmeta
@@ -212,7 +233,7 @@ Arguments:
 famfs mkmeta:
 
 The famfs file system exposes its superblock and log to its userspace components
-as files. After telling the Linux kernel to mount a famfs file system, you need
+as files. After telling the linux kernel to mount a famfs file system, you need
 to run 'famfs mkmeta' in order to expose the critical metadata, and then run
 'famfs logplay' to play the log. Files will not be visible until these steps
 have been performed.
@@ -236,7 +257,7 @@ and performing a 'famfs mkmeta' to instantiate all logged files
 
 Arguments:
     -r|--read   - Get the superblock and log via posix read
-    -m--mmap    - Get the log via mmap
+    -m|--mmap   - Get the log via mmap
     -c|--client - force "client mode" (all files read-only)
     -n|--dryrun - Process the log but don't instantiate the files & directories
 

@@ -10,6 +10,8 @@
 #include <sys/user.h>
 #include <sys/param.h>
 
+extern int mock_flush;
+
 #define CL_SIZE 64
 #define CL_SHIFT 6
 
@@ -19,10 +21,28 @@ __flush_processor_cache(const void *addr, size_t len)
 	int64_t i;
 	const char *buffer = (const char *)addr;
 
+	if (mock_flush)
+		return;
+
 	/* Flush the processor cache for the target range */
 	for (i=0; i<len; i+=CL_SIZE)
 		__builtin_ia32_clflush(&buffer[i]);
 
+}
+
+/**
+ * hard_flush_processor_cache()
+ * flush/invalidate the cache when we don't know whether the host is writing or reading
+ */
+static inline void
+hard_flush_processor_cache(const void *addr, size_t len)
+{
+	if (mock_flush)
+		return;
+
+	__sync_synchronize();
+	__flush_processor_cache(addr, len);
+	__sync_synchronize();
 }
 
 /**
@@ -31,6 +51,9 @@ __flush_processor_cache(const void *addr, size_t len)
 static inline void
 flush_processor_cache(const void *addr, size_t len)
 {
+	if (mock_flush)
+		return;
+
 	/* Barier before clflush to guaranntee all prior memory mutations are flushed */
 	__sync_synchronize();
 	__flush_processor_cache(addr, len);
@@ -42,6 +65,9 @@ flush_processor_cache(const void *addr, size_t len)
 static inline void
 invalidate_processor_cache(const void *addr, size_t len)
 {
+	if (mock_flush)
+		return;
+
 	__flush_processor_cache(addr, len);
 	__sync_synchronize();
 	/* Barrier after the flush to guarantee all subsequent memory accesses happen

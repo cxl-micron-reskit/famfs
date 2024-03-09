@@ -64,7 +64,7 @@ struct famfs_superblock {
 };
 
 enum famfs_system_role {
-	FAMFS_MASTER,  /* System is the master, and can write the log */
+	FAMFS_MASTER=1,/* System is the master, and can write the log */
 	FAMFS_CLIENT,  /* System is a client - cannot write the log or sb */
 	FAMFS_NOSUPER, /* No valid superblock, so role is ambiguous */
 };
