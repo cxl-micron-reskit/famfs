@@ -154,7 +154,7 @@ To build for coverage tests, do the following in user:
     DEV=/dev/dax1.0 make coverage_test
     firefox coverage/famfs_unit_coverage/index.html   # or any other browser
 
-The resulting report looks like this as of the last week of December 2023.
+The resulting report looks like this as of early 2024.
 ![Image of gcov coverage report](Screenshot-2024-01-08-at-7.13.09-AM.png)
 
 This is the combined coverage from smoke and unit tests.
