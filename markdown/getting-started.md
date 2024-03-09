@@ -77,8 +77,11 @@ system that shares a memory device.
 
 As of early 2024, the following types of memory devices can host famfs:
 
-- /dev/dax devices in "devdax" mode
-- /dev/pmem devices in "fsdax" mode
+- ```/dev/dax``` devices in "devdax" mode
+- ```/dev/pmem``` devices in "fsdax" mode
+
+Note that pmem support may soon be dropped to reduce complexity. Pmem devices can be put
+in devdax mode so they will still be usable.
 
 Gory details for setting up virtual machines and virtual dax and pmem devices are in the
 [Configuring Virtual Machines for famfs](vm-configuration.md) documentation.
@@ -108,9 +111,9 @@ as follows:
 
     make smoke
 
-You can also optionally specify the device as an environment variable when running smoke tests
+You can also optionally specify the device and mount point as environment variables when running smoke tests
 
-    DEV=/dev/dax1.0 make smoke
+    DEV=/dev/dax1.0 MPT=/mnt/famfs make smoke
 
 You can see an example of the [full output from run_smoke.sh here](smoke-example.md)
 
@@ -135,7 +138,7 @@ getting the system UUID only works as root. We may look into circumventing this.
 ## Valgrind Checking
 You can run the smoke tests under valgrind as follows:
 
-    make smoke_valgrind
+    DEV=/dev/dax1.0 make smoke_valgrind
 
 If the smoke tests complete and valgrind finds no errors, you will see a message such as this:
 
@@ -148,12 +151,10 @@ Otherwise, you will see the valgrind output from just the tests where valgrind f
 To build for coverage tests, do the following in user:
 
     make clean coverage
-    make coverage_test
+    DEV=/dev/dax1.0 make coverage_test
     firefox coverage/famfs_unit_coverage/index.html   # or any other browser
 
 The resulting report looks like this as of the last week of December 2023.
 ![Image of gcov coverage report](Screenshot-2024-01-08-at-7.13.09-AM.png)
 
 This is the combined coverage from smoke and unit tests.
-
-# Using famfs
