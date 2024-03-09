@@ -15,6 +15,8 @@ include_directories("${PROJECT_SOURCE_DIR}/usr")
 include_directories("${PROJECT_SOURCE_DIR}/../kmod")
 include_directories("${PROJECT_SOURCE_DIR}/testlib")
 
+add_library(famfs_unit_testlib famfs_unit.c)
+
 #file(GLOB sources "${PROJECT_SOURCE_DIR}/src/test/*.c")
 #list(REMOVE_ITEM sources "${PROJECT_SOURCE_DIR}/src/main.c")
 
@@ -32,7 +34,7 @@ foreach(file ${tests})
     ${file}
     )
 #    "${PROJECT_SOURCE_DIR}/test/main.cpp")
-  target_link_libraries("${name}_tests" gtest_main libfamfs famfstest uuid )
+  target_link_libraries("${name}_tests" gtest_main libfamfs famfstest uuid famfs_unit_testlib )
   message(STATUS "name=${name}")
   add_test(NAME ${name} COMMAND "${name}_tests")
 
@@ -45,7 +47,7 @@ foreach(file ${tests})
       setup_target_for_coverage_gcovr_html(
 	NAME "${name}_coverage"
 	EXECUTABLE "${name}_tests"
-	DEPENDENCIES gtest_main libfamfs
+	DEPENDENCIES gtest_main libfamfs famfstest famfs_unit_testlib
 	#BASE_DIRECORY "../"
       )
     endif()
