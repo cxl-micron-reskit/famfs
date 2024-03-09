@@ -1378,7 +1378,7 @@ famfs_flush_usage(int   argc,
 	printf("\n"
 	       "famfs flush: Flush or invalidate the processor cache for an entire file\n"
 	       "\n"
-	       "This command is useful fur shared memory that is not cache coherent. It should\n"
+	       "This command is useful for shared memory that is not cache coherent. It should\n"
 	       "be called after mutating a file whose mutations need to be visible on other hosts,\n"
 	       "and before accessing any file that may have been mutated on other hosts. Note that\n"
 	       "logplay also takes care of this, but if the log has not been played since the file\n"
@@ -1441,6 +1441,7 @@ do_famfs_cli_flush(int argc, char *argv[])
 		if (realpath(file, fullpath) == NULL) {
 			fprintf(stderr, "%s: bad source path %s\n", __func__, file);
 			errs++;
+			continue;
 		}
 
 		rc = famfs_flush_file(file, verbose);
