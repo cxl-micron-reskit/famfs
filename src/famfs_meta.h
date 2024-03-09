@@ -16,6 +16,7 @@
 #include <linux/types.h>
 #include <linux/uuid.h>
 #include <linux/famfs_ioctl.h>
+#include <assert.h>
 
 #include "famfs.h"
 
@@ -163,14 +164,34 @@ struct famfs_log_entry {
 
 #define FAMFS_LOG_MAGIC 0xbadcafef00d
 
+/**
+ * @famfs_log - the structure of the famfs log
+ *
+ * @famfs_log_magic: magic number
+ * @famfs_log_len: total size of the log, including header and all valid entries
+ * @famfs_log_last_index:  The last valid index (i.e. inclusive)
+ * @famfs_log_crc: crc which covers the preceeding fields, which don't change
+ * @famfs_log_next_seqnum: sequence number for the next log entry
+ * @famfs_log_next_index: Index of the next (not yet inserted) log entry
+ * @entries: Array of log entries. sizeof famfs_log, including all entries, must be
+ *           <= @famfs_log_len
+ */
 struct famfs_log {
 	u64     famfs_log_magic;
 	u64     famfs_log_len;
-	u64     famfs_log_last_index; /* Log would overflow if we write past here */
+	u64     famfs_log_last_index;
 	unsigned long famfs_log_crc;
 	u64     famfs_log_next_seqnum;
 	u64     famfs_log_next_index;
 	struct famfs_log_entry entries[];
 };
+
+static inline s64
+log_slots_available(struct famfs_log *logp)
+{
+	s64 navail = logp->famfs_log_last_index - logp->famfs_log_next_index + 1;
+	assert(navail >= 0);
+	return navail;
+}
 
 #endif /* FAMFS__META_H */

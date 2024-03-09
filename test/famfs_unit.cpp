@@ -19,6 +19,7 @@ extern "C" {
 #include "famfs_meta.h"
 #include "xrand.h"
 #include "random_buffer.h"
+#include "famfs_unit.h"
 }
 
 /****+++++++++++++++++++++++++++++++++++++++++++++
@@ -44,58 +45,8 @@ TEST(famfs, famfs_mkfs)
 	int rc;
 
 	/* Prepare a fake famfs (move changes to this block everywhere it is) */
-	if (1) {
-		char *buf  = (char *)calloc(1, FAMFS_LOG_LEN);
-		mode_t mode = 0777;
-		int lfd, sfd;
-		void *addr;
-
-		system("rm -rf /tmp/famfs");
-
-		/* Create fake famfs and famfs/.meta mount point */
-		rc = mkdir("/tmp/famfs", mode);
-		ASSERT_EQ(rc, 0);
-		rc = mkdir("/tmp/famfs/.meta", mode);
-		ASSERT_EQ(rc, 0);
-
-		/* Create fake log and superblock files */
-		sfd = open("/tmp/famfs/.meta/.superblock", O_RDWR | O_CREAT, 0666);
-		ASSERT_GT(sfd, 0);
-		lfd = open("/tmp/famfs/.meta/.log", O_RDWR | O_CREAT, 0666);
-		ASSERT_GT(lfd, 0);
-
-		/* Zero out the superblock and llog files */
-		rc = write(sfd, buf, FAMFS_SUPERBLOCK_SIZE);
-		ASSERT_EQ(rc, FAMFS_SUPERBLOCK_SIZE);
-
-		rc = write(lfd, buf, FAMFS_LOG_LEN);
-		ASSERT_EQ(rc, FAMFS_LOG_LEN);
-	
-		/* Mmap fake log file */
-		addr = mmap(0, FAMFS_SUPERBLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, sfd, 0);
-		ASSERT_NE(addr, MAP_FAILED);
-		sb = (struct famfs_superblock *)addr;
-
-		famfs_dump_super(sb); /* dump invalid superblock */
-
-		/* mmap fake superblock file */
-		addr = mmap(0, FAMFS_LOG_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, lfd, 0);
-		ASSERT_NE(addr, MAP_FAILED);
-		logp = (struct famfs_log *)addr;
-
-		famfs_dump_log(logp); /* dump invalid superblock */
-
-		memset(sb, 0, FAMFS_SUPERBLOCK_SIZE);
-		memset(logp, 0, FAMFS_LOG_LEN);
-
-		/* First mkfs should succeed */
-		rc = __famfs_mkfs("/dev/dax0.0", sb, logp, device_size, 0, 0);
-		ASSERT_EQ(rc, 0);
-
-		close(lfd);
-		close(sfd);
-	}
-	/****************************** end prepare fake famfs */
+	rc = create_mock_famfs_instance("/tmp/famfs", device_size, &sb, &logp);
+	ASSERT_EQ(rc, 0);
 
 	/* Repeat should fail because there is a valid superblock */
 	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, device_size, 0, 0);
@@ -381,53 +332,8 @@ TEST(famfs, famfs_log)
 	/** can call famfs_file_alloc() and __famfs_mkdir() on our fake famfs in /tmp/famfs */
 
 	/* Prepare a fake famfs (move changes to this block everywhere it is) */
-	if (1) {
-		char *buf  = (char *)calloc(1, FAMFS_LOG_LEN);
-		mode_t mode = 0777;
-		int lfd, sfd;
-		void *addr;
-
-		system("rm -rf /tmp/famfs");
-
-		/* Create fake famfs and famfs/.meta mount point */
-		rc = mkdir("/tmp/famfs", mode);
-		ASSERT_EQ(rc, 0);
-		rc = mkdir("/tmp/famfs/.meta", mode);
-		ASSERT_EQ(rc, 0);
-
-		/* Create fake log and superblock files */
-		sfd = open("/tmp/famfs/.meta/.superblock", O_RDWR | O_CREAT, 0666);
-		ASSERT_GT(sfd, 0);
-		lfd = open("/tmp/famfs/.meta/.log", O_RDWR | O_CREAT, 0666);
-		ASSERT_GT(lfd, 0);
-
-		/* Zero out the superblock and llog files */
-		rc = write(sfd, buf, FAMFS_SUPERBLOCK_SIZE);
-		ASSERT_EQ(rc, FAMFS_SUPERBLOCK_SIZE);
-
-		rc = write(lfd, buf, FAMFS_LOG_LEN);
-		ASSERT_EQ(rc, FAMFS_LOG_LEN);
-	
-		/* Mmap fake log file */
-		addr = mmap(0, FAMFS_SUPERBLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, sfd, 0);
-		ASSERT_NE(addr, MAP_FAILED);
-		sb = (struct famfs_superblock *)addr;
-
-		/* mmap fake superblock file */
-		addr = mmap(0, FAMFS_LOG_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, lfd, 0);
-		ASSERT_NE(addr, MAP_FAILED);
-		logp = (struct famfs_log *)addr;
-
-		memset(sb, 0, FAMFS_SUPERBLOCK_SIZE);
-		memset(logp, 0, FAMFS_LOG_LEN);
-
-		/* First mkfs should succeed */
-		rc = __famfs_mkfs("/dev/dax0.0", sb, logp, device_size, 0, 0);
-		ASSERT_EQ(rc, 0);
-
-		close(lfd);
-		close(sfd);
-	}
+	rc = create_mock_famfs_instance("/tmp/famfs", device_size, &sb, &logp);
+	ASSERT_EQ(rc, 0);
 
 	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
 	ASSERT_EQ(rc, 0);
@@ -444,7 +350,6 @@ TEST(famfs, famfs_log)
 		close(fd);
 	}
 
-	/* TODO: nested dirs and files to fill up the log */
 	for (i = 0; i < 100; i++) {
 		char dirname[64];
 		sprintf(dirname, "/tmp/famfs/dir%04d", i);
@@ -453,7 +358,6 @@ TEST(famfs, famfs_log)
 	}
 	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 3);
 	ASSERT_EQ(rc, 0);
-	//famfs_print_log_stats("famfs_log test", )
 
 	rc = famfs_fsck_scan(sb, logp, 1, 3);
 	ASSERT_EQ(rc, 0);
@@ -541,4 +445,131 @@ TEST(famfs, famfs_log)
 	ASSERT_NE(rc, 0);
 #endif
 
+}
+
+TEST(famfs, famfs_log_overflow_mkdir_p)
+{
+	u64 device_size = 64ULL * 1024ULL * 1024ULL * 1024ULL;
+	//struct famfs_locked_log ll;
+	struct famfs_superblock *sb;
+	char dirname[PATH_MAX];
+	struct famfs_log *logp;
+	extern int mock_kmod;
+	int rc;
+	int i;
+
+	mock_kmod = 1;
+	/** can call famfs_file_alloc() and __famfs_mkdir() on our fake famfs in /tmp/famfs */
+
+	/* Prepare a fake famfs (move changes to this block everywhere it is) */
+	rc = create_mock_famfs_instance("/tmp/famfs", device_size, &sb, &logp);
+	ASSERT_EQ(rc, 0);
+
+	/* TODO: nested dirs and files to fill up the log */
+	for (i = 0; ; i++) {
+		s64 nslots = log_slots_available(logp);
+
+		sprintf(dirname, "/tmp/famfs/dir%04d/a/b/c/d/e/f/g/h/i", i);
+		/* mkdir -p */
+		printf("i: %d\n", i);
+		rc = famfs_mkdir_parents(dirname, 0644, 0, 0, (i < 2500) ? 0:2);
+
+		if (nslots >= 10) {
+			if (rc != 0)
+				printf("nslots: %lld\n", nslots);
+			ASSERT_EQ(rc, 0);
+		} else {
+			printf("nslots: %lld\n", nslots);
+			ASSERT_NE(rc, 0);
+			break;
+		}
+	}
+
+	/* Let's check how many log entries are left */
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	ASSERT_EQ(rc, 0);
+
+	famfs_dump_log(logp);
+
+	/* Let's check how many log entries are left */
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	ASSERT_EQ(rc, 0);
+
+	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0);
+	ASSERT_EQ(rc, 0);
+	//famfs_print_log_stats("famfs_log test", )
+
+	rc = famfs_fsck_scan(sb, logp, 1, 0);
+	ASSERT_EQ(rc, 0);
+}
+
+TEST(famfs, famfs_log_overflow_files)
+{
+	u64 device_size = 64ULL * 1024ULL * 1024ULL * 1024ULL;
+	struct famfs_superblock *sb;
+	char dirname[PATH_MAX];
+	char filename[PATH_MAX * 2];
+	struct famfs_log *logp;
+	extern int mock_kmod;
+	int fd;
+	int rc;
+	int i;
+
+	mock_kmod = 1;
+	/** can call famfs_file_alloc() and __famfs_mkdir() on our fake famfs in /tmp/famfs */
+
+	/* Prepare a fake famfs (move changes to this block everywhere it is) */
+	rc = create_mock_famfs_instance("/tmp/famfs", device_size, &sb, &logp);
+	ASSERT_EQ(rc, 0);
+
+	/* Keep doing "mkdir -p" until the log is almost full.
+	 * Each of these commands will use 10 log entries.
+	 */
+	for (i = 0; ; i++) {
+		sprintf(dirname, "/tmp/famfs/dir%04d/a/b/c/d/e/f/g/h/i", i);
+		/* mkdir -p */
+		printf("xxi: %d\n", i);
+		rc = famfs_mkdir_parents(dirname, 0644, 0, 0, (i < 2500) ? 0:2);
+		ASSERT_EQ(rc, 0);
+
+		sprintf(filename, "%s/%04d", dirname, i);
+		fd = famfs_mkfile(filename, 0, 0, 0, 1048576, 0);
+		ASSERT_GT(fd, 0);
+
+		close(fd);
+
+		/* When we're close to full, break and create files */
+		if (log_slots_available(logp) < 12)
+			break;
+	}
+
+	for (i = 0 ; ; i++) {
+		printf("xyi: %d\n", i);
+		sprintf(filename, "%s/%04d", dirname, i);
+		fd = famfs_mkfile(filename, 0, 0, 0, 1048576, 0);
+		if (log_slots_available(logp) > 0) {
+			ASSERT_GT(fd, 0);
+			close(fd);
+		} else if (log_slots_available(logp) == 0) {
+			fd = famfs_mkfile(filename, 0, 0, 0, 1048576, 0);
+			ASSERT_LT(fd, 0);
+			break;
+		}
+	}
+
+	/* Let's check how many log entries are left */
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	ASSERT_EQ(rc, 0);
+
+	famfs_dump_log(logp);
+
+	/* Let's check how many log entries are left */
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	ASSERT_EQ(rc, 0);
+
+	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0);
+	ASSERT_EQ(rc, 0);
+
+	rc = famfs_fsck_scan(sb, logp, 1, 3);
+	ASSERT_EQ(rc, 0);
 }

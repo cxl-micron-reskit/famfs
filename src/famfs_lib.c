@@ -32,7 +32,6 @@
 #include <linux/famfs_ioctl.h>
 
 #include "famfs_meta.h"
-
 #include "famfs_lib.h"
 #include "famfs_lib_internal.h"
 #include "bitmap.h"
@@ -40,7 +39,7 @@
 
 int mock_kmod = 0; /* unit tests can set this to avoid ioctl calls and whatnot */
 int mock_flush = 0; /* for unit tests to avoid actual flushing */
-int mock_role = 0;
+int mock_role = 0; /* for unit tests to specify role rather than testing for it */
 
 struct famfs_log_stats {
 	u64 n_entries;
@@ -106,7 +105,7 @@ void famfs_dump_log(struct famfs_log *logp)
 	if (rc)
 		fprintf(stderr, "Error invalid log header\n");
 
-	printf("famfs log:\n");
+	printf("famfs log: (%p)\n", logp);
 	printf("\tmagic:      %llx\n", logp->famfs_log_magic);
 	printf("\tlen:        %lld\n", logp->famfs_log_len);
 	printf("\tlast index: %lld\n", logp->famfs_log_last_index);
@@ -501,7 +500,7 @@ famfs_fsck_scan(
 	 * print log info
 	 */
 	printf("\nLog stats:\n");
-	printf("  # of log entriesi in use: %lld of %lld\n",
+	printf("  # of log entries in use: %lld of %lld\n",
 	       logp->famfs_log_next_index, logp->famfs_log_last_index + 1);
 	printf("  Log size in use:          %ld\n", effective_log_size);
 
@@ -1495,11 +1494,22 @@ famfs_append_log(struct famfs_log       *logp,
 
 	e->famfs_log_entry_seqnum = logp->famfs_log_next_seqnum;
 	e->famfs_log_entry_crc = famfs_gen_log_entry_crc(e);
+
 	memcpy(&logp->entries[logp->famfs_log_next_index], e, sizeof(*e));
 
 	logp->famfs_log_next_seqnum++;
 	logp->famfs_log_next_index++;
+
+	/* Could flush: 1) the log entry, 2) the log header
+	 * That would be less flushing, but would not guarantee that the entry is visible
+	 * before the log header. If the log header becomes visible first (leading to
+	 * reading a cache-incoherent log entry), the checksum on the log entry will
+	 * save us - and the logplay can be retried.
+	 *
+	 * But now we're just flushing the whole log every time...
+	 */
 	flush_processor_cache(logp, logp->famfs_log_len);
+
 	return 0;
 }
 
@@ -2782,8 +2792,8 @@ __famfs_mkdir(
 		goto err_out;
 	}
 
+	/* Should it be logged before it's locally created? */
 	rc = famfs_log_dir_creation(lp->logp, relpath, mode, uid, gid);
-
 
 err_out:
 	if (dirdupe)
@@ -3678,8 +3688,8 @@ __famfs_mkfs(const char              *daxdev,
 	logp->famfs_log_len        = FAMFS_LOG_LEN;
 	logp->famfs_log_next_seqnum    = 0;
 	logp->famfs_log_next_index = 0;
-	logp->famfs_log_last_index = ((FAMFS_LOG_LEN - offsetof(struct famfs_log, entries))
-				      / sizeof(struct famfs_log_entry));
+	logp->famfs_log_last_index = (((FAMFS_LOG_LEN - offsetof(struct famfs_log, entries))
+				      / sizeof(struct famfs_log_entry)) - 1);
 
 	logp->famfs_log_crc = famfs_gen_log_header_crc(logp);
 	famfs_fsck_scan(sb, logp, 1, 0);
