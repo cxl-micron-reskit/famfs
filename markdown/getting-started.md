@@ -115,6 +115,10 @@ You can also optionally specify the device and mount point as environment variab
 
     DEV=/dev/dax1.0 MPT=/mnt/famfs make smoke
 
+or, if you're running tcsh or csh shells:
+
+    env DEV=/dev/dax1.0 MPT=/mnt/famfs make smoke
+
 You can see an example of the [full output from run_smoke.sh here](smoke-example.md)
 
 The smoke tests (by default) require the following:
