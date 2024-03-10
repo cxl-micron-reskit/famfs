@@ -235,25 +235,87 @@ famfs_print_uuid(const uuid_le *uuid)
 	printf("%s\n", uuid_str);
 }
 
-#define SYS_UUID_PATH "/sys/devices/virtual/dmi/id/product_uuid"
+#define SYS_UUID_DIR "/opt/famfs"
+/*
+ * Check if uuid file exists, if not, create it
+ * and update it with a new uuid.
+ *
+ */
+int famfs_create_sys_uuid_file(char *sys_uuid_file)
+{
+	int uuid_fd, rc;
+	char uuid_str[37];  /* UUIDs are 36 char long, plus null terminator */
+	uuid_t local_uuid;
+	struct stat st = {0};
+	uuid_le sys_uuid;
+
+	/* Do nothing if file is present */
+	rc = stat(sys_uuid_file, &st);
+	if (rc == 0 && (st.st_mode & S_IFMT) == S_IFREG)
+		return 0;
+
+	/* File not found, check for directory */
+	rc = stat(SYS_UUID_DIR, &st);
+	if (rc < 0 && errno == ENOENT) {
+		/* No directory found, create one */
+		rc = mkdir(SYS_UUID_DIR, 0644);
+		if (rc) {
+			fprintf(stderr, "%s: error creating dir %s errno: %d\n",
+				__func__, SYS_UUID_DIR, errno);
+			return -1;
+		}
+	}
+
+	uuid_fd = open(sys_uuid_file, O_RDWR | O_CREAT, 0444);
+	if (uuid_fd < 0) {
+		fprintf(stderr, "%s: failed to open/create %s errno %d.\n",
+			__func__, sys_uuid_file, errno);
+		return -1;
+	}
+
+	famfs_uuidgen(&sys_uuid);
+	memcpy(&local_uuid, &sys_uuid, sizeof(sys_uuid));
+	uuid_unparse(local_uuid, uuid_str);
+	rc = write(uuid_fd, uuid_str, 37);
+	if (rc < 0) {
+		fprintf(stderr, "%s: failed to write uuid to %s, errno: %d\n",
+			__func__, sys_uuid_file, errno);
+		unlink(sys_uuid_file);
+		return -1;
+	}
+	return 0;
+}
+
+#define SYS_UUID_FILE "system_uuid"
+
 int
 famfs_get_system_uuid(uuid_le *uuid_out)
 {
 	FILE *f;
 	char uuid_str[48];  /* UUIDs are 36 characters long, plus null terminator */
 	uuid_t uuid;
+	char sys_uuid_file_path[PATH_MAX] = {0};
 
-	f = fopen(SYS_UUID_PATH, "r");
-	if (f < 0) {
+	snprintf(sys_uuid_file_path, PATH_MAX - 1, "%s/%s",
+			SYS_UUID_DIR, SYS_UUID_FILE);
+
+	if (famfs_create_sys_uuid_file(sys_uuid_file_path) < 0) {
+		fprintf(stderr, "Failed to create system-uuid file\n");
+		return -1;
+	}
+	f = fopen(sys_uuid_file_path, "r");
+	if (f == NULL) {
 		fprintf(stderr, "%s: unable to open system uuid at %s\n",
-			__func__, SYS_UUID_PATH);
+				__func__, sys_uuid_file_path);
 		return -errno;
 	}
 
 	/* gpt */
 	if (fscanf(f, "%36s", uuid_str) != 1) {
-		fprintf(stderr, "%s: unable to read system uuid at %s\n", __func__, SYS_UUID_PATH);
+		fprintf(stderr, "%s: unable to read system uuid at %s\n",
+				__func__, sys_uuid_file_path);
 		fclose(f);
+		unlink(sys_uuid_file_path);
 		return -errno;
 	}
 
@@ -568,8 +630,6 @@ famfs_fsck_scan(
 
 /**
  * famfs_mmap_superblock_and_log_raw()
- *
- * This function SHOULD ONLY BE CALLED BY FSCK AND MKMETA
  *
  * The superblock and log are mapped directly from a device. Other apps should map
  * them from their meta files!
@@ -3658,7 +3718,7 @@ __famfs_mkfs(const char              *daxdev,
 
 	if (kill) {
 		printf("Famfs superblock killed\n");
-		sb->ts_magic      = 0;
+		sb->ts_magic = 0;
 		flush_processor_cache(sb, sb->ts_log_offset);
 		return 0;
 	}
@@ -3712,6 +3772,18 @@ famfs_mkfs(const char *daxdev,
 	struct famfs_log *logp;
 	u64 min_devsize = 4 * 1024ll * 1024ll * 1024ll;
 
+	if (kill) {
+		rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &logp, 0 /* read/write */);
+		if (rc) {
+			fprintf(stderr, "Failed to mmap superblock\n");
+			return -1;
+		}
+		printf("Famfs superblock killed\n");
+		sb->ts_magic = 0;
+		flush_processor_cache(&sb->ts_magic, sizeof(sb->ts_magic));
+		return 0;
+	}
+
 	rc = famfs_get_role_by_dev(daxdev);
 	if (rc < 0) {
 		fprintf(stderr, "%s: failed to establish role\n", __func__);
@@ -3725,8 +3797,11 @@ famfs_mkfs(const char *daxdev,
 	 * If the role is FAMFS_CLIENT, they'll have to manually blow away the superblock
 	 * if they want to do a new mkfs.
 	 */
-	if (rc == FAMFS_CLIENT)
+	if (rc == FAMFS_CLIENT) {
+		fprintf(stderr, "Error: Device %s has a superblock owned by"
+				" another host.\n", daxdev);
 		return rc;
+	}
 
 	rc = famfs_get_device_size(daxdev, &devsize, &type);
 	if (rc)

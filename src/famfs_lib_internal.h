@@ -48,5 +48,6 @@ int __famfs_logplay(const struct famfs_log *logp, const char *mpt, int dry_run,
 		    int client_mode, int verbose);
 int famfs_fsck_scan(const struct famfs_superblock *sb, const struct famfs_log *logp,
 		    int human, int verbose);
+int famfs_create_sys_uuid_file(char *sys_uuid_file);
 
 #endif /* _H_FAMFS_LIB_INTERNAL */
