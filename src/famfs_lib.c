@@ -40,6 +40,7 @@
 int mock_kmod = 0; /* unit tests can set this to avoid ioctl calls and whatnot */
 int mock_flush = 0; /* for unit tests to avoid actual flushing */
 int mock_role = 0; /* for unit tests to specify role rather than testing for it */
+int mock_uuid = 0;
 
 struct famfs_log_stats {
 	u64 n_entries;
@@ -259,7 +260,7 @@ int famfs_create_sys_uuid_file(char *sys_uuid_file)
 	if (rc < 0 && errno == ENOENT) {
 		/* No directory found, create one */
 		rc = mkdir(SYS_UUID_DIR, 0644);
-		if (rc) {
+		if (rc || mock_uuid) {
 			fprintf(stderr, "%s: error creating dir %s errno: %d\n",
 				__func__, SYS_UUID_DIR, errno);
 			return -1;
@@ -277,7 +278,7 @@ int famfs_create_sys_uuid_file(char *sys_uuid_file)
 	memcpy(&local_uuid, &sys_uuid, sizeof(sys_uuid));
 	uuid_unparse(local_uuid, uuid_str);
 	rc = write(uuid_fd, uuid_str, 37);
-	if (rc < 0) {
+	if (rc < 0 || mock_uuid) {
 		fprintf(stderr, "%s: failed to write uuid to %s, errno: %d\n",
 			__func__, sys_uuid_file, errno);
 		unlink(sys_uuid_file);
@@ -311,12 +312,12 @@ famfs_get_system_uuid(uuid_le *uuid_out)
 	}
 
 	/* gpt */
-	if (fscanf(f, "%36s", uuid_str) != 1) {
-		fprintf(stderr, "%s: unable to read system uuid at %s\n",
-				__func__, sys_uuid_file_path);
+	if (fscanf(f, "%36s", uuid_str) != 1 || mock_uuid) {
+		fprintf(stderr, "%s: unable to read system uuid at %s, errno: %d\n",
+				__func__, sys_uuid_file_path, errno);
 		fclose(f);
 		unlink(sys_uuid_file_path);
-		return -errno;
+		return -1;
 	}
 
 	fclose(f);

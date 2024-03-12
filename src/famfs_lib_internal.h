@@ -49,5 +49,6 @@ int __famfs_logplay(const struct famfs_log *logp, const char *mpt, int dry_run,
 int famfs_fsck_scan(const struct famfs_superblock *sb, const struct famfs_log *logp,
 		    int human, int verbose);
 int famfs_create_sys_uuid_file(char *sys_uuid_file);
+int famfs_get_system_uuid(uuid_le *uuid_out);
 
 #endif /* _H_FAMFS_LIB_INTERNAL */
