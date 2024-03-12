@@ -30,11 +30,61 @@ extern "C" {
 #define FAMFS_MPT "/mnt/famfs"
 #define DIRPATH   "/mnt/famfs/testdir42"
 #define TESTFILE  "/mnt/famfs/testdir42/testfile0"
+#define PATH	  256
+#define SYS_UUID_DIR "/opt/famfs"
 
 TEST(famfs, dummy)
 {
 	printf("Dummy test\n");
 	ASSERT_EQ(0, 0);
+}
+
+TEST(famfs, famfs_create_sys_uuid_file)
+{
+	char sys_uuid_file[PATH];
+	int rc;
+	extern int mock_uuid;
+	uuid_le uuid_out;
+
+
+	// Check with correct file name and path
+	snprintf(sys_uuid_file, PATH, "/opt/famfs/system_uuid");
+	rc = famfs_create_sys_uuid_file(sys_uuid_file);
+	ASSERT_EQ(rc, 0);
+
+	// Pass a directory, should fail
+	system("mkdir -p /tmp/famfs");
+	snprintf(sys_uuid_file, PATH, "%s", "/tmp/famfs");
+	rc = famfs_create_sys_uuid_file(sys_uuid_file);
+	ASSERT_NE(rc, 0);
+
+	// create a uuid file
+	snprintf(sys_uuid_file, PATH, "/tmp/system_uuid");
+	rc = famfs_create_sys_uuid_file(sys_uuid_file);
+	ASSERT_EQ(rc, 0);
+	system("rm /tmp/system_uuid");
+
+	// simulate directory creation failure
+	mock_uuid = 1;
+	system("mv /opt/famfs /opt/famfs_old");
+	snprintf(sys_uuid_file, PATH, "/opt/famfs/system_uuid");
+	rc = famfs_create_sys_uuid_file(sys_uuid_file);
+	ASSERT_NE(rc, 0);
+	system("rmdir /opt/famfs");
+	system("mv /opt/famfs_old /opt/famfs");
+	mock_uuid = 0;
+
+	// simulate write failure with mock_uuid
+	mock_uuid = 1;
+	snprintf(sys_uuid_file, PATH, "/tmp/system_uuid");
+	rc = famfs_create_sys_uuid_file(sys_uuid_file);
+	ASSERT_NE(rc, 0);
+
+	// simulate fscanf failure in famfs_get_system_uuid
+	rc = famfs_get_system_uuid(&uuid_out);
+	ASSERT_NE(rc, 0);
+	mock_uuid = 0;
+
 }
 
 TEST(famfs, famfs_mkfs)
