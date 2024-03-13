@@ -1047,11 +1047,6 @@ do_famfs_cli_creat(int argc, char *argv[])
 
 		case 's':
 			fsize = strtoull(optarg, &endptr, 0);
-			if (fsize <= 0) {
-				fprintf(stderr, "invalid file size %ld\n",
-					fsize);
-				exit(-1);
-			}
 			mult = get_multiplier(endptr);
 			if (mult > 0)
 				fsize *= mult;
