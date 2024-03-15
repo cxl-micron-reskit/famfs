@@ -3771,6 +3771,14 @@ famfs_mkfs(const char *daxdev,
 	struct famfs_superblock *sb;
 	struct famfs_log *logp;
 	u64 min_devsize = 4 * 1024ll * 1024ll * 1024ll;
+	char *mpt = NULL;
+
+	mpt = famfs_get_mpt_by_dev(daxdev);
+	if (mpt) {
+		fprintf(stderr, "%s: cannot mkfs while %s is mounted on %s\n",
+				__func__, daxdev, mpt);
+		return -1;
+	}
 
 	if (kill) {
 		rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &logp, 0 /* read/write */);
