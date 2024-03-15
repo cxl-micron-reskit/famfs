@@ -12,7 +12,7 @@ fail () {
     set +x
     echo
     echo "*** Fail ***"
-    echo "$1"
+    echo "$TEST: $1"
     echo
     exit 1
 }

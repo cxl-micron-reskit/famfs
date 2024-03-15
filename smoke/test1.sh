@@ -53,6 +53,7 @@ MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI_FULLPATH=$(realpath "$BIN/famfs")
 CLI="sudo $VG ${CLI_FULLPATH}"
 CLI_NOSUDO="sudo $VG ${CLI_FULLPATH}"
+TEST="test1"
 
 echo "CLI_FULLLPATH: ${CLI_FULLPATH}"
 echo "CLI: ${CLI}"

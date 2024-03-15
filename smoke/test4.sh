@@ -53,6 +53,7 @@ echo "DEVTYPE=$DEVTYPE"
 MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI="sudo $VG $BIN/famfs"
 MULTICHASE="sudo $BIN/src/multichase/multichase"
+TEST="test4"
 
 source $SCRIPTS/test_funcs.sh
 # Above this line should be the same for all smoke tests

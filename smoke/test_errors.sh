@@ -49,6 +49,7 @@ echo "DEVTYPE=$DEVTYPE"
 echo "SCRIPTS=$SCRIPTS"
 MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI="sudo $VG $BIN/famfs"
+TEST="test_errors:"
 
 source $SCRIPTS/test_funcs.sh
 # Above this line should be the same for all smoke tests
