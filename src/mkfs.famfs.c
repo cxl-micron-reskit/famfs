@@ -75,7 +75,7 @@ main(int argc, char *argv[])
 		case 'k':
 			/* kill the superblock on the device */
 			kill_super++;
-			printf("kill_super: %d\n", kill_super);
+			printf("kill superblock: %d\n", kill_super);
 			break;
 		case 'f':
 			force++;
