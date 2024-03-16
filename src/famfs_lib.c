@@ -259,7 +259,7 @@ int famfs_create_sys_uuid_file(char *sys_uuid_file)
 	rc = stat(SYS_UUID_DIR, &st);
 	if (rc < 0 && errno == ENOENT) {
 		/* No directory found, create one */
-		rc = mkdir(SYS_UUID_DIR, 0644);
+		rc = mkdir(SYS_UUID_DIR, 0755);
 		if (rc || mock_uuid) {
 			fprintf(stderr, "%s: error creating dir %s errno: %d\n",
 				__func__, SYS_UUID_DIR, errno);
