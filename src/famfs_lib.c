@@ -333,6 +333,22 @@ famfs_get_system_uuid(uuid_le *uuid_out)
 	return 0;
 }
 
+void
+famfs_print_role_string(int role)
+{
+	switch (role) {
+	case FAMFS_MASTER:
+		printf("Owner\n");
+		return;
+	case FAMFS_CLIENT:
+		printf("Client\n");
+		return;
+	case FAMFS_NOSUPER:
+		printf("Invalid superblock\n");
+		return;
+	}
+}
+
 /**
  * famfs_get_role()
  *
@@ -523,14 +539,15 @@ famfs_fsck_scan(
 	int                            verbose)
 {
 	size_t effective_log_size;
-	size_t total_log_size;
 	struct famfs_log_stats ls;
-	u64 nbits;
-	int i;
+	u64 alloc_sum, fsize_sum;
+	size_t total_log_size;
+	u64 dev_capacity;
 	u64 errors = 0;
 	u8 *bitmap;
-	u64 alloc_sum, fsize_sum;
-	u64 dev_capacity;
+	u64 nbits;
+	int role;
+	int i;
 
 	assert(sb);
 	assert(logp);
@@ -543,12 +560,16 @@ famfs_fsck_scan(
 	 * Print superblock info
 	 */
 	printf("Famfs Superblock:\n");
-	printf("  Filesystem UUID: ");
+	printf("  Filesystem UUID:   ");
 	famfs_print_uuid(&sb->ts_uuid);
-	printf("  System UUID:     ");
+	printf("  System UUID:       ");
 	famfs_print_uuid(&sb->ts_system_uuid);
+	printf("  role of this node: ");
+	role = famfs_get_role(sb);
+	famfs_print_role_string(role);
+
 	printf("  sizeof superblock: %ld\n", sizeof(struct famfs_superblock));
-	printf("  num_daxdevs:              %d\n", sb->ts_num_daxdevs);
+	printf("  num_daxdevs:       %d\n", sb->ts_num_daxdevs);
 	for (i = 0; i < sb->ts_num_daxdevs; i++) {
 		if (i == 0)
 			printf("  primary: ");
