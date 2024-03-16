@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="markdown/famfs-logo.svg" alt="famfs logo">
+</p>
+
 # Building and installing a famfs-compatible Linux 6.7 kernel
 
 Clone the kernel. The kernel below has patches that enable testing with /dev/dax devices,

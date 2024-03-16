@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="famfs-logo.svg" alt="famfs logo">
+</p>
+
 # mkfs.famfs
 ```
 

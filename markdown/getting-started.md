@@ -1,3 +1,6 @@
+<p align="center">
+  <img src="famfs-logo.svg" alt="famfs logo">
+</p>
 
 # Getting started with famfs
 

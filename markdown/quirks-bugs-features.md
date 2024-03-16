@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="famfs-logo.svg" alt="famfs logo">
+</p>
+
 # Famfs Quirks, Bugs and "Features"
 
 Famfs has been developed in 2023-2024, and first made public in early 2024. As of the release,

@@ -1,3 +1,6 @@
+<p align="center">
+  <img src="markdown/famfs-logo.svg" alt="famfs logo">
+</p>
 
 # Famfs Shared Memory Filesystem Framework - User Space Repo
 

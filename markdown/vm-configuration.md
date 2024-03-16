@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="famfs-logo.svg" alt="famfs logo">
+</p>
+
 # Configuring Virtual Machines for famfs
 
 In order to run famfs, you will need at least one physical or virtual compatible memory device.
