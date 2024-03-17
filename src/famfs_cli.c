@@ -195,7 +195,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	char *realdaxdev = NULL;
 	unsigned long mflags = MS_NOATIME | MS_NOSUID | MS_NOEXEC | MS_NODEV;
 
-	struct option mkmeta_options[] = {
+	struct option mount_options[] = {
 		/* These options set a */
 		{"remount",    no_argument,            0,  'R'},
 		{"read",       no_argument,             0,  'r'},
@@ -209,7 +209,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
 	while ((c = getopt_long(argc, argv, "+h?Rrmv",
-				mkmeta_options, &optind)) != EOF) {
+				mount_options, &optind)) != EOF) {
 
 		arg_ct++;
 		switch (c) {
@@ -642,7 +642,7 @@ do_famfs_cli_check(int argc, char *argv[])
 	int c;
 
 	/* XXX can't use any of the same strings as the global args! */
-	struct option cp_options[] = {
+	struct option check_options[] = {
 		/* These options set a */
 		{"verbose",     no_argument,          0,  'v'},
 		{0, 0, 0, 0}
@@ -653,7 +653,7 @@ do_famfs_cli_check(int argc, char *argv[])
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
 	while ((c = getopt_long(argc, argv, "+h?qv",
-				cp_options, &optind)) != EOF) {
+				check_options, &optind)) != EOF) {
 
 		arg_ct++;
 		switch (c) {
@@ -727,7 +727,7 @@ do_famfs_cli_getmap(int argc, char *argv[])
 	int continue_on_err = 0;
 	struct stat st = { 0 };
 	/* XXX can't use any of the same strings as the global args! */
-	struct option cp_options[] = {
+	struct option getmap_options[] = {
 		/* These options set a */
 		{"quiet",     no_argument,          0,  'q'},
 		{0, 0, 0, 0}
@@ -738,7 +738,7 @@ do_famfs_cli_getmap(int argc, char *argv[])
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
 	while ((c = getopt_long(argc, argv, "+h?qc",
-				cp_options, &optind)) != EOF) {
+				getmap_options, &optind)) != EOF) {
 
 		arg_ct++;
 		switch (c) {
@@ -890,7 +890,7 @@ do_famfs_cli_clone(int argc, char *argv[])
 	char srcfullpath[PATH_MAX];
 
 	/* XXX can't use any of the same strings as the global args! */
-	struct option cp_options[] = {
+	struct option clone_options[] = {
 		/* These options set a */
 		{0, 0, 0, 0}
 	};
@@ -900,7 +900,7 @@ do_famfs_cli_clone(int argc, char *argv[])
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
 	while ((c = getopt_long(argc, argv, "+vh?",
-				cp_options, &optind)) != EOF) {
+				clone_options, &optind)) != EOF) {
 
 		arg_ct++;
 		switch (c) {
@@ -1298,7 +1298,7 @@ do_famfs_cli_verify(int argc, char *argv[])
 	s64 rc = 0;
 
 	/* XXX can't use any of the same strings as the global args! */
-	struct option map_options[] = {
+	struct option verify_options[] = {
 		/* These options set a */
 		{"seed",        required_argument,             0,  'S'},
 		{"filename",    required_argument,             0,  'f'},
@@ -1310,7 +1310,7 @@ do_famfs_cli_verify(int argc, char *argv[])
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
 	while ((c = getopt_long(argc, argv, "+f:S:h?",
-				map_options, &optind)) != EOF) {
+				verify_options, &optind)) != EOF) {
 
 		arg_ct++;
 		switch (c) {
@@ -1401,7 +1401,7 @@ do_famfs_cli_flush(int argc, char *argv[])
 
 
 	/* XXX can't use any of the same strings as the global args! */
-	struct option cp_options[] = {
+	struct option flush_options[] = {
 		/* These options set a */
 		{0, 0, 0, 0}
 	};
@@ -1411,7 +1411,7 @@ do_famfs_cli_flush(int argc, char *argv[])
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
 	while ((c = getopt_long(argc, argv, "+vh?",
-				cp_options, &optind)) != EOF) {
+				flush_options, &optind)) != EOF) {
 
 		arg_ct++;
 		switch (c) {
@@ -1515,7 +1515,7 @@ do_famfs_cli_chkread(int argc, char *argv[])
 	struct stat st;
 
 	/* XXX can't use any of the same strings as the global args! */
-	struct option map_options[] = {
+	struct option chkread_options[] = {
 		/* These options set a */
 		{0, 0, 0, 0}
 	};
@@ -1525,7 +1525,7 @@ do_famfs_cli_chkread(int argc, char *argv[])
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
 	while ((c = getopt_long(argc, argv, "+slh?",
-				map_options, &optind)) != EOF) {
+				chkread_options, &optind)) != EOF) {
 		arg_ct++;
 		switch (c) {
 		case 'h':
