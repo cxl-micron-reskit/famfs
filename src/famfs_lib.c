@@ -1108,6 +1108,9 @@ famfs_mkmeta(const char *devname)
  * @size      - size will be stored if this pointer is non-NULL
  *
  * TODO: this is only used by the cli for file verification. Move to CLI?
+ * Returns:
+ * NULL - failure
+ * otherwise - success
  */
 void *
 famfs_mmap_whole_file(
