@@ -58,7 +58,7 @@ set -x
 
 #full_mount $DEV $MPT "${MOUNT_OPTS}" "test_errors full_mount"
 
-verify_mounted $DEV $MPT "test2.sh"
+verify_mounted $DEV $MPT "test_errors.sh"
 
 ${CLI} fsck $MPT || fail "fsck should not fail when nothing cloned"
 
