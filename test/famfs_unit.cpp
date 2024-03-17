@@ -472,7 +472,7 @@ TEST(famfs, famfs_log)
 
 	mock_role = FAMFS_CLIENT;
 	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
-	ASSERT_NE(rc, 0);
+	ASSERT_NE(rc, 0); /* init_locked_log should fail as client */
 
 	mock_role = 0;
 
