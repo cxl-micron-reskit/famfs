@@ -120,6 +120,7 @@ if (($TEST_ALL > 0)); then
     TEST2=1
     TEST3=1
     TEST4=1
+    TEST_PCQ=1
 fi
 
 ./smoke/prepare.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
@@ -143,9 +144,11 @@ fi
 if (($TEST4 > 0)); then
     ./smoke/test4.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
 fi
+if (($TEST_PCQ > 0)); then
+    ./smoke/test_pcq.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
+fi
 if (($ERRS > 0)); then
     sleep "${SLEEP_TIME}"
-
     ./smoke/test_errors.sh  -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
 else
     echo "skipping test_errors.sh because -n|--noerrors was specified"

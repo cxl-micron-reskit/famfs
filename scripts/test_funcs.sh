@@ -17,6 +17,31 @@ fail () {
     exit 1
 }
 
+# Function to assert the exit code of a command
+assert_equal() {
+    local a="$1"
+    local b="$2"
+    local msg="$3"
+
+    # Check if the actual exit code matches the expected exit code
+    if (( a != b)); then
+        echo "assertion ($a == $b) failed: $msg"
+        exit 1
+    fi
+}
+
+assert_lt() {
+    local a="$1"
+    local b="$2"
+    local msg="$3"
+
+    # assertion is (a < b)
+    if (( a >= b)); then
+        echo "assertion ($a == $b) failed: $msg"
+        exit 1
+    fi
+}
+
 mount_only () {
     DEV=$1
     MPT=$2
