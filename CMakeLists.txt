@@ -32,10 +32,12 @@ add_library(libfamfs src/famfs_lib.c  )
 
 add_executable(famfs src/famfs_cli.c )
 add_executable(mkfs.famfs src/mkfs.famfs.c )
+add_executable(pcq test_progs/pcq.c )
 
 target_link_libraries(famfs libfamfs famfstest uuid z)
 target_link_libraries(mkfs.famfs libfamfs uuid z)
 target_link_libraries(libfamfs  uuid z)
+target_link_libraries(pcq libfamfs uuid z famfstest)
 
 
 #
@@ -77,6 +79,7 @@ message("multichase: ${CMAKE_CURRENT_BINARY_DIR}")
 #
 install(TARGETS famfs DESTINATION /usr/local/bin)
 install(TARGETS mkfs.famfs DESTINATION /usr/local/bin)
+install(TARGETS pcq DESTINATION /usr/local/bin)
 
 #Install library and header files? Maybe later...
 
