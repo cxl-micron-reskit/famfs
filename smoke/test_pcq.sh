@@ -72,6 +72,7 @@ ${PCQ} --drain --producer        && fail "pcq should fail with --drain and --pro
 ${PCQ} --time 10 --nmessages 100 && fail "pcq should fail with --time and --nmessages"
 ${PCQ} --create                  && fail "pcq --creaete should fail with no bzsize"
 ${PCQ} --create -D -v --bsize 1024 --nbuckets 1024 && fail "should fail with missing filename"
+${PCQ} --create -D -v --bsize 1024 --nbuckets 1024 && fail "Create should fail with no file"
 
 # Create some queues
 ${PCQ} --create -D -v --bsize 1024 --nbuckets 1024 $MPT/q0 || fail "basic pcq create 0"
@@ -171,11 +172,11 @@ ${PCQ} --info -v $MPT/q3                        || fail "maybe not empty pcq inf
 ${PCQ} --info -v $MPT/q4                        || fail "maybe not empty pcq info 4"
 
 # Drain the queues beause there are probably some un-consumed messages in there
-${PCQ} --drain $MPT/q0 || fail "drain q0"
-${PCQ} --drain $MPT/q1 || fail "drain q1"
-${PCQ} --drain $MPT/q2 || fail "drain q2"
-${PCQ} --drain $MPT/q3 || fail "drain q3"
-${PCQ} --drain $MPT/q4 || fail "drain q4"
+${PCQ} --drain -v $MPT/q0 || fail "drain q0"
+${PCQ} --drain -v $MPT/q1 || fail "drain q1"
+${PCQ} --drain -v $MPT/q2 || fail "drain q2"
+${PCQ} --drain -v $MPT/q3 || fail "drain q3"
+${PCQ} --drain -v $MPT/q4 || fail "drain q4"
 
 ${PCQ} --info -v $MPT/q0                        || fail "empty pcq info 0"
 ${PCQ} --info -v $MPT/q1                        || fail "empty pcq info 1"
