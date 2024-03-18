@@ -47,8 +47,6 @@ extern int mock_flush;
  * @bucket_size         - bucket size, inclusive of crc in the last 32 bits
  * @bucket_array_offset - offset within this file of the first bucket
  * @producer_index      - index of the last valid entry; empty if == consumer_index
- * @fname               - Name of primary (producer) file
- *                        (consumer file is "<fname>.consumer")
  * @next_seq            - next seq number (not in same cacche line as producer_index)
  */
 struct pcq {
@@ -57,7 +55,6 @@ struct pcq {
 	u64 bucket_size;
 	u64 bucket_array_offset;
 	u64 producer_index;
-	char *fname;
 	char pad[1024];
 	u64 next_seq;
 };
@@ -204,19 +201,19 @@ pcq_create(
 	u64 size;
 	int fd;
 
-	consumer_fname = pcq_consumer_fname(fname);
-	if (verbose)
-		printf("%s: creating queue  %s / %s\n", __func__, fname, consumer_fname);
-
 	if (bucket_size & (bucket_size - 1)) {
 		fprintf(stderr, "%s: bucket_size %lld must be a power of 2\n",
 			__func__, bucket_size);
-		free(consumer_fname);
 		return -1;
 	}
 
 	size = two_mb + (nbuckets * bucket_size);
 
+	consumer_fname = pcq_consumer_fname(fname);
+	assert(consumer_fname);
+
+	if (verbose)
+		printf("%s: creating queue  %s / %s\n", __func__, fname, consumer_fname);
 	/*
 	 * Fail if either file already exists
 	 */
@@ -226,7 +223,8 @@ pcq_create(
 		fprintf(stderr,
 			"%s: can't create pcq %s - something with that name already exists\n",
 			__func__, fname);
-		return -1;
+		rc = -1;
+		goto out;
 	}
 
 	/*
@@ -235,7 +233,8 @@ pcq_create(
 	fd = famfs_mkfile(consumer_fname, 0644, 0, 0, two_mb, 1);
 	if (fd < 0) {
 		fprintf(stderr, "%s: failed to create consumer file\n", __func__);
-		return -1;
+		rc = -1;
+		goto out;
 	}
 	close(fd);
 
@@ -244,7 +243,8 @@ pcq_create(
 	if (!pcqc) {
 		fprintf(stderr, "%s: failed to create consumer file\n", __func__);
 		free(consumer_fname);
-		return -1;
+		rc = -1;
+		goto out;
 	}
 
 	pcqc->pcq_consumer_magic = PCQ_CONSUMER_MAGIC;
@@ -259,15 +259,17 @@ pcq_create(
 	fd = famfs_mkfile(fname, 0644, 0, 0, size, 1);
 	if (fd < 0) {
 		fprintf(stderr, "%s: failed to create producer file\n", __func__);
-		return -1;
+		rc = -1;
+		goto out;
 	}
 	close(fd);
 
 	pcq = famfs_mmap_whole_file(fname, 0 /* writable */, &psz);
-	if (!pcq)
-		return -1;
+	if (!pcq) {
+		rc = -1;
+		goto out;
+	}
 
-	pcq->fname = fname;
 	pcq->pcq_magic = PCQ_MAGIC;
 	pcq->nbuckets = nbuckets;
 	pcq->bucket_size = bucket_size;
@@ -284,7 +286,8 @@ pcq_create(
 	munmap(pcq, psz);
 	munmap(pcqc, csz);
 	printf("%s: Created queue %s\n", __func__, fname);
-
+out:
+	free(consumer_fname);
 	return 0;
 }
 
@@ -337,12 +340,15 @@ pcq_open(
 	rc = stat(consumer_fname, &st);
 	if (rc) {
 		fprintf(stderr, "%s: pcq files not found for queue %s\n", __func__, fname);
+		free(consumer_fname);
 		return NULL;
 	}
 
 	pcq = famfs_mmap_whole_file(fname, (role == PRODUCER) ? 0:1, &psz);
-	if (!pcq)
+	if (!pcq) {
+		free(consumer_fname);
 		return NULL;
+	}
 
 	/*
 	 * Now remap consumer file read-only
@@ -351,6 +357,7 @@ pcq_open(
 	if (!pcq) {
 		munmap(pcq, psz);
 		fprintf(stderr, "%s: failed to create consumer file\n", __func__);
+		free(consumer_fname);
 		return NULL;
 	}
 
@@ -364,6 +371,7 @@ pcq_open(
 		printf("%s: payload_size=%ld\n", __func__, pcq_payload_size(pcq));
 	}
 
+	free(consumer_fname);
 	return pcqh;
 }
 
@@ -554,9 +562,10 @@ pcq_consumer_get(
 int
 run_producer(struct pcq_thread_arg *a)
 {
-	enum pcq_producer_status rc;
+	enum pcq_producer_status pstat;
 	struct pcq_handle *pcqh;
 	struct pcq_entry *entry;
+	int rc = 0;
 
 	pcqh = pcq_producer_open(a->basename, a->verbose);
 
@@ -564,6 +573,7 @@ run_producer(struct pcq_thread_arg *a)
 		return -1;
 
 	entry = pcq_alloc_entry(pcqh);
+	assert(entry);
 
 	if (a->verbose)
 		printf("%s: nmessages=%lld\n", __func__, a->nmessages);
@@ -571,34 +581,39 @@ run_producer(struct pcq_thread_arg *a)
 	while (true) {
 		if (a->seed)
 			randomize_buffer(entry, pcq_payload_size(pcqh->pcq), a->seed);
-		rc = pcq_producer_put(pcqh, entry, a);
-		if (rc == PCQ_PUT_FULL_NOWAIT) {
+		pstat = pcq_producer_put(pcqh, entry, a);
+		if (pstat == PCQ_PUT_FULL_NOWAIT) {
 			a->nerrors++;
-			return -1;
+			rc = -1;
+			goto out;
 		}
 
-		if (rc == PCQ_PUT_STOPPED)
-			return 0;
+		if (pstat == PCQ_PUT_STOPPED)
+			goto out;
 
-		assert(rc == PCQ_PUT_GOOD);
+		assert(pstat == PCQ_PUT_GOOD);
 
 		if (a->stop_mode == NMESSAGES && a->nsent == a->nmessages)
-			return 0;
+			goto out;
 
 		if (a->stop_now)
-			return 0;
+			goto out;
 	}
-	return 0;
+out:
+	free(pcqh);
+	free(entry);
+	return rc;
 }
 
 int
 run_consumer(struct pcq_thread_arg *a)
 {
+	enum pcq_consumer_status cstat;
 	struct pcq_entry *entry_out;
 	struct pcq_handle *pcqh;
 	int64_t ofs;
 	u64 seqnum;
-	enum pcq_consumer_status rc;
+	int rc = 0;
 
 	if (a->stop_mode == EMPTY)
 		assert(a->wait == 0);
@@ -613,11 +628,11 @@ run_consumer(struct pcq_thread_arg *a)
 		printf("%s: nmessages=%lld\n", __func__, a->nmessages);
 
 	while (true) {
-		rc = pcq_consumer_get(pcqh, entry_out, &seqnum, a);
-		if (rc == PCQ_GET_EMPTY && a->stop_mode == EMPTY)
-			return 0;
+		cstat = pcq_consumer_get(pcqh, entry_out, &seqnum, a);
+		if (cstat == PCQ_GET_EMPTY && a->stop_mode == EMPTY)
+			goto out;
 
-		if (rc == PCQ_GET_GOOD && a->seed) {
+		if (cstat == PCQ_GET_GOOD && a->seed) {
 			ofs = validate_random_buffer(entry_out,
 						     pcq_payload_size(pcqh->pcq),
 						     a->seed);
@@ -630,12 +645,15 @@ run_consumer(struct pcq_thread_arg *a)
 		}
 
 		if (a->stop_now)
-			return 0;
+			goto out;
 		if (a->stop_mode == NMESSAGES && a->nreceived == a->nmessages)
-			return 0;
+			goto out;
 
 	}
-	return 0;
+out:
+	free(pcqh);
+	free(entry_out);
+	return rc;
 }
 
 void *
@@ -661,16 +679,15 @@ pcq_worker(void *arg)
 int
 get_queue_info(const char *fname, FILE *statusfile, int verbose)
 {
-	struct pcq_handle *pcqh;
-	u64 nmessages;
+	struct pcq_handle *pcqh = NULL;
+	s64 nmessages = -1;
 	int rc = 0;
 
 	pcqh = pcq_open(fname, READONLY, verbose);
 
-	if (!pcqh) {
-		rc = -1;
-		goto out;
-	}
+	if (!pcqh)
+		return -1;
+
 
 	if (!pcq_valid(pcqh, verbose)) {
 		rc = -1;
@@ -682,6 +699,7 @@ get_queue_info(const char *fname, FILE *statusfile, int verbose)
 
 
 out:
+	free(pcqh);
 	if (statusfile)
 		fprintf(statusfile, "%lld", nmessages);
 	return rc;
@@ -765,7 +783,7 @@ pcq_usage(int   argc,
 	       "    -n|--nbuckets <nnbuckets> - Number of buckets in the queue\n"
 	       "                                (ignored if queue already exists)\n"
 	       "\n"
-	       "Running producers and consumers:"
+	       "Running producers and consumers:\n"
 	       "    -N|--nmessages <n>        - Number of messages to send and/or receive\n"
 	       "    -t|--time <seconds>       - Run for the specified duration\n"
 	       "    -S|--seed <seed>          - Use seed to generate payload\n"
@@ -791,6 +809,7 @@ main(int argc, char **argv)
 	struct pcq_thread_arg prod = { 0 };
 	struct pcq_thread_arg cons = { 0 };
 	char *statusfname = NULL;
+	FILE *statusfile = NULL;
 	char *filename = NULL;
 	bool producer = false;
 	bool consumer = false;
@@ -799,7 +818,6 @@ main(int argc, char **argv)
 	bool drain = false;
 	u64 nmessages = 0;
 	bool info = false;
-	FILE *statusfile;
 	u64 nbuckets = 0;
 	int wait = true;
 	int runtime = 0;
@@ -923,7 +941,7 @@ main(int argc, char **argv)
 		return -1;
 	}
 	if (create && (bucket_size == 0 || nbuckets == 0)) {
-		fprintf(stderr, "%s: create requires a bucketsize an nbuckets\n\n", argv[0]);
+		fprintf(stderr, "%s: create requires bsize and nbuckets\n\n", argv[0]);
 		pcq_usage(argc, argv);
 		return -1;
 	}
@@ -1002,7 +1020,6 @@ main(int argc, char **argv)
 		if (rc) {
 			fprintf(stderr, "%s: failed to start producer thread\n", __func__);
 		}
-		sleep(0);
 	}
 
 	/*
