@@ -317,6 +317,8 @@ struct pcq_thread_arg {
 	u64 nsent;
 	u64 nreceived;
 	u64 nerrors;
+	u64 nfull;  /* # of times full (producer) */
+	u64 nempty; /* # of times empty (consumer) */
 	int result;
 };
 
@@ -411,6 +413,7 @@ pcq_producer_put(
 	unsigned long *crcp;
 	void *bucket_addr;
 	u64 put_index;
+	u64 full = 0;
 	u64 *seqp;
 
 	/* Bucket size is inclusive of sequence number and crc at the end
@@ -431,8 +434,13 @@ pcq_producer_put(
 
 		if (((put_index + 1) % pcq->nbuckets ) != pcqc->consumer_index)
 			break; /* Not full - proceed */
-		if (a->stop_now)
+
+		/* Queue looks full */
+		if (!full++) /* Count full only once per call to this function */
+			a->nfull++;
+		if (a->stop_now) {
 			return PCQ_PUT_STOPPED;
+		}
 		else if (a->wait) {
 			invalidate_processor_cache(&pcqc->consumer_index,
 						   sizeof(pcqc->consumer_index));
@@ -499,6 +507,7 @@ pcq_consumer_get(
 	void *bucket_addr;
 	u64 seq_expect;
 	u64 get_index;
+	u64 empty = 0;
 	int errs = 0;
 	u64 *seqp;
 
@@ -517,11 +526,15 @@ pcq_consumer_get(
 			invalidate_processor_cache(&pcq->producer_index,
 						   sizeof(pcq->producer_index));
 
+			/* Queue looks empty */
+			if (!empty++)
+				a->nempty++;
 			if (a->stop_now)
 				return PCQ_GET_STOPPED;
 			else if (a->wait)
 				sched_yield();
 			else {
+				a->nempty++;
 				if (a->verbose > 1)
 					printf("%s: queue empty\n", __func__);
 				return PCQ_GET_EMPTY;
@@ -1008,14 +1021,15 @@ main(int argc, char **argv)
 		ta.basename = filename;
 		ta.verbose = verbose;
 
+		printf("pcq:    %s\n", filename);
 		rc = run_consumer(&ta);
+		printf("pcq drain: nreceived=%lld nerrors=%lld nempty=%lld\n",
+		       cons.nreceived, cons.nerrors, cons.nempty);
 		if (ta.nerrors) {
 			if (statusfile) {
 				fprintf(statusfile, "%lld", -ta.nerrors);
 				fclose(statusfile);
 			}
-			printf("pcq: drained %lld messages from queue %s, with %lld errors\n",
-			       ta.nreceived, filename, ta.nerrors);
 			return -(int)ta.nerrors;
 		}
 
@@ -1080,9 +1094,11 @@ main(int argc, char **argv)
 			fprintf(stderr, "%s: failed to join consumer thread\n", __func__);
 	}
 
-	printf("\nQueue:    %s\n", filename);
-	printf("Producer: nsent=%lld nerrors=%lld\n", prod.nsent, prod.nerrors);
-	printf("Consumer: nreceived=%lld nerrors=%lld\n", cons.nreceived, cons.nerrors);
+	printf("pcq:    %s\n", filename);
+	printf("pcq roducer: nsent=%lld nerrors=%lld nfull=%lld\n",
+	       prod.nsent, prod.nerrors, prod.nfull);
+	printf("pcq onsumer: nreceived=%lld nerrors=%lld nempty=%lld\n",
+	       cons.nreceived, cons.nerrors, cons.nempty);
 
 	/* XXX
 	 * The idea here is return
