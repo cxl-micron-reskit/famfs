@@ -308,6 +308,7 @@ struct pcq_thread_arg {
 	int verbose;
 	enum stop_mode stop_mode;
 	u64 nmessages;
+	u64 runtime;
 	u64 seed;
 	bool wait;
 	char *basename;
@@ -610,9 +611,6 @@ run_producer(struct pcq_thread_arg *a)
 	entry = pcq_alloc_entry(pcqh);
 	assert(entry);
 
-	if (a->verbose)
-		printf("%s: nmessages=%lld\n", __func__, a->nmessages);
-
 	while (true) {
 		if (a->seed)
 			randomize_buffer(entry, pcq_payload_size(pcqh->pcq), a->seed);
@@ -658,9 +656,6 @@ run_consumer(struct pcq_thread_arg *a)
 		return -1;
 
 	entry_out = pcq_alloc_entry(pcqh);
-
-	if (a->verbose)
-		printf("%s: nmessages=%lld\n", __func__, a->nmessages);
 
 	while (true) {
 		cstat = pcq_consumer_get(pcqh, entry_out, &seqnum, a);
@@ -711,6 +706,35 @@ pcq_worker(void *arg)
 	case READONLY:
 	}
 	return rc;
+}
+
+struct pcq_status_thread_arg {
+	struct pcq_thread_arg *p; /* producer */
+	struct pcq_thread_arg *c; /* consumer */
+	char *basename;
+	u64 interval;
+	int stop_now;
+};
+
+void *status_worker(void *arg)
+{
+	struct pcq_status_thread_arg *a = arg;
+	u64 i;
+
+	if (!a->interval)
+		return NULL;
+
+	assert(a->p && a->c);
+
+	for (i = 0; ; i++) {
+		sleep(a->interval);
+		if (a->stop_now)
+			return NULL;
+
+		printf("i=%lld pcq=%s nsent=%lld nfull=%lld nrcvd=%lld nempty=%lld nerrors %lld\n",
+		       i, a->basename, a->p->nsent, a->p->nfull, a->c->nreceived, a->c->nempty,
+		       a->p->nerrors + a->c->nerrors);
+	}
 }
 
 int
@@ -826,6 +850,7 @@ pcq_usage(int   argc,
 	       "    -S|--seed <seed>          - Use seed to generate payload\n"
 	       "    -p|--producer             - Run the producer\n"
 	       "    -c|--consumer             - Run the consumer\n"
+	       "    -s|--status <interval>    - Print status at the specified interval\n"
 	       "\n"
 	       "Special options:\n"
 	       "    -i|--info                 - Dump the state of a queue\n"
@@ -842,11 +867,13 @@ pcq_usage(int   argc,
 int
 main(int argc, char **argv)
 {
-	pthread_t producer_thread, consumer_thread;
+	pthread_t producer_thread, consumer_thread, status_thread;
+	struct pcq_status_thread_arg status = { 0 };
 	struct pcq_thread_arg prod = { 0 };
 	struct pcq_thread_arg cons = { 0 };
 	char *statusfname = NULL;
 	FILE *statusfile = NULL;
+	u64 status_interval = 0;
 	char *filename = NULL;
 	bool producer = false;
 	bool consumer = false;
@@ -872,6 +899,7 @@ main(int argc, char **argv)
 		{"nmessages",   required_argument,        0,  'N'},
 		{"statusfile",  required_argument,        0,  'f'},
 		{"time",        required_argument,        0,  't'},
+		{"status",      required_argument,        0,  's'},
 
 		{"create",      no_argument,              0,  'C'},
 		{"producer",    no_argument,              0,  'p'},
@@ -890,7 +918,7 @@ main(int argc, char **argv)
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+b:s:S:n:N:f:t:CdpcwDih?v",
+	while ((c = getopt_long(argc, argv, "+b:s:S:n:N:f:t:s:CdpcwDih?v",
 				pcq_options, &optind)) != EOF) {
 		char *endptr;
 
@@ -924,6 +952,10 @@ main(int argc, char **argv)
 
 		case 'S':
 			seed = strtoull(optarg, 0, 0);
+			break;
+
+		case 's':
+			status_interval = strtoull(optarg, 0, 0);
 			break;
 
 		case 't':
@@ -1050,6 +1082,7 @@ main(int argc, char **argv)
 		prod.role = PRODUCER;
 		prod.stop_mode = (runtime) ? STOP_FLAG : NMESSAGES;
 		prod.nmessages = nmessages;
+		prod.runtime = runtime;
 		prod.basename = filename;
 		prod.seed = seed;
 		prod.wait = wait;
@@ -1067,6 +1100,7 @@ main(int argc, char **argv)
 		cons.role = CONSUMER;
 		cons.stop_mode = (runtime) ? STOP_FLAG : NMESSAGES;
 		cons.nmessages = nmessages;
+		prod.runtime = runtime;
 		cons.basename = filename;
 		cons.seed = seed;
 		cons.wait = wait;
@@ -1077,10 +1111,24 @@ main(int argc, char **argv)
 		}
 	}
 
+	if (status_interval) {
+		status.p = &prod;
+		status.c = &cons;
+		status.basename = filename;
+		status.interval = status_interval;
+		status.stop_now = 0;
+		
+		rc = pthread_create(&status_thread, NULL, status_worker, (void *)&status);
+		if (rc) {
+			fprintf(stderr, "%s: failed to start consumer thread\n", __func__);
+		}
+	}
+
 	if (runtime) {
 		sleep(runtime);
 		prod.stop_now = 1;
 		cons.stop_now = 1;
+		status.stop_now = 1;
 	}
 
 	if (producer) {
@@ -1097,7 +1145,7 @@ main(int argc, char **argv)
 	printf("pcq:    %s\n", filename);
 	printf("pcq roducer: nsent=%lld nerrors=%lld nfull=%lld\n",
 	       prod.nsent, prod.nerrors, prod.nfull);
-	printf("pcq onsumer: nreceived=%lld nerrors=%lld nempty=%lld\n",
+	printf("pcq consumer: nreceived=%lld nerrors=%lld nempty=%lld\n",
 	       cons.nreceived, cons.nerrors, cons.nempty);
 
 	/* XXX
