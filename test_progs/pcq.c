@@ -428,15 +428,16 @@ pcq_producer_put(
 
 	do {
 		put_index = pcq->producer_index;
-		invalidate_processor_cache(&pcqc->consumer_index,
-					   sizeof(pcqc->consumer_index));
+
 		if (((put_index + 1) % pcq->nbuckets ) != pcqc->consumer_index)
-			break; /* Not full - prooceed */
+			break; /* Not full - proceed */
 		if (a->stop_now)
 			return PCQ_PUT_STOPPED;
-		else if (a->wait)
+		else if (a->wait) {
+			invalidate_processor_cache(&pcqc->consumer_index,
+						   sizeof(pcqc->consumer_index));
 			sched_yield();
-		else {
+		} else {
 			fprintf(stderr, "%s: queue full no wait\n", __func__);
 			return PCQ_PUT_FULL_NOWAIT;
 		}
@@ -472,9 +473,10 @@ enum pcq_consumer_status {
 	PCQ_GET_GOOD,
 	PCQ_GET_EMPTY,
 	PCQ_GET_STOPPED,
-	PCQ_GET_BAD_SEQ,
-	PCQ_GET_BAD_CRC,
+	PCQ_GET_BAD_MSG,
 };
+
+#define CONSUMER_NRETRIES 1
 
 /**
  * pcq_consumer_get() - get an element from a pcq
@@ -488,72 +490,92 @@ pcq_consumer_get(
 	u64 *seq_out,
 	struct pcq_thread_arg *a)
 {
-	unsigned long crc = crc32(0L, Z_NULL, 0);
+	unsigned long crc;
 	struct pcq_consumer *pcqc = pcqh->pcqc;
+	int retries = CONSUMER_NRETRIES;
 	struct pcq *pcq = pcqh->pcq;
 	u64 crc_offset, seq_offset;
 	unsigned long *crcp;
 	void *bucket_addr;
 	u64 seq_expect;
 	u64 get_index;
+	int errs = 0;
 	u64 *seqp;
 
 	assert(pcq->pcq_magic == PCQ_MAGIC);
 	assert(pcqc->pcq_consumer_magic == PCQ_CONSUMER_MAGIC);
 
+	/* Wait until there is in a message to consume (breaking out if we get stopped) */
 	do {
 		get_index = pcqc->consumer_index;
-		invalidate_processor_cache(&pcq->producer_index,
-					   sizeof(pcq->producer_index));
+
+		/* if it looks empty, invalidate put idx */
 		if (get_index != pcq->producer_index)
 			break;
-		else if (a->stop_now)
-			return PCQ_GET_STOPPED;
-		else if (a->wait)
-			sched_yield();
 		else {
-			if (a->verbose > 1)
-				printf("%s: queue empty\n", __func__);
-			return PCQ_GET_EMPTY;
+			/* Queue looks empty */
+			invalidate_processor_cache(&pcq->producer_index,
+						   sizeof(pcq->producer_index));
+
+			if (a->stop_now)
+				return PCQ_GET_STOPPED;
+			else if (a->wait)
+				sched_yield();
+			else {
+				if (a->verbose > 1)
+					printf("%s: queue empty\n", __func__);
+				return PCQ_GET_EMPTY;
+			}
 		}
 	} while (true);
 
 	/* Get entry from queue */
 	bucket_addr = (void *)((u64)pcq + pcq->bucket_array_offset +
 			       (get_index * pcq->bucket_size));
-	invalidate_processor_cache(bucket_addr, pcq->bucket_size);
-	memcpy(entry_out, bucket_addr, pcq->bucket_size);
+	seq_expect = pcqc->next_seq++;
+
+	do {
+		crc = crc32(0L, Z_NULL, 0);
+		invalidate_processor_cache(bucket_addr, pcq->bucket_size);
+		memcpy(entry_out, bucket_addr, pcq->bucket_size);
+
+		/* Check crc and seq number */
+		crc_offset = pcq_crc_offset(pcq);
+		seq_offset = pcq_seq_offset(pcq);
+		crcp = (unsigned long *)((u64)entry_out + crc_offset);
+		seqp = (u64 *)((u64)entry_out + seq_offset);
+
+		crc = crc32(crc, entry_out, pcq_payload_size(pcq) + sizeof(*seqp));
+	} while (--retries && ((*seqp != seq_expect) || (crc != *crcp)));
+
+	if (*seqp != seq_expect) {
+		fprintf(stderr, "%s: seq mismatch %lld / %lld\n",
+			__func__, *seqp, seq_expect);
+		errs++;
+	}
+
+	if (crc != *crcp) {
+		fprintf(stderr, "%s: crc mismatch exp/found %lx/%lx\n", __func__, crc, *crcp);
+		errs++;
+	}
+	if (errs) {
+		/* This is fatal */
+		fprintf(stderr, "%s: bad msg after %d retries. cache coherency suspicious\n",
+			__func__, CONSUMER_NRETRIES);
+		fprintf(stderr, "%s: seq=%lld\n", __func__, seq_expect);
+		a->stop_now = true;
+		exit(-1); /* force a hard exit so we can investigate */
+		return PCQ_GET_BAD_MSG;
+	}
+
+	if (a->verbose) {
+		printf("%s: bucket=%lld seq=%lld\n", __func__, get_index, *seqp);
+	}
 
 	/* Update queue metadata */
-	seq_expect = pcqc->next_seq++;
 	pcqc->consumer_index = (pcqc->consumer_index + 1) % pcq->nbuckets;
 	flush_processor_cache(&pcqc->consumer_index, sizeof(pcqc->consumer_index));
 	a->nreceived++;
-
-	/* Check crc and seq number */
-	crc_offset = pcq_crc_offset(pcq);
-	seq_offset = pcq_seq_offset(pcq);
-	crcp = (unsigned long *)((u64)entry_out + crc_offset);
-	seqp = (u64 *)((u64)entry_out + seq_offset);
-
-	if (a->verbose) {
-		printf("%s: bucket=%lld\n", __func__, get_index);
-		printf("%s: bucket_size=%lld seq_offset=%lld crc_offset=%lld crc %lx/%lx\n",
-		       __func__, pcq->bucket_size, seq_offset, crc_offset,
-		       crc, *crcp);
-		printf("%s: get_index=%lld seq=%lld\n", __func__, get_index, *seqp);
-	}
-
-	if (*seqp != seq_expect) {
-		fprintf(stderr, "%s: seq mismatch %lld / %lld\n", __func__, *seqp, seq_expect);
-		return PCQ_GET_BAD_SEQ;	/* No need to check crc of sequence number is wrong */
-	}
-
-	crc = crc32(crc, entry_out, pcq_payload_size(pcq) + sizeof(*seqp));
-	if (crc != *crcp) {
-		fprintf(stderr, "%s: crc mismatch\n", __func__);
-		return PCQ_GET_BAD_CRC;
-	}
 
 	*seq_out = *seqp;
 	return PCQ_GET_GOOD;
@@ -632,15 +654,17 @@ run_consumer(struct pcq_thread_arg *a)
 		if (cstat == PCQ_GET_EMPTY && a->stop_mode == EMPTY)
 			goto out;
 
-		if (cstat == PCQ_GET_GOOD && a->seed) {
-			ofs = validate_random_buffer(entry_out,
-						     pcq_payload_size(pcqh->pcq),
-						     a->seed);
-			if (ofs != -1) {
-				fprintf(stderr, "%s: miscompare seq=%lld ofs=%ld\n",
-					__func__, seqnum, ofs);
-				a->nerrors++;
-				continue;
+		if (cstat == PCQ_GET_GOOD) {
+			if (a->seed) {
+				ofs = validate_random_buffer(entry_out,
+							     pcq_payload_size(pcqh->pcq),
+							     a->seed);
+				if (ofs != -1) {
+					fprintf(stderr, "%s: miscompare seq=%lld ofs=%ld\n",
+						__func__, seqnum, ofs);
+					a->nerrors++;
+					continue;
+				}
 			}
 		}
 
