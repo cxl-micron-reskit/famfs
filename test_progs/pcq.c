@@ -414,7 +414,7 @@ pcq_producer_put(
 	unsigned long *crcp;
 	void *bucket_addr;
 	u64 put_index;
-	u64 full = 0;
+	bool full = false;
 	u64 *seqp;
 
 	/* Bucket size is inclusive of sequence number and crc at the end
@@ -437,8 +437,10 @@ pcq_producer_put(
 			break; /* Not full - proceed */
 
 		/* Queue looks full */
-		if (!full++) /* Count full only once per call to this function */
+		if (!full) { /* Count full only once per call to this function */
+			full = true;
 			a->nfull++;
+		}
 		if (a->stop_now) {
 			return PCQ_PUT_STOPPED;
 		}
@@ -508,7 +510,7 @@ pcq_consumer_get(
 	void *bucket_addr;
 	u64 seq_expect;
 	u64 get_index;
-	u64 empty = 0;
+	bool empty = false;
 	int errs = 0;
 	u64 *seqp;
 
@@ -528,14 +530,15 @@ pcq_consumer_get(
 						   sizeof(pcq->producer_index));
 
 			/* Queue looks empty */
-			if (!empty++)
+			if (!empty) {
+				empty = true;
 				a->nempty++;
+			}
 			if (a->stop_now)
 				return PCQ_GET_STOPPED;
 			else if (a->wait)
 				sched_yield();
 			else {
-				a->nempty++;
 				if (a->verbose > 1)
 					printf("%s: queue empty\n", __func__);
 				return PCQ_GET_EMPTY;
@@ -726,13 +729,14 @@ void *status_worker(void *arg)
 
 	assert(a->p && a->c);
 
-	for (i = 0; ; i++) {
+	for (i = 1; ; i++) {
 		sleep(a->interval);
 		if (a->stop_now)
 			return NULL;
 
-		printf("i=%lld pcq=%s nsent=%lld nfull=%lld nrcvd=%lld nempty=%lld nerrors %lld\n",
-		       i, a->basename, a->p->nsent, a->p->nfull, a->c->nreceived, a->c->nempty,
+		printf("i=%lld pcq=%s nsent=%lld nfull=%lld nrcvd=%lld nempty=%lld nerrors=%lld\n",
+		       i * a->interval,
+		       a->basename, a->p->nsent, a->p->nfull, a->c->nreceived, a->c->nempty,
 		       a->p->nerrors + a->c->nerrors);
 	}
 }
