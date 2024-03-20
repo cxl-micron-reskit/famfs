@@ -105,6 +105,8 @@ assert_equal $(cat $STATUSFILE) 128 "put 128 in q3"
 ${PCQ} --producer -v -N 128 --statusfile $STATUSFILE $MPT/q4 || fail "put 128 in q4"
 assert_equal $(cat $STATUSFILE) 128 "put 128 in q4"
 
+${PCQ} --info -v $MPT/q0                                || fail "basic pcq info 0"
+#exit -1
 # consume half of the elements from each queue
 ${PCQ} --consumer -N 64 -v --statusfile $STATUSFILE $MPT/q0 || fail "consume 64 from q0"
 assert_equal $(cat $STATUSFILE) 64 "consume 64 from q0"
