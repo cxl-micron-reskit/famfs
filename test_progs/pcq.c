@@ -320,6 +320,7 @@ struct pcq_thread_arg {
 	u64 nerrors;
 	u64 nfull;  /* # of times full (producer) */
 	u64 nempty; /* # of times empty (consumer) */
+	u64 retries;
 	int result;
 };
 
@@ -424,6 +425,7 @@ pcq_producer_put(
 	crc_offset = pcq_crc_offset(pcq);
 	seq_offset = pcq_seq_offset(pcq);
 
+	/* crc and sequence pointers into the entry */
 	crcp = (unsigned long *)((u64)entry + crc_offset);
 	seqp = (u64 *)((u64)entry + seq_offset);
 
@@ -461,9 +463,12 @@ pcq_producer_put(
 
 	if (a->verbose) {
 		printf("%s: put_index=%lld seq=%lld\n", __func__, put_index, *seqp);
-		printf("%s: bucket_size=%lld seq_offset=%lld crc_offset=%lld crc %lx/%lx\n",
-		       __func__, pcq->bucket_size, seq_offset, crc_offset,
-		       crc, *crcp);
+		if (a->verbose > 1) {
+			printf("%s: bucket_size=%lld seq_offset=%lld "
+			       "crc_offset=%lld crc %lx/%lx\n",
+			       __func__, pcq->bucket_size, seq_offset, crc_offset,
+			       crc, *crcp);
+		}
 	}
 
 	/*
@@ -487,7 +492,7 @@ enum pcq_consumer_status {
 	PCQ_GET_BAD_MSG,
 };
 
-#define CONSUMER_NRETRIES 1
+#define CONSUMER_NRETRIES 2
 
 /**
  * pcq_consumer_get() - get an element from a pcq
@@ -506,6 +511,8 @@ pcq_consumer_get(
 	int retries = CONSUMER_NRETRIES;
 	struct pcq *pcq = pcqh->pcq;
 	u64 crc_offset, seq_offset;
+	bool retry_counted = false;
+	bool good_crc = true;
 	unsigned long *crcp;
 	void *bucket_addr;
 	u64 seq_expect;
@@ -521,16 +528,13 @@ pcq_consumer_get(
 	do {
 		get_index = pcqc->consumer_index;
 
-		/* if it looks empty, invalidate put idx */
+		invalidate_processor_cache(&pcq->producer_index, sizeof(pcq->producer_index));
 		if (get_index != pcq->producer_index)
 			break;
 		else {
 			/* Queue looks empty */
-			invalidate_processor_cache(&pcq->producer_index,
-						   sizeof(pcq->producer_index));
-
-			/* Queue looks empty */
 			if (!empty) {
+				/* count empty only once per call to this function */
 				empty = true;
 				a->nempty++;
 			}
@@ -551,7 +555,12 @@ pcq_consumer_get(
 			       (get_index * pcq->bucket_size));
 	seq_expect = pcqc->next_seq++;
 
-	do {
+
+	/*
+	 * Although we know there is an entry to retrieve, we might see a cache-incoherent
+	 * entry. If the crc is bad, invalidate the cache for the entry and retry
+	 */
+	while (true) {
 		crc = crc32(0L, Z_NULL, 0);
 		invalidate_processor_cache(bucket_addr, pcq->bucket_size);
 		memcpy(entry_out, bucket_addr, pcq->bucket_size);
@@ -563,24 +572,36 @@ pcq_consumer_get(
 		seqp = (u64 *)((u64)entry_out + seq_offset);
 
 		crc = crc32(crc, entry_out, pcq_payload_size(pcq) + sizeof(*seqp));
-	} while (--retries && ((*seqp != seq_expect) || (crc != *crcp)));
 
-	if (*seqp != seq_expect) {
+		if (crc == *crcp) /* Good crc, good entry */
+			break;
+
+		if (!retry_counted) {
+			/* count only one retry each time per call to this func */
+			retry_counted = true;
+			a->retries++;
+		}
+		if (!retries--) {
+			/* Out of retries; continue with bad crc */
+			good_crc = false;
+			break;
+		}
+	}
+
+	/* Only look at seq if crc is good */
+	if (good_crc && (*seqp != seq_expect)) {
 		fprintf(stderr, "%s: seq mismatch %lld / %lld\n",
 			__func__, *seqp, seq_expect);
 		errs++;
 	}
 
-	if (crc != *crcp) {
-		fprintf(stderr, "%s: crc mismatch exp/found %lx/%lx\n", __func__, crc, *crcp);
-		errs++;
-	}
 	if (errs) {
 		/* This is fatal */
 		fprintf(stderr, "%s: bad msg after %d retries. cache coherency suspicious\n",
 			__func__, CONSUMER_NRETRIES);
 		fprintf(stderr, "%s: seq=%lld\n", __func__, seq_expect);
 		a->stop_now = true;
+		a->nerrors++;
 		exit(-1); /* force a hard exit so we can investigate */
 		return PCQ_GET_BAD_MSG;
 	}
@@ -629,7 +650,7 @@ run_producer(struct pcq_thread_arg *a)
 
 		assert(pstat == PCQ_PUT_GOOD);
 
-		if (a->stop_mode == NMESSAGES && a->nsent == a->nmessages)
+		if (a->stop_mode == NMESSAGES && a->nsent >= a->nmessages)
 			goto out;
 
 		if (a->stop_now)
@@ -681,7 +702,7 @@ run_consumer(struct pcq_thread_arg *a)
 
 		if (a->stop_now)
 			goto out;
-		if (a->stop_mode == NMESSAGES && a->nreceived == a->nmessages)
+		if (a->stop_mode == NMESSAGES && a->nreceived >= a->nmessages)
 			goto out;
 
 	}
@@ -734,10 +755,11 @@ void *status_worker(void *arg)
 		if (a->stop_now)
 			return NULL;
 
-		printf("i=%lld pcq=%s nsent=%lld nfull=%lld nrcvd=%lld nempty=%lld nerrors=%lld\n",
+		printf("i=%lld pcq=%s nsent=%lld nfull=%lld nrcvd=%lld nempty=%lld "
+		       "nretries= %lld nerrors=%lld\n",
 		       i * a->interval,
 		       a->basename, a->p->nsent, a->p->nfull, a->c->nreceived, a->c->nempty,
-		       a->p->nerrors + a->c->nerrors);
+		       a->p->nerrors + a->c->retries, a->c->nerrors);
 	}
 }
 
@@ -1059,8 +1081,8 @@ main(int argc, char **argv)
 
 		printf("pcq:    %s\n", filename);
 		rc = run_consumer(&ta);
-		printf("pcq drain: nreceived=%lld nerrors=%lld nempty=%lld\n",
-		       cons.nreceived, cons.nerrors, cons.nempty);
+		printf("pcq drain: nreceived=%lld nerrors=%lld nempty=%lld retries=%lld\n",
+		       ta.nreceived, ta.nerrors, ta.nempty, ta.retries);
 		if (ta.nerrors) {
 			if (statusfile) {
 				fprintf(statusfile, "%lld", -ta.nerrors);
@@ -1147,20 +1169,16 @@ main(int argc, char **argv)
 	}
 
 	printf("pcq:    %s\n", filename);
-	printf("pcq roducer: nsent=%lld nerrors=%lld nfull=%lld\n",
+	printf("pcq producer: nsent=%lld nerrors=%lld nfull=%lld\n",
 	       prod.nsent, prod.nerrors, prod.nfull);
-	printf("pcq consumer: nreceived=%lld nerrors=%lld nempty=%lld\n",
-	       cons.nreceived, cons.nerrors, cons.nempty);
+	printf("pcq consumer: nreceived=%lld nerrors=%lld nempty=%lld retries=%lld\n",
+	       cons.nreceived, cons.nerrors, cons.nempty, cons.retries);
 
-	/* XXX
-	 * The idea here is return
-	 * * the sum of errors (negative) if there are errors
-	 * * The sum of messages send and received if there are no errors.
-	 * but this may overflow an int. If tests don't set the counts too high,
-	 * it will work.
-	 */
 	if (prod.nerrors || cons.nerrors) {
 		if (statusfile) {
+			/* If there are errors, the statusfile will contain the negative
+			 * sum of the producer and consumer errors
+			 */
 			fprintf(statusfile, "%lld", -(prod.nerrors + cons.nerrors));
 			fclose(statusfile);
 		}
@@ -1168,6 +1186,9 @@ main(int argc, char **argv)
 	}
 
 	if (statusfile) {
+		/* If there are no errors, the statusfile will contain the sum
+		 * of messages sent and received
+		 */
 		fprintf(statusfile, "%lld", (prod.nsent + cons.nreceived));
 		fclose(statusfile);
 	}
