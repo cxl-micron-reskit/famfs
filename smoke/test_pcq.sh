@@ -56,6 +56,7 @@ TEST="pcq"
 
 STATUSFILE=./pcqstatus.txt
 PCQ="sudo $VG $BIN/pcq  "
+pcq="$VG $BIN/pcq  "
 
 ST="--statusfile $STATUSFILE"
 
@@ -66,6 +67,7 @@ source scripts/test_funcs.sh
 #${CLI} mount  $DEV $MPT
 set -x
 
+# Test some bogus command line combinations
 ${PCQ} -? || fail "pcq help should work"
 ${PCQ} --info --create           && fail "pcq should fail with --info and --create"
 ${PCQ} --drain --producer        && fail "pcq should fail with --drain and --producer"
@@ -81,110 +83,160 @@ ${PCQ} --create -v --bsize 64K  --nbuckets 512  $MPT/q2 || fail "basic pcq creat
 ${PCQ} --create -v --bsize 512K --nbuckets 1k   $MPT/q3 || fail "basic pcq create 3"
 ${PCQ} --create -v --bsize 256K --nbuckets 256  $MPT/q4 || fail "basic pcq create 4"
 
-${PCQ} --info -v $MPT/q0                                || fail "basic pcq info 0"
-${PCQ} --info -v $MPT/q1                                || fail "basic pcq info 1"
-${PCQ} --info -v $MPT/q2                                || fail "basic pcq info 2"
-${PCQ} --info -v $MPT/q3                                || fail "basic pcq info 3"
-${PCQ} --info -v $MPT/q4                                || fail "basic pcq info 4"
+# Set ownership to the non-privileged caller of this script, so tests run a non-root
+# This is important because root can write even without write permissions and we
+# want to enforce producer/consumer roles via appropriate file permissions
+id=$(id -un)
+grp=$(id -gn)
+sudo chown $id:$grp $MPT/q0
+sudo chown $id:$grp $MPT/q1
+sudo chown $id:$grp $MPT/q2
+sudo chown $id:$grp $MPT/q3
+sudo chown $id:$grp $MPT/q4
+sudo chown $id:$grp $MPT/q0.consumer
+sudo chown $id:$grp $MPT/q1.consumer
+sudo chown $id:$grp $MPT/q2.consumer
+sudo chown $id:$grp $MPT/q3.consumer
+sudo chown $id:$grp $MPT/q4.consumer
 
-${PCQ} --drain -v $MPT/q0 || fail "drain empty q0"
-${PCQ} --drain -v $MPT/q1 || fail "drain empty q1"
-${PCQ} --drain -v $MPT/q2 || fail "drain empty q2"
-${PCQ} --drain -v $MPT/q3 || fail "drain empty q3"
-${PCQ} --drain -v $MPT/q4 || fail "drain empty q4"
+# From here on we run the non-sudo ${pcq} rather than the sudo ${PCQ}
+
+# Coverage tests leave some root cruft after running pcq as root; clean that up...
+sudo chown -R ${id}:${grp} $BIN
+
+
+# Test setperm
+# Consumer permission
+${pcq} --setperm c $MPT/q0        || fail "setperm c should work"
+test -w $MPT/q0                   && fail "setperm c should remove write permission on q0"
+test -w $MPT/q0.consumer          || fail "setperm c should restore write permission on q0.consumer"
+${pcq} --info -v $MPT/q0          || fail "pcq info perm c should work"
+${pcq} --producer -v -N 1 $MPT/q0 && fail "producer should fail with c permission on q0"
+
+# Producer permission
+${pcq} --setperm p $MPT/q0        || fail "setperm p should work"
+test -w $MPT/q0                   || fail "setperm p should restore write permission on q0"
+test -w $MPT/q0.consumer          && fail "setperm p should remove write permission on q0.consumer"
+${pcq} --info -v $MPT/q0          || fail "pcq info perm p should work"
+${pcq} --consumer -N 1 -v $MPT/q0 && fail "consumer should fail with p permission on q0"
+${pcq} --drain -v $MPT/q0         && fail "drain should fail with p permission on q0"
+
+# Neither permission (read-only on both files)
+${pcq} --setperm n $MPT/q0        || fail "setperm n should work"
+test -w $MPT/q0                   && fail "setperm n should remove write permission on q0"
+test -w $MPT/q0.consumer          && fail "setperm n should remove write permission on q0.consumer"
+${pcq} --info -v $MPT/q0          || fail "pcq info perm n should work"
+${pcq} --producer -v -N 1 $MPT/q0 && fail "producer should fail with n permission on q0"
+${pcq} --consumer -N 1 -v $MPT/q0 && fail "consumer should fail with n permission on q0"
+
+# Producer and consumer permission (both files writable)
+${pcq} --setperm b $MPT/q0  || fail "setperm b should work"
+test -w $MPT/q0             || fail "setperm b should restore write permission on q0"
+test -w $MPT/q0.consumer    || fail "setperm b should restore write permission on q0.consumer"
+${pcq} --info -v $MPT/q0    || fail "pcq info perm n should work"
+
+${pcq} --info -v $MPT/q0    || fail "basic pcq info 0"
+${pcq} --info -v $MPT/q1    || fail "basic pcq info 1"
+${pcq} --info -v $MPT/q2    || fail "basic pcq info 2"
+${pcq} --info -v $MPT/q3    || fail "basic pcq info 3"
+${pcq} --info -v $MPT/q4    || fail "basic pcq info 4"
+
+${pcq} --drain -v $MPT/q0   || fail "drain empty q0"
+${pcq} --drain -v $MPT/q1   || fail "drain empty q1"
+${pcq} --drain -v $MPT/q2   || fail "drain empty q2"
+${pcq} --drain -v $MPT/q3   || fail "drain empty q3"
+${pcq} --drain -v $MPT/q4   || fail "drain empty q4"
 
 # put 128 entries in each queue
-${PCQ} --producer -v -N 128 --statusfile $STATUSFILE $MPT/q0 || fail "put 128 in q0"
+${pcq} --producer -v -N 128 --statusfile $STATUSFILE $MPT/q0 || fail "put 128 in q0"
 assert_equal $(cat $STATUSFILE) 128 "put 128 in q0"
-${PCQ} --producer -v -N 128 --statusfile $STATUSFILE $MPT/q1 || fail "put 128 in q1"
+${pcq} --producer -v -N 128 --statusfile $STATUSFILE $MPT/q1 || fail "put 128 in q1"
 assert_equal $(cat $STATUSFILE) 128 "put 128 in q1"
-${PCQ} --producer -v -N 128 --statusfile $STATUSFILE $MPT/q2 || fail "put 128 in q2"
+${pcq} --producer -v -N 128 --statusfile $STATUSFILE $MPT/q2 || fail "put 128 in q2"
 assert_equal $(cat $STATUSFILE) 128 "put 128 in q2"
-${PCQ} --producer -v -N 128 --statusfile $STATUSFILE $MPT/q3 || fail "put 128 in q3"
+${pcq} --producer -v -N 128 --statusfile $STATUSFILE $MPT/q3 || fail "put 128 in q3"
 assert_equal $(cat $STATUSFILE) 128 "put 128 in q3"
-${PCQ} --producer -v -N 128 --statusfile $STATUSFILE $MPT/q4 || fail "put 128 in q4"
+${pcq} --producer -v -N 128 --statusfile $STATUSFILE $MPT/q4 || fail "put 128 in q4"
 assert_equal $(cat $STATUSFILE) 128 "put 128 in q4"
 
-${PCQ} --info -v $MPT/q0                                || fail "basic pcq info 0"
-#exit -1
 # consume half of the elements from each queue
-${PCQ} --consumer -N 64 -v --statusfile $STATUSFILE $MPT/q0 || fail "consume 64 from q0"
+${pcq} --consumer -N 64 -v --statusfile $STATUSFILE $MPT/q0 || fail "consume 64 from q0"
 assert_equal $(cat $STATUSFILE) 64 "consume 64 from q0"
-${PCQ} --consumer -N 64 -v --statusfile $STATUSFILE $MPT/q1 || fail "consume 64 from q1"
+${pcq} --consumer -N 64 -v --statusfile $STATUSFILE $MPT/q1 || fail "consume 64 from q1"
 assert_equal $(cat $STATUSFILE) 64 "consume 64 from q0"
-${PCQ} --consumer -N 64 -v --statusfile $STATUSFILE $MPT/q2 || fail "consume 64 from q2"
+${pcq} --consumer -N 64 -v --statusfile $STATUSFILE $MPT/q2 || fail "consume 64 from q2"
 assert_equal $(cat $STATUSFILE) 64 "consume 64 from q0"
-${PCQ} --consumer -N 64 -v --statusfile $STATUSFILE $MPT/q3 || fail "consume 64 from q3"
+${pcq} --consumer -N 64 -v --statusfile $STATUSFILE $MPT/q3 || fail "consume 64 from q3"
 assert_equal $(cat $STATUSFILE) 64 "consume 64 from q0"
-${PCQ} --consumer -N 64 -v --statusfile $STATUSFILE $MPT/q4 || fail "consume 64 from q4"
+${pcq} --consumer -N 64 -v --statusfile $STATUSFILE $MPT/q4 || fail "consume 64 from q4"
 assert_equal $(cat $STATUSFILE) 64 "consume 64 from q0"
 
 # Drain the rest of the elements
-${PCQ} --drain -v --statusfile $STATUSFILE $MPT/q0 || fail "drain 64 from q0"
+${pcq} --drain -v --statusfile $STATUSFILE $MPT/q0 || fail "drain 64 from q0"
 assert_equal $(cat $STATUSFILE) 64 "drain 64 from q0"
-${PCQ} --drain -v --statusfile $STATUSFILE $MPT/q1 || fail "drain 64 from q1"
+${pcq} --drain -v --statusfile $STATUSFILE $MPT/q1 || fail "drain 64 from q1"
 assert_equal $(cat $STATUSFILE) 64 "drain 64 from q1"
-${PCQ} --drain -v --statusfile $STATUSFILE $MPT/q2 || fail "drain 64 from q2"
+${pcq} --drain -v --statusfile $STATUSFILE $MPT/q2 || fail "drain 64 from q2"
 assert_equal $(cat $STATUSFILE) 64 "drain 64 from q2"
-${PCQ} --drain -v --statusfile $STATUSFILE $MPT/q3 || fail "drain 64 from q3"
+${pcq} --drain -v --statusfile $STATUSFILE $MPT/q3 || fail "drain 64 from q3"
 assert_equal $(cat $STATUSFILE) 64 "drain 64 from q3"
-${PCQ} --drain -v --statusfile $STATUSFILE $MPT/q4 || fail "drain 64 from q4"
+${pcq} --drain -v --statusfile $STATUSFILE $MPT/q4 || fail "drain 64 from q4"
 assert_equal $(cat $STATUSFILE) 64 "drain 64 from q4"
 
 # Run simultaneous producer/consumer for 1K messages with seed verificatino
-${PCQ} -pc --seed 43 -N 1000 --statusfile $STATUSFILE $MPT/q0 || fail "p/c 1m in q0"
+${pcq} -pc --seed 43 -N 1000 --statusfile $STATUSFILE $MPT/q0 || fail "p/c 1m in q0"
 assert_equal $(cat $STATUSFILE) 2000 "produce/consume 1m with q0"
-${PCQ} -pc --seed 43 -N 1000 --statusfile $STATUSFILE $MPT/q1 || fail "p/c 1m in q1"
+${pcq} -pc --seed 43 -N 1000 --statusfile $STATUSFILE $MPT/q1 || fail "p/c 1m in q1"
 assert_equal $(cat $STATUSFILE) 2000 "produce/consume 1m with q1"
-${PCQ} -pc --seed 43 -N 1000 --statusfile $STATUSFILE $MPT/q2 || fail "p/c 1m in q2"
+${pcq} -pc --seed 43 -N 1000 --statusfile $STATUSFILE $MPT/q2 || fail "p/c 1m in q2"
 assert_equal $(cat $STATUSFILE) 2000 "produce/consume 1m with q2"
-${PCQ} -pc --seed 43 -N 1000 --statusfile $STATUSFILE $MPT/q3 || fail "p/c 1m in q3"
+${pcq} -pc --seed 43 -N 1000 --statusfile $STATUSFILE $MPT/q3 || fail "p/c 1m in q3"
 assert_equal $(cat $STATUSFILE) 2000 "produce/consume 1m with q3"
-${PCQ} -pc --seed 43 -N 1000 --statusfile $STATUSFILE $MPT/q4 || fail "p/c 1m in q4"
+${pcq} -pc --seed 43 -N 1000 --statusfile $STATUSFILE $MPT/q4 || fail "p/c 1m in q4"
 assert_equal $(cat $STATUSFILE) 2000 "produce/consume 1m with q4"
 
 # Run simultaneous producer/consumer for 10K messages on each queue
-${PCQ} -pc -s 1 -N 10000 --statusfile $STATUSFILE $MPT/q0 || fail "p/c 1m in q0"
+${pcq} -pc -s 1 -N 10000 --statusfile $STATUSFILE $MPT/q0 || fail "p/c 1m in q0"
 assert_equal $(cat $STATUSFILE) 20000 "produce/consume 1m with q0"
-${PCQ} -pc -s 1 -N 10000 --statusfile $STATUSFILE $MPT/q1 || fail "p/c 1m in q1"
+${pcq} -pc -s 1 -N 10000 --statusfile $STATUSFILE $MPT/q1 || fail "p/c 1m in q1"
 assert_equal $(cat $STATUSFILE) 20000 "produce/consume 1m with q1"
-${PCQ} -pc -s 1 -N 10000 --statusfile $STATUSFILE $MPT/q2 || fail "p/c 1m in q2"
+${pcq} -pc -s 1 -N 10000 --statusfile $STATUSFILE $MPT/q2 || fail "p/c 1m in q2"
 assert_equal $(cat $STATUSFILE) 20000 "produce/consume 1m with q2"
-${PCQ} -pc -s 1 -N 10000 --statusfile $STATUSFILE $MPT/q3 || fail "p/c 1m in q3"
+${pcq} -pc -s 1 -N 10000 --statusfile $STATUSFILE $MPT/q3 || fail "p/c 1m in q3"
 assert_equal $(cat $STATUSFILE) 20000 "produce/consume 1m with q3"
-${PCQ} -pc -s 1 -N 10000 --statusfile $STATUSFILE $MPT/q4 || fail "p/c 1m in q4"
+${pcq} -pc -s 1 -N 10000 --statusfile $STATUSFILE $MPT/q4 || fail "p/c 1m in q4"
 assert_equal $(cat $STATUSFILE) 20000 "produce/consume 1m with q4"
 
 # Do a timed run on each queue
 echo "10 second run in progress on q0..."
-${PCQ} -pc -v --time 10 --statusfile $STATUSFILE $MPT/q0 || fail "p/c 10 seconds q0"
+${pcq} -pc --time 10 --statusfile $STATUSFILE $MPT/q0 || fail "p/c 10 seconds q0"
 echo "10 second run in progress on q1..."
-${PCQ} -pc -s 1 --time 10 --statusfile $STATUSFILE $MPT/q1 || fail "p/c 10 seconds q1"
+${pcq} -pc -s 1 --time 10 --statusfile $STATUSFILE $MPT/q1 || fail "p/c 10 seconds q1"
 echo "10 second run in progress on q2..."
-${PCQ} -pc -s 1 --time 10 --statusfile $STATUSFILE $MPT/q2 || fail "p/c 10 seconds q2"
+${pcq} -pc -s 1 --time 10 --statusfile $STATUSFILE $MPT/q2 || fail "p/c 10 seconds q2"
 echo "10 second run in progress on q3..."
-${PCQ} -pc -s 1 --time 10 --statusfile $STATUSFILE $MPT/q3 || fail "p/c 10 seconds q3"
+${pcq} -pc -s 1 --time 10 --statusfile $STATUSFILE $MPT/q3 || fail "p/c 10 seconds q3"
 echo "10 second run in progress on q4..."
-${PCQ} -pc -s 1 --time 10 --statusfile $STATUSFILE $MPT/q4 || fail "p/c 10 seconds q4"
+${pcq} -pc -s 1 --time 10 --statusfile $STATUSFILE $MPT/q4 || fail "p/c 10 seconds q4"
 
-${PCQ} --info -v $MPT/q0                        || fail "maybe not empty pcq info 0"
-${PCQ} --info -v $MPT/q1                        || fail "maybe not empty pcq info 1"
-${PCQ} --info -v $MPT/q2                        || fail "maybe not empty pcq info 2"
-${PCQ} --info -v $MPT/q3                        || fail "maybe not empty pcq info 3"
-${PCQ} --info -v $MPT/q4                        || fail "maybe not empty pcq info 4"
+${pcq} --info -v $MPT/q0                        || fail "maybe not empty pcq info 0"
+${pcq} --info -v $MPT/q1                        || fail "maybe not empty pcq info 1"
+${pcq} --info -v $MPT/q2                        || fail "maybe not empty pcq info 2"
+${pcq} --info -v $MPT/q3                        || fail "maybe not empty pcq info 3"
+${pcq} --info -v $MPT/q4                        || fail "maybe not empty pcq info 4"
 
 # Drain the queues beause there are probably some un-consumed messages in there
-${PCQ} --drain -v $MPT/q0 || fail "drain q0"
-${PCQ} --drain -v $MPT/q1 || fail "drain q1"
-${PCQ} --drain -v $MPT/q2 || fail "drain q2"
-${PCQ} --drain -v $MPT/q3 || fail "drain q3"
-${PCQ} --drain -v $MPT/q4 || fail "drain q4"
+${pcq} --drain $MPT/q0 || fail "drain q0"
+${pcq} --drain $MPT/q1 || fail "drain q1"
+${pcq} --drain $MPT/q2 || fail "drain q2"
+${pcq} --drain $MPT/q3 || fail "drain q3"
+${pcq} --drain $MPT/q4 || fail "drain q4"
 
-${PCQ} --info -v $MPT/q0                        || fail "empty pcq info 0"
-${PCQ} --info -v $MPT/q1                        || fail "empty pcq info 1"
-${PCQ} --info -v $MPT/q2                        || fail "empty pcq info 2"
-${PCQ} --info -v $MPT/q3                        || fail "empty pcq info 3"
-${PCQ} --info -v $MPT/q4                        || fail "empty pcq info 4"
+${pcq} --info $MPT/q0                        || fail "empty pcq info 0"
+${pcq} --info $MPT/q1                        || fail "empty pcq info 1"
+${pcq} --info $MPT/q2                        || fail "empty pcq info 2"
+${pcq} --info $MPT/q3                        || fail "empty pcq info 3"
+${pcq} --info $MPT/q4                        || fail "empty pcq info 4"
 
 set +x
 echo "======================================================================"
