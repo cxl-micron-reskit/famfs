@@ -29,8 +29,8 @@ coverage:	cmake-modules
 coverage_test:	coverage
 	-scripts/teardown.sh
 	-scripts/install_kmod.sh
-	./run_smoke.sh --coverage
-	cd coverage; sudo make famfs_unit_coverage
+	script -c "./run_smoke.sh --coverage" -O smoke_coverage.log
+	cd coverage; sudo script -c "make famfs_unit_coverage" -O ../unit_coverage.log
 
 release:	cmake-modules chk_include
 	mkdir -p release;
