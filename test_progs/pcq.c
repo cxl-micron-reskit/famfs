@@ -354,9 +354,6 @@ pcq_open(
 		return NULL;
 	}
 
-	/*
-	 * Now remap consumer file read-only
-	 */
 	pcqc = famfs_mmap_whole_file(consumer_fname, (role == CONSUMER) ? 0:1, &csz);
 	if (!pcq) {
 		munmap(pcq, psz);
@@ -792,6 +789,60 @@ out:
 	return rc;
 }
 
+enum pcq_perm {
+	pcq_perm_nop=0,
+	pcq_perm_none,
+	pcq_perm_both,
+	pcq_perm_producer,
+	pcq_perm_consumer,
+};
+
+int
+pcq_set_perm(const char *filename, enum pcq_perm role)
+{
+	char *consumer_fname = pcq_consumer_fname(filename);
+	struct stat st;
+	int rc = 0;
+
+	assert(consumer_fname);
+	if (stat(filename, &st)) {
+		fprintf(stderr, "Queue file %s not found\n", filename);
+		rc = -1;
+		goto out;
+	}
+	switch (role) {
+	case pcq_perm_none:
+		rc = chmod(filename, 0444);
+		assert(rc == 0);
+		rc = chmod(consumer_fname, 0444);
+		assert(rc == 0);
+		break;
+	case pcq_perm_both:
+		rc = chmod(filename, 0644);
+		assert(rc == 0);
+		rc = chmod(consumer_fname, 0644);
+		assert(rc == 0);
+		break;
+	case pcq_perm_producer:
+		rc = chmod(filename, 0644);
+		assert(rc == 0);
+		rc = chmod(consumer_fname, 0444);
+		assert(rc == 0);
+		break;
+	case pcq_perm_consumer:
+		rc = chmod(filename, 0444);
+		assert(rc == 0);
+		rc = chmod(consumer_fname, 0644);
+		assert(rc == 0);
+		break;
+	default:
+		fprintf(stderr, "Bad role\n");
+	}
+out:
+	free(consumer_fname);
+	return rc;
+}
+
 /* XXX Move this to famfs_lib_util.c or some such - it is now shared with the cli */
 static s64 get_multiplier(const char *endptr)
 {
@@ -870,6 +921,11 @@ pcq_usage(int   argc,
 	       "    -n|--nbuckets <nnbuckets> - Number of buckets in the queue\n"
 	       "                                (ignored if queue already exists)\n"
 	       "\n"
+	       "Queue permissions:\n"
+	       "    -P|--setperm <p|c|b|n>    - Set permissions on a queue for (p)roducer or\n"
+	       "                                (c)onsumer, (b)oth or (n)either on this node.\n"
+	       "                                Must run  separately from create|producer|consumer|drain\n"
+	       "\n"
 	       "Running producers and consumers:\n"
 	       "    -N|--nmessages <n>        - Number of messages to send and/or receive\n"
 	       "    -t|--time <seconds>       - Run for the specified duration\n"
@@ -897,6 +953,7 @@ main(int argc, char **argv)
 	struct pcq_status_thread_arg status = { 0 };
 	struct pcq_thread_arg prod = { 0 };
 	struct pcq_thread_arg cons = { 0 };
+	enum pcq_perm role = pcq_perm_nop;
 	char *statusfname = NULL;
 	FILE *statusfile = NULL;
 	u64 status_interval = 0;
@@ -926,6 +983,7 @@ main(int argc, char **argv)
 		{"statusfile",  required_argument,        0,  'f'},
 		{"time",        required_argument,        0,  't'},
 		{"status",      required_argument,        0,  's'},
+		{"setperm",     required_argument,        0,  'P'},
 
 		{"create",      no_argument,              0,  'C'},
 		{"producer",    no_argument,              0,  'p'},
@@ -1011,11 +1069,27 @@ main(int argc, char **argv)
 			if (mult > 0)
 				nmessages *= mult;
 			break;
-			break;
 
 		case 'f':
 			/* Write execution status to this file (for testing) */
 			statusfname= optarg;
+			break;
+
+		case 'P':
+			if (strcmp(optarg, "p") == 0)
+				role = pcq_perm_producer;
+			else if (strcmp(optarg, "c") == 0)
+				role = pcq_perm_consumer;
+			else if (strcmp(optarg, "b") == 0)
+				role = pcq_perm_both;
+			else if (strcmp(optarg, "n") == 0)
+				role = pcq_perm_none;
+			else {
+				fprintf(stderr, "%s: invalid --setperm arg (%s)\n",
+					__func__, optarg);
+				pcq_usage(argc, argv);
+				return -1;
+			}
 			break;
 
 		case 'D':
@@ -1065,6 +1139,15 @@ main(int argc, char **argv)
 		statusfile = fopen(statusfname, "w+");
 		assert(statusfile);
 	}
+	if (role != pcq_perm_nop && (create || producer || consumer || drain)) {
+		fprintf(stderr,
+			"--setperm is incompatible with --create|--drain|--producer|--consumer");
+		pcq_usage(argc, argv);
+		return -1;
+	}
+
+	if (role != pcq_perm_nop)
+		return pcq_set_perm(filename, role);
 
 	if (create)
 		return pcq_create(filename, nbuckets, bucket_size, verbose);
@@ -1167,6 +1250,12 @@ main(int argc, char **argv)
 		if (rc)
 			fprintf(stderr, "%s: failed to join consumer thread\n", __func__);
 	}
+	if (status_interval) {
+		status.stop_now = 1;
+		rc = pthread_join(status_thread, NULL);
+		if (rc)
+			fprintf(stderr, "%s: failed to join consumer thread\n", __func__);
+	}
 
 	printf("pcq:    %s\n", filename);
 	printf("pcq producer: nsent=%lld nerrors=%lld nfull=%lld\n",
@@ -1192,5 +1281,5 @@ main(int argc, char **argv)
 		fprintf(statusfile, "%lld", (prod.nsent + cons.nreceived));
 		fclose(statusfile);
 	}
-	return 0;
+	return prod.result + cons.result;
 }
