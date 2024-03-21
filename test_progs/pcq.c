@@ -57,6 +57,7 @@ struct pcq {
 	u64 producer_index;
 	char pad[1024];
 	u64 next_seq;
+	u64 pcq_size;
 };
 
 /**
@@ -74,6 +75,7 @@ struct pcq_consumer {
 	u64 consumer_index;
 	char pad2[1048576];
 	u64 next_seq;
+	u64 pcqc_size;
 };
 
 struct pcq_handle {
@@ -250,6 +252,7 @@ pcq_create(
 	pcqc->pcq_consumer_magic = PCQ_CONSUMER_MAGIC;
 	pcqc->consumer_index = 0;
 	pcqc->next_seq = 0;
+	pcqc->pcqc_size = csz;
 	flush_processor_cache(pcqc, sizeof(*pcqc));
 	munmap(pcqc, csz); /* We're the producer; will remap read-only */
 
@@ -276,6 +279,7 @@ pcq_create(
 	pcq->bucket_array_offset = two_mb;
 	pcq->producer_index = 0ULL;
 	pcq->next_seq = 0;
+	pcq->pcq_size = psz;
 	flush_processor_cache(pcq, sizeof(*pcq));
 
 	if (verbose) {
@@ -355,7 +359,7 @@ pcq_open(
 	}
 
 	pcqc = famfs_mmap_whole_file(consumer_fname, (role == CONSUMER) ? 0:1, &csz);
-	if (!pcq) {
+	if (!pcqc) {
 		munmap(pcq, psz);
 		fprintf(stderr, "%s: failed to create consumer file\n", __func__);
 		free(consumer_fname);
@@ -654,6 +658,8 @@ run_producer(struct pcq_thread_arg *a)
 			goto out;
 	}
 out:
+	munmap(pcqh->pcq, pcqh->pcq->pcq_size);
+	munmap(pcqh->pcqc, pcqh->pcqc->pcqc_size);
 	free(pcqh);
 	free(entry);
 	return rc;
@@ -704,6 +710,8 @@ run_consumer(struct pcq_thread_arg *a)
 
 	}
 out:
+	munmap(pcqh->pcq, pcqh->pcq->pcq_size);
+	munmap(pcqh->pcqc, pcqh->pcqc->pcqc_size);
 	free(pcqh);
 	free(entry_out);
 	return rc;
@@ -1180,7 +1188,7 @@ main(int argc, char **argv)
 			fprintf(statusfile, "%lld", ta.nreceived);
 			fclose(statusfile);
 		}
-		return 0;
+		return rc;
 	}
 
 	/*
