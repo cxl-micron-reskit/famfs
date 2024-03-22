@@ -1405,6 +1405,10 @@ __famfs_logplay(
 			if (skip_dir)
 				continue;
 
+			if (verbose)
+				printf("%s mkdir: %o %d:%d: %s \n", __func__,
+				       md->fc_mode, md->fc_uid, md->fc_gid, md->famfs_relpath);
+
 			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, md->famfs_relpath);
 			realpath(fullpath, rpath);
 			if (dry_run)
