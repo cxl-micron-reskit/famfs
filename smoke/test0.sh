@@ -157,7 +157,7 @@ ${CLI} logplay                     && fail "logplay without MPT arg should fail"
 
 # Unmount and remount
 sudo $UMOUNT $MPT || fail "umount should succeed"
-grep -c famfs /proc/mounts         && fail "famfs is still mounted after umount attempt"
+findmnt -t famfs $MPT && fail "famfs is still mounted at $MPT after umount attempt"
 
 sudo mount $MOUNT_OPTS $DEV $MPT   || fail "mount"
 

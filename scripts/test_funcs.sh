@@ -73,16 +73,14 @@ verify_not_mounted () {
     DEV=$1
     MPT=$2
     MSG=$3
-    grep -c $DEV /proc/mounts && fail "verify_not_mounted: $DEV in /proc/mounts ($MSG)"
-    grep -c $MPT /proc/mounts && fail "verify_not_mounted: $MPT in /proc/mounts ($MSG)"
+    findmnt -t famfs $MPT && fail "verify_not_mounted: famfs still mounted at $MPT"
 }
 
 verify_mounted () {
     DEV=$1
     MPT=$2
     MSG=$3
-    grep -c $DEV /proc/mounts || fail "verify_mounted: $DEV not in /proc/mounts ($MSG)"
-    grep -c $MPT /proc/mounts || fail "verify_mounted: $MPT not in /proc/mounts ($MSG)"
+    findmnt -t famfs $MPT || fail "verify_mounted: famfs not mounted at $MPT"
 }
 
 
