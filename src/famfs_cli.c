@@ -1184,16 +1184,14 @@ famfs_mkdir_usage(int   argc,
 int
 do_famfs_cli_mkdir(int argc, char *argv[])
 {
-	int c;
-
-	mode_t mode = 0644;
-	char *dirpath   = NULL;
 	uid_t uid = geteuid();
 	gid_t gid = getegid();
-	int arg_ct = 0;
+	char *dirpath = NULL;
+	mode_t mode = 0755;
 	int parents = 0;
 	int verbose = 0;
-	mode_t current_umask;
+	int arg_ct = 0;
+	int c;
 
 	/* TODO: allow passing in uid/gid/mode on command line*/
 
@@ -1253,11 +1251,6 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 		fprintf(stderr, "Must specify at least one dax device\n");
 		return -1;
 	}
-
-	/* This is horky, but OK for the cli */
-	current_umask = umask(0022);
-	umask(current_umask);
-	mode &= ~(current_umask);
 
 	dirpath  = argv[optind++];
 	if (parents)
