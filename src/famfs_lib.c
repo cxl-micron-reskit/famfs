@@ -2684,14 +2684,7 @@ __famfs_mkfile(
 		return fd;
 
 	/* Clean up the filename path. (Can't call realpath until the file exists) */
-	if (realpath(filename, fullpath) == NULL) {
-		/* XXX this should not be possible since we created the file. hmmm... */
-		fprintf(stderr, "%s: realpath() unable to rationalize filename %s\n",
-			__func__, filename);
-		close(fd);
-		unlink(filename);
-		return -EBADF;
-	}
+	assert(realpath(filename, fullpath));
 
 	/* If the file doesn't fit, it will be created but then unlinked
 	 * (and never logged). This is probably OK
@@ -3676,14 +3669,11 @@ famfs_clone(const char *srcfile,
 		exit(-1);
 	}
 
-	/* Now have created the destionation file (and therefore we know it is in a famfs
+	/* Now have created the destination file (and therefore we know it is in a famfs
 	 * mount, we need its relative path of
 	 */
-	if (realpath(destfile, destfullpath) == NULL) {
-		close(dfd);
-		unlink(destfullpath);
-		return -1;
-	}
+	assert(realpath(destfile, destfullpath));
+
 	relpath = famfs_relpath_from_fullpath(mpt_out, destfullpath);
 	if (!relpath) {
 		rc = -1;
@@ -4037,11 +4027,8 @@ famfs_flush_file(const char *filename, int verbose)
 	/* Only flush regular files */
 
 	addr = famfs_mmap_whole_file(filename, 1, &size);
-	if (!addr) {
-		if (verbose)
-			fprintf(stderr, "%s: failed to mmap(%s)\n", __func__, filename);
+	if (!addr)
 		return 1;
-	}
 
 	if (verbose > 1)
 		printf("%s: flushing: %s\n", __func__, filename);
