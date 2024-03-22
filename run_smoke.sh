@@ -24,11 +24,6 @@ if [ $? -ne 0 ]; then
     echo "Error: password-less sudo capability is required to run smoke tests"
 fi
 
-# Make sure famfs is not mounted
-
-if (( $(grep famfs /proc/mounts | grep -c $MPT) > 0)); then
-    sudo umount $MPT
-fi
 TEST_FUNCS=$SCRIPTS/test_funcs.sh
 if [ ! -f $TEST_FUNCS ]; then
     echo "Can't source $TEST_FUNCS"

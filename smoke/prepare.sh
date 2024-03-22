@@ -58,8 +58,11 @@ set -x
 
 sudo mkdir -p $MPT || fail "mkdir"
 
-# Make sure famfs is not currently mounted
-grep -c famfs /proc/mounts         && fail "famfs is currently mounted"
+# Make sure famfs is not mounted
+findmnt -t famfs $MPT
+if (( $? == 0 )); then
+    sudo umount $MPT
+fi
 
 # destroy famfs file system, if any
 ${MKFS} -h            || fail "mkfs -h should work"
