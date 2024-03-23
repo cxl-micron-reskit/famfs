@@ -756,15 +756,24 @@ void *status_worker(void *arg)
 	assert(a->p && a->c);
 
 	for (i = 1; ; i++) {
+		struct tm *local_now;
+		char time_str[80];
+		time_t now;
+
 		sleep(a->interval);
+
+		now = time(NULL);
+		local_now = localtime(&now);
+		strftime(time_str, sizeof(time_str), "%m-%d %H:%M:%S", local_now);
+
+		printf("%s pcq=%s prod(nsent=%lld nfull=%lld) cons(nrcvd=%lld nempty=%lld "
+		       "nretries= %lld nerrors=%lld)\n", time_str,
+		       a->basename, a->p->nsent, a->p->nfull, a->c->nreceived, a->c->nempty,
+		       a->p->nerrors + a->c->retries, a->c->nerrors);
+
 		if (a->stop_now)
 			return NULL;
 
-		printf("i=%lld pcq=%s nsent=%lld nfull=%lld nrcvd=%lld nempty=%lld "
-		       "nretries= %lld nerrors=%lld\n",
-		       i * a->interval,
-		       a->basename, a->p->nsent, a->p->nfull, a->c->nreceived, a->c->nempty,
-		       a->p->nerrors + a->c->retries, a->c->nerrors);
 	}
 }
 
