@@ -7,9 +7,11 @@ VG=""
 SCRIPTS=scripts
 BIN=debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
-MPT=/mnt/famfs
-
 DURATION=30
+
+if [ -z "$MPT" ]; then
+    MPT=/mnt/famfs
+fi
 
 while (( $# > 0)); do
     flag="$1"
@@ -50,9 +52,6 @@ ST="--statusfile $STATUSFILE"
 
 source scripts/test_funcs.sh
 
-#sudo umount $MPT
-#sudo $MKFS  -f $DEV
-#${CLI} mount  $DEV $MPT
 set -x
 
 DIR="$MPT/pcq0"

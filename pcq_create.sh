@@ -7,12 +7,14 @@ VG=""
 SCRIPTS=scripts
 BIN=debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
-MPT=/mnt/famfs
+DURATION=30
 
+if [ -z "$MPT" ]; then
+    MPT=/mnt/famfs
+fi
 if [ -z "$DEV" ]; then
     DEV=/dev/dax0.0
 fi
-DURATION=30
 
 while (( $# > 0)); do
     flag="$1"
