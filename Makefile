@@ -62,6 +62,9 @@ smoke_valgrind: debug
 	script -c "./run_smoke.sh --valgrind" -O smoke.log
 	scripts/check_valgrind_output.sh smoke.log
 
+stress_tests:	release
+	 script -c "./run_stress_tests.sh" -O stress.log
+
 teardown:
 	pwd
 	@./scripts/teardown.sh
