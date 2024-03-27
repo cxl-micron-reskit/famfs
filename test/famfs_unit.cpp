@@ -521,7 +521,6 @@ TEST(famfs, famfs_log_overflow_mkdir_p)
 
 		sprintf(dirname, "/tmp/famfs/dir%04d/a/b/c/d/e/f/g/h/i", i);
 		/* mkdir -p */
-		printf("i: %d\n", i);
 		rc = famfs_mkdir_parents(dirname, 0644, 0, 0, (i < 2500) ? 0:2);
 
 		if (nslots >= 10) {
@@ -578,7 +577,6 @@ TEST(famfs, famfs_log_overflow_files)
 	for (i = 0; ; i++) {
 		sprintf(dirname, "/tmp/famfs/dir%04d/a/b/c/d/e/f/g/h/i", i);
 		/* mkdir -p */
-		printf("xxi: %d\n", i);
 		rc = famfs_mkdir_parents(dirname, 0644, 0, 0, (i < 2500) ? 0:2);
 		ASSERT_EQ(rc, 0);
 

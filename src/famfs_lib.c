@@ -3483,6 +3483,12 @@ famfs_cp_multi(
 
 		/* Need to handle source files and directries differently */
 		rc = stat(argv[i], &src_stat);
+		if (rc) {
+			fprintf(stderr, "famfs cp: cannot stat '%s': ", argv[i]);
+			perror("");
+			err = 1;
+			goto err_out;
+		}
 		if (verbose)
 			printf("%s:  %s\n", __func__, argv[i]);
 
