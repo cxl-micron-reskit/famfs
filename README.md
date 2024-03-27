@@ -16,8 +16,38 @@ Famfs is a scale-out shared-memory file system. If two or more hosts have shared
 to memory, a famfs file system can be created in that memory, such that data sets can be
 saved to files in the shared memory.
 
-For apps that can memory map files, memory-mapping a famfs file provides direct access to
-the memory without any page cache involvement (and no faults involving data movement at all).
+<table border="0%">
+  <tr>
+    <!-- Text Cell -->
+    <td>
+<p>For apps that can memory map files, memory-mapping a famfs file provides direct access to
+the memory without any page cache involvement (and no faults involving data movement at all).</p>
+
+<p>Consuming data from famfs files works the same as any other file system, meaning almost any
+app that can use data in files can use data in shared memory</p>
+
+<p>Files default to read-only on client nodes, but famfs fully supports converting any file to
+writable on any client - in which case the app/user is responsible for managing cache coherency.
+Famfs maintains cache coherency for its structures and metadata, but does not attempt to do so for other apps.</p>
+
+  
+</p>
+    </td>
+    <!-- Image Cell -->
+    <td align="right" width="40%">
+      <img src="markdown/famfs-figure-1.svg" alt="Famfs figure 1" width="400%" />
+    </td>
+  </tr>
+</table>
+
+Famfs effectively does the following:
+* Enables disaggregated shared memory for any app that can use shared files
+* De-duplicates memory, because multiple nodes can share a single copy of data in memory
+* Reduces or avoids shuffling
+* Enables larger in-memory data sets than previously possible, because FAM could be larger 
+  than the memory limit of any one server
+
+
 
 ## Documentation Contents
 
@@ -28,9 +58,9 @@ the memory without any page cache involvement (and no faults involving data move
 # Background
 
 In the coming years the emerging CXL standard will enable shared, disaggregated memory
-in potential multiple forms - included multi-port memory and fabric-attached
+in multiple forms - included multi-port memory and fabric-attached
 memory (FAM). Famfs is intended to provide a viable usage pattern for FAM that many apps
-can use without modification. Early implementations already exist in early 2024.
+can use without modification. Shared memory implementations already exist in early 2024.
 
 Famfs is an fs-dax file system that allows multiple hosts to mount the same file system
 from the same shared memory. The file system is administered by a Master, but can
@@ -56,7 +86,8 @@ Dax memory can be onlined as system-ram, but that is not appropriate if the memo
 shared. The first of many reasons for this is that Linux zeroes memory that gets onlined,
 which would wipe any shared contents.
 
-In CXL V3 and beyond, dynamic capacity devices (DCDs) support shared memory. Sharable memory
+In CXL V3 and beyond, dynamic capacity devices (DCDs) support shared memory. A DCD is really
+just a memory device with an allocator and access control built-in. Sharable memory
 has a mandatory Tag (UUID) which is assigned when the memory is allocated;
 all hosts with shared access identify the memory by its Tag.
 "Tagged Capacity" will be exposed under Linux as tagged dax devices
@@ -85,8 +116,9 @@ that can be efficiently memory-mapped.
 
 Famfs enables a number of advantages when the compute jobs scale out:
 
-* Large datasets can exist as one shared copy in a famfs file
-* Sharded data need not be re-shuffled if the data is stored in famfs files
+* Large datasets can exist as one shared copy in a famfs file, effectively de-duplicating memory
+* Shuffling and sharding can be avoided if enough FAM is available, potentially removing the quadratic 
+  order of data distribution
 * When an app memory-maps a famfs file, it is directly accessing the memory;
   unlike block-based file systems, data is not read (or faulted) into local memory
   in order to be accessed
@@ -96,7 +128,7 @@ through a procedure like this.
 
 1. Wrangle data into a zero-copy format
 2. Copy the zero-copy files into a shared famfs file system
-3. Component jobs from any node in the cluster can access the data via mmap() from the
+3. Component jobs from any node in the cluster can access the data via mmap() from files in the
    shared famfs file system
 4. When a job is over, dismount the famfs file system and make the memory available for
    the next job...
@@ -112,15 +144,15 @@ A few observations about the requirements
 
 | **Requirement** | **Notes** |
 |-----------------|-----------|
-| 1               | Making shared memory accessible as files means that most apps that can consume data from files (especially the ones that use ```mmap()``` can experiment with disaggregated shared memory.         |
-| 2 | Efficient VMA fault handling is absolutely mandatory for famfs to perform at "memory speeds". Famfs caches file extent lists in the kernel, and forces all allocations to be huge page aligned for efficient memory mapping and fault handling |
+| 1               | Making shared memory accessible as files means that most apps that can consume data from files (especially the ones that use ```mmap()```) can experiment with disaggregated shared memory.         |
+| 2 | Efficient VMA fault handling is absolutely mandatory for famfs to perform at "memory speeds". Famfs caches file extent lists in the kernel, and forces all allocations to be huge page aligned for efficient memory mapping and fault handling. |
 | 3 | There are existing fs-dax file systems (e.g. xfs, ext4), but they use cached, write-back metadata. This cannot be reconciled with more than one host concurrently (read-write) mounting those file systems from the same shared memory. Famfs does not use write-back metadata; that, along with some annoying limitations, solves the shared metadata problems. |
 | 4| The same annoying restrictions mean that in its current form, famfs does not need to track whether clients have consumed all of the metadata. |
 
 # Theory of Operation
 
-Famfs is a Linux file system that is administered from user space - enabled by the code in this repo.
-The host device is a dax memory device (either ```/dev/dax``` or ```/dev/pmem```).
+Famfs is a Linux file system that is administered from user space by the code in this repo.
+The host device is a dax memory device (e.g. ```/dev/dax0.0```).
 
 The file infrastructure lives in the Linux kernel, which is necessary for Requirement #2
 (must efficiently handle VMA faults). But the majority of the code lives in user space
@@ -136,7 +168,7 @@ log.
 
 ## Famfs On-media Format
 
-The ```mkfs.famfs``` command formats an empty famfs file system on a memory device.
+The ```mkfs.famfs``` command formats an empty famfs file system on a dax memory device.
 An empty famfs file system consists of a superblock at offset 0 and a metadata log
 at offset 2MiB. The format looks like this:
 
@@ -173,7 +205,7 @@ known location and size (offset 0, 2MiB - i.e. a single PMD page). The superbloc
 the offset and size of the log. All additional files and directories are created via log entries.
 
 The famfs kernel module never accesses the memory of the dax device - not even the superblock
-and log. This has RAS benefits. If a memory error occurs (non-correctable errors, connectivity
+and log. This has RAS benefits. If a memory error occurs (non-correctable errors, poison, connectivity
 problems, etc.) the process that accessed the memory should receive a SIGBUS, but kernel code
 should not be affected.
 
@@ -207,6 +239,7 @@ Directory creation is slightly simpler, consisting of:
 | ```famfs mkdir [-p]``` | Master only: Create a directory (optionally including missing parent directories). This creates a directory in the mounted file system. |
 | ```famfs creat``` | Master only: Create and allocate a famfs file. |
 | ```famfs cp [-r]``` | Master only: Copy one or more files into a famfs file system|
+| ```famfs flush``` | Master and Clients: Flush or invalidate the processor cache for a file; this may be needed when mutating files|
 | ```read()/write()``` | Master and Clients: any file can be read or written provided the caller has appropriate permissions |
 | ```mmap()``` | Master and Clients: any file can be mmapped read/write or read-only provided the caller has sufficient permissions |
 
