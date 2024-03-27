@@ -332,6 +332,7 @@ ${CLI} cp -r $MPT/A $MPT/bar/foo     && fail "cp -r to bogus path should fail"
 ${CLI} cp -r $MPT/A $MPT/${F}        && fail "cp -r to file"
 ${CLI} cp -r $MPT/A $MPT/${F}/foo    && fail "cp -r to path that uses file as dir"
 
+${CLI} cp $MPT/A/B/C/w/x/y/z/* $MPT || fail "cp valid wildcard to mount pt dir should succeed"
 
 sudo touch /tmp/emptyfile
 ${CLI} cp /tmp/emptyfile $MPT/emptyfile2 && fail "cp with empty source file should fail"
