@@ -3397,38 +3397,55 @@ famfs_cp_multi(
 	int src_argc = argc - 1;
 	char *dirdupe   = NULL;
 	char *parentdir = NULL;
-	struct stat st;
 	char *dest_parent_path;
+	struct stat st;
 	int err = 0;
 	int rc;
 	int i;
 
-	/* Parent directory of destination must exist */
-	dirdupe = strdup(dest);
-	parentdir = dirname(dirdupe);
-	dest_parent_path = realpath(parentdir, NULL);
-	if (!dest_parent_path) {
-		free(dirdupe);
-		fprintf(stderr, "%s: unable to get realpath for (%s)\n", __func__, dest);
-		return -1;
-	}
-
-	/* Check to see if the parent of the destination (last arg) is a directory.
-	 * if not, error out
-	 */
-	rc = stat(dest_parent_path, &st);
-	if (!rc) {
+	rc = stat(dest, &st);
+	if (rc == 0) {
+		/* Destination exists */
 		switch (st.st_mode & S_IFMT) {
 		case S_IFDIR:
 			/* It's a directory - all good */
+			dest_parent_path = realpath(dest, NULL);
 			break;
 		default:
 			fprintf(stderr,
-				"%s: Error: dest parent (%s) exists and is not a directory\n",
-				__func__, dest_parent_path);
-			free(dest_parent_path);
-			free(dirdupe);
+				"%s: Error: destination (%s) exists and is not a directory\n",
+				__func__, dest);
 			return -1;
+		}
+	}
+	else {
+		/* dest does not exist; its parent is the parentdir (and must exist) */
+		dirdupe = strdup(dest);
+		parentdir = dirname(dirdupe);
+		dest_parent_path = realpath(parentdir, NULL);
+		if (!dest_parent_path) {
+			free(dirdupe);
+			fprintf(stderr, "%s: unable to get realpath for (%s)\n", __func__, dest);
+			return -1;
+		}
+
+		/* Check to see if the parent of the destination (last arg) is a directory.
+		 * if not, error out
+		 */
+		rc = stat(dest_parent_path, &st);
+		if (!rc) {
+			switch (st.st_mode & S_IFMT) {
+			case S_IFDIR:
+				/* It's a directory - all good */
+				break;
+			default:
+				fprintf(stderr,
+					"%s: Error: dest parent (%s) exists and is not a directory\n",
+					__func__, dest_parent_path);
+				free(dest_parent_path);
+				free(dirdupe);
+				return -1;
+			}
 		}
 	}
 
