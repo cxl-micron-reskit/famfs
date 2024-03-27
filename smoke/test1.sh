@@ -311,6 +311,9 @@ ${CLI} cp $MPT/dirtarg/${F}_cp0 $MPT/smalldir || fail "cp to smalldir 0"
 ${CLI} cp $MPT/dirtarg/${F}_cp1 $MPT/smalldir || fail "cp to smalldir 0"
 ${CLI} mkdir $MPT/smalldir2 || fail "failed to create smalldir2"
 
+${CLI} cp -r $MPT/smalldir $MPT/$F && fail "recursive copy to file destination should fail"
+${CLI} cp $MPT/smalldir/* $MPT/$F  && fail "wildcard multi-file copy to file destination should fail"
+
 #
 # cp -r with absolute paths
 #
