@@ -243,19 +243,35 @@ Directory creation is slightly simpler, consisting of:
 | ```read()/write()``` | Master and Clients: any file can be read or written provided the caller has appropriate permissions |
 | ```mmap()``` | Master and Clients: any file can be mmapped read/write or read-only provided the caller has sufficient permissions |
 
-For more detail, see the [famfs cli reference](markdown/famfs-cli-reference.md)
+For more detail, see the [famfs cli reference](markdown/famfs-cli-reference.md).
 
-## Standard File System Operations
+## Missing File System Operations
+Famfs is currently lacks the ability to do some standard file system operations; ```rm``` and ```truncate```
+```append``` are not supported. By omitting these operations, we avoid the complex distributed computing problems of 1) figuring
+out when it is save to re-use freed space, and 2) allocating space dynamically (in the cas
 
-There are some "missing" famfs functions (e.g. ```famfs rm```. Moreover, several normal file system
-operations create or result in invalid famfs files.
-If a famfs file becomes invalid, famfs prevents reading or writing of the file.
+| **Operation** | **Notes** |
+|--|--|
+| ```rm``` | The remove (```rm```) operation is currently not supported, which allows famfs to avoid the problem of freeing space and determining when it is safe to re-use the space for a different file. Many use cases can work round this by freeing whole famfs file systems rather than individual files - just free the memory (if it's a DCD, CXL supports freeing allocations, including forced remove; Then a new famfs file system can be created in a new sharable DCD allocation). |
+| ```append``` | Appending a file requires additional allocation sooner or later. Since famfs files are strictly pre-allocated, ```append``` is not allowed. |
+| ```truncate``` | The ```truncate``` operation can make a file either smaller or larger. When making the file smaller, it has the same issues as ```rm```. When making a file larger, ```truncate``` has the same issues as ```append```. Thus famfs does not support truncate. |
+
+## Rogue File System Operations
+
+Famfs requires that any operation that creates files files be done via the famfs api or cli - in order to properly
+allocate space and log the metadata. Operations that affect allocation are not allowed after a file has been created, 
+which is why famfs has no  commands/APIs for ```rm```, ```append``` or ```truncate```. However, famfs currently has
+no way to prevent a user with sufficient premissions from attempting these operations via the standard file system
+tools.
+
+If a famfs file is removed or its size is changed by standard utilities, it will be treated as invalid
+by famfs, and famfs will prevent writing or reading until the file is repaired.
 
 Most of the operations resulting in invalid files are recoverable.
 
 | **Invalid Operation** | **Notes** | **Recovery**                     |
 |-----------------------|-----------|----------------------------------|
-| ```famfs rm```| famfs does not support logged removal of files. It is possible to support delete, but an implementation would need to guarantee that all clients have detected the delete before freed memory can be reused. Many use cases can unmount and re-run ```mkfs.famfs``` when it is time to re-use the memory. When CXL dynamic-capacity devices (DCDs) become available, the dax device (aka "tagged capacity") could be freed and made available for new allocations.    | n/a |
+| Linux ```rm``` | If the caller has sufficient permission, the file will disappear from the mounted famfs file system. | The file will reappear if you replay the log, as in ```famfs logplay /mnt/famfs```. |
 | Linux ```ftruncate```              | If a file's size is changed from the allocated size, it is treated as invalid until it is repaired. Logged truncate seems like a less likely requirement than logged delete, but let's talk if you need it. | umount/remount, possibly logplay |
 | Linux ```cp```                    | Using standard 'cp' where the destination is famfs is invalid. The 'cp' will fail, but it may leave behind an empty and invalid file at the destination.  | umount/remount  |
 
