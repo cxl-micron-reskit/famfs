@@ -3,13 +3,16 @@
 cwd=$(pwd)
 
 # Defaults
-DEV="/dev/pmem0"
 VG=""
 SCRIPTS=../scripts/
 BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 RMMOD=0
 
+# Allow these variables to be set from the environment
+if [ -z "$DEV" ]; then
+    DEV="/dev/dax0.0"
+fi
 if [ -z "$MPT" ]; then
     MPT=/mnt/famfs
 fi

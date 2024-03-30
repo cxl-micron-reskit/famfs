@@ -22,7 +22,7 @@ echo "BIN $BIN"
 echo "SCRIPTS $SCRIPTS"
 
 # Defaults
-DEV="/dev/pmem0"
+DEV="/dev/dax0.0"
 VG=""
 MPT=/mnt/famfs
 MOUNT_OPTS="-t famfs -o noatime -o dax=always "
