@@ -68,22 +68,8 @@ ${CLI} creat -s 3g  ${MPT}/memfile       || fail "can't create memfile for multi
 ${CLI} creat -s 100m ${MPT}/memfile1     || fail "creat should succeed with -s 100m"
 ${CLI} creat -s 10000k ${MPT}/memfile2   || fail "creat with -s 10000k should succeed"
 
-# Let's count the faults during the multichase run
-sudo sh -c "echo 1 > /sys/fs/famfs/fault_count_enable"
-
 ${MULTICHASE} -d ${MPT}/memfile -m 2900m || fail "multichase fail"
 
-set +x
-echo -n "pte faults:"
-sudo cat /sys/fs/famfs/pte_fault_ct || fail "cat pte_fault_ct"
-echo
-echo -n "pmd faults: "
-sudo cat /sys/fs/famfs/pmd_fault_ct || fail "cat pmd_fault_ct"
-echo
-echo -n "pud faults: "
-sudo cat /sys/fs/famfs/pud_fault_ct || fail "cat pud_fault_ct"
-echo
-set -x
 verify_mounted $DEV $MPT "test4.sh mounted"
 sudo $UMOUNT $MPT || fail "test4.sh umount"
 verify_not_mounted $DEV $MPT "test4.sh"
