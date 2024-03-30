@@ -12,7 +12,7 @@ if [ -z "$MPT" ]; then
     MPT=/mnt/famfs
 fi
 if [ -z "$DEV" ]; then
-    DEV="/dev/pmem0"
+    DEV="/dev/dax0.0"
 fi
 if [ -z "$ERRS" ]; then
     ERRS=1

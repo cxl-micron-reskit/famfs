@@ -1,13 +1,6 @@
 
 # This file is not for running, it is for sourcing into other scripts
 
-#
-# Set to "char" if you convert the /dev/pmem device to a char dax device
-# (e.g. /dev/dax0.0). As of this typing, this is not working yet for complex
-# reasons)
-#
-
-
 fail () {
     set +x
     echo

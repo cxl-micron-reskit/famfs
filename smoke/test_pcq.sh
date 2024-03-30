@@ -9,15 +9,15 @@ MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 
-# These can be overridden via the environment
+# Allow these variables to be set from the environment
+if [ -z "$DEV" ]; then
+    DEV="/dev/dax0.0"
+fi
 if [ -z "$MPT" ]; then
     MPT=/mnt/famfs
 fi
 if [ -z "$UMOUNT" ]; then
     UMOUNT="umount"
-fi
-if [ -z "$DEV" ]; then
-    DEV="/dev/pmem0"
 fi
 
 # Override defaults as needed

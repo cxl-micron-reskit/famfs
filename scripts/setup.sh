@@ -36,7 +36,6 @@ sudo modprobe famfs  || fail "modprobe"
 
 verify_not_mounted $DEV $MPT "Already mounted"
 full_mount $DEV $MPT "setup: mount"
-#sudo mount -t famfs -o noatime -o dax=always /dev/pmem0 $MPT || fail "mount"
 verify_mounted $DEV $MPT "mount failed"
 
 set +x
