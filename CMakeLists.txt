@@ -29,15 +29,16 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 add_library(libfamfs src/famfs_lib.c  )
+add_library(libpcq src/pcq_lib.c  )
 
 add_executable(famfs src/famfs_cli.c )
 add_executable(mkfs.famfs src/mkfs.famfs.c )
-add_executable(pcq test_progs/pcq.c )
+add_executable(pcq src/pcq.c )
 
 target_link_libraries(famfs libfamfs famfstest uuid z)
 target_link_libraries(mkfs.famfs libfamfs uuid z)
 target_link_libraries(libfamfs  uuid z)
-target_link_libraries(pcq libfamfs uuid z famfstest)
+target_link_libraries(pcq libpcq libfamfs uuid z famfstest)
 
 
 #
