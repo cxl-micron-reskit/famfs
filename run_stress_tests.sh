@@ -105,7 +105,6 @@ $SCRIPTS/stress_fio.sh -d $DEV -f $FIO_PATH -r $RUNTIME || echo "Fio stress test
 echo ""
 echo "Unmounting the filesystem and removing Famfs kernel module"
 sudo umount $MPT
-sudo rmmod famfs
 echo "*************************************************************************************"
 echo "                    run_stress_tests.sh completed"
 echo "*************************************************************************************"
