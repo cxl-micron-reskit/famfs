@@ -74,17 +74,11 @@ install the user space library and cli with the following command:
 
 # Preparing to run famfs
 
-In order to run famfs you need either a pmem device (e.g. /dev/pmem0) or a
+In order to run famfs you need or a
 devdax device (e.g. /dev/dax0.0). To run in a shared mode, you need more than one
 system that shares a memory device.
 
-As of early 2024, the following types of memory devices can host famfs:
-
-- ```/dev/dax``` devices in "devdax" mode
-- ```/dev/pmem``` devices in "fsdax" mode
-
-Note that pmem support may soon be dropped to reduce complexity. Pmem devices can be put
-in devdax mode so they will still be usable.
+‼️Note: in April 2024 support for ```/dev/pmem``` devices was deprecated, and the default device was changed to ```/dev/dax0.0```. If you are using the v1 kernel patch set you can still override and use a pmem device, but the famfs v2 patch set will remove pmem support. If you are using pmem devices, they can be converted to devdax mode via ```ndctl```.
 
 Gory details for setting up virtual machines and virtual dax and pmem devices are in the
 [Configuring Virtual Machines for famfs](vm-configuration.md) documentation.
@@ -126,7 +120,7 @@ You can see an example of the [full output from run_smoke.sh here](smoke-example
 
 The smoke tests (by default) require the following:
 
-* A valid /dev/pmem0 device which is at least 4GiB in size
+* A valid /dev/dax0.0 device which is at least 4GiB in size
 
 ## Running unit tests
 
