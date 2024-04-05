@@ -28,14 +28,14 @@ by running
 
 If you just want to build famfs and run basic tests, this is the easiest thing to do.
 
-The easiest way to configure a pmem device is to edit your /etc/default/grub file and
+The easiest way to configure a **non-sharable** pmem device is to edit your /etc/default/grub file and
 add the following to the GRUB_CMDLINE string:
 
     memmap=8G!8G
 
 :bangbang: **Important:** For the command line above, you must have at least 16G of memory, because you are reserving 8G starting at a starting offset of 8G. Linux does not error-check this; if you try to use nonexistent memory we observes that it both runs slowly and doesn't work.
 
-This will reserve 8G of memory at offset 24G into system physical RAM as a simulated
+This will reserve 8G of memory at offset 8G into system physical RAM as a simulated
 pmem device. You must check your available memory and make sure that you have enough to
 back the entire range - if not, it won't work well...
 
@@ -61,6 +61,8 @@ The first argument marks an 8G range at offset 8G into physical memory with the 
 which will cause Linux to treat it as a dax device. The second argument asks Linux not to
 automatically online the dax device after boot.
 
+**NOTE:** Your system must be configured for EFI firmware for this option to work. You can check that by running ```scripts/chk_efi.sh```.
+
 As in the prior section, after you modify the kernel command line you need to update grub:
 
     sudo grub2-mkconfig -o /boot/efi/EFI/fedora/grub.cfg
@@ -70,7 +72,7 @@ As in the prior section, after you modify the kernel command line you need to up
 observed cases where the device is still created, but (of course) it does not work
 properly. Just don't do that.
 
-**NOTE:** There are some circumstances where udev rules may "online" your dax memory as
+**NOTE:** There are some circumstances where udev rules installed by your Linux distro may "online" your dax memory as
 system-ram after boot.
 
 After boot it is likely that your /dev/dax device will be in system-ram mode; if so,
@@ -107,15 +109,21 @@ reconfigured 1 device
 # Creating VMs that share a virtual devdax device from the host
 
 This recipe works as follows:
-1. In the system that will host the VMs, create a simulated /dev/dax device. Or you can use an
+1. In the hypervisor system that will host the VMs, create a simulated /dev/dax device. Or you can use an
    actual /dev/dax memory device.
-2. Configure one or more VMs that have a virtual pmem device backed by /dev/dax device in the host.
+2. Configure one or more VMs that have a virtual pmem device backed by a file or /dev/dax device in the host. More than one VM can have a virtual pmem device backed by the same file or device in the hypervisor, resulting in a shared memory device in the VMs.
+3. Inside the VMs, convert the shared pmem devices to devdax mode.
 
 The reason we use a pmem device in the VMs is that libvirt and qemu do not currently support
-virtual devdax devices backed by a specific file or memory device. Since pmem devices can be
-converted to devdax mode, we can still get them presented as either pmem/fsdax or devdax/devdax
-within the VMs.
+virtual devdax devices backed by a file or memory device in the hypervisor. Since pmem devices can be
+converted to devdax mode, we can have either pmem or devdax shared memory across VMs.
 
+## Background
+
+Qemu supports virtual pmem devices, which can be backed by a shared file or device -- but it
+does not support virtual devdax devices. This is usable because a pmem device can be converted
+to devdax mode, at which point a fully functional devdax device (e.g. ```/dev/dax0.0```) will
+appear in its place.
 
 ## Preparation
 
@@ -198,9 +206,9 @@ pmem device work.
 ```
 
 :bangbang:**NOTE:** The size of the numa node should match the size of the general purpose memory,
-not counting the size of the shared dax device.
+excluding the size of the shared dax device.
 
-**NOTE:** The cpus should be '0-n' for n cpus. Set this correctly for your VM.
+**NOTE:** The cpus should be '0-n' for n+1 cpus. Set this correctly for your VM.
 
 ### Virtual pmem device description
 
@@ -290,5 +298,3 @@ $ sudo ndctl create-namespace --force --mode=devdax --reconfig=namespace0.0
 }
 ```
 Famfs can use either device type (but not raw mode)
-
-
