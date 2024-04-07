@@ -8,6 +8,8 @@ TEST_ALL=1
 SLEEP_TIME=2
 RUNTIME=60
 FIO_PATH=""
+SIZE=0  # Amount of space to consume for files, 100% if no user input
+NJOBS=0 # Use all cpus for jobs if 0
 
 # Allow these variables to be set from the environment
 if [ -z "$MPT" ]; then
@@ -48,12 +50,16 @@ while (( $# > 0)); do
             BIN="$CWD/debug"
             echo "debug BIN=$BIN"
             ;;
-        (-c|--coverage)
-            BIN="$CWD/coverage"
-            echo "coverage BIN=$BIN"
-            ;;
         (-r|--runtime)
             RUNTIME=$1
+	    shift;
+            ;;
+        (-s|--size) # Amount of space to be used by this test
+            SIZE=$1
+	    shift;
+            ;;
+        (-j|--jobs) # Number of jobs/cpu to be used by this test
+            NJOBS=$1
 	    shift;
             ;;
         *)
@@ -97,14 +103,11 @@ fi
 
 $SCRIPTS/stress_prepare.sh -d $DEV  || exit -1
 
-# For now just run fio, when adding new stress tests, update the infra on how to call them
-#$SCRIPTS/stress_fio.sh -b $BIN -s $SCRIPTS -d $DEV -f $FIO_PATH -r $RUNTIME || exit -1
+# For now just run fio, when adding new stress tests, update the infra to call them
 
-$SCRIPTS/stress_fio.sh -d $DEV -f $FIO_PATH -r $RUNTIME || echo "Fio stress test  failed"
+$SCRIPTS/stress_fio.sh -d $DEV -f $FIO_PATH -r $RUNTIME -s $SIZE -j $NJOBS || echo "Fio stress test failed"
 
 echo ""
-echo "Unmounting the filesystem and removing Famfs kernel module"
-sudo umount $MPT
 echo "*************************************************************************************"
 echo "                    run_stress_tests.sh completed"
 echo "*************************************************************************************"
