@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="markdown/famfs-logo.svg" alt="famfs logo">
+  <img src="famfs-logo.svg" alt="famfs logo">
 </p>
 
 # Building and installing a famfs-compatible Linux 6.7 kernel
