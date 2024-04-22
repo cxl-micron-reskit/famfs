@@ -1085,7 +1085,7 @@ famfs_mkmeta(const char *devname)
 		return -1;
 	}
 
-	if (file_has_map(sbfd)) {
+	if (file_has_map(logfd)) {
 		fprintf(stderr, "%s: found valid log file; doing nothing\n", __func__);
 	} else {
 		ext.famfs_extent_offset = sb->ts_log_offset;
