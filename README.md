@@ -7,8 +7,9 @@
 This is the famfs user space repo. Also required is a famfs-enabled Linux kernel. A viable
 kernel can be accessed one of the following ways:
 
-* [v1 patch set at lore.kernel.org](https://lore.kernel.org/linux-fsdevel/cover.1708709155.git.john@groves.net/T/#t) - Famfs was published to the Linux community in February 2024.
-* [famfs-linux git repo](https://github.com/cxl-micron-reskit/famfs-linux) - The famfs patches are also available as the default branch in this git repo.
+* [Famfs v2 patch set at lore.kernel.org](https://lore.kernel.org/linux-fsdevel/ZjFcG9Q1CegMPj_7@casper.infradead.org/T/#t) - Famfs v2 was published April 29, 2024.
+* [Famfs v1 patch set at lore.kernel.org](https://lore.kernel.org/linux-fsdevel/cover.1708709155.git.john@groves.net/T/#t) - Famfs was published to the Linux community in February 2024.
+* [famfs-linux git repo](https://github.com/cxl-micron-reskit/famfs-linux) - The famfs v2 patches are also available as the default branch in this git repo.
 
 # What is Famfs?
 
