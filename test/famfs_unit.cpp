@@ -347,6 +347,20 @@ TEST(famfs, mmap_whole_file)
 TEST(famfs, __famfs_cp)
 {
 	int rc;
+	u64 device_size = 1024 * 1024 * 256;
+	struct famfs_locked_log ll;
+	struct famfs_superblock *sb;
+	struct famfs_log *logp;
+	extern int mock_failure;
+	extern int mock_kmod;
+
+	/* Prepare a fake famfs  */
+	mock_kmod = 1;
+	rc = create_mock_famfs_instance("/tmp/famfs", device_size, &sb, &logp);
+	ASSERT_EQ(rc, 0);
+	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
+	ASSERT_EQ(rc, 0);
+	mock_kmod = 0;
 
 	/* OK, this is coverage hackery. Beware */
 	rc = __famfs_cp((struct famfs_locked_log *)0xdeadbeef,
@@ -365,6 +379,59 @@ TEST(famfs, __famfs_cp)
 			0, 0, 0, 0);
 	ASSERT_EQ(rc, 1);
 
+
+	/* exercise verbose path */
+	system("touch /tmp/src");
+	rc = __famfs_cp((struct famfs_locked_log *)0xdeadbeef,
+			"/tmp/src",
+			"xx",
+			0, 0, 0, 2);
+	ASSERT_EQ(rc, 1);
+	system("rm /tmp/src");
+
+	/* fail open of src file */
+	system("dd if=/dev/random of=/tmp/src bs=4096 count=1");
+	mock_failure = MOCK_FAIL_OPEN;
+	rc = __famfs_cp((struct famfs_locked_log *)0xdeadbeef,
+			"/tmp/src",
+			"xx",
+			0, 0, 0, 2);
+	ASSERT_EQ(rc, 1);
+	mock_failure = MOCK_FAIL_NONE;
+	system("rm /tmp/src");
+
+	/* fail fd of dest file */
+	system("dd if=/dev/random of=/tmp/src bs=4096 count=1");
+	rc = __famfs_cp((struct famfs_locked_log *)0xdeadbeef,
+			"/tmp/src",
+			"/tmp/dest",
+			0, 0, 0, 2);
+	system("rm /tmp/src");
+	ASSERT_NE(rc, 0);
+
+	/* fail mmap of dest file*/
+	system("dd if=/dev/random of=/tmp/src bs=4096 count=1");
+	mock_kmod = 1;
+	mock_failure = MOCK_FAIL_MMAP;
+	rc = __famfs_cp(&ll,
+			"/tmp/src",
+			"/tmp/famfs/dest",
+			0, 0, 0, 2);
+	system("rm /tmp/src");
+	mock_failure = MOCK_FAIL_NONE;
+	mock_kmod = 0;
+	ASSERT_NE(rc, 0);
+
+	/* fail srcfile read */
+	system("dd if=/dev/random of=/tmp/src bs=4096 count=1");
+	mock_kmod = 1;
+	rc = __famfs_cp(&ll,
+			"/tmp/src",
+			"/tmp/famfs/dest",
+			0, 0, 0, 2);
+	system("rm /tmp/src");
+	mock_kmod = 0;
+	ASSERT_NE(rc, 0);
 }
 
 TEST(famfs, famfs_log)
@@ -711,4 +778,51 @@ TEST(famfs, famfs_log_overflow_files)
 
 	rc = famfs_fsck_scan(sb, logp, 1, 3);
 	ASSERT_EQ(rc, 0);
+}
+
+TEST(famfs, famfs_cp) {
+	u64 device_size = 1024 * 1024 * 256;
+	struct famfs_locked_log ll;
+	struct famfs_superblock *sb;
+	struct famfs_log *logp;
+	extern int mock_failure;
+	extern int mock_kmod;
+	char src[PATH_MAX * 2];
+	char dest[PATH_MAX * 2];
+	int rc = 0;
+
+	/* Prepare a fake famfs  */
+	mock_kmod = 1;
+	rc = create_mock_famfs_instance("/tmp/famfs", device_size, &sb, &logp);
+	ASSERT_EQ(rc, 0);
+	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
+	ASSERT_EQ(rc, 0);
+	mock_kmod = 0;
+
+	system("mkdir -p /tmp/destdir");
+	sprintf(dest, "/tmp/destdir");
+	sprintf(src, "/tmp/src");
+	rc = famfs_cp(&ll, src, dest, 0, 0, 0, 1);
+	ASSERT_NE(rc, 0);
+
+	system("touch /tmp/dest");
+	sprintf(dest, "/tmp/dest");
+	rc = famfs_cp(&ll, src, dest, 0, 0, 0, 1);
+	ASSERT_NE(rc, 0);
+
+	sprintf(dest, "/tmp/destdir");
+	mock_failure = MOCK_FAIL_GENERIC;
+	rc = famfs_cp(&ll, src, dest, 0, 0, 0, 1);
+	ASSERT_NE(rc, 0);
+	mock_failure = MOCK_FAIL_NONE;
+
+	system("rm /tmp/dest");
+	system("rmdir /tmp/destdir");
+}
+
+TEST(famfs, famfs_print_role_string) {
+	/* Increase code coverage */
+	famfs_print_role_string(FAMFS_MASTER);
+	famfs_print_role_string(FAMFS_CLIENT);
+	famfs_print_role_string(FAMFS_NOSUPER);
 }

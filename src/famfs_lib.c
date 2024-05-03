@@ -3119,7 +3119,7 @@ __famfs_cp(
 	 * Make sure we can open and read the source file
 	 */
 	srcfd = open(srcfile, O_RDONLY, 0);
-	if (srcfd < 0) {
+	if (srcfd < 0 || mock_failure == MOCK_FAIL_OPEN) {
 		fprintf(stderr, "%s: unable to open srcfile (%s)\n", __func__, srcfile);
 		return 1;
 	}
@@ -3137,7 +3137,8 @@ __famfs_cp(
 	}
 
 	destp = mmap(0, srcstat.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, destfd, 0);
-	if (destp == MAP_FAILED) {
+	if (destp == MAP_FAILED ||
+			mock_failure == MOCK_FAIL_MMAP) {
 		fprintf(stderr, "%s: dest mmap failed (%s) size %ld\n",
 			__func__, destfile, srcstat.st_size);
 		unlink(destfile);
@@ -3191,7 +3192,7 @@ __famfs_cp(
  *             function fill append basename(srcfile) to destfile to get a nonexistent file path
  * @verbose
  */
-static int
+int
 famfs_cp(struct famfs_locked_log *lp,
 	 const char              *srcfile,
 	 const char              *destfile,
@@ -3224,7 +3225,8 @@ famfs_cp(struct famfs_locked_log *lp,
 			/* Destination is directory;  get the realpath and append the basename
 			 * from the source
 			 */
-			if (realpath(destfile, destpath) == 0) {
+			if (realpath(destfile, destpath) == 0 ||
+					mock_failure == MOCK_FAIL_GENERIC) {
 				fprintf(stderr, "%s: failed to rationalize destath path (%s)\n",
 					__func__, destfile);
 				return 1;
