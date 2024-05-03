@@ -40,7 +40,9 @@
 int mock_kmod = 0; /* unit tests can set this to avoid ioctl calls and whatnot */
 int mock_flush = 0; /* for unit tests to avoid actual flushing */
 int mock_role = 0; /* for unit tests to specify role rather than testing for it */
-int mock_uuid = 0;
+int mock_uuid = 0; /* for unit tests to simulate uuid related errors */
+int mock_path = 0; /* for unit tests to simulate path related errors */
+int mock_failure = 0; /* for unit tests to simulate a failure case */
 
 struct famfs_log_stats {
 	u64 n_entries;
@@ -1214,11 +1216,14 @@ famfs_validate_log_header(const struct famfs_log *logp)
 	return 0;
 }
 
-static int
+int
 famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index)
 {
 	unsigned long crc;
 	int errors = 0;
+
+	if (mock_failure == MOCK_FAIL_GENERIC)
+		return 0;
 
 	if (le->famfs_log_entry_seqnum != index) {
 		fprintf(stderr, "%s: bad seqnum; expect %lld found %lld\n",
@@ -1302,7 +1307,7 @@ __famfs_logplay(
 				printf("%s: %lld file=%s size=%lld\n", __func__, i,
 				       fc->famfs_relpath, fc->famfs_fc_size);
 
-			if (!famfs_log_entry_fc_path_is_relative(fc)) {
+			if (!famfs_log_entry_fc_path_is_relative(fc) || mock_path) {
 				fprintf(stderr,
 					"%s: ignoring log entry; path is not relative\n",
 					__func__);
@@ -1317,7 +1322,7 @@ __famfs_logplay(
 			for (j = 0; j < fc->famfs_nextents; j++) {
 				const struct famfs_simple_extent *se = &fc->famfs_ext_list[j].se;
 
-				if (se->famfs_extent_offset == 0) {
+				if (se->famfs_extent_offset == 0 || mock_path) {
 					fprintf(stderr,
 						"%s: ERROR file %s has extent with 0 offset\n",
 						__func__, fc->famfs_relpath);
@@ -1388,7 +1393,7 @@ __famfs_logplay(
 
 			ls.d_logged++;
 
-			if (!famfs_log_entry_md_path_is_relative(md)) {
+			if (!famfs_log_entry_md_path_is_relative(md) || mock_path) {
 				fprintf(stderr,
 					"%s: ignoring log mkdir entry; path is not relative\n",
 					__func__);
@@ -2092,7 +2097,7 @@ famfs_fsck(
 			malloc_sb_log = 1;
 
 			sfd = open_superblock_file_read_only(path, NULL, NULL);
-			if (sfd < 0) {
+			if (sfd < 0 || mock_failure == MOCK_FAIL_OPEN_SB) {
 				fprintf(stderr, "%s: failed to open superblock file\n", __func__);
 				return -1;
 			}
@@ -2102,7 +2107,7 @@ famfs_fsck(
 
 			/* Read a copy of the superblock */
 			rc = read(sfd, sb, FAMFS_LOG_OFFSET); /* 2MiB multiple */
-			if (rc < 0) {
+			if (rc < 0 || mock_failure == MOCK_FAIL_READ_SB) {
 				free(sb);
 				close(sfd);
 				fprintf(stderr, "%s: error %d reading superblock file\n",
@@ -2118,7 +2123,7 @@ famfs_fsck(
 			close(sfd);
 
 			lfd = open_log_file_read_only(path, NULL, NULL, NO_LOCK);
-			if (lfd < 0) {
+			if (lfd < 0 || mock_failure == MOCK_FAIL_OPEN_LOG) {
 				free(sb);
 				close(sfd);
 				fprintf(stderr, "%s: failed to open log file\n", __func__);
@@ -2133,7 +2138,7 @@ famfs_fsck(
 			buf = (char *)logp;
 			do {
 				rc = read(lfd, &buf[total], resid);
-				if (rc < 0) {
+				if (rc < 0 || mock_failure == MOCK_FAIL_READ_LOG) {
 					free(sb);
 					free(logp);
 					close(lfd);
@@ -2144,7 +2149,7 @@ famfs_fsck(
 				if (verbose)
 					printf("%s: read %d bytes of log\n", __func__, rc);
 
-				if (rc == 0) {
+				if (rc == 0 || mock_failure == MOCK_FAIL_READ_FULL_LOG) {
 					fprintf(stderr, "%s: failed to read the full log\n",
 						__func__);
 					rc = -1;
