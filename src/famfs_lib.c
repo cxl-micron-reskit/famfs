@@ -3597,29 +3597,30 @@ famfs_clone(const char *srcfile,
 		return -1;
 	}
 	rc = stat(srcfullpath, &src_stat);
-	if (rc < 0) {
+	if (rc < 0 || mock_failure == MOCK_FAIL_GENERIC) {
 		fprintf(stderr, "%s: unable to stat srcfile %s\n", __func__, srcfullpath);
 		return -1;
 	}
 
 	/*
-	 * Need to confirm that both files are inn the same file system. Otherwise,
+	 * Need to confirm that both files are in the same file system. Otherwise,
 	 * the cloned extents will be double-invalid on the second file :(
 	 */
 	src_role = famfs_get_role_by_path(srcfile, &src_fs_uuid);
 	dest_role = famfs_get_role_by_path(destfile, &dest_fs_uuid);
-	if (src_role < 0) {
+	if (src_role < 0 || mock_failure == MOCK_FAIL_SROLE) {
 		fprintf(stderr, "%s: Error: unable to check role for src file %s\n",
 			__func__, srcfullpath);
 		return -1;
 	}
-	if (dest_role < 0) {
-		fprintf(stderr, "%s: Error: unable to check role for src file %s\n",
+	if (dest_role < 0 ) {
+		fprintf(stderr, "%s: Error: unable to check role for dest file %s\n",
 			__func__, destfile);
 		return -1;
 	}
 	if ((src_role != dest_role) ||
-	    memcmp(&src_fs_uuid, &dest_fs_uuid, sizeof(src_fs_uuid)) != 0) {
+	    memcmp(&src_fs_uuid, &dest_fs_uuid, sizeof(src_fs_uuid)) != 0 ||
+	    mock_failure == MOCK_FAIL_ROLE) {
 		fprintf(stderr,
 			"%s: Error: source and destination must be in the same file system\n",
 			__func__);
@@ -3631,18 +3632,17 @@ famfs_clone(const char *srcfile,
 	}
 	/* FAMFS_MASTER role now confirmed, and the src and destination are in the same famfs */
 
-	/*
-	 * Open source file and make sure it's a famfs file
-	 */
+	/* Open source file */
 	sfd = open(srcfullpath, O_RDONLY, 0);
-	if (sfd < 0) {
+	if (sfd < 0 || mock_failure == MOCK_FAIL_OPEN) {
 		fprintf(stderr, "%s: failed to open source file %s\n",
 			__func__, srcfullpath);
-		return -1;
-	}
-	if (__file_not_famfs(sfd)) {
-		fprintf(stderr, "%s: source file %s is not a famfs file\n",
-			__func__, srcfullpath);
+
+		/* close the sfd if control reached here due to a mock_failure */
+		if (sfd > 0 && mock_failure == MOCK_FAIL_OPEN) {
+			rc = -1;
+			goto err_out;
+		}
 		return -1;
 	}
 
