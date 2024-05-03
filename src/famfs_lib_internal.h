@@ -14,6 +14,21 @@ enum lock_opt {
 	NON_BLOCKING_LOCK,
 };
 
+enum mock_failure {
+	MOCK_FAIL_NONE = 0,
+	MOCK_FAIL_GENERIC,
+	MOCK_FAIL_LOG_MKDIR,
+	MOCK_FAIL_OPEN_SB,
+	MOCK_FAIL_READ_SB,
+	MOCK_FAIL_OPEN_LOG,
+	MOCK_FAIL_READ_LOG,
+	MOCK_FAIL_READ_FULL_LOG,
+	MOCK_FAIL_ROLE,
+	MOCK_FAIL_SROLE,
+	MOCK_FAIL_OPEN,
+	MOCK_FAIL_MMAP,
+};
+
 struct famfs_locked_log {
 	s64               devsize;
 	struct famfs_log *logp;
@@ -50,5 +65,9 @@ int famfs_fsck_scan(const struct famfs_superblock *sb, const struct famfs_log *l
 		    int human, int verbose);
 int famfs_create_sys_uuid_file(char *sys_uuid_file);
 int famfs_get_system_uuid(uuid_le *uuid_out);
+void famfs_print_role_string(int role);
+int famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index);
+int famfs_cp(struct famfs_locked_log *lp, const char *srcfile, const char *destfile,
+		mode_t mode, uid_t uid, gid_t gid, int verbose);
 
 #endif /* _H_FAMFS_LIB_INTERNAL */
