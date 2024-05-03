@@ -1270,12 +1270,6 @@ __famfs_logplay(
 
 	role = (client_mode) ? FAMFS_CLIENT : famfs_get_role(sb);
 
-	if (logp->famfs_log_magic != FAMFS_LOG_MAGIC) {
-		fprintf(stderr, "%s: log has bad magic number (%llx)\n",
-			__func__, logp->famfs_log_magic);
-		return -1;
-	}
-
 	if (famfs_validate_log_header(logp)) {
 		fprintf(stderr, "%s: invalid log header\n", __func__);
 		return -1;
