@@ -710,6 +710,78 @@ TEST(famfs, famfs_log_overflow_mkdir_p)
 	ASSERT_EQ(rc, 0);
 }
 
+TEST(famfs, famfs_clone) {
+	u64 device_size = 1024 * 1024 * 256;
+	struct famfs_locked_log ll;
+	struct famfs_superblock *sb;
+	struct famfs_log *logp;
+	extern int mock_failure;
+	extern int mock_role;
+	extern int mock_kmod;
+	char filename[PATH_MAX * 2];
+	int fd;
+	int rc = 0;
+
+	/* Prepare a fake famfs  */
+	mock_kmod = 1;
+	rc = create_mock_famfs_instance("/tmp/famfs", device_size, &sb, &logp);
+	ASSERT_EQ(rc, 0);
+	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
+	ASSERT_EQ(rc, 0);
+	sprintf(filename, "/tmp/famfs/clonesrc");
+	fd = __famfs_mkfile(&ll, filename, 0, 0, 0, 2097152, 1);
+	ASSERT_GT(fd, 0);
+	mock_kmod = 0;
+
+	/* clone a nonexistant srcfile and fail*/
+	rc = famfs_clone("/tmp/nonexistant", "/tmp/famfs/f1", 1);
+	ASSERT_NE(rc, 0);
+
+	/* clone existing file but not in famfs and fail */
+	system("touch /tmp/randfile");
+	rc = famfs_clone("/tmp/randfile", "/tmp/famfs/f1", 1);
+	ASSERT_NE(rc, 0);
+
+	mock_kmod = 1; /* this is needed to show srcfile as in fake famfs */
+	/* fail to stat srcfile */
+	mock_failure = MOCK_FAIL_GENERIC;
+	rc = famfs_clone(filename, "/tmp/famfs/f1", 1);
+	ASSERT_NE(rc, 0);
+	mock_failure = MOCK_FAIL_NONE;
+
+	/* fail to check role srcfile */
+	mock_failure = MOCK_FAIL_SROLE;
+	rc = famfs_clone(filename, "/tmp/famfs/f1", 1);
+	ASSERT_NE(rc, 0);
+	mock_failure = MOCK_FAIL_NONE;
+
+	/* fail to check role destfile */
+	rc = famfs_clone(filename, "/tmp/famfs1/f1", 1);
+	ASSERT_NE(rc, 0);
+
+	/* fail to check srcfile and destfile in same FS */
+	mock_failure = MOCK_FAIL_ROLE;
+	rc = famfs_clone(filename, "/tmp/famfs/f1", 1);
+	ASSERT_NE(rc, 0);
+	mock_failure = MOCK_FAIL_NONE;
+
+	/* fail to create file in client role */
+	mock_role = FAMFS_CLIENT;
+	rc = famfs_clone(filename, "/tmp/famfs/f1", 1);
+	ASSERT_NE(rc, 0);
+	mock_role = 0;
+
+	/* fail to open srcfile */
+	mock_failure = MOCK_FAIL_OPEN;
+	rc = famfs_clone(filename, "/tmp/famfs/f1", 1);
+	ASSERT_NE(rc, 0);
+	mock_failure = MOCK_FAIL_NONE;
+
+	/* fail to do MAP_GET ioctl */
+	rc = famfs_clone(filename, "/tmp/famfs/f1", 1);
+	ASSERT_NE(rc, 0);
+}
+
 TEST(famfs, famfs_log_overflow_files)
 {
 	u64 device_size = 64ULL * 1024ULL * 1024ULL * 1024ULL;
