@@ -250,7 +250,7 @@ TEST(famfs, famfs_open_relpath)
 
 TEST(famfs, famfs_get_device_size)
 {
-	enum extent_type type;
+	enum famfs_extent_type type;
 	size_t size;
 	int rc;
 
