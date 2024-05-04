@@ -8,6 +8,7 @@
 
 #include <linux/uuid.h> /* Our preferred UUID format */
 #include <uuid/uuid.h>  /* for uuid_generate / libuuid */
+#include <linux/famfs_ioctl.h>
 
 #include "famfs.h"
 #include "famfs_meta.h"
@@ -15,10 +16,18 @@
 #define SB_FILE_RELPATH    ".meta/.superblock"
 #define LOG_FILE_RELPATH   ".meta/.log"
 
+/* Hack due to unintended consequences of kmod v1/v2 change */
+#ifndef FAMFS_KABI_VERSION
+enum famfs_extent_type {
+	SIMPLE_DAX_EXTENT,
+	INVALID_EXTENT_TYPE,
+};
+#endif
+
 int famfs_module_loaded(int verbose);
 void *famfs_mmap_whole_file(const char *fname, int read_only, size_t *sizep);
 
-extern int famfs_get_device_size(const char *fname, size_t *size, enum extent_type *type);
+extern int famfs_get_device_size(const char *fname, size_t *size, enum famfs_extent_type *type);
 int famfs_check_super(const struct famfs_superblock *sb);
 int famfs_fsck(const char *devname, int use_mmap, int human, int verbose);
 

@@ -420,7 +420,7 @@ famfs_get_role_by_path(const char *path, uuid_le *fs_uuid_out)
 int
 famfs_get_device_size(const char       *fname,
 		      size_t           *size,
-		      enum extent_type *type)
+		      enum famfs_extent_type *type)
 {
 	char spath[PATH_MAX];
 	char *basename;
@@ -3809,7 +3809,7 @@ famfs_mkfs(const char *daxdev,
 {
 	int rc;
 	size_t devsize;
-	enum extent_type type = SIMPLE_DAX_EXTENT;
+	enum famfs_extent_type type = SIMPLE_DAX_EXTENT;
 	struct famfs_superblock *sb;
 	struct famfs_log *logp;
 	u64 min_devsize = 4 * 1024ll * 1024ll * 1024ll;
