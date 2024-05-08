@@ -283,9 +283,11 @@ do_famfs_cli_mount(int argc, char *argv[])
 	}
 
 	rc = famfs_mkmeta(realdaxdev);
-	if (rc)
-		fprintf(stderr, "famfs mount: ignoring err %d from mkmeta\n", rc);
-
+	if (rc) {
+		fprintf(stderr, "famfs mount: err %d from mkmeta; unmounting\n", rc);
+		umount(realmpt);
+		goto err_out;
+	}
 
 	rc = famfs_logplay(realmpt, use_mmap, 0, 0, verbose);
 
