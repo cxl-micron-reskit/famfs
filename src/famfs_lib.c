@@ -2404,7 +2404,7 @@ next:
  * famfs_init_locked_log()
  *
  * @lp
- * @fspath - teh mount point full path, or any full path within a mounted famfs FS
+ * @fspath - the mount point full path, or any full path within a mounted famfs FS
  */
 int
 famfs_init_locked_log(struct famfs_locked_log *lp,
