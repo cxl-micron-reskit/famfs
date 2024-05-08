@@ -4,7 +4,6 @@ CWD=$(pwd)
 BIN="$CWD/debug"
 SCRIPTS="$CWD/scripts"
 MOUNT_OPTS="-t famfs -o noatime -o dax=always "
-TEST_ALL=1
 SLEEP_TIME=2
 
 # Allow these variables to be set from the environment
@@ -38,12 +37,16 @@ while (( $# > 0)); do
 	    DEV=$1
 	    shift;
 	    ;;
-	(-n|--noerrors)
-	    ERRS=0
+	(-e|--noerrors)
+	    SKIP_ERRS=0
 	    ;;
-	(-j|--justerrors)
-	    ERRS=1
-	    TEST_ALL=0
+	(-E|--justerrors)
+	    SKIP_TEST0=1
+	    SKIP_TEST1=1
+	    SKIP_TEST2=1
+	    SKIP_TEST3=1
+	    SKIP_TEST4=1
+	    SKIP_PCQ=1
 	    ;;
 	(-4)
 	    TEST_ALL=0
@@ -109,42 +112,33 @@ else
     exit -1
 fi
 
-if (($TEST_ALL > 0)); then
-    TEST0=1
-    TEST1=1
-    TEST2=1
-    TEST3=1
-    TEST4=1
-    TEST_PCQ=1
-fi
-
 ./smoke/prepare.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
 
-if (($TEST0 > 0)); then
+set -x
+if [ -z "$SKIP_TEST0" ]; then
     ./smoke/test0.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
     sleep "${SLEEP_TIME}"
 fi
-if (($TEST1 > 0)); then
+if [ -z "$SKIP_TEST1" ]; then
     ./smoke/test1.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
     sleep "${SLEEP_TIME}"
 fi
-if (($TEST2 > 0)); then
+if [ -z "$SKIP_TEST2" ]; then
     ./smoke/test2.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
     sleep "${SLEEP_TIME}"
 fi
-if (($TEST3 > 0)); then
+if [ -z "$SKIP_TEST3" ]; then
     ./smoke/test3.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
-    sleep "${SLEEP_TIME}"
 fi
-if (($TEST4 > 0)); then
+if [ -z "$SKIP_TEST4" ]; then
     ./smoke/test4.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
 fi
-if (($TEST_PCQ > 0)); then
+if [ -z "$SKIP_PCQ" ]; then
     ./smoke/test_pcq.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
 fi
-if (($ERRS > 0)); then
+if [ -z "$SKIP_ERRS" ]; then
     sleep "${SLEEP_TIME}"
-    ./smoke/test_errors.sh  -b $BIN -s $SCRIPTS -d $DEV -k $KMOD  || exit -1
+    ./smoke/test_errors.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV || exit -1
 else
     echo "skipping test_errors.sh because -n|--noerrors was specified"
 fi

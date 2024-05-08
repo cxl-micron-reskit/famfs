@@ -66,7 +66,7 @@ verify_not_mounted () {
     DEV=$1
     MPT=$2
     MSG=$3
-    findmnt -t famfs $MPT && fail "verify_not_mounted: famfs still mounted at $MPT"
+    findmnt -t famfs $MPT && fail "verify_not_mounted: $MSG"
 }
 
 verify_mounted () {
