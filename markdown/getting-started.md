@@ -36,6 +36,7 @@ sudo dnf install cmake
 sudo dnf install g++
 sudo dnf install libuuid-devel
 sudo dnf install daxctl ndctl
+sudo dnf install gcovr
 ```
 Pay attention to error messages when you build, new dependencies may arise later, and
 different kernel installations may have different missing dependencies.
@@ -48,6 +49,7 @@ sudo apt install cmake
 sudo apt install uuid-dev
 sudo apt install zlib1g-dev
 sudo apt install daxctl ndctl
+sudo apt install gcovr
 ```
 Pay attention to error messages when you build, new dependencies may arise later, and
 different kernel installations may have different missing dependencies.
