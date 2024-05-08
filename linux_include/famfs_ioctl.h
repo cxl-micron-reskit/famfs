@@ -14,11 +14,12 @@
 #include <linux/ioctl.h>
 #include <linux/uuid.h>
 
+#define FAMFS_KABI_VERSION 42
 #define FAMFS_MAX_EXTENTS 2
 
 /* We anticipate the possiblity of supporting additional types of extents */
-enum extent_type {
-	SIMPLE_DAX_EXTENT = 13,
+enum famfs_extent_type {
+	SIMPLE_DAX_EXTENT,
 	INVALID_EXTENT_TYPE,
 };
 
@@ -42,7 +43,7 @@ enum famfs_file_type {
  * @ext_list: 1 or more extents
  */
 struct famfs_ioc_map {
-	enum extent_type          extent_type;
+	enum famfs_extent_type    extent_type;
 	enum famfs_file_type      file_type;
 	__u64                     file_size;
 	__u64                     ext_list_count;
