@@ -232,7 +232,7 @@ Directory creation is slightly simpler, consisting of:
 
 | **Operation** | **Notes** |
 |---------------|-------------|
-| ```mkfs.famfs```    | The host that creates a famfs file system becomes the Master. Only the master an create files in a famfs file system, though Clients can read files (and optionally be given write permission)            |
+| ```mkfs.famfs```    | The host that creates a famfs file system becomes the Master. Only the master can create files in a famfs file system, though Clients can read files (and optionally be given write permission)            |
 | ```famfs mount``` | Master and Clients: Mount a famfs file system from a dax or pmem device. Files default to read-only on Clients |
 | ```famfs logplay``` | Master and Clients: Any files and directories created in the log will be instantiated in the mounted instance of famfs. Can be re-run to detect and create files and directories logged since the last logplay. |
 | ```famfs fsck``` | Master and Clients: The allocation map will be checked and errors will be reported|
@@ -249,7 +249,7 @@ For more detail, see the [famfs cli reference](markdown/famfs-cli-reference.md).
 ## Missing File System Operations
 Famfs is currently lacks the ability to do some standard file system operations; ```rm``` and ```truncate```
 ```append``` are not supported. By omitting these operations, we avoid the complex distributed computing problems of 1) figuring
-out when it is save to re-use freed space, and 2) allocating space dynamically (in the cas
+out when it is safe to re-use freed space, and 2) allocating space dynamically.
 
 | **Operation** | **Notes** |
 |--|--|
