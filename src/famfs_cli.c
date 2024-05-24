@@ -279,7 +279,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	if (rc) {
 		fprintf(stderr, "famfs mount: mount returned %d; errno %d\n", rc, errno);
 		perror("mount fail\n");
-		return rc;
+		goto err_out;
 	}
 
 	rc = famfs_mkmeta(realdaxdev);
