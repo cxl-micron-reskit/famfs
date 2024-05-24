@@ -65,21 +65,31 @@ verify_mounted $DEV $MPT "test_errors.sh"
 
 ${CLI} fsck $MPT || fail "fsck should not fail when nothing cloned"
 
+# Create a file to clone
+${CLI} creat -r -S 10 -s 0x400000 $MPT/original || fail "create original should succeed"
+${CLI} verify -S 10 -f $MPT/original            || fail "verify original should succeed"
+
 N="10"
 FILE="bigtest$N"
-${CLI} clone -h                                      || fail "clone -h should succeed"
-${CLI} clone $MPT/${FILE} $MPT/${FILE}_clone         || fail "clone $F "
-${CLI} clone -v $MPT/${FILE} $MPT/${FILE}_clone1        || fail "clone $F "
-${CLI} clone  && fail "clone with no args should fail"
+${CLI} clone -h                               || fail "clone -h should succeed"
+${CLI} clone $MPT/original $MPT/clone         || fail "clone original should succeed"
+${CLI} clone -v $MPT/original $MPT/clone1     || fail "second clone should succeed"
+${CLI} clone -v $MPT/clone $MPT/clone2        || fail "clone from clone should also succeed"
+
+${CLI} verify -S 10 -f $MPT/clone             || fail "verify clone should succeed"
+${CLI} verify -S 10 -f $MPT/clone1            || fail "verify clone1 should succeed"
+${CLI} verify -S 10 -f $MPT/clone2            || fail "verify clone2 should succeed"
+
 
 # Error cases
+${CLI} clone  && fail "clone with no args should fail"
 ${CLI} clone -v $MPT/bogusfile $MPT/bogusfile.cllone && fail "clone bogusfile should fail"
 ${CLI} clone -v /etc/passwd $MPT/passwd              && fail "clone from outside famfs should fail"
 
 
 ${CLI} fsck $MPT && fail "fsck should fail after cloning "
-${CLI} verify -S $N -f $MPT/${FILE}_clone  || fail "${FILE}_clone mismatch"
-${CLI} verify -S $N -f $MPT/${FILE}_clone1 || fail "${FILE}_clone1 mismatch"
+${CLI} verify -S 10 -f $MPT/clone  || fail "re-verify clone"
+${CLI} verify -S 10 -f $MPT/clone1 || fail "re-verify clone1"
 
 sudo $UMOUNT $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
@@ -87,16 +97,33 @@ full_mount $DEV $MPT "${MOUNT_OPTS}" "test1.sh"
 verify_mounted $DEV $MPT "test1.sh"
 
 # Throw a curveball or two at logplay
-sudo rm -rf $MPT/smalldir
-sudo touch $MPT/smalldir
-sudo rm -rf $MPT/smalldir2
-sudo ln -s /tmp $MPT/smalldir2
+${CLI} mkdir $MPT/adir         || fail "should be able to create adir"
+sudo rm -rf $MPT/adir          || fail "should be able to rogue remove a dir"
+sudo touch $MPT/adir           || fail "should be able to create rogue file"
+sudo rm -rf $MPT/adir2         || fail "should be able to rogue remove a dir2"
+sudo ln -s /tmp $MPT/adir2     && fail "symlink should fail with famfs kmod v2"
+sudo touch $MPT/adir2          || fail "should be able to touch a file"
 ${CLI} logplay $MPT && fail "logplay should complain when a file is where a dir should be"
 
 ${CLI} fsck -v $MPT && fail "fsck -v if a clone has ever happened should fail"
 ${CLI} fsck $MPT && fail "fsck if a clone has ever happened should fail"
 
-#sudo umount $MPT || fail "umount"
+# Some v2-specific tests
+
+sudo $UMOUNT $MPT            || fail "umount should work"
+${CLI} mount $DEV $MPT       || fail "basic mount should succeed"
+${CLI} mount $DEV $MPT       && fail "remount 1 should fail"
+${CLI} mount $DEV $MPT       && fail "remount 2 should fail"
+${CLI} mount $DEV $MPT       && fail "remount 3 should fail"
+sudo mkdir -p /tmp/famfs
+${CLI} mount $DEV /tmp/famfs && fail "remount at different path should fail"
+verify_mounted $DEV $MPT     "mounted after redundant mounts"
+sudo $UMOUNT $MPT            || fail "umount should work after redundant mounts"
+verify_not_mounted $DEV $MPT "umount should have worked after redundant mounts"
+
+${CLI} mount $DEV $MPT       || fail "basic mount should succeed"
+
+#sudo $UMOUNT $MPT || fail "umount"
 
 set +x
 echo "*************************************************************************************"
