@@ -3557,18 +3557,18 @@ famfs_clone(const char *srcfile,
 	    int   verbose)
 {
 	struct famfs_ioc_map filemap = {0};
-	struct famfs_extent *ext_list;
+	struct famfs_extent *ext_list = NULL;
 	char srcfullpath[PATH_MAX];
 	char destfullpath[PATH_MAX];
 	int lfd = 0;
 	int sfd = 0;
 	int dfd = 0;
 	char mpt_out[PATH_MAX];
-	char *relpath;
+	char *relpath = NULL;
 	struct famfs_log *logp;
 	void *addr;
 	size_t log_size;
-	struct famfs_simple_extent *se;
+	struct famfs_simple_extent *se = NULL;
 	int src_role, dest_role;
 	uuid_le src_fs_uuid, dest_fs_uuid;
 	struct stat src_stat;
@@ -3689,7 +3689,7 @@ famfs_clone(const char *srcfile,
 				   se, FAMFS_REG);
 	if (rc) {
 		fprintf(stderr, "%s: failed to create destination file\n", __func__);
-		exit(-1);
+		goto err_out;
 	}
 
 	/* Now have created the destination file (and therefore we know it is in a famfs
@@ -3716,20 +3716,18 @@ famfs_clone(const char *srcfile,
 		goto err_out;
 	}
 
+	rc = 0;
 	close(lfd); /* Closing releases the lock */
 	lfd = 0;
 	/***************/
 
-	close(rc);
-
-	return 0;
 err_out:
+	free(ext_list);
+	free(se);
 	if (lfd > 0)
 		close(lfd);
 	if (sfd > 0)
 		close(sfd);
-	if (lfd > 0)
-		close(lfd);
 	if (dfd > 0)
 		close(dfd);
 	return rc;
