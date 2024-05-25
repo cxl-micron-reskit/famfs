@@ -50,7 +50,7 @@ After a reboot, you should see a pmem device.
 ## Configuring a simulated /dev/dax device
 
 There are two reasons you might want to create a simulated dax device. One
-is for a private dax device within a VM. The other is to create a dax deice on a host,
+is for a private dax device within a VM. The other is to create a dax device on a host,
 to be shared with one or more VMs. Either way, the procedure is the same.
 
 Add the following to your kernel command line:
