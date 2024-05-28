@@ -847,6 +847,7 @@ famfs_path_is_mount_pt(const char *path, char *dev_out)
 		char args[XLEN];
 		int  x0, x1;
 		char *xmpt = NULL;
+		char *xpath = NULL;
 
 		if (strstr(line, "famfs")) {
 			rc = sscanf(line, "%s %s %s %s %d %d",
@@ -859,7 +860,12 @@ famfs_path_is_mount_pt(const char *path, char *dev_out)
 				fprintf(stderr, "realpath(%s) errno %d\n", mpt, errno);
 				continue;
 			}
-			if (strcmp(path, xmpt) == 0) {
+			xpath = realpath(path, NULL);
+			if (!xpath) {
+				fprintf(stderr, "input path realpath(%s) errno %d\n", path, errno);
+				continue;
+			}
+			if (strcmp(xpath, xmpt) == 0) {
 				free(xmpt);
 				free(line);
 				fclose(fp);
