@@ -863,10 +863,12 @@ famfs_path_is_mount_pt(const char *path, char *dev_out)
 			xpath = realpath(path, NULL);
 			if (!xpath) {
 				fprintf(stderr, "input path realpath(%s) errno %d\n", path, errno);
+				free(xmpt);
 				continue;
 			}
 			if (strcmp(xpath, xmpt) == 0) {
 				free(xmpt);
+				free(xpath);
 				free(line);
 				fclose(fp);
 				if (dev_out)
@@ -876,6 +878,8 @@ famfs_path_is_mount_pt(const char *path, char *dev_out)
 		}
 		if (xmpt)
 			free(xmpt);
+		if (xpath)
+		  free(xpath);
 
 	}
 
