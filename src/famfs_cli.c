@@ -1097,24 +1097,37 @@ do_famfs_cli_creat(int argc, char *argv[])
 
 	rc = stat(filename, &st);
 	if (rc == 0) {
-		/* If the file exists and it's a regular file, and randomize is selected,
-		 * we'll re-randomize the file. This is convenient for testing.
-		 */
-		if (!randomize) {
-			fprintf(stderr, "%s: Error file exists and randomization not selected\n",
-				__func__);
-			exit(-1);
-		}
 		if ((st.st_mode & S_IFMT) != S_IFREG) {
 			fprintf(stderr, "%s: Error: file %s exists and is not a regular file\n",
 				__func__, filename);
 			exit(-1);
 		}
-		fd = open(filename, O_RDWR, 0);
-		if (fd < 0) {
-			fprintf(stderr, "%s: Error unable to open existing file %s\n",
+
+		if (file_not_famfs(filename)) {
+			fprintf(stderr, "%s: Error file %s exists and is not in famfs\n",
 				__func__, filename);
 			exit(-1);
+		}
+
+		/* If the file exists and it's the right size, this becomes a nop;
+		 * if the file is the wrong size, it's a fail
+		 */
+		if (st.st_size != fsize) {
+			fprintf(stderr, "%s: Error: file %s exists and is not the same size\n",
+				__func__, filename);
+			exit(-1);
+		}
+		if (verbose)
+			printf("%s: re-create is nop\n", __func__);
+
+		/* Only need to open the file if we're gonna re-randomize it */
+		if (randomize) {
+			fd = open(filename, O_RDWR, 0);
+			if (fd < 0) {
+				fprintf(stderr, "%s: Error unable to open existing file %s\n",
+					__func__, filename);
+				exit(-1);
+			}
 		}
 	} else if (rc < 0) {
 		/* This is horky, but OK for the cli */
