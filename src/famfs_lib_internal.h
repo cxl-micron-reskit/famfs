@@ -42,7 +42,6 @@ struct famfs_locked_log {
 /* Only exported for unit tests */
 int famfs_validate_log_header(const struct famfs_log *logp);
 int __file_not_famfs(int fd);
-int file_not_famfs(const char *fname);
 unsigned long famfs_gen_superblock_crc(const struct famfs_superblock *sb);
 unsigned long famfs_gen_log_header_crc(const struct famfs_log *logp);
 int __famfs_mkfs(const char *daxdev, struct famfs_superblock *sb, struct famfs_log *logp,
