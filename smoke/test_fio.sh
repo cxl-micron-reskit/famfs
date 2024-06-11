@@ -68,12 +68,13 @@ ${CLI} mkdir -p $TESTDIR
 
 SPACE_AVAIL=$(sudo $BIN/famfs fsck $TESTDIR | grep "Free space" | awk -e '{print $3}')
 
+# Not a stress test, just a smoke test (4 jobs)
 $SCRIPTS/stress_fio.sh \
 		       -b $BIN \
 		       -r 30 \
 		       -s $SPACE_AVAIL \
 		       -p $TESTDIR \
-		       -j $(nproc) || fail "test_fio failed"
+		       -j 4 || fail "test_fio failed"
 
 set +x
 echo "*************************************************************************"
