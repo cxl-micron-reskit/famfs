@@ -10,6 +10,7 @@ RUNTIME=60
 FIO_PATH=""
 TOTAL_SIZE=0  # Amount of space to consume for files, 100% if no user input
 NJOBS=$(nproc)
+loop=false
 
 # Allow these variables to be set from the environment
 if [ -z "$MPT" ]; then
@@ -45,6 +46,9 @@ while (( $# > 0)); do
 	    ;;
 	(-n|--nomkfs)
 	    NO_MKFS=1
+	    ;;
+	(-l|--loop)
+	    loop=true
 	    ;;
         (-f|--fiopath)
 	    FIO_PATH=$1
@@ -124,16 +128,33 @@ fi
 
 # For now just run fio, when adding new stress tests, update the infra to call them
 
-$SCRIPTS/stress_fio.sh \
-		       -b $BIN \
-		       -f $FIO_PATH \
-		       -r $RUNTIME \
-		       -s $TOTAL_SIZE \
-		       -p $TESTDIR \
-		       -j $NJOBS || echo "Fio stress test failed"
+start_date=$(date)
+counter=0
+doloop=true
+while [ "$doloop" = true ]
+do
+    # Your commands go here
+    ((counter++))
+    echo "Loop is running. Press [CTRL+C] to stop."
+    $SCRIPTS/stress_fio.sh \
+	-b $BIN \
+	-f $FIO_PATH \
+	-r $RUNTIME \
+	-s $TOTAL_SIZE \
+	-p $TESTDIR \
+	-j $NJOBS || echo "Fio stress test failed"
+    if [ $loop = false ]; then
+	doloop=false
+    else
+	echo "*************************************************************************"
+	echo " run_stress_tests.sh loop $counter"
+	echo "current time: $(date)"
+	echo "start time:   $start_date"
+	echo "*************************************************************************"
+    fi
+done
+
+echo "Loop has ended."
 
 echo ""
-echo "*************************************************************************"
-echo "                    run_stress_tests.sh completed"
-echo "*************************************************************************"
 
