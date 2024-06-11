@@ -47,6 +47,7 @@ while (( $# > 0)); do
 	    SKIP_TEST3=1
 	    SKIP_TEST4=1
 	    SKIP_PCQ=1
+	    SKIP_FIO=1
 	    ;;
 	(-4)
 	    TEST_ALL=0
@@ -135,6 +136,9 @@ if [ -z "$SKIP_TEST4" ]; then
 fi
 if [ -z "$SKIP_PCQ" ]; then
     ./smoke/test_pcq.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
+fi
+if [ -z "$SKIP_FIO" ]; then
+    ./smoke/test_fio.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
 fi
 if [ -z "$SKIP_ERRS" ]; then
     sleep "${SLEEP_TIME}"
