@@ -119,7 +119,7 @@ fi
 NAME="$FILES_PER_THRD-$FSIZE_MB-MB-files-per-thread"
 
 #echo "Creating directory $MPT/$PID"
-echo "Creating directory $FILES_DIR"
+echo "Creating $fnum files, each sized $FSIZE_2M_A in directory $FILES_DIR"
 sudo $BIN/famfs mkdir $FILES_DIR
 
 for (( cpu = 0; cpu < $NJOBS; cpu++ ))
@@ -127,8 +127,8 @@ do
     for (( fnum = 0; fnum < $FILES_PER_THRD; fnum++ ))
     do
         fname="$NAME.$cpu.$fnum"
-        echo "Creating famfs file $FILES_DIR/$fname"
-        sudo $BIN/famfs creat -v -s $FSIZE_2M_A $FILES_DIR/$fname || fail "failed to create file $fname"
+        #echo "Creating famfs file $FILES_DIR/$fname"
+        sudo $BIN/famfs creat -s $FSIZE_2M_A $FILES_DIR/$fname || fail "failed to create file $fname"
     done
 done
 
