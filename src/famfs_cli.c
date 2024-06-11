@@ -355,7 +355,8 @@ do_famfs_cli_mkmeta(int argc, char *argv[])
 	}
 
 	if (optind > (argc - 1)) {
-		fprintf(stderr, "Must specify at least one dax device\n");
+		fprintf(stderr, "%s: Must specify at least one dax device\n",
+			__func__);
 		famfs_mkmeta_usage(argc, argv);
 		return -1;
 	}
@@ -465,7 +466,8 @@ do_famfs_cli_fsck(int argc, char *argv[])
 		use_mmap = 1;
 	}
 	if (optind > (argc - 1)) {
-		fprintf(stderr, "Must specify at least one dax device\n");
+		fprintf(stderr, "%s: Must specify at least one dax device\n",
+			__func__);
 		famfs_fsck_usage(argc, argv);
 		return -1;
 	}
@@ -1085,7 +1087,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 	}
 
 	if (optind > (argc - 1)) {
-		fprintf(stderr, "Must specify at least one dax device\n");
+		fprintf(stderr, "Must specify filename\n");
 		return -1;
 	}
 	filename = argv[optind++];
@@ -1263,7 +1265,8 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 	}
 
 	if (optind > (argc - 1)) {
-		fprintf(stderr, "Must specify at least one dax device\n");
+		fprintf(stderr, "%s: Must specify at least one path\n",
+			__func__);
 		return -1;
 	}
 
@@ -1549,7 +1552,8 @@ do_famfs_cli_chkread(int argc, char *argv[])
 		}
 	}
 	if (optind > (argc - 1)) {
-		fprintf(stderr, "Must specify at least one file\n");
+		fprintf(stderr, "%s: Must specify at least one file\n",
+			__func__);
 		return -1;
 	}
 	filename = argv[optind++];
