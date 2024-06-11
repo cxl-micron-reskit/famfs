@@ -34,6 +34,7 @@ struct famfs_locked_log {
 	struct famfs_log *logp;
 	int               lfd;
 	u64               nbits;
+	u64               cur_pos;
 	u8               *bitmap;
 	char              mpt[PATH_MAX];
 };
