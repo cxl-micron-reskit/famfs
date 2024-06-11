@@ -73,9 +73,8 @@ verify_mounted () {
     DEV=$1
     MPT=$2
     MSG=$3
-    findmnt -t famfs $MPT || fail "verify_mounted: famfs not mounted at $MPT"
+    findmnt -t famfs $MPT || fail "verify_mounted: famfs not mounted at $MPT ($MSG)"
 }
-
 
 get_device_size () {
     DEV=$1
