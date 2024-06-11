@@ -1006,7 +1006,8 @@ static s64 get_multiplier(const char *endptr)
 int
 do_famfs_cli_creat(int argc, char *argv[])
 {
-	int c, rc, fd;
+	int c, rc;
+	int fd = 0;
 	char *filename = NULL;
 
 	size_t fsize = 0;
@@ -1170,7 +1171,8 @@ do_famfs_cli_creat(int argc, char *argv[])
 		flush_processor_cache(buf, fsize);
 	}
 
-	close(fd);
+	if (fd)
+		close(fd);
 	return 0;
 }
 
