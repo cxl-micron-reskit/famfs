@@ -63,7 +63,7 @@ source $SCRIPTS/test_funcs.sh
 
 set -x
 
-verify_mounted $DEV $MPT "test2.sh"
+verify_mounted $DEV $MPT "test4.sh"
 
 ${CLI} badarg                            && fail "create badarg should fail"
 ${CLI} creat  -h                         || fail "creat -h should succeed"
@@ -124,7 +124,7 @@ ${CLI} mount -R $DEV $MPT   || fail "famfs mount -R should succeed when nothing 
 sudo $UMOUNT $MPT # run_smoke.sh expects the file system unmounted after this test
 ${CLI} mount $DEV $MPT || fail "last famfs mount should succeed"
 set +x
-echo "*************************************************************************************"
+echo "*************************************************************************"
 echo "Test4 (multichase) completed successfully"
-echo "*************************************************************************************"
+echo "*************************************************************************"
 exit 0
