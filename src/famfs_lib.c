@@ -2377,13 +2377,14 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 static s64
 bitmap_alloc_contiguous(u8 *bitmap,
 			u64 nbits,
-			u64 alloc_size)
+			u64 alloc_size,
+			u64 *cur_pos)
 {
 	u64 i, j;
 	u64 alloc_bits = (alloc_size + FAMFS_ALLOC_UNIT - 1) /  FAMFS_ALLOC_UNIT;
 	u64 bitmap_remainder;
 
-	for (i = 0; i < nbits; i++) {
+	for (i = *cur_pos; i < nbits; i++) {
 		/* Skip bits that are set... */
 		if (mu_bitmap_test(bitmap, i))
 			continue;
@@ -2401,7 +2402,7 @@ bitmap_alloc_contiguous(u8 *bitmap,
 		 */
 		for (j = i; j < (i+alloc_bits); j++)
 			mse_bitmap_set32(bitmap, j);
-
+		*cur_pos = j;
 		return i * FAMFS_ALLOC_UNIT;
 next:
 	}
@@ -2483,8 +2484,9 @@ famfs_alloc_contiguous(struct famfs_locked_log *lp, u64 size, int verbose)
 			fprintf(stderr, "%s: failed to allocate bitmap\n", __func__);
 			return -1;
 		}
+		lp->cur_pos = 0;
 	}
-	return bitmap_alloc_contiguous(lp->bitmap, lp->nbits, size);
+	return bitmap_alloc_contiguous(lp->bitmap, lp->nbits, size, &lp->cur_pos);
 }
 
 
