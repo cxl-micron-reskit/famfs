@@ -76,8 +76,8 @@ FILE_CT=$((NJOBS * FILES_PER_THRD))
 
 # If size is not specified, use the full available capacity
 if [[ $TOTAL_SIZE -eq 0 ]]; then
-    echo "User specified size is 0, using full usable device capacity"
-    TOTAL_SIZE=$SPACE_AVAIL
+    echo "stress_fio.sh: must specify -s <total_size>"
+    exit -1
 fi
 
 # Famfs files take up 2MB at minmum
@@ -119,7 +119,8 @@ fi
 NAME="$FILES_PER_THRD-$FSIZE_MB-MB-files-per-thread"
 
 #echo "Creating directory $MPT/$PID"
-echo "Creating $fnum files, each sized $FSIZE_2M_A in directory $FILES_DIR"
+NFILES=$((NJOBS * FILES_PER_THRD))
+echo "Creating $NFILES files, each sized $FSIZE_2M_A in directory $FILES_DIR"
 sudo $BIN/famfs mkdir $FILES_DIR
 
 for (( cpu = 0; cpu < $NJOBS; cpu++ ))
@@ -133,7 +134,6 @@ do
 done
 
 echo ""
-echo "Usable size           : $SPACE_AVAIL"
 echo "Size used             : $TOTAL_SIZE"
 echo "Number of jobs        : $NJOBS"
 echo "Files per job         : $FILES_PER_THRD"

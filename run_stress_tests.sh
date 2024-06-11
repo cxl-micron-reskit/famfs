@@ -113,7 +113,7 @@ if [ ! -f "$FIO_PATH" ]; then
 fi
 
 if [ -z "$NO_MKFS" ]; then
-    $SCRIPTS/stress_prepare.sh -d $DEV -b $BIN || exit -1
+    $SCRIPTS/stress_prepare.sh -d $DEV -b $BIN -m $MPT || exit -1
 fi
 
 verify_mounted $DEV $MPT "run_stress_tests.sh"
