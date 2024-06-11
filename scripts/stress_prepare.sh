@@ -23,6 +23,10 @@ while (( $# > 0)); do
 	    DEV=$1
 	    shift;
 	    ;;
+	(-m|--mpt)
+	    MPT=$1
+	    shift;
+	    ;;
 	(-b|--bin)
 	    BIN=$1
 	    shift
@@ -49,11 +53,12 @@ source $SCRIPTS/test_funcs.sh
 #set -x
 
 sudo mkdir -p $MPT || fail "mkdir"
-# Unmount famfs, if mounted
-if (( $(grep famfs /proc/mounts | grep -c $MPT) > 0 )); then
-	sudo umount $MPT
-fi
 
+# Make sure famfs is not mounted
+findmnt -t famfs $MPT
+if (( $? == 0 )); then
+    sudo umount $MPT
+fi
 
 # Make sure famfs is not currently mounted
 grep -c famfs /proc/mounts         && fail "famfs is currently mounted"
