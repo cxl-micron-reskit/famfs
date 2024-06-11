@@ -703,8 +703,8 @@ famfs_mmap_superblock_and_log_raw(const char *devname,
 		*logp = (struct famfs_log *)((u64)sb_buf + FAMFS_SUPERBLOCK_SIZE);
 
 	/* Invalidate the processor cache for the superblock and log */
-	invalidate_processor_cache(*logp, (*logp)->famfs_log_len);
-	invalidate_processor_cache(sb, sb->ts_log_offset);
+	invalidate_processor_cache(*logp, FAMFS_LOG_LEN);
+	invalidate_processor_cache(sb, FAMFS_SUPERBLOCK_SIZE);
 
 	/* TODO: using FAMFS_LOG_LEN is slightly risky, as the superblock is authoritative as
 	 * to the log length. Really we should map FAMFS_SUPERBLOCK_SIZE + FAMFS_LOG_SIZE, check
