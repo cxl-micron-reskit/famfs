@@ -5,12 +5,12 @@
 CWD=$(pwd)
 
 # Defaults running from the directory where this file lives
-DEV="/dev/dax0.0"
 SCRIPTS=$CWD/scripts
 BIN=$CWD/release
 RUNTIME=60
 TWO_MB=$((2*1024*1024))
-NJOBS=0
+NJOBS=$(nproc)
+FILES_PER_THRD=8
 
 if [ -z "$MPT" ]; then
     MPT=/mnt/famfs
@@ -24,10 +24,6 @@ while (( $# > 0)); do
     flag="$1"
     shift
     case "$flag" in
-        (-d|--device)
-            DEV=$1
-            shift;
-            ;;
         (-f|--fiopath)
             FIO_PATH=$1
             shift;
@@ -41,13 +37,17 @@ while (( $# > 0)); do
             shift;
             ;;
         (-s|--size)
-            SIZE=$1
+            TOTAL_SIZE=$1
             shift;
             ;;
         (-j|--jobs)
             NJOBS=$1
             shift;
             ;;
+	(-p|--path)
+	    FILES_DIR=$1
+	    shift;
+	    ;;
         *)
             echo "Unrecognized command line arg: $flag"
 	    exit 0
@@ -59,54 +59,46 @@ done
 echo "CWD:      $CWD"
 echo "BIN:      $BIN"
 echo "SCRIPTS:  $SCRIPTS"
+echo "PATH:     $PATH"
+echo "RUNTIME:  $RUNTIME"
+
+echo "NJOBS:    $NJOBS"
+echo "TOTAL_SIZE:     $TOTAL_SIZE"
+
+if [ -z "$FILES_DIR" ]; then
+    echo "--path <files_dir> is required"
+    exit -1
+fi
 
 source $SCRIPTS/test_funcs.sh
 
-# If NJOBS is not specified, use all cpus
-if [[ $NJOBS -eq 0 ]]; then
-    NPROC=$(cat /proc/cpuinfo | awk '/^processor/{print $3}' | wc -l)
-    NJOBS=$((NPROC - 1))
-fi
-
-# Get the device node name, ex: dax0.0 from /dev/dax0.0
-DEVICE=$(echo $DEV | awk -F '/' '{print $3}')
-
-# Get device size in bytes from sysfs, this works only for dax devices.
-DEV_SIZE_BYTES=$(cat /sys/bus/dax/devices/$DEVICE/size)
-FILES_PER_THRD=8
-TOTAL_FILE_COUNT=$((NJOBS * FILES_PER_THRD))
-
-# Reserve 32MiB for metadata and log (for now, this is more than needed)
-RESRV_SPACE=$((32*1024*1024))
-
-# Usable device capacity
-DEV_SIZE=$((DEV_SIZE_BYTES - RESRV_SPACE))
-
-if [[ $SIZE -gt $DEV_SIZE ]]; then
-    echo "Error: Test size $SIZE greater than device size $DEV_SIZE_BYTES"
-    exit 0
-fi
+FILE_CT=$((NJOBS * FILES_PER_THRD))
 
 # If size is not specified, use the full available capacity
-if [[ $SIZE -eq 0 ]]; then
+if [[ $TOTAL_SIZE -eq 0 ]]; then
     echo "User specified size is 0, using full usable device capacity"
-    SIZE=$DEV_SIZE
+    TOTAL_SIZE=$SPACE_AVAIL
 fi
 
 # Famfs files take up 2MB at minmum
-MAX_FILES=$((SIZE / TWO_MB))
+MAX_FILES=$((TOTAL_SIZE / TWO_MB))
 echo "MAX_FILES for this test size = $MAX_FILES"
-if [[ $TOTAL_FILE_COUNT -gt $MAX_FILES ]]; then
+if [[ $FILE_CT -gt $MAX_FILES ]]; then
     FILES_PER_THRD=$((MAX_FILES / NJOBS))
-    TOTAL_FILE_COUNT=$((NJOBS * FILES_PER_THRD))
+    FILE_CT=$((NJOBS * FILES_PER_THRD))
 
-    echo "Total files $((NJOBS * FILES_PER_THRD)) is more than max files possible $MAX_FILES for given size $SIZE"
-    echo "Updating Total files to $TOTAL_FILE_COUNT and Files per thread to $FILES_PER_THRD"
+    echo "Total files $((NJOBS * FILES_PER_THRD)) is more than max files possible $MAX_FILES for given size $TOTAL_SIZE"
+    echo "Updating Total files to $FILE_CT and Files per thread to $FILES_PER_THRD"
 fi
 
+echo "TOTAL_SIZE: $TOTAL_SIZE"
+echo "FILE_CT: $FILE_CT"
 # Individual file size
-F_SIZE=$((SIZE / TOTAL_FILE_COUNT))
+F_SIZE=$((TOTAL_SIZE / FILE_CT))
 FSIZE_2M_A=$F_SIZE
+
+echo "F_SIZE $F_SIZE"
+echo "FSIZE_2M_A $FSIZE_2M_A"
 
 # 2MiB aligned file size in bytes
 if [[ $F_SIZE -gt $TWO_MB ]]; then
@@ -114,7 +106,7 @@ if [[ $F_SIZE -gt $TWO_MB ]]; then
 fi
 
 # Just to track if any space is wasted due to alignment
-WASTAGE=$(((SIZE - (TOTAL_FILE_COUNT  * FSIZE_2M_A)) / 1024))
+WASTAGE=$(((TOTAL_SIZE - (FILE_CT  * FSIZE_2M_A)) / 1024))
 
 # Individual file size in MiB
 FSIZE_MB=$((FSIZE_2M_A / (1024*1024)))
@@ -125,9 +117,6 @@ if [[ $FSIZE_2M_A == 0 ]]; then
 fi
 
 NAME="$FILES_PER_THRD-$FSIZE_MB-MB-files-per-thread"
-
-PID=$$
-FILES_DIR=$MPT/test_$PID
 
 #echo "Creating directory $MPT/$PID"
 echo "Creating directory $FILES_DIR"
@@ -143,14 +132,21 @@ do
     done
 done
 
-echo "Running fio for $RUNTIME seconds"
-echo "fio --name=$NAME  --nrfiles=$FILES_PER_THRD --bs=2M --group_reporting=1 "
-echo "    --alloc-size=1048576 --filesize=$FSIZE_2M_A --readwrite=write --fallocate=none "
-echo "    --numjobs=$NJOBS --create_on_open=0 --directory=$FILES_DIR --time_based --runtime=$RUNTIME"
+echo ""
+echo "Usable size           : $SPACE_AVAIL"
+echo "Size used             : $TOTAL_SIZE"
+echo "Number of jobs        : $NJOBS"
+echo "Files per job         : $FILES_PER_THRD"
+echo "Total files           : $FILE_CT"
+echo "File size (Bytes)     : $F_SIZE"
+echo "2 MiB aligned fsize   : $FSIZE_2M_A"
+echo "File size (MiB)       : $FSIZE_MB MB"
+echo "Runtime               : $RUNTIME"
+echo "Size of all files     : $((FSIZE_2M_A * FILE_CT))"
+echo "Files location        : $FILES_DIR"
 echo ""
 
-#FIO_OUTPUT=$(sudo /usr/local/Repos/Fio/fio/fio -name=$NAME \
-FIO_OUTPUT=$(sudo $FIO_PATH -name=$NAME \
+FIO_CMD="fio -name=$NAME \
     --nrfiles=$FILES_PER_THRD \
     --bs=2M \
     --group_reporting=1 \
@@ -162,25 +158,14 @@ FIO_OUTPUT=$(sudo $FIO_PATH -name=$NAME \
     --create_on_open=0 \
     --directory=$FILES_DIR \
     --time_based \
-    --runtime=$RUNTIME | tee /dev/fd/2; exit ${PIPESTATUS[0]}) || exit 1
-    #--runtime=$RUNTIME) || fail "fio failed"
+    --runtime=$RUNTIME"
+echo "Running fio for $RUNTIME seconds"
+echo "$FIO_CMD"
+echo ""
+
+FIO_OUTPUT=$(sudo $FIO_CMD | tee /dev/fd/2; exit ${PIPESTATUS[0]}) || exit 1
 
 #echo "$FIO_OUTPUT"
-
-echo ""
-echo "Full device size      : $DEV_SIZE_BYTES"
-echo "Usable device size    : $DEV_SIZE"
-echo "User give size        : $SIZE"
-echo "Number of jobs        : $NJOBS"
-echo "Files per job         : $FILES_PER_THRD"
-echo "Total files           : $TOTAL_FILE_COUNT"
-echo "File size (Bytes)     : $F_SIZE"
-echo "2 MiB aligned fsize   : $FSIZE_2M_A"
-echo "File size (MiB)       : $FSIZE_MB MB"
-echo "Runtime               : $RUNTIME"
-echo "Size of all files     : $((FSIZE_2M_A * TOTAL_FILE_COUNT))"
-echo "Files location        : $FILES_DIR"
-echo ""
 
 echo "*************************************************************************"
 echo "                    stress_fio.sh completed successfully"

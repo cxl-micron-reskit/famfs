@@ -8,8 +8,8 @@ TEST_ALL=1
 SLEEP_TIME=2
 RUNTIME=60
 FIO_PATH=""
-SIZE=0  # Amount of space to consume for files, 100% if no user input
-NJOBS=0 # Use all cpus for jobs if 0
+TOTAL_SIZE=0  # Amount of space to consume for files, 100% if no user input
+NJOBS=$(nproc)
 
 # Allow these variables to be set from the environment
 if [ -z "$MPT" ]; then
@@ -39,6 +39,13 @@ while (( $# > 0)); do
             DEV=$1
             shift;
             ;;
+	(-m|--mpt)
+	    MPT=$1
+	    shift;
+	    ;;
+	(-n|--nomkfs)
+	    NO_MKFS=1
+	    ;;
         (-f|--fiopath)
 	    FIO_PATH=$1
 	    shift;
@@ -55,7 +62,7 @@ while (( $# > 0)); do
 	    shift;
             ;;
         (-s|--size) # Amount of space to be used by this test
-            SIZE=$1
+            TOTAL_SIZE=$1
 	    shift;
             ;;
         (-j|--jobs) # Number of jobs/cpu to be used by this test
@@ -101,11 +108,29 @@ if [ ! -f "$FIO_PATH" ]; then
     FIO_PATH=$(which fio)
 fi
 
-$SCRIPTS/stress_prepare.sh -d $DEV  || exit -1
+if [ -z "$NO_MKFS" ]; then
+    $SCRIPTS/stress_prepare.sh -d $DEV -b $BIN || exit -1
+fi
+
+verify_mounted $DEV $MPT "run_stress_tests.sh"
+
+TESTDIR="$MPT/fio_stress"
+${CLI} mkdir -p $TESTDIR
+
+if ((TOTAL_SIZE == 0)); then
+    SPACE_AVAIL=$(sudo $BIN/famfs fsck $TESTDIR | grep "Free space" | awk -e '{print $3}')
+    TOTAL_SIZE=$SPACE_AVAIL
+fi
 
 # For now just run fio, when adding new stress tests, update the infra to call them
 
-$SCRIPTS/stress_fio.sh -d $DEV -f $FIO_PATH -r $RUNTIME -s $SIZE -j $NJOBS || echo "Fio stress test failed"
+$SCRIPTS/stress_fio.sh \
+		       -b $BIN \
+		       -f $FIO_PATH \
+		       -r $RUNTIME \
+		       -s $TOTAL_SIZE \
+		       -p $TESTDIR \
+		       -j $NJOBS || echo "Fio stress test failed"
 
 echo ""
 echo "*************************************************************************"
