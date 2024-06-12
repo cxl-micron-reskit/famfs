@@ -54,17 +54,12 @@ CLI="sudo $VG $BIN/famfs"
 CLI_NOSUDO="$VG $BIN/famfs"
 TEST="pcq"
 
-STATUSFILE=./pcqstatus.txt
+STATUSFILE="/tmp/pcqstatus_$$.txt"
 PCQ="sudo $VG $BIN/pcq  "
 pcq="$VG $BIN/pcq  "
 
-ST="--statusfile $STATUSFILE"
-
 source scripts/test_funcs.sh
 
-#sudo umount $MPT
-#sudo $MKFS  -f $DEV
-#${CLI} mount  $DEV $MPT
 set -x
 
 # Test some bogus command line combinations
