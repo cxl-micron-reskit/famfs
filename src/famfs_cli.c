@@ -974,35 +974,6 @@ famfs_creat_usage(int   argc,
 	       progname, progname, progname);
 }
 
-static s64 get_multiplier(const char *endptr)
-{
-	size_t multiplier = 1;
-
-	if (!endptr)
-		return 1;
-
-	switch (*endptr) {
-	case 'k':
-	case 'K':
-		multiplier = 1024;
-		break;
-	case 'm':
-	case 'M':
-		multiplier = 1024 * 1024;
-		break;
-	case 'g':
-	case 'G':
-		multiplier = 1024 * 1024 * 1024;
-		break;
-	case 0:
-		return 1;
-	}
-	++endptr;
-	if (*endptr) /* If the unit was not the last char in string, it's an error */
-		return -1;
-	return multiplier;
-}
-
 int
 do_famfs_cli_creat(int argc, char *argv[])
 {
