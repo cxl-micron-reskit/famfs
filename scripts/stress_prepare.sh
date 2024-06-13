@@ -50,8 +50,6 @@ TEST="stress_prepare"
 
 source $SCRIPTS/test_funcs.sh
 
-#set -x
-
 sudo mkdir -p $MPT || fail "mkdir"
 
 # Make sure famfs is not mounted
@@ -60,8 +58,8 @@ if (( $? == 0 )); then
     sudo umount $MPT
 fi
 
-# Make sure famfs is not currently mounted
-grep -c famfs /proc/mounts         && fail "famfs is currently mounted"
+# Make sure famfs is not currently mounted at $MPT
+verify_not_mounted $DEV $MPT "stress_prepare.sh"
 
 # We now expect the module to already be loaded, but no harm in modprobe to make double sure
 sudo modprobe famfs       || fail "modprobe"
@@ -80,7 +78,6 @@ sudo test -f $MPT/.meta/.log        || fail "prep: no log file after mkmeta"
 
 ${CLI} fsck --human $MPT || fail "prep: fsck --human should succeed"
 
-#set +x
 echo "*************************************************************************"
 echo "stress_prepare.sh completed successfully"
 echo "*************************************************************************"

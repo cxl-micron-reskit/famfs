@@ -204,15 +204,15 @@ assert_equal $(cat $STATUSFILE) 20000 "produce/consume 1m with q4"
 
 # Do a timed run on each queue
 echo "10 second run in progress on q0..."
-${pcq} -pc --time 10 --statusfile $STATUSFILE $MPT/q0 || fail "p/c 10 seconds q0"
+${pcq} -pc --time 10 $MPT/q0                || fail "p/c 10 seconds q0"
 echo "10 second run in progress on q1..."
-${pcq} -pc -s 1 --time 10 --statusfile $STATUSFILE $MPT/q1 || fail "p/c 10 seconds q1"
+${pcq} -pc -s 1 --time 10 $MPT/q1           || fail "p/c 10 seconds q1"
 echo "10 second run in progress on q2..."
-${pcq} -pc -s 1 --time 10 --statusfile $STATUSFILE $MPT/q2 || fail "p/c 10 seconds q2"
+${pcq} -pc -s 1 --time 10 $MPT/q2           || fail "p/c 10 seconds q2"
 echo "10 second run in progress on q3..."
-${pcq} -pc -s 1 --time 10 --statusfile $STATUSFILE $MPT/q3 || fail "p/c 10 seconds q3"
+${pcq} -pc -s 1 --time 10 $MPT/q3           || fail "p/c 10 seconds q3"
 echo "10 second run in progress on q4..."
-${pcq} -pc -s 1 --time 10 --statusfile $STATUSFILE $MPT/q4 || fail "p/c 10 seconds q4"
+${pcq} -pc -s 1 --time 10 $MPT/q4           || fail "p/c 10 seconds q4"
 
 ${pcq} --info -v $MPT/q0                        || fail "maybe not empty pcq info 0"
 ${pcq} --info -v $MPT/q1                        || fail "maybe not empty pcq info 1"
@@ -232,6 +232,8 @@ ${pcq} --info $MPT/q1                        || fail "empty pcq info 1"
 ${pcq} --info $MPT/q2                        || fail "empty pcq info 2"
 ${pcq} --info $MPT/q3                        || fail "empty pcq info 3"
 ${pcq} --info $MPT/q4                        || fail "empty pcq info 4"
+
+unlink "$STATUSFILE"
 
 set +x
 echo "======================================================================"
