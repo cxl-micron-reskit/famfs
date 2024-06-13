@@ -54,5 +54,6 @@ void famfs_dump_super(struct famfs_superblock *sb);
 int famfs_flush_file(const char *filename, int verbose);
 
 int file_not_famfs(const char *fname);
+s64 get_multiplier(const char *endptr);
 
 #endif /* _H_FAMFS_LIB */
