@@ -1584,7 +1584,7 @@ famfs_logplay(
 	}
 
 	if (use_mmap) {
-		logp = mmap(0, FAMFS_LOG_LEN, PROT_READ, MAP_PRIVATE, lfd, 0);
+		logp = mmap(0, log_size, PROT_READ, MAP_PRIVATE, lfd, 0);
 		if (logp == MAP_FAILED) {
 			fprintf(stderr, "%s: failed to mmap log file %s/.meta/log\n",
 				__func__, mpt_out);
@@ -1630,7 +1630,7 @@ famfs_logplay(
 	rc = __famfs_logplay(logp, mpt_out, dry_run, client_mode, verbose);
 err_out:
 	if (use_mmap)
-		munmap(logp, FAMFS_LOG_LEN);
+		munmap(logp, log_size);
 	else
 		free(logp);
 	close(lfd);
@@ -2103,7 +2103,6 @@ famfs_fsck(
 	struct famfs_superblock *sb = NULL;
 	struct famfs_log *logp = NULL;
 	struct stat st;
-	int alloc_sb_log = 0;
 	size_t size;
 	int rc;
 
@@ -2262,9 +2261,9 @@ famfs_fsck(
 		return -1;
 	}
 	rc = famfs_fsck_scan(sb, logp, human, verbose);
-	if (alloc_sb_log && sb)
+	if (!use_mmap && sb)
 		free(sb);
-	if (alloc_sb_log && logp)
+	if (!use_mmap && logp)
 		free(logp);
 
 err_out:
@@ -2319,14 +2318,14 @@ famfs_validate_superblock_by_path(const char *path)
  * files need to be manually added to the allocation bitmap. This function does that.
  */
 static inline void
-put_sb_log_into_bitmap(u8 *bitmap)
+put_sb_log_into_bitmap(u8 *bitmap, u64 log_len)
 {
 	int i;
 
 	/* Mark superblock and log as allocated */
 	mu_bitmap_set(bitmap, 0);
 
-	for (i = 1; i < ((FAMFS_LOG_OFFSET + FAMFS_LOG_LEN) / FAMFS_ALLOC_UNIT); i++)
+	for (i = 1; i < ((FAMFS_LOG_OFFSET + log_len) / FAMFS_ALLOC_UNIT); i++)
 		mu_bitmap_set(bitmap, i);
 }
 
@@ -2357,7 +2356,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 		   struct famfs_log_stats   *log_stats_out,
 		   int                       verbose)
 {
-	u64 nbits = (dev_size_in - FAMFS_SUPERBLOCK_SIZE - FAMFS_LOG_LEN) / FAMFS_ALLOC_UNIT;
+	u64 nbits = (dev_size_in - FAMFS_SUPERBLOCK_SIZE - logp->famfs_log_len) / FAMFS_ALLOC_UNIT;
 	u64 bitmap_nbytes = mu_bitmap_size(nbits);
 	u8 *bitmap = calloc(1, bitmap_nbytes);
 	struct famfs_log_stats ls = { 0 }; /* We collect a subset of stats collected by logplay */
@@ -2374,7 +2373,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 	if (!bitmap)
 		return NULL;
 
-	put_sb_log_into_bitmap(bitmap);
+	put_sb_log_into_bitmap(bitmap, logp->famfs_log_len);
 
 	if (verbose > 1) {
 		printf("%s: superblock and log in bitmap:", __func__);
@@ -3847,7 +3846,7 @@ __famfs_mkfs(const char              *daxdev,
 {
 	int rc;
 
-	if (log_len & (0x200000 - 1)) {
+	if (log_len & (0x200000 - 1) || log_len < FAMFS_LOG_LEN) {
 		fprintf(stderr, "%s: log length (%lld) not a 2MiB multiple\n",
 			__func__, log_len);
 		return -EINVAL;
@@ -3906,6 +3905,7 @@ __famfs_mkfs(const char              *daxdev,
 
 int
 famfs_mkfs(const char *daxdev,
+	   u64         log_len,
 	   int         kill,
 	   int         force)
 {
@@ -3971,7 +3971,7 @@ famfs_mkfs(const char *daxdev,
 	 */
 
 	rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &logp,
-					       FAMFS_LOG_LEN, 0 /* read/write */);
+					       log_len, 0 /* read/write */);
 	if (rc)
 		return -1;
 
@@ -3981,7 +3981,7 @@ famfs_mkfs(const char *daxdev,
 		return -1;
 	}
 #endif
-	return __famfs_mkfs(daxdev, sb, logp, FAMFS_LOG_LEN, devsize, force, kill);
+	return __famfs_mkfs(daxdev, sb, logp, log_len, devsize, force, kill);
 }
 
 int

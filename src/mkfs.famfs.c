@@ -37,6 +37,7 @@ print_usage(int   argc,
 	       "    -h|-?      - Print this message\n"
 	       "    -f|--force - Will create the file system even if there is already a superblock\n"
 	       "    -k|--kill  - Will 'kill' the superblock (also requires -f)\n"
+	       "    -l|--loglen - Log size in MiB. Multiple of 2, >= 8"
 	       "\n",
 	       progname);
 }
@@ -51,6 +52,7 @@ struct option global_options[] = {
 	 * We distinguish them by their indices.
 	 */
 	{"kill",        no_argument,       &kill_super,    'k'},
+	{"loglen",      required_argument, 0,              'l'},
 	{0, 0, 0, 0}
 };
 
@@ -62,13 +64,14 @@ main(int argc, char *argv[])
 	int arg_ct = 0;
 	char *daxdev = NULL;
 	int force = 0;
+	u64 loglen = 0x800000;
 
 	/* Process global options, if any */
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+fkh?",
+	while ((c = getopt_long(argc, argv, "+fkl:h?",
 				global_options, &optind)) != EOF) {
 		arg_ct++;
 		switch (c) {
@@ -80,7 +83,13 @@ main(int argc, char *argv[])
 		case 'f':
 			force++;
 			break;
-
+		case 'l':
+			loglen = strtoull(optarg, 0, 0);
+			if (loglen & 1) {
+				fprintf(stderr, "invalid log length %lld\n", loglen);
+				return -1;
+			}
+			break;
 		case 'h':
 		case '?':
 			print_usage(argc, argv);
@@ -96,5 +105,5 @@ main(int argc, char *argv[])
 	/* TODO: multiple devices? */
 	daxdev = argv[optind++];
 
-	return famfs_mkfs(daxdev, kill_super, force);
+	return famfs_mkfs(daxdev, loglen, kill_super, force);
 }
