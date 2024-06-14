@@ -81,6 +81,7 @@ static int open_log_file_read_only(const char *path, size_t *sizep,
 static int famfs_mmap_superblock_and_log_raw(const char *devname,
 					     struct famfs_superblock **sbp,
 					     struct famfs_log **logp,
+					     u64 log_len,
 					     int read_only);
 
 s64 get_multiplier(const char *endptr)
@@ -416,15 +417,14 @@ static int
 famfs_get_role_by_dev(const char *daxdev)
 {
 	struct famfs_superblock *sb;
-	struct famfs_log *logp;
-	int rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &logp, 1 /* read only */);
+	int rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, NULL, 0, 1 /* read only */);
 
 	if (rc)
 		return rc;
 
 	rc = famfs_get_role(sb);
 	munmap(sb, FAMFS_SUPERBLOCK_SIZE);
-	munmap(logp, FAMFS_LOG_LEN);
+
 	return rc;
 }
 
@@ -684,20 +684,33 @@ famfs_fsck_scan(
 /**
  * famfs_mmap_superblock_and_log_raw()
  *
- * The superblock and log are mapped directly from a device. Other apps should map
- * them from their meta files!
+ * This function mmaps a superblock and log directly from a dax device.
+ * This is used during mkfs, mount, and fsck (only if the file system is not mounted).
+ * No other apps should use this interface.
  *
- * The superblock is not validated. That is the caller's responsibility.
+ * If called with a NULL @logp, only the superblock is mapped (which is deterministically
+ * sized at FAMFS_SUPERBLOCK_SIZE.
+ *
+ * If @logp is non-NULL, we attempt to map the log as follows:
+ * * If log_size==0, we figure out the log size and map it - if there is a valid superblock
+ * * If log_size>0 (and is a multiple of 2MiB), we attempt to map log_size from offset
+ *   FAMFS_LOG_OFFSET into the device.
+ *
+ * The superblock is not validated - UNLESS we need to get the log size from it, in which
+ * case we must validate the superblock.
  *
  * @devname   - dax device name
- * @sbp
- * @logp
- * @read_only - map sb and log read-only
+ * @sbp       - (mandatory) Return superblock in this pointer
+ * @logp      - (optional)  Map log and return it in this pointer
+ * @log_size  - If nonzero, map this size. If zero, figure out the log size from the superblock
+ *              and map the correct size. (if no valid superblock, don't map the log)
+ * @read_only - map sb and log read-only if nonzero
  */
 static int
 famfs_mmap_superblock_and_log_raw(const char *devname,
 				  struct famfs_superblock **sbp,
 				  struct famfs_log **logp,
+				  u64 log_size,
 				  int read_only)
 {
 	struct famfs_superblock *sb;
@@ -707,6 +720,13 @@ famfs_mmap_superblock_and_log_raw(const char *devname,
 	int openmode = (read_only) ? O_RDONLY : O_RDWR;
 	int mapmode  = (read_only) ? PROT_READ : PROT_READ | PROT_WRITE;
 
+	assert(sbp); /* superblock pointer mandatory; logp optional */
+
+	if (log_size &&
+	    ((log_size < FAMFS_LOG_LEN) || (log_size & (0x200000 - 1)) )) {
+		fprintf(stderr, "%s: invalid log_size %lld\n", __func__, log_size);
+		return -EINVAL;
+	}
 	fd = open(devname, openmode, 0);
 	if (fd < 0) {
 		if (errno == ENOENT)
@@ -718,31 +738,51 @@ famfs_mmap_superblock_and_log_raw(const char *devname,
 		goto err_out;
 	}
 
-	/* Map superblock and log in one call */
-	sb_buf = mmap(0, FAMFS_SUPERBLOCK_SIZE + FAMFS_LOG_LEN, mapmode, MAP_SHARED, fd, 0);
+	/* Map superblock */
+	sb_buf = mmap(0, FAMFS_SUPERBLOCK_SIZE, mapmode, MAP_SHARED, fd, 0);
 	if (sb_buf == MAP_FAILED) {
-		fprintf(stderr, "Failed to mmap superblock and log from %s\n", devname);
+		fprintf(stderr, "Failed to mmap superblock from %s\n", devname);
 		rc = -1;
 		goto err_out;
 	}
 	sb = (struct famfs_superblock *)sb_buf;
 	if (sbp)
 		*sbp = sb;
-	if (logp)
-		*logp = (struct famfs_log *)((u64)sb_buf + FAMFS_SUPERBLOCK_SIZE);
 
-	/* Invalidate the processor cache for the superblock and log */
-	invalidate_processor_cache(*logp, (*logp)->famfs_log_len);
-	invalidate_processor_cache(sb, sb->ts_log_offset);
-
-	/* TODO: using FAMFS_LOG_LEN is slightly risky, as the superblock is authoritative as
-	 * to the log length. Really we should map FAMFS_SUPERBLOCK_SIZE + FAMFS_LOG_SIZE, check
-	 * sb->ts_log_len and then mremap the right size if necessary. Assert for now.
-	 * The smarter test is not needed until the discrepancy becomes possible.
+	/* Map the log if requested.
+	 * * If log_size is nonzero, we mmap that size.
+	 * * If log_size == 0, we get the log size from the superrblock, and we only
+	 *   map the log if there is a valid superblock
 	 */
-	if (famfs_check_super(sb) == 0)
-		assert((*sbp)->ts_log_len == FAMFS_LOG_LEN);
+	if (logp) {
+		void *addr;
+		u64 lsize = log_size;
 
+		/* Special case: if the log_size arg==0, we figure out the log size from the
+		 * superblock, which first requires validating the superblock */
+		if (lsize == 0) {
+			invalidate_processor_cache(sb, FAMFS_SUPERBLOCK_SIZE);
+			if (famfs_check_super(sb)) {
+				/* No valid superblock, and no log_size - don't map log */
+				goto out;
+			}
+
+			/* Superblock is valid, and we need the log size from it */
+			lsize = sb->ts_log_len;
+		}
+
+		/* Map log */
+		addr = mmap(0, lsize, mapmode, MAP_SHARED, fd, FAMFS_LOG_OFFSET);
+		if (addr == MAP_FAILED) {
+			fprintf(stderr, "Failed to mmap log from %s\n", devname);
+			rc = -1;
+			goto err_out;
+		}
+		*logp = (struct famfs_log *)addr;
+		invalidate_processor_cache(*logp, lsize);
+	}
+
+out:
 	close(fd);
 	return 0;
 
@@ -1063,7 +1103,8 @@ famfs_mkmeta(const char *devname)
 	}
 	/* Also check if log exists and clean up if bad */
 
-	rc = famfs_mmap_superblock_and_log_raw(devname, &sb, &logp, 1 /* Read only */);
+	rc = famfs_mmap_superblock_and_log_raw(devname, &sb, &logp, 0 /* figure out log size */,
+					       1 /* Read only */);
 	if (rc) {
 		fprintf(stderr, "%s: superblock/log accessfailed\n", __func__);
 		return -1;
@@ -1991,6 +2032,8 @@ famfs_map_superblock_by_path(
 	void *addr;
 	int fd;
 
+	assert(read_only); /* check whether we ever open it writable */
+
 	fd = __open_superblock_file(path, read_only,
 				    &sb_size, NULL);
 	if (fd < 0) {
@@ -2021,6 +2064,9 @@ famfs_map_log_by_path(
 	void *addr;
 	int fd;
 
+	/* XXX: the open is always read-only, but the mmap is sometimes writable;
+	 * Why does this work ?!
+	 */
 	fd = __open_log_file(path, 1 /* read only */, &log_size, NULL, lockopt);
 	if (fd < 0) {
 		fprintf(stderr, "%s: failed to open log file for filesystem %s\n",
@@ -2033,6 +2079,9 @@ famfs_map_log_by_path(
 		fprintf(stderr, "%s: Failed to mmap log file %s\n", __func__, path);
 		return NULL;
 	}
+	/* Should not need to invalidate the cache for the log because we have verified
+	 * that we are running on the master, which is the only node that is allowed to
+	 * write the log */
 	logp = (struct famfs_log *)addr;
 	if (log_size != logp->famfs_log_len) {
 		fprintf(stderr, "%s: log file length is invalid (%lld / %lld)\n",
@@ -2051,10 +2100,10 @@ famfs_fsck(
 	int human,
 	int verbose)
 {
-	struct famfs_superblock *sb;
-	struct famfs_log *logp;
+	struct famfs_superblock *sb = NULL;
+	struct famfs_log *logp = NULL;
 	struct stat st;
-	int malloc_sb_log = 0;
+	int alloc_sb_log = 0;
 	size_t size;
 	int rc;
 
@@ -2095,7 +2144,9 @@ famfs_fsck(
 		if (rc < 0)
 			return -1;
 
-		rc = famfs_mmap_superblock_and_log_raw(path, &sb, &logp, 1 /* read-only */);
+		rc = famfs_mmap_superblock_and_log_raw(path, &sb, &logp,
+						       0 /* figure out log size */,
+						       1 /* read-only */);
 		break;
 	}
 	case S_IFREG:
@@ -2133,8 +2184,6 @@ famfs_fsck(
 			int resid;
 			int total = 0;
 
-			malloc_sb_log = 1;
-
 			sfd = open_superblock_file_read_only(path, NULL, NULL);
 			if (sfd < 0 || mock_failure == MOCK_FAIL_OPEN_SB) {
 				fprintf(stderr, "%s: failed to open superblock file\n", __func__);
@@ -2145,7 +2194,7 @@ famfs_fsck(
 			assert(sb);
 
 			/* Read a copy of the superblock */
-			rc = read(sfd, sb, FAMFS_LOG_OFFSET); /* 2MiB multiple */
+			rc = read(sfd, sb, FAMFS_SUPERBLOCK_SIZE); /* 2MiB multiple */
 			if (rc < 0 || mock_failure == MOCK_FAIL_READ_SB) {
 				free(sb);
 				close(sfd);
@@ -2213,10 +2262,11 @@ famfs_fsck(
 		return -1;
 	}
 	rc = famfs_fsck_scan(sb, logp, human, verbose);
-	if (malloc_sb_log) {
+	if (alloc_sb_log && sb)
 		free(sb);
+	if (alloc_sb_log && logp)
 		free(logp);
-	}
+
 err_out:
 	return rc;
 }
@@ -2241,6 +2291,8 @@ famfs_validate_superblock_by_path(const char *path)
 	if (sfd < 0)
 		return sfd;
 
+	assert(sb_size == FAMFS_SUPERBLOCK_SIZE);
+
 	addr = mmap(0, sb_size, PROT_READ, MAP_SHARED, sfd, 0);
 	if (addr == MAP_FAILED) {
 		fprintf(stderr, "%s: Failed to mmap superblock file\n", __func__);
@@ -2248,7 +2300,7 @@ famfs_validate_superblock_by_path(const char *path)
 		return -1;
 	}
 	sb = (struct famfs_superblock *)addr;
-	flush_processor_cache(sb, sb_size); /* Invalidate the processor cache for the superblock */
+	invalidate_processor_cache(sb, sb_size); /* Invalidate the processor cache for the superblock */
 
 	if (famfs_check_super(sb)) {
 		fprintf(stderr, "%s: invalid superblock\n", __func__);
@@ -2486,7 +2538,8 @@ famfs_init_locked_log(struct famfs_locked_log *lp,
 		goto err_out;
 	}
 	lp->logp = (struct famfs_log *)addr;
-	flush_processor_cache(lp->logp, log_size); /* Invalidate the processor cache for the log */
+	invalidate_processor_cache(lp->logp, log_size); /* Invalidate the processor cache for the log */
+	assert(lp->logp->famfs_log_len == log_size);
 	return 0;
 
 err_out:
@@ -3786,6 +3839,7 @@ int
 __famfs_mkfs(const char              *daxdev,
 	     struct famfs_superblock *sb,
 	     struct famfs_log        *logp,
+	     u64                      log_len,
 	     u64                      device_size,
 	     int                      force,
 	     int                      kill)
@@ -3793,9 +3847,10 @@ __famfs_mkfs(const char              *daxdev,
 {
 	int rc;
 
-	if ((famfs_check_super(sb) == 0) && !force) {
-		fprintf(stderr, "Device %s already has a famfs superblock\n", daxdev);
-		return -1;
+	if (log_len & (0x200000 - 1)) {
+		fprintf(stderr, "%s: log length (%lld) not a 2MiB multiple\n",
+			__func__, log_len);
+		return -EINVAL;
 	}
 
 	if (kill) {
@@ -3803,6 +3858,13 @@ __famfs_mkfs(const char              *daxdev,
 		sb->ts_magic = 0;
 		flush_processor_cache(sb, sb->ts_log_offset);
 		return 0;
+	}
+
+	/* Yes, this is redundant with famfs_mkfs(), because reasons... */
+	invalidate_processor_cache(sb, FAMFS_SUPERBLOCK_SIZE);
+	if (famfs_check_super(sb) == 0 && !force) {
+		fprintf(stderr, "Device %s already has a famfs superblock\n", daxdev);
+		return -1;
 	}
 
 	rc = famfs_get_system_uuid(&sb->ts_system_uuid);
@@ -3813,7 +3875,7 @@ __famfs_mkfs(const char              *daxdev,
 	sb->ts_magic      = FAMFS_SUPER_MAGIC;
 	sb->ts_version    = FAMFS_CURRENT_VERSION;
 	sb->ts_log_offset = FAMFS_LOG_OFFSET;
-	sb->ts_log_len    = FAMFS_LOG_LEN;
+	sb->ts_log_len    = log_len;
 	famfs_uuidgen(&sb->ts_uuid);
 
 	/* Configure the first daxdev */
@@ -3825,12 +3887,12 @@ __famfs_mkfs(const char              *daxdev,
 	sb->ts_crc = famfs_gen_superblock_crc(sb); /* gotta do this last! */
 
 	/* Zero and setup the log */
-	memset(logp, 0, FAMFS_LOG_LEN);
+	memset(logp, 0, log_len);
 	logp->famfs_log_magic      = FAMFS_LOG_MAGIC;
-	logp->famfs_log_len        = FAMFS_LOG_LEN;
-	logp->famfs_log_next_seqnum    = 0;
+	logp->famfs_log_len        = log_len;
+	logp->famfs_log_next_seqnum = 0;
 	logp->famfs_log_next_index = 0;
-	logp->famfs_log_last_index = (((FAMFS_LOG_LEN - offsetof(struct famfs_log, entries))
+	logp->famfs_log_last_index = (((log_len - offsetof(struct famfs_log, entries))
 				      / sizeof(struct famfs_log_entry)) - 1);
 
 	logp->famfs_log_crc = famfs_gen_log_header_crc(logp);
@@ -3838,7 +3900,7 @@ __famfs_mkfs(const char              *daxdev,
 
 	/* Force a writeback of the log followed by the superblock */
 	flush_processor_cache(logp, logp->famfs_log_len);
-	flush_processor_cache(sb, sb->ts_log_offset);
+	flush_processor_cache(sb, FAMFS_SUPERBLOCK_SIZE);
 	return 0;
 }
 
@@ -3852,7 +3914,7 @@ famfs_mkfs(const char *daxdev,
 	enum famfs_extent_type type = SIMPLE_DAX_EXTENT;
 	struct famfs_superblock *sb;
 	struct famfs_log *logp;
-	u64 min_devsize = 4 * 1024ll * 1024ll * 1024ll;
+	u64 min_devsize = 4ll * 1024ll * 1024ll * 1024ll;
 	char *mpt = NULL;
 
 	mpt = famfs_get_mpt_by_dev(daxdev);
@@ -3863,7 +3925,7 @@ famfs_mkfs(const char *daxdev,
 	}
 
 	if (kill) {
-		rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &logp, 0 /* read/write */);
+		rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, NULL, 0, 0 /*read/write */);
 		if (rc) {
 			fprintf(stderr, "Failed to mmap superblock\n");
 			return -1;
@@ -3908,11 +3970,18 @@ famfs_mkfs(const char *daxdev,
 	 * created on this host, fail unless force is specified
 	 */
 
-	rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &logp, 0 /* read/write */);
+	rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &logp,
+					       FAMFS_LOG_LEN, 0 /* read/write */);
 	if (rc)
 		return -1;
 
-	return __famfs_mkfs(daxdev, sb, logp, devsize, force, kill);
+#if 0
+	if ((famfs_check_super(sb) == 0) && !force) {
+		fprintf(stderr, "Device %s already has a famfs superblock\n", daxdev);
+		return -1;
+	}
+#endif
+	return __famfs_mkfs(daxdev, sb, logp, FAMFS_LOG_LEN, devsize, force, kill);
 }
 
 int

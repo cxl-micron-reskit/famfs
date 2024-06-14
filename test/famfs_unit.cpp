@@ -98,24 +98,34 @@ TEST(famfs, famfs_mkfs)
 	rc = create_mock_famfs_instance("/tmp/famfs", device_size, &sb, &logp);
 	ASSERT_EQ(rc, 0);
 
+	rc = famfs_check_super(sb);
+	ASSERT_EQ(rc, 0);
+
+	/* Try a bad mkfs - invalid log length */
+	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, 1, device_size, 0, 0);
+	ASSERT_NE(rc, 0);
+
+	rc = famfs_check_super(sb);
+	ASSERT_EQ(rc, 0);
+
 	/* Repeat should fail because there is a valid superblock */
-	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, device_size, 0, 0);
+	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, FAMFS_LOG_LEN, device_size, 0, 0);
 	ASSERT_NE(rc, 0);
 
 	/* Repeat with kill and force should succeed */
-	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, device_size, 1, 1);
+	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, FAMFS_LOG_LEN, device_size, 1, 1);
 	ASSERT_EQ(rc, 0);
 
 	/* Repeat without force should succeed because we wiped out the old superblock */
-	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, device_size, 0, 0);
+	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, FAMFS_LOG_LEN, device_size, 0, 0);
 	ASSERT_EQ(rc, 0);
 
 	/* Repeat without force should fail because there is a valid sb again */
-	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, device_size, 0, 0);
+	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, FAMFS_LOG_LEN, device_size, 0, 0);
 	ASSERT_NE(rc, 0);
 
 	/* Repeat with force should succeed because of force */
-	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, device_size, 1, 0);
+	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, FAMFS_LOG_LEN, device_size, 1, 0);
 	ASSERT_EQ(rc, 0);
 
 	/* This leaves a valid superblock and log at /tmp/famfs/.meta ... */
@@ -140,7 +150,7 @@ TEST(famfs, famfs_super_test)
 	logp = (struct famfs_log *)calloc(1, FAMFS_LOG_LEN);
 
 	/* Make a fake file system with our fake sb and log */
-	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, device_size, 0, 0);
+	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, FAMFS_LOG_LEN, device_size, 0, 0);
 	ASSERT_EQ(rc, 0);
 
 	rc = famfs_check_super(sb);
