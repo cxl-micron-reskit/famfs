@@ -2312,21 +2312,45 @@ famfs_validate_superblock_by_path(const char *path)
 }
 
 /**
+ * set_extent_in_bitmap() - Set bits for an allocation range
+ */
+static inline u64 set_extent_in_bitmap(u8 *bitmap, u64 offset, u64 len, u64 *alloc_sum)
+{
+	u64 errors = 0;
+	u64 page_num;
+	u64 np;
+	int rc;
+	u64 k;
+
+	page_num = offset / FAMFS_ALLOC_UNIT;
+	np = (len + FAMFS_ALLOC_UNIT - 1) / FAMFS_ALLOC_UNIT;
+
+	for (k = page_num; k < (page_num + np); k++) {
+		rc = mu_bitmap_test_and_set(bitmap, k);
+		if (rc == 0) {
+			errors++; /* bit was already set */
+		} else {
+			/* Don't count double allocations */
+			if (alloc_sum)
+				*alloc_sum += FAMFS_ALLOC_UNIT;
+		}
+	}
+	return errors;
+}
+
+/**
  * put_sb_log_into_bitmap()
  *
  * The two files that are not in the log are the superblock and the log. So these
  * files need to be manually added to the allocation bitmap. This function does that.
+ *
+ * @bitmap  - The bitmap
+ * @log_len - size of the log (superblock size is invariant)
  */
 static inline void
-put_sb_log_into_bitmap(u8 *bitmap, u64 log_len)
+put_sb_log_into_bitmap(u8 *bitmap, u64 log_len, u64 *alloc_sum)
 {
-	int i;
-
-	/* Mark superblock and log as allocated */
-	mu_bitmap_set(bitmap, 0);
-
-	for (i = 1; i < ((FAMFS_LOG_OFFSET + log_len) / FAMFS_ALLOC_UNIT); i++)
-		mu_bitmap_set(bitmap, i);
+	set_extent_in_bitmap(bitmap, 0, FAMFS_SUPERBLOCK_SIZE + log_len, alloc_sum);
 }
 
 /**
@@ -2356,15 +2380,14 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 		   struct famfs_log_stats   *log_stats_out,
 		   int                       verbose)
 {
-	u64 nbits = (dev_size_in - FAMFS_SUPERBLOCK_SIZE - logp->famfs_log_len) / FAMFS_ALLOC_UNIT;
+	u64 nbits = dev_size_in / FAMFS_ALLOC_UNIT;
 	u64 bitmap_nbytes = mu_bitmap_size(nbits);
 	u8 *bitmap = calloc(1, bitmap_nbytes);
 	struct famfs_log_stats ls = { 0 }; /* We collect a subset of stats collected by logplay */
 	u64 errors = 0;
 	u64 alloc_sum = 0;
 	u64 fsize_sum  = 0;
-	int i, j;
-	int rc;
+	u64 i, j;
 
 	if (verbose > 1)
 		printf("%s: dev_size %lld nbits %lld bitmap_nbytes %lld\n",
@@ -2373,12 +2396,8 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 	if (!bitmap)
 		return NULL;
 
-	put_sb_log_into_bitmap(bitmap, logp->famfs_log_len);
+	put_sb_log_into_bitmap(bitmap, logp->famfs_log_len, &alloc_sum);
 
-	if (verbose > 1) {
-		printf("%s: superblock and log in bitmap:", __func__);
-		mu_print_bitmap(bitmap, nbits);
-	}
 	/* This loop is over all log entries */
 	for (i = 0; i < logp->famfs_log_next_index; i++) {
 		const struct famfs_log_entry *le = &logp->entries[i];
@@ -2400,24 +2419,14 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 
 			/* For each extent in this log entry, mark the bitmap as allocated */
 			for (j = 0; j < fc->famfs_nextents; j++) {
-				s64 page_num;
-				s64 np;
-				s64 k;
+				u64 ofs = ext[j].se.famfs_extent_offset;
+				u64 len = ext[j].se.famfs_extent_len;
+				int rc;
 
 				assert(!(ext[j].se.famfs_extent_offset % FAMFS_ALLOC_UNIT));
-				page_num = ext[j].se.famfs_extent_offset / FAMFS_ALLOC_UNIT;
-				np = (ext[j].se.famfs_extent_len + FAMFS_ALLOC_UNIT - 1)
-					/ FAMFS_ALLOC_UNIT;
 
-				for (k = page_num; k < (page_num + np); k++) {
-					rc = mu_bitmap_test_and_set(bitmap, k);
-					if (rc == 0) {
-						errors++; /* bit was already set */
-					} else {
-						/* Don't count double allocations */
-						alloc_sum += FAMFS_ALLOC_UNIT;
-					}
-				}
+				rc = set_extent_in_bitmap(bitmap, ofs, len, &alloc_sum);
+				errors += rc;
 			}
 			break;
 		}
@@ -2431,6 +2440,9 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 			printf("%s: invalid log entry\n", __func__);
 			break;
 		}
+	}
+	if (verbose > 1) {
+		mu_print_bitmap(bitmap, nbits);
 	}
 	if (bitmap_nbits_out)
 		*bitmap_nbits_out = nbits;
