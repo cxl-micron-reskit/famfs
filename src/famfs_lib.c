@@ -2118,8 +2118,7 @@ famfs_fsck(
 
 	/*
 	 * Lots of options here;
-	 * * If a dax device (either pmem or /dev/dax) we'll fsck that - but only if the fs
-	 *   is not currently mounted.
+	 * * If a dax device we'll fsck that - but only if the fs is not currently mounted.
 	 * * If any file path from the mount point on down in a mounted famfs file system is
 	 *   specified, we will find the superblock and log files and fsck the mounted
 	 *   file system.
@@ -2322,6 +2321,8 @@ static inline u64 set_extent_in_bitmap(u8 *bitmap, u64 offset, u64 len, u64 *all
 	int rc;
 	u64 k;
 
+	assert(!(offset & (FAMFS_ALLOC_UNIT  - 1)));
+
 	page_num = offset / FAMFS_ALLOC_UNIT;
 	np = (len + FAMFS_ALLOC_UNIT - 1) / FAMFS_ALLOC_UNIT;
 
@@ -2380,9 +2381,10 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 		   struct famfs_log_stats   *log_stats_out,
 		   int                       verbose)
 {
-	u64 nbits = dev_size_in / FAMFS_ALLOC_UNIT;
+	u64 nbits = (dev_size_in + FAMFS_ALLOC_UNIT - 1) / FAMFS_ALLOC_UNIT;
 	u64 bitmap_nbytes = mu_bitmap_size(nbits);
-	u8 *bitmap = calloc(1, bitmap_nbytes);
+	u8 *bitmap = calloc(1, bitmap_nbytes + 1); /* Note: mu_bitmap_foreach accesses
+						    * 1 bit past the end */
 	struct famfs_log_stats ls = { 0 }; /* We collect a subset of stats collected by logplay */
 	u64 errors = 0;
 	u64 alloc_sum = 0;
@@ -2423,7 +2425,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 				u64 len = ext[j].se.famfs_extent_len;
 				int rc;
 
-				assert(!(ext[j].se.famfs_extent_offset % FAMFS_ALLOC_UNIT));
+				assert(!(ofs % FAMFS_ALLOC_UNIT));
 
 				rc = set_extent_in_bitmap(bitmap, ofs, len, &alloc_sum);
 				errors += rc;
@@ -3858,7 +3860,8 @@ __famfs_mkfs(const char              *daxdev,
 {
 	int rc;
 
-	if (log_len & (0x200000 - 1) || log_len < FAMFS_LOG_LEN) {
+	/* Minimum log length is the FAMFS_LOG_LEN; Also, must be a power of 2 */
+	if (log_len & (log_len - 1) || log_len < FAMFS_LOG_LEN) {
 		fprintf(stderr, "%s: log length (%lld) not a 2MiB multiple\n",
 			__func__, log_len);
 		return -EINVAL;
@@ -3871,7 +3874,9 @@ __famfs_mkfs(const char              *daxdev,
 		return 0;
 	}
 
-	/* Yes, this is redundant with famfs_mkfs(), because reasons... */
+	/* Bail if there is a valid superblock and force is not set;
+	 * We already verifed (if there is a superblock) that we are running on the master
+	 */
 	invalidate_processor_cache(sb, FAMFS_SUPERBLOCK_SIZE);
 	if (famfs_check_super(sb) == 0 && !force) {
 		fprintf(stderr, "Device %s already has a famfs superblock\n", daxdev);
@@ -3978,21 +3983,13 @@ famfs_mkfs(const char *daxdev,
 		return -EINVAL;
 	}
 
-	/* XXX Get role first via read-only sb. If daxdev contains a fs that was not
-	 * created on this host, fail unless force is specified
-	 */
+	/* Either there is no valid superblock, or the caller is the master */
 
 	rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &logp,
 					       log_len, 0 /* read/write */);
 	if (rc)
 		return -1;
 
-#if 0
-	if ((famfs_check_super(sb) == 0) && !force) {
-		fprintf(stderr, "Device %s already has a famfs superblock\n", daxdev);
-		return -1;
-	}
-#endif
 	return __famfs_mkfs(daxdev, sb, logp, log_len, devsize, force, kill);
 }
 

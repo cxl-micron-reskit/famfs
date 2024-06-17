@@ -20,6 +20,8 @@
 
 #include "famfs.h"
 
+#define STATIC_ASSERT(cond, msg) typedef char static_assertion_##msg[(cond) ? 1 : -1]
+
 #define FAMFS_SUPER_MAGIC      0x87b282ff
 #define FAMFS_CURRENT_VERSION  46
 #define FAMFS_MAX_DAXDEVS      64
@@ -31,6 +33,9 @@
 #define FAMFS_SUPERBLOCK_MAX_DAXDEVS 1
 
 #define FAMFS_ALLOC_UNIT 0x200000 /* 2MiB allocation unit */
+
+STATIC_ASSERT(!(FAMFS_LOG_LEN & (FAMFS_LOG_LEN - 1)), FAMFS_LOG_LEN_must_be_power_of_2);
+STATIC_ASSERT(!(FAMFS_ALLOC_UNIT & (FAMFS_ALLOC_UNIT - 1)), FAMFS_ALLOC_UNIT_must_be_power_of_2);
 
 static inline size_t round_size_to_alloc_unit(u64 size)
 {
