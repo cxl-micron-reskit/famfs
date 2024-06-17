@@ -468,18 +468,19 @@ TEST(famfs, famfs_log)
 	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
 	ASSERT_EQ(rc, 0);
 
-	for (i = 0; i < 503; i++) {
+	for (i = 0; i < 512; i++) {
 		char filename[64];
 		int fd;
 		sprintf(filename, "/tmp/famfs/%04d", i);
 		fd = __famfs_mkfile(&ll, filename, 0, 0, 0, 1048576, 0);
-		if (i < 502)
+		if (i < 507)
 			ASSERT_GT(fd, 0);
 		else
 			ASSERT_LT(fd, 0); /* out of space */
 		close(fd);
 	}
 
+	/* Although we're out of memory space, we can still make directories */
 	for (i = 0; i < 100; i++) {
 		char dirname[64];
 		sprintf(dirname, "/tmp/famfs/dir%04d", i);
