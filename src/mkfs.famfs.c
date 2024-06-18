@@ -31,15 +31,19 @@ print_usage(int   argc,
 
 	printf("\n"
 	       "Create a famfs file system:\n"
-	       "    %s [args] <memdevice>  # Example memdevices: /dev/pmem0 or /dev/dax0.0\n"
+	       "    %s [args] <memdevice>  # Example memdevice: /dev/dax0.0\n"
+	       "\n"
+	       "Create a famfs file system with a 256MiB log"
+	       "    %s --loglen 256m /dev/dax0.0\n"
 	       "\n"
 	       "Arguments\n"
 	       "    -h|-?      - Print this message\n"
 	       "    -f|--force - Will create the file system even if there is already a superblock\n"
 	       "    -k|--kill  - Will 'kill' the superblock (also requires -f)\n"
-	       "    -l|--loglen - Log size in MiB. Multiple of 2, >= 8"
+	       "    -l|--loglen <loglen> - Default loglen: 8 MiB\n"
+	       "                           Valid range: >= 8 MiB\n"
 	       "\n",
-	       progname);
+	       progname, progname);
 }
 
 int verbose_flag;
@@ -73,6 +77,9 @@ main(int argc, char *argv[])
 	 */
 	while ((c = getopt_long(argc, argv, "+fkl:h?",
 				global_options, &optind)) != EOF) {
+		char *endptr;
+		s64 mult;
+
 		arg_ct++;
 		switch (c) {
 		case 'k':
@@ -84,11 +91,11 @@ main(int argc, char *argv[])
 			force++;
 			break;
 		case 'l':
-			loglen = strtoull(optarg, 0, 0);
-			if (loglen & 1) {
-				fprintf(stderr, "invalid log length %lld\n", loglen);
-				return -1;
-			}
+			loglen = strtoull(optarg, &endptr, 0);
+			mult = get_multiplier(endptr);
+			if (mult > 0)
+				loglen *= mult;
+			printf("loglen: %lld\n", loglen);
 			break;
 		case 'h':
 		case '?':
