@@ -723,7 +723,7 @@ famfs_mmap_superblock_and_log_raw(const char *devname,
 	assert(sbp); /* superblock pointer mandatory; logp optional */
 
 	if (log_size &&
-	    ((log_size < FAMFS_LOG_LEN) || (log_size & (0x200000 - 1)) )) {
+	    ((log_size < FAMFS_LOG_LEN) || (log_size & (log_size - 1)) )) {
 		fprintf(stderr, "%s: invalid log_size %lld\n", __func__, log_size);
 		return -EINVAL;
 	}
@@ -751,7 +751,7 @@ famfs_mmap_superblock_and_log_raw(const char *devname,
 
 	/* Map the log if requested.
 	 * * If log_size is nonzero, we mmap that size.
-	 * * If log_size == 0, we get the log size from the superrblock, and we only
+	 * * If log_size == 0, we get the log size from the superblock, and we only
 	 *   map the log if there is a valid superblock
 	 */
 	if (logp) {
@@ -3862,8 +3862,8 @@ __famfs_mkfs(const char              *daxdev,
 
 	/* Minimum log length is the FAMFS_LOG_LEN; Also, must be a power of 2 */
 	if (log_len & (log_len - 1) || log_len < FAMFS_LOG_LEN) {
-		fprintf(stderr, "%s: log length (%lld) not a 2MiB multiple\n",
-			__func__, log_len);
+		fprintf(stderr, "Error: log length (%lld) must be >=8 MiB and a power of 2",
+			log_len);
 		return -EINVAL;
 	}
 
