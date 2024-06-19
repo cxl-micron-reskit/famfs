@@ -10,7 +10,7 @@ project(famfs_unit)
 
 include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/testlib")
-
+include_directories("/usr/local/include/fuse3")
 
 ##
 ### Source definitions ###
@@ -40,6 +40,12 @@ target_link_libraries(mkfs.famfs libfamfs uuid z)
 target_link_libraries(libfamfs  uuid z)
 target_link_libraries(pcq libpcq libfamfs uuid z famfstest)
 
+add_executable(passthrough_ll fuse/passthrough_ll.c)
+add_executable(passthrough_hp fuse/passthrough_hp.cc)
+
+link_directories(/usr/local/lib64)
+target_link_libraries(passthrough_ll /usr/local/lib64/libfuse3.so.3.17.0  pthread dl rt)
+target_link_libraries(passthrough_hp /usr/local/lib64/libfuse3.so.3.17.0  pthread dl rt)
 
 #
 ## Test definitions ###
