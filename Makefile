@@ -8,9 +8,28 @@ chk_include:
 cmake-modules:
 	git clone https://github.com/jagalactic/cmake-modules.git
 
+libfuse_install:
+	meson install -C $(BUILD)/libfuse
+
+libfuse:
+	echo "Build: $(BDIR)"
+	@if [ -z "$(BDIR)" ]; then \
+		echo "Error: BDIR macro empty"; \
+		exit -1; \
+	fi
+	@if [ ! -d "libfuse" ]; then \
+		echo "cloning libfuse..."; \
+		git clone https://github.com/jagalactic/libfuse.git; \
+	fi
+	mkdir -p $(BDIR)/libfuse
+	meson setup $(BDIR)/libfuse ./libfuse
+	meson compile -C $(BDIR)/libfuse
+
 debug:	cmake-modules chk_include
+	export BDIR="debug"
 	mkdir -p debug;
-	cd debug; cmake -DCMAKE_BUILD_TYPE=Debug ..; make #VERBOSE=1
+	$(MAKE) libfuse BDIR="debug"
+	cd debug; cmake -DCMAKE_BUILD_TYPE=Debug ..; $(MAKE) #VERBOSE=1
 
 #
 # The coverage target will generate a debug build in the 'coverage' subdirectoroy
@@ -23,7 +42,8 @@ debug:	cmake-modules chk_include
 #
 coverage:	cmake-modules
 	mkdir -p coverage;
-	cd coverage; cmake -DCMAKE_BUILD_TYPE=Debug -DFAMFS_TEST_COVERAGE="yes" ..; make
+	$(MAKE) libfuse BDIR="coverage"
+	cd coverage; cmake -DCMAKE_BUILD_TYPE=Debug -DFAMFS_TEST_COVERAGE="yes" ..; $(MAKE)
 
 # Run the coverage tests
 coverage_test:	coverage
@@ -34,7 +54,8 @@ coverage_test:	coverage
 
 release:	cmake-modules chk_include
 	mkdir -p release;
-	cd release; cmake ..; make
+	$(MAKE) libfuse BDIR="release"
+	cd release; cmake ..; $(MAKE)
 
 all:	debug
 
@@ -42,7 +63,8 @@ clean:
 	sudo rm -rf debug release coverage
 
 install:
-	cd debug; sudo make install
+	cd debug; sudo $(MAKE) install
+	$(MAKE) libfuse_install BDIR="debug"
 	-scripts/install_kmod.sh
 
 # Run the unit tests
@@ -69,4 +91,4 @@ teardown:
 	pwd
 	@./scripts/teardown.sh
 
-.PHONY:	test smoke debug release coverage chk_include
+.PHONY:	test smoke debug release coverage chk_include libfuse libfuse_install

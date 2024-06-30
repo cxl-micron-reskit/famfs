@@ -5,12 +5,16 @@ set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -ggdb -Wall ")
 
-project(famfs_unit)
+project(famfs)
 
 
 include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/testlib")
-include_directories("/usr/local/include/fuse3")
+include_directories("${PROJECT_SOURCE_DIR}/libfuse/include")
+include_directories("${CMAKE_CURRENT_BINARY_DIR}/libfuse")
+
+# Don't build against instlaled libfuse...
+# include_directories("/usr/local/include/fuse3")
 
 ##
 ### Source definitions ###
@@ -43,9 +47,9 @@ target_link_libraries(pcq libpcq libfamfs uuid z famfstest)
 add_executable(passthrough_ll fuse/passthrough_ll.c)
 add_executable(passthrough_hp fuse/passthrough_hp.cc)
 
-link_directories(/usr/local/lib64)
-target_link_libraries(passthrough_ll /usr/local/lib64/libfuse3.so.3.17.0  pthread dl rt)
-target_link_libraries(passthrough_hp /usr/local/lib64/libfuse3.so.3.17.0  pthread dl rt)
+link_directories("${CMAKE_CURRENT_BINARY_DIR}/libfuse/lib")
+target_link_libraries(passthrough_ll "${CMAKE_CURRENT_BINARY_DIR}/libfuse/lib/libfuse3.so"  pthread dl rt)
+target_link_libraries(passthrough_hp "${CMAKE_CURRENT_BINARY_DIR}/libfuse/lib/libfuse3.so"  pthread dl rt)
 
 #
 ## Test definitions ###
@@ -74,7 +78,7 @@ ExternalProject_Add(multichase
   GIT_TAG dax
   UPDATE_COMMAND ""
   BUILD_IN_SOURCE 1
-  CONFIGURE_COMMAND   echo "Empty configure step for jtrace ${CMAKE_CURRENT_BINARY_DIR}"
+  CONFIGURE_COMMAND   echo "Empty configure step for multichase ${CMAKE_CURRENT_BINARY_DIR}"
   BUILD_COMMAND make clean all
   INSTALL_COMMAND ""
 )
