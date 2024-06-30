@@ -413,7 +413,7 @@ famfs_get_role(const struct famfs_superblock *sb)
 	return FAMFS_CLIENT;
 }
 
-static int
+int
 famfs_get_role_by_dev(const char *daxdev)
 {
 	struct famfs_superblock *sb;
