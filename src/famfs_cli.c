@@ -275,6 +275,16 @@ do_famfs_cli_mount(int argc, char *argv[])
 		goto err_out;
 	}
 
+	/* This functions as a verification that the daxdev contains a valid famfs
+	 * file system. Need to fail out before calling the system mount() if it's not
+	 * a valid famfs file system.
+	 */
+	rc = famfs_get_role_by_dev(realdaxdev);
+	if (rc < 0 || rc == FAMFS_NOSUPER) {
+		fprintf(stderr, "famfs mount: failed to validate famfs file system\n");
+		rc = -1;
+		goto err_out;
+	}
 	rc = mount(realdaxdev, realmpt, "famfs", mflags, "");
 	if (rc) {
 		fprintf(stderr, "famfs mount: mount returned %d; errno %d\n", rc, errno);
