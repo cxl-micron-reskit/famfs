@@ -3867,7 +3867,10 @@ __famfs_mkfs(const char              *daxdev,
 		return -EINVAL;
 	}
 
-	if (kill) {
+	/* This test is redundant with famfs_mfks(), but is kept because that function can't
+	 * be called by unit tests (because it opens the actual device)
+	 */
+	if (kill && force) {
 		printf("Famfs superblock killed\n");
 		sb->ts_magic = 0;
 		flush_processor_cache(sb, sb->ts_log_offset);
@@ -3941,7 +3944,7 @@ famfs_mkfs(const char *daxdev,
 		return -1;
 	}
 
-	if (kill) {
+	if (kill && force) {
 		rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, NULL, 0, 0 /*read/write */);
 		if (rc) {
 			fprintf(stderr, "Failed to mmap superblock\n");
