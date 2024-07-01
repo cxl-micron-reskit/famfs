@@ -71,7 +71,8 @@ fi
 ${MKFS} -h            || fail "mkfs -h should work"
 ${MKFS}               && fail "mkfs without dev argument should fail"
 ${MKFS} /tmp/nonexistent && fail "mkfs on nonexistent dev should fail"
-${MKFS} -f -k $DEV    || fail "mkfs/kill"
+${MKFS} -k $DEV       && fail "mkfs/kill should fail without --force"
+${MKFS} -f -k $DEV    || fail "mkfs/kill should succeed wtih --force"
 ${MKFS}  $DEV         || fail "mkfs"
 ${MKFS} -f $DEV       || fail "redo mkfs with -f should succeed"
 
@@ -107,6 +108,9 @@ ${CLI} fsck $DEV          || fail "fsck"
 # We now expect the module to already be loaded, but no harm in modprobe to make double sure
 sudo modprobe famfs       || fail "modprobe"
 
+#
+# Test manual mount / mkmeta / logplay
+#
 sudo mount $MOUNT_OPTS $DEV $MPT || fail "mount"
 sudo mount $MOUNT_OPTS $DEV $MPT && fail "double mount should fail"
 
@@ -118,7 +122,21 @@ ${CLI} mkmeta $DEV        || fail "mkmeta"
 sudo test -f $MPT/.meta/.superblock || fail "no superblock file after mkmeta"
 sudo test -f $MPT/.meta/.log        || fail "prep: no log file after mkmeta"
 
+${CLI} logplay $MPT || fail "empty fs logplay should succeed"
 ${CLI} fsck --human $MPT || fail "prep: fsck --human should succeed"
+
+# Try mkfs while mounted
+${MKFS}  $DEV         && fail "mkfs while mounted should fail"
+${MKFS} -f -k $DEV    && fail "mkfs/kill while mounted should fail"
+
+#
+# Blow away the file system and test famfs mount with no valid superblock
+#
+sudo umount $MPT       || fail "umount $MPT should succeed"
+${MKFS} -f -k $DEV     || fail "mkfs/kill should succeed wtih --force"
+${CLI} mount $DEV $MPT && fail "famfs mount should fail with invalid superblock"
+${MKFS} $DEV           || fail "clean mkfs should succeed"
+${CLI} mount $DEV $MPT || fial "mount of clean file system should succeed"
 
 set +x
 echo "*************************************************************************"
