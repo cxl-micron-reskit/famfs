@@ -36,8 +36,8 @@ void famfs_uuidgen(uuid_le *uuid);
 int famfs_get_system_uuid(uuid_le *uuid_out);
 int famfs_mkmeta(const char *devname);
 u64 famfs_alloc(const char *devname, u64 size);
-int famfs_logplay(const char *mpt, int use_mmap,
-		  int dry_run, int client_mode, int verbose);
+int famfs_logplay(const char *mpt, const char *shadowpath, int use_mmap,
+		  int dry_run, int client_mode, int verbose, int shadow);
 
 int famfs_mkfile(const char *filename, mode_t mode, uid_t uid, gid_t gid, size_t size, int verbose);
 

@@ -112,6 +112,7 @@ enum famfs_log_entry_type {
 
 #define FAMFS_MAX_PATHLEN 80
 #define FAMFS_MAX_HOSTNAME_LEN 32
+#define FAMFS_FC_BUF_LEN 512
 
 /* famfs_fc_flags */
 #define FAMFS_FC_ALL_HOSTS_RO (1 << 0)

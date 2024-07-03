@@ -487,7 +487,7 @@ TEST(famfs, famfs_log)
 		rc = __famfs_mkdir(&ll, dirname, 0, 0, 0, 0);
 		ASSERT_EQ(rc, 0);
 	}
-	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 3);
+	rc = __famfs_logplay(logp, "/tmp/famfs", "", 0, 0, 3, 0);
 	ASSERT_EQ(rc, 0);
 
 	/* fail sb sanity check */
@@ -713,7 +713,7 @@ TEST(famfs, famfs_log_overflow_mkdir_p)
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
 	ASSERT_EQ(rc, 0);
 
-	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0);
+	rc = __famfs_logplay(logp, "/tmp/famfs", "", 0, 0, 0, 0);
 	ASSERT_EQ(rc, 0);
 	//famfs_print_log_stats("famfs_log test", )
 
@@ -856,7 +856,7 @@ TEST(famfs, famfs_log_overflow_files)
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
 	ASSERT_EQ(rc, 0);
 
-	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0);
+	rc = __famfs_logplay(logp, "/tmp/famfs", "", 0, 0, 0, 0);
 	ASSERT_EQ(rc, 0);
 
 	rc = famfs_fsck_scan(sb, logp, 1, 3);

@@ -73,9 +73,18 @@ famfs_dir_create(
 	uid_t       uid,
 	gid_t       gid);
 
+static int
+famfs_shadowfs_dir_create(
+	const char *mpt,
+	const char *rpath,
+	mode_t      mode,
+	uid_t       uid,
+	gid_t       gid);
 static struct famfs_superblock *famfs_map_superblock_by_path(const char *path, int read_only);
 static int famfs_file_create(const char *path, mode_t mode, uid_t uid, gid_t gid,
 			     int disable_write);
+static int famfs_shadow_file_create(const char *path,
+		const struct famfs_file_creation *fc, int disable_write);
 static int open_log_file_read_only(const char *path, size_t *sizep,
 				   char *mpt_out, enum lock_opt lo);
 static int famfs_mmap_superblock_and_log_raw(const char *devname,
@@ -1332,11 +1341,13 @@ famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index)
  */
 int
 __famfs_logplay(
-	const struct famfs_log *logp,
-	const char             *mpt,
+	const struct famfs_log	*logp,
+	const char		*mpt,
+	const char		*shadowpath,
 	int                     dry_run,
 	int                     client_mode,
-	int                     verbose)
+	int			verbose,
+	int                     shadow)
 {
 	struct famfs_log_stats ls = { 0 };
 	enum famfs_system_role role;
@@ -1413,12 +1424,36 @@ __famfs_logplay(
 
 			if (skip_file)
 				continue;
-
-			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, fc->famfs_relpath);
-			realpath(fullpath, rpath);
 			if (dry_run)
 				continue;
 
+			if (shadow) {
+				snprintf(fullpath, PATH_MAX - 1, "%s/%s.famfs",
+						shadowpath, fc->famfs_relpath);
+				realpath(fullpath, rpath);
+				rc = stat(rpath, &st);
+				if (!rc) {
+					fprintf(stderr, "famfs logplay: File %s exists\n",
+							rpath);
+					ls.f_existed++;
+					continue;
+				}
+
+				fd = famfs_shadow_file_create(rpath, fc, 0);
+				if (fd < 0) {
+					fprintf(stderr, "%s: unable to create file %s\n",
+							__func__, rpath);
+					unlink(rpath);
+					ls.f_errs++;
+					continue;
+				}
+				close(fd);
+				ls.f_created++;
+				break;
+			}
+
+			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, fc->famfs_relpath);
+			realpath(fullpath, rpath);
 			rc = stat(rpath, &st);
 			if (!rc) {
 				if (verbose > 1)
@@ -1488,10 +1523,16 @@ __famfs_logplay(
 				printf("%s mkdir: %o %d:%d: %s \n", __func__,
 				       md->fc_mode, md->fc_uid, md->fc_gid, md->famfs_relpath);
 
-			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, md->famfs_relpath);
-			realpath(fullpath, rpath);
 			if (dry_run)
 				continue;
+
+			if (!shadow) {
+				snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, md->famfs_relpath);
+				realpath(fullpath, rpath);
+			} else {
+				snprintf(fullpath, PATH_MAX - 1, "%s/%s", shadowpath, md->famfs_relpath);
+				realpath(fullpath, rpath);
+			}
 
 			rc = stat(rpath, &st);
 			if (!rc) {
@@ -1525,6 +1566,21 @@ __famfs_logplay(
 
 			if (verbose)
 				printf("famfs logplay: creating directory %s\n", md->famfs_relpath);
+
+			if (shadow) {
+				rc = famfs_shadowfs_dir_create(shadowpath, (char *)md->famfs_relpath, md->fc_mode,
+						md->fc_uid, md->fc_gid);
+				if (rc) {
+					fprintf(stderr,
+						"%s: error: unable to create directory (%s)\n",
+						__func__, md->famfs_relpath);
+					ls.d_errs++;
+					continue;
+				}
+
+				ls.d_created++;
+				break;
+			}
 
 			rc = famfs_dir_create(mpt, (char *)md->famfs_relpath, md->fc_mode,
 					      md->fc_uid, md->fc_gid);
@@ -1565,22 +1621,34 @@ __famfs_logplay(
 int
 famfs_logplay(
 	const char             *fspath,
+	const char             *shadowpath,
 	int                     use_mmap,
 	int                     dry_run,
 	int                     client_mode,
-	int                     verbose)
+	int                     verbose,
+	int 			shadow)
 {
 	char mpt_out[PATH_MAX];
 	struct famfs_log *logp;
 	size_t log_size;
 	int lfd;
 	int rc;
+	struct stat st;
 
 	lfd = open_log_file_read_only(fspath, &log_size, mpt_out, NO_LOCK);
 	if (lfd < 0) {
 		fprintf(stderr, "%s: failed to open log file for filesystem %s\n",
 			__func__, fspath);
 		return -1;
+	}
+
+	if (shadow) {
+		if (stat(shadowpath, &st) < 0) {
+			fprintf(stderr, "%s: directory %s does not exist (%s)\n",
+			__func__, shadowpath, strerror(errno));
+			close(lfd);
+			return -errno;
+		}
 	}
 
 	if (use_mmap) {
@@ -1627,7 +1695,8 @@ famfs_logplay(
 		} while (resid > 0);
 	}
 
-	rc = __famfs_logplay(logp, mpt_out, dry_run, client_mode, verbose);
+	rc = __famfs_logplay(logp, mpt_out, shadowpath, dry_run,
+				client_mode, verbose, shadow);
 err_out:
 	if (use_mmap)
 		munmap(logp, log_size);
@@ -2747,6 +2816,110 @@ famfs_file_create(const char *path,
 	return fd;
 }
 
+
+/*
+ * Caller of this function has to allocate memory to data buf
+ * before calling this function, example below.
+ * struct famfs_file_creation *data = malloc(sizeof(struct famfs_file_creation));
+ * famfs_get_shadow_file_data(path, data, 1);
+ * Pass the buf to this function.
+ */
+
+struct famfs_file_creation *
+famfs_get_shadow_file_data(const char *path,
+		struct famfs_file_creation *data,
+		int verbose)
+{
+	int rc = 0;
+	int fd = 0;
+	struct famfs_file_creation *fc;
+	char *buf = (char *)data;
+
+	fd = open(path, O_RDONLY, 0);
+	if (fd < 0) {
+		fprintf(stderr, "%s: open of %s failed, fd %d with %s\n",
+			__func__, path, fd, strerror(errno));
+		return NULL;
+	}
+
+	rc = read(fd, buf, sizeof(struct famfs_file_creation));
+	if (rc < 0) {
+		fprintf(stderr,"%s: read failed with %s\n",
+			__func__, strerror(errno));
+		return NULL;
+	}
+
+	fc = (struct famfs_file_creation *)buf;
+
+	if (verbose) {
+		printf("file: %s\nsize: %lld\nextents: %d\next1 offset: %lld\n"
+			"ext1 len: %lld\nuid: %d\ngid: %d\nmode: %d\n",
+                fc->famfs_relpath, fc->famfs_fc_size, fc->famfs_nextents,
+                fc->famfs_ext_list[0].se.famfs_extent_offset,
+		fc->famfs_ext_list[0].se.famfs_extent_len, fc->fc_uid, fc->fc_gid, fc->fc_mode);
+	}
+
+	close(fd);
+	return fc;
+
+}
+
+static int
+famfs_shadow_file_create(const char 	*path,
+			 const struct	famfs_file_creation *fc,
+			 int 	        disable_write)
+{
+	struct stat st;
+	int rc = 0;
+	int fd;
+	int mode = 0;
+	size_t wsize = sizeof(struct famfs_file_creation);
+
+	/* This is probably needed if/when we go the yaml route
+	char buf[FAMFS_FC_BUF_LEN];
+
+	//TODO: Handle multiple extents scenarios
+	snprintf(buf, FAMFS_FC_BUF_LEN - 1,
+		"path: %s\nsize: %lld\nextents: %d\next1 offset: %lld\next1 len: %lld\n"
+		"uid: %d\ngid: %d\nmode: %d\n %c",
+		fc->famfs_relpath, fc->famfs_fc_size, fc->famfs_nextents,
+		fc->famfs_ext_list[0].se.famfs_extent_offset, fc->famfs_ext_list[0].se.famfs_extent_len, fc->fc_uid, fc->fc_gid, fc->fc_mode, '\0');
+	*/
+
+	rc = stat(path, &st);
+	if (rc == 0) {
+		fprintf(stderr, "%s: file already exists: %s\n", __func__, path);
+		return -1;
+	}
+
+	if (disable_write)
+		mode = fc->fc_mode & ~(S_IWUSR | S_IWGRP | S_IWOTH);
+
+	fd = open(path, O_RDWR | O_CREAT, mode);
+	if (fd < 0) {
+		fprintf(stderr, "%s: open/creat of %s failed, fd %d with %s\n",
+			__func__, path, fd, strerror(errno));
+		return fd;
+	}
+
+	//rc = write(fd, buf, FAMFS_FC_BUF_LEN);
+	rc = write(fd, (char *)fc, wsize);
+	if (rc < 0) {
+		fprintf(stderr, "write failed\n");
+		printf("error: %s\n",strerror(errno));
+		close(fd);
+		return -1;
+	}
+	if (rc < sizeof(struct famfs_file_creation)) {
+		fprintf(stderr, "%s: write completed only %d out of %ld bytes\n",
+				__func__, rc, wsize);
+		close(fd);
+		return -1;
+	}
+
+	sync();
+	return fd;
+}
 /**
  * __famfs_mkfile()
  *
@@ -2878,6 +3051,29 @@ famfs_dir_create(
 			return -1;
 		}
 	}
+	return 0;
+}
+
+static int
+famfs_shadowfs_dir_create(
+	const char *shadowfspath,
+	const char *rpath,
+	mode_t      mode,
+	uid_t       uid,
+	gid_t       gid)
+{
+	int rc = 0;
+	char fullpath[PATH_MAX];
+
+	snprintf(fullpath, PATH_MAX - 1, "%s/%s", shadowfspath, rpath);
+
+	rc = mkdir(fullpath, mode);
+	if (rc) {
+		fprintf(stderr, "%s: failed to mkdir %s (rc %d errno %d)\n",
+			__func__, fullpath, rc, errno);
+		return -1;
+	}
+
 	return 0;
 }
 
