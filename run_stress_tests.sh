@@ -133,7 +133,6 @@ counter=0
 doloop=true
 while [ "$doloop" = true ]
 do
-    # Your commands go here
     ((counter++))
     echo "Loop is running. Press [CTRL+C] to stop."
     $SCRIPTS/stress_fio.sh \
