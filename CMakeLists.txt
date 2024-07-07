@@ -48,7 +48,7 @@ add_executable(passthrough_ll fuse/passthrough_ll.c)
 add_executable(passthrough_hp fuse/passthrough_hp.cc)
 
 link_directories("${CMAKE_CURRENT_BINARY_DIR}/libfuse/lib")
-target_link_libraries(passthrough_ll "${CMAKE_CURRENT_BINARY_DIR}/libfuse/lib/libfuse3.so"  pthread dl rt)
+target_link_libraries(passthrough_ll "${CMAKE_CURRENT_BINARY_DIR}/libfuse/lib/libfuse3.so"  pthread dl rt systemd )
 target_link_libraries(passthrough_hp "${CMAKE_CURRENT_BINARY_DIR}/libfuse/lib/libfuse3.so"  pthread dl rt)
 
 #

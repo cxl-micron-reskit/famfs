@@ -52,6 +52,7 @@
 #include <pthread.h>
 #include <sys/file.h>
 #include <sys/xattr.h>
+#include <systemd/sd-journal.h>
 
 #include "passthrough_helpers.h"
 
@@ -1193,6 +1194,10 @@ static const struct fuse_lowlevel_ops lo_oper = {
 	.lseek		= lo_lseek,
 };
 
+void fused_syslog(enum fuse_log_level level, const char *fmt, va_list ap) {
+	sd_journal_printv(level, fmt, ap);
+}
+
 int main(int argc, char *argv[])
 {
 	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
@@ -1211,6 +1216,8 @@ int main(int argc, char *argv[])
 	lo.root.fd = -1;
 	lo.cache = CACHE_NORMAL;
 
+	fuse_set_log_func(fused_syslog);
+
 	if (fuse_parse_cmdline(&args, &opts) != 0)
 		return 1;
 	if (opts.show_help) {
@@ -1227,7 +1234,7 @@ int main(int argc, char *argv[])
 		goto err_out1;
 	}
 
-	if(opts.mountpoint == NULL) {
+	if (opts.mountpoint == NULL) {
 		printf("usage: %s [options] <mountpoint>\n", argv[0]);
 		printf("       %s --help\n", argv[0]);
 		ret = 1;
