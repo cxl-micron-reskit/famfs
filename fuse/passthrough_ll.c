@@ -1194,6 +1194,22 @@ static const struct fuse_lowlevel_ops lo_oper = {
 	.lseek		= lo_lseek,
 };
 
+void jg_print_fuse_opts(struct fuse_cmdline_opts *opts)
+{
+	printf("Cmdline opts:\n"
+	       "  singlethread:      %d\n"
+	       "  foreground:        %d\n"
+	       "  debug:             %d\n"
+	       "  nodefault_subtype: %d\n"
+	       "  mount point:       %s\n"
+	       "  clone_fd:          %d\n"
+	       "  max_idle_threads;  %d\n"
+	       "  max_threads:       %d\n",
+	       opts->singlethread, opts->foreground, opts->debug,
+	       opts->nodefault_subtype, opts->mountpoint,
+	       opts->clone_fd, opts->max_idle_threads, opts->max_threads);
+}
+
 void fused_syslog(enum fuse_log_level level, const char *fmt, va_list ap) {
 	sd_journal_printv(level, fmt, ap);
 }
@@ -1305,6 +1321,7 @@ int main(int argc, char *argv[])
 	if (fuse_session_mount(se, opts.mountpoint) != 0)
 	    goto err_out3;
 
+	jg_print_fuse_opts(&opts);
 	fuse_daemonize(opts.foreground);
 
 	/* Block until ctrl+c or fusermount -u */
