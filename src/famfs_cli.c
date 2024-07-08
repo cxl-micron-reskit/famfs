@@ -67,15 +67,17 @@ famfs_logplay_usage(int   argc,
 	       "\n"
 	       "    %s logplay [args] <mount_point>\n"
 	       "\n"
+	       "    %s logplay --shadowfs /shadow/path --daxdevx <dadev>\n"
 	       "Arguments:\n"
 	       "    -r|--read   - Get the superblock and log via posix read\n"
 	       "    -m|--mmap   - Get the log via mmap\n"
 	       "    -c|--client - force \"client mode\" (all files read-only)\n"
 	       "    -n|--dryrun - Process the log but don't instantiate the files & directories\n"
-	       "    -S|--shadowfs - create a Yaml based shadow filesystem at specified path\n"
+	       "    -S|--shadowfs - create a Yaml based shadow filesystem at mount_point path\n"
+	       "    -d|--daxdev <daxdev> - dax device for shadow logplay\n"
 	       "\n"
 	       "\n",
-	       progname);
+	       progname, progname);
 }
 
 int
@@ -83,23 +85,24 @@ do_famfs_cli_logplay(int argc, char *argv[])
 {
 	int c;
 	char *fspath;
-	char *shadowpath;
 	int dry_run = 0;
 	int use_mmap = 0;
 	int use_read = 0;
 	int client_mode = 0;
 	int verbose = 0;
 	int shadow = 0;
+	char *daxdev = NULL;
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option logplay_options[] = {
 		/* These options set a */
-		{"dryrun",    required_argument,       0,  'n'},
+		{"dryrun",    no_argument,             0,  'n'},
 		{"mmap",      no_argument,             0,  'm'},
 		{"read",      no_argument,             0,  'r'},
 		{"client",    no_argument,             0,  'c'},
-		{"verbose",    no_argument,            0,  'v'},
-		{"shadowfs",    required_argument,      0,  'S'},
+		{"verbose",   no_argument,             0,  'v'},
+		{"shadow",    no_argument,             0,  'S'},
+		{"daxdev",    required_argument,       0,  'd'},
 		{0, 0, 0, 0}
 	};
 
@@ -137,6 +140,9 @@ do_famfs_cli_logplay(int argc, char *argv[])
 		case 'S':
 			shadow++;
 			break;
+		case 'd':
+			daxdev = optarg;
+			break;
 		}
 	}
 
@@ -145,19 +151,15 @@ do_famfs_cli_logplay(int argc, char *argv[])
 			"Error: The --mmap and --read arguments are mutually exclusive\n\n");
 		famfs_logplay_usage(argc, argv);
 		return -1;
-	} else if (!(use_mmap || use_read)) {
+	}
+	if (!(use_mmap || use_read)) {
 		/* If neither method was explicitly requested, default to mmap */
 		use_mmap = 1;
 	}
 
-	if (shadow) {
-		if (optind > (argc - 1)) {
-			fprintf(stderr, "Must specify shadowfs path "
-					"to create shadowfs\n");
-			return -1;
-		}
-
-		shadowpath = argv[optind++];
+	if (daxdev && !shadow) {
+		fprintf(stderr, "Error: daxdev only used with shadow logplay\n");
+		return -1;
 	}
 
 	if (optind > (argc - 1)) {
@@ -168,9 +170,8 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	}
 	fspath = argv[optind++];
 
-
-	return famfs_logplay(fspath, shadowpath, use_mmap, dry_run, client_mode,
-			verbose, shadow);
+	return famfs_logplay(fspath, use_mmap, dry_run, client_mode,
+			     shadow, daxdev, verbose);
 }
 
 /********************************************************************/
@@ -315,7 +316,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 		goto err_out;
 	}
 
-	rc = famfs_logplay(realmpt, "", use_mmap, 0, 0, verbose, 0);
+	rc = famfs_logplay(realmpt, use_mmap, 0, 0, 0, NULL, verbose);
 
 err_out:
 	free(realdaxdev);

@@ -487,29 +487,29 @@ TEST(famfs, famfs_log)
 		rc = __famfs_mkdir(&ll, dirname, 0, 0, 0, 0);
 		ASSERT_EQ(rc, 0);
 	}
-	rc = __famfs_logplay(logp, "/tmp/famfs", "", 0, 0, 3, 0);
+	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0, FAMFS_MASTER, 3);
 	ASSERT_EQ(rc, 0);
 
 	/* fail sb sanity check */
-	rc = __famfs_logplay(logp, "/tmp/famfs1", 0, 0, 4);
+	rc = __famfs_logplay(logp, "/tmp/famfs1", 0, 0, 0, FAMFS_MASTER, 4);
 	ASSERT_NE(rc, 0);
 
 	/* fail famfs_check_super */
 	sb->ts_magic = 420;
-	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 4);
+	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0, FAMFS_MASTER, 4);
 	ASSERT_NE(rc, 0);
 	sb->ts_magic = FAMFS_SUPER_MAGIC;
 
 	/* fail FAMFS_LOG_MAGIC check */
 	logp->famfs_log_magic = 420;
-	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 4);
+	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0, FAMFS_MASTER, 4);
 	ASSERT_NE(rc, 0);
 	logp->famfs_log_magic = FAMFS_LOG_MAGIC;
 
 	/* fail famfs_validate_log_entry() */
 	tmp = logp->entries[0].famfs_log_entry_seqnum;
 	logp->entries[0].famfs_log_entry_seqnum = 420;
-	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 4);
+	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0, FAMFS_MASTER, 4);
 	ASSERT_NE(rc, 0);
 	logp->entries[0].famfs_log_entry_seqnum = tmp;
 
@@ -517,7 +517,7 @@ TEST(famfs, famfs_log)
 	mock_path = 1;
 	tmp = logp->entries[0].famfs_log_entry_type;
 	logp->entries[0].famfs_log_entry_type = FAMFS_LOG_FILE;
-	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0);
+	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0, FAMFS_MASTER, 0);
 	ASSERT_NE(rc, 0);
 	mock_path = 0;
 	logp->entries[0].famfs_log_entry_type = tmp;
@@ -526,7 +526,7 @@ TEST(famfs, famfs_log)
 	mock_failure = MOCK_FAIL_GENERIC;
 	tmp = logp->entries[0].famfs_log_entry_type;
 	logp->entries[0].famfs_log_entry_type = FAMFS_LOG_ACCESS;
-	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 1);
+	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0, FAMFS_MASTER, 1);
 	ASSERT_EQ(rc, 0);
 	mock_failure = MOCK_FAIL_NONE;
 	logp->entries[0].famfs_log_entry_type = tmp;
@@ -536,7 +536,7 @@ TEST(famfs, famfs_log)
 	mock_failure = MOCK_FAIL_LOG_MKDIR;
 	tmp = logp->entries[0].famfs_log_entry_type;
 	logp->entries[0].famfs_log_entry_type = FAMFS_LOG_MKDIR;
-	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0);
+	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0, FAMFS_MASTER, 0);
 	ASSERT_NE(rc, 0);
 	mock_failure = MOCK_FAIL_NONE;
 	logp->entries[0].famfs_log_entry_type = tmp;
@@ -713,7 +713,7 @@ TEST(famfs, famfs_log_overflow_mkdir_p)
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
 	ASSERT_EQ(rc, 0);
 
-	rc = __famfs_logplay(logp, "/tmp/famfs", "", 0, 0, 0, 0);
+	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0, FAMFS_MASTER, 0);
 	ASSERT_EQ(rc, 0);
 	//famfs_print_log_stats("famfs_log test", )
 
@@ -856,7 +856,7 @@ TEST(famfs, famfs_log_overflow_files)
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
 	ASSERT_EQ(rc, 0);
 
-	rc = __famfs_logplay(logp, "/tmp/famfs", "", 0, 0, 0, 0);
+	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0, FAMFS_MASTER, 0);
 	ASSERT_EQ(rc, 0);
 
 	rc = famfs_fsck_scan(sb, logp, 1, 3);

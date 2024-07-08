@@ -60,8 +60,8 @@ int __famfs_mkdir(struct famfs_locked_log *lp, const char *dirpath, mode_t mode,
 int famfs_init_locked_log(struct famfs_locked_log *lp, const char *fspath, int verbose);
 int famfs_release_locked_log(struct famfs_locked_log *lp);
 int __famfs_logplay(const struct famfs_log *logp, const char *mpt,
-		const char *shadowpath, int dry_run, int client_mode,
-		int verbose, int shadow);
+		    int dry_run, int client_mode,
+		    int shadow, enum famfs_system_role role, int verbose);
 int famfs_fsck_scan(const struct famfs_superblock *sb, const struct famfs_log *logp,
 		    int human, int verbose);
 int famfs_create_sys_uuid_file(char *sys_uuid_file);
