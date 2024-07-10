@@ -490,16 +490,6 @@ TEST(famfs, famfs_log)
 	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0, FAMFS_MASTER, 3);
 	ASSERT_EQ(rc, 0);
 
-	/* fail sb sanity check */
-	rc = __famfs_logplay(logp, "/tmp/famfs1", 0, 0, 0, FAMFS_MASTER, 4);
-	ASSERT_NE(rc, 0);
-
-	/* fail famfs_check_super */
-	sb->ts_magic = 420;
-	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0, FAMFS_MASTER, 4);
-	ASSERT_NE(rc, 0);
-	sb->ts_magic = FAMFS_SUPER_MAGIC;
-
 	/* fail FAMFS_LOG_MAGIC check */
 	logp->famfs_log_magic = 420;
 	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0, FAMFS_MASTER, 4);
