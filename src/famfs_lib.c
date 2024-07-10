@@ -1554,7 +1554,7 @@ __famfs_logplay(
 	return (ls.f_errs + ls.d_errs);
 }
 
-static int
+int
 famfs_shadow_logplay(
 	const char   *fspath,
 	int           dry_run,
@@ -1572,12 +1572,6 @@ famfs_shadow_logplay(
 		fprintf(stderr, "%s: daxdev required\n", __func__);
 		return -EINVAL;
 	}
-	rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &logp, 0, 1 /* read-only */);
-	if (rc) {
-		fprintf(stderr, "%s: failed to map superblock and log from %s\n",
-			__func__, daxdev);
-		return rc;
-	}
 
 	rc = stat(fspath, &st);
 	if (!rc) {
@@ -1594,6 +1588,12 @@ famfs_shadow_logplay(
 		}
 	}
 
+	rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &logp, 0, 1 /* read-only */);
+	if (rc) {
+		fprintf(stderr, "%s: failed to map superblock and log from %s\n",
+			__func__, daxdev);
+		return rc;
+	}
 	role = (client_mode) ? FAMFS_CLIENT : famfs_get_role(sb);
 
 	return __famfs_logplay(logp, fspath, dry_run, client_mode, 1 /* shadow */,

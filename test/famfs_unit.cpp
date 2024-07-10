@@ -531,6 +531,34 @@ TEST(famfs, famfs_log)
 	mock_failure = MOCK_FAIL_NONE;
 	logp->entries[0].famfs_log_entry_type = tmp;
 
+	/*
+	 * Test famfs_logplay in shadow mode
+	 */
+	/* This should fail due to null daxdev */
+	rc = famfs_shadow_logplay("/tmp/famfs_shadow", 0, 0, NULL, 0);
+	ASSERT_NE(rc, 0);
+
+	/* This should fail due to missing shadow fs path */
+	rc = famfs_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 0);
+	ASSERT_NE(rc, 0);
+
+	/* This should fail due to shadow fs path being a file and not a directory */
+	system("touch /tmp/famfs_shadow");
+	rc = famfs_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 0);
+	ASSERT_NE(rc, 0);
+	system("rm -f /tmp/famfs_shadow");
+
+	/* This should fail daxdev being bogus */
+	system("mkdir /tmp/famfs_shadow");
+	rc = famfs_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 0);
+	ASSERT_NE(rc, 0);
+
+	/* Do a dry_run shadow log play */
+	rc = __famfs_logplay(logp, "/tmp/famfs", 1 /* dry_run */,
+			     0, 1 /* shadow */, FAMFS_MASTER, 1);
+	ASSERT_EQ(rc, 0);
+
+
 	rc = famfs_fsck_scan(sb, logp, 1, 3);
 	ASSERT_EQ(rc, 0);
 
