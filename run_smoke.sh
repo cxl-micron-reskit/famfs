@@ -49,6 +49,10 @@ while (( $# > 0)); do
 	    SKIP_PCQ=1
 	    SKIP_FIO=1
 	    ;;
+	(--quick)
+	    SKIP_PCQ=1
+	    SKIP_FIO=1
+	    ;;
 	(-4)
 	    TEST_ALL=0
 	    TEST4=1

@@ -1352,6 +1352,10 @@ __famfs_logplay(
 	u64 i, j;
 	int rc;
 
+	if (role == FAMFS_NOSUPER) {
+		fprintf(stderr, "%s: no valid superblock on device\n", __func__);
+		return -1;
+	}
 	if (famfs_validate_log_header(logp)) {
 		fprintf(stderr, "%s: invalid log header\n", __func__);
 		return -1;
@@ -1577,7 +1581,6 @@ famfs_shadow_logplay(
 	enum famfs_system_role role;
 	struct famfs_superblock *sb;
 	struct famfs_log *logp;
-	struct stat st;
 	int rc;
 
 	if (!daxdev) {
@@ -1586,6 +1589,8 @@ famfs_shadow_logplay(
 	}
 
 	if (!dry_run) {
+		struct stat st;
+
 		/* If it's not a dry_run, fspath must exist and be a directory */
 		rc = stat(fspath, &st);
 		if (rc) {
@@ -1735,7 +1740,7 @@ famfs_logplay(
 		} while (resid > 0);
 
 		/* Get superblock via posix read */
-		sb = malloc(sb_size);
+		sb = calloc(1, sb_size);
 		if (!sb) {
 			close(sfd);
 			close(lfd);
@@ -1761,10 +1766,13 @@ famfs_logplay(
 
 	}
 
-	role = (client_mode) ? FAMFS_CLIENT : famfs_get_role(sb);
+	rc = -1;
+	if (sb) {
+		role = (client_mode) ? FAMFS_CLIENT : famfs_get_role(sb);
 
-	rc = __famfs_logplay(logp, mpt_out, dry_run,
-			     client_mode, shadow, role, verbose);
+		rc = __famfs_logplay(logp, mpt_out, dry_run,
+				     client_mode, shadow, role, verbose);
+	}
 err_out:
 	if (use_mmap)
 		munmap(logp, log_size);
@@ -4245,6 +4253,7 @@ famfs_mkfs(const char *daxdev,
 	if (mpt) {
 		fprintf(stderr, "%s: cannot mkfs while %s is mounted on %s\n",
 				__func__, daxdev, mpt);
+		free(mpt);
 		return -1;
 	}
 
