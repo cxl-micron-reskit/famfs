@@ -77,6 +77,19 @@ verify_mounted $DEV $MPT "test4.sh mounted"
 sudo $UMOUNT $MPT || fail "test4.sh umount"
 verify_not_mounted $DEV $MPT "test4.sh"
 
+# Test shadow logplay while the fs is not mounnted
+SHADOWPATH=/tmp/shadowpath
+${CLI} logplay --shadow -d /dev/bogodax && fail "shadow logplay should fail with bogus daxdev"
+sudo rm -rf $SHADOWPATH
+${CLI} logplay --shadow --daxdev $DEV -vv  $SHADOWPATH && \
+    fail "shadow logplay to nonexistent shadow dir should fail"
+${CLI} logplay --daxdev $DEV -vv  $SHADOWPATH && \
+    fail "logplay should fail if --daxdev is set without --shadow"
+
+mkdir -p /tmp/shadowpath
+${CLI} logplay --shadow --daxdev $DEV --dryrun -vv  $SHADOWPATH || \
+    fail "shadow logplay to existign shadow dir should succeed"
+
 #
 # Test cli 'famfs mount'
 #
