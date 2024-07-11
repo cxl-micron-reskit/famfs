@@ -67,14 +67,15 @@ famfs_logplay_usage(int   argc,
 	       "\n"
 	       "    %s logplay [args] <mount_point>\n"
 	       "\n"
-	       "    %s logplay --shadowfs /shadow/path --daxdevx <dadev>\n"
+	       "    %s logplay --shadow /shadow/path --daxdevx <dadev> <shadowpath>\n"
 	       "Arguments:\n"
 	       "    -r|--read   - Get the superblock and log via posix read\n"
 	       "    -m|--mmap   - Get the log via mmap\n"
 	       "    -c|--client - force \"client mode\" (all files read-only)\n"
 	       "    -n|--dryrun - Process the log but don't instantiate the files & directories\n"
-	       "    -S|--shadowfs - create a Yaml based shadow filesystem at mount_point path\n"
+	       "    -S|--shadow - create a Yaml based shadow filesystem at mount_point path\n"
 	       "    -d|--daxdev <daxdev> - dax device for shadow logplay\n"
+	       "    -v|--verbose - Verbose output\n"
 	       "\n"
 	       "\n",
 	       progname, progname);
@@ -110,7 +111,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+vrcmnhS?",
+	while ((c = getopt_long(argc, argv, "+vrcmnhSd:?",
 				logplay_options, &optind)) != EOF) {
 
 		switch (c) {

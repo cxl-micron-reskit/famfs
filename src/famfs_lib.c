@@ -1411,6 +1411,9 @@ __famfs_logplay(
 			if (skip_file)
 				continue;
 
+			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, fc->famfs_relpath);
+			realpath(fullpath, rpath);
+
 			if (shadow) {
 				famfs_shadow_file_create(rpath, fc, &ls, 0, dry_run, verbose);
 				continue;
@@ -1419,8 +1422,6 @@ __famfs_logplay(
 			if (dry_run)
 				continue;
 
-			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, fc->famfs_relpath);
-			realpath(fullpath, rpath);
 			rc = stat(rpath, &st);
 			if (!rc) {
 				if (verbose > 1)
@@ -1554,6 +1555,17 @@ __famfs_logplay(
 	return (ls.f_errs + ls.d_errs);
 }
 
+/**
+ * famfs_shadow_logplay()
+ *
+ * Play the log into a shadow famfs file system (for famsf_fused)
+ *
+ * @fspath      - Root path of shadow file system
+ * @dry_run     - Parse and print but don't create shadow files / directories
+ * @client_mode - Logplay as client, not master
+ * @daxdev      - Dax device to map the superblock and log from
+ * @verbose
+ */
 int
 famfs_shadow_logplay(
 	const char   *fspath,
@@ -1573,18 +1585,29 @@ famfs_shadow_logplay(
 		return -EINVAL;
 	}
 
-	rc = stat(fspath, &st);
-	if (!rc) {
-		switch (st.st_mode & S_IFMT) {
-		case S_IFDIR:
-			/* fspath (where shadow replay will happen) is a directory */
-			break;
+	if (!dry_run) {
+		/* If it's not a dry_run, fspath must exist and be a directory */
+		rc = stat(fspath, &st);
+		if (rc) {
+			rc = mkdir(fspath, 0755);
+			if (rc) {
+				fprintf(stderr, "%s: failed to create shadow fspath %s\n",
+					__func__, fspath);
+				return -errno;
+			}
+		}
+		if (!rc) {
+			switch (st.st_mode & S_IFMT) {
+			case S_IFDIR:
+				/* fspath (where shadow replay will happen) is a directory */
+				break;
 
-		default:
-			fprintf(stderr,
-				"%s: something exists where shadow root dir should be (%s)\n",
-				__func__, fspath);
-			return -EINVAL;
+			default:
+				fprintf(stderr,
+					"%s: something exists where shadow root dir should be (%s)\n",
+					__func__, fspath);
+				return -EINVAL;
+			}
 		}
 	}
 
@@ -2915,7 +2938,7 @@ famfs_get_shadow_file_data(const char *path,
 
 static int
 famfs_shadow_file_create(
-	const char                        *path,
+	const char                        *shadow_fullpath,
 	const struct famfs_file_creation  *fc,
 	struct famfs_log_stats            *ls,
 	int 	                          disable_write,
@@ -2926,12 +2949,10 @@ famfs_shadow_file_create(
 	char buf2[FAMFS_YAML_MAX];
 	struct stat st;
 	int rc = 0;
-	int wsize;
 	s64 i;
 	int fd;
 
 	snprintf(yaml_buf, FAMFS_YAML_MAX - 1,
-		 "---\n"
 		 "path: %s\n"
 		 "  size: %lld\n"
 		 "  flags: 0x%x\n"
@@ -2942,7 +2963,7 @@ famfs_shadow_file_create(
 		 "  simple_ext_list:\n",
 		 fc->famfs_relpath, fc->famfs_fc_size,
 		 fc->famfs_fc_flags, fc->fc_mode, fc->fc_uid, fc->fc_gid,
-		 fc->famfs_fc_flags);
+		 fc->famfs_nextents);
 	for (i = 0; i < fc->famfs_nextents; i++) {
 		snprintf(buf2, FAMFS_YAML_MAX - 1,
 			 "    - offset: 0x%llx\n"
@@ -2951,21 +2972,21 @@ famfs_shadow_file_create(
 			 fc->famfs_ext_list[i].se.famfs_extent_len);
 		strncat(yaml_buf, buf2, FAMFS_YAML_MAX - 1);
 	}
-	strncat(yaml_buf, "---\n",  FAMFS_YAML_MAX - 1);
 	if (verbose)
 		printf(yaml_buf);
 
 	if (dry_run)
 		return 0;
 
-	rc = stat(path, &st);
+	rc = stat(shadow_fullpath, &st);
 	if (!rc) {
 		switch (st.st_mode & S_IFMT) {
 		case S_IFDIR:
 			/* This is normal for log replay */
+			/* TODO: options to verify and fix contents? */
 			fprintf(stderr,
 				"%s: directory where file %s expected\n",
-				__func__, path);
+				__func__, shadow_fullpath);
 			ls->d_errs++;
 			break;
 
@@ -2973,7 +2994,7 @@ famfs_shadow_file_create(
 			if (verbose > 1)
 				fprintf(stderr,
 					"%s: file (%s) exists where dir should be\n",
-					__func__, path);
+					__func__, shadow_fullpath);
 			ls->f_existed++;
 
 			/* TODO: detect a yaml mismatch in the existing file */
@@ -2983,35 +3004,27 @@ famfs_shadow_file_create(
 		default:
 			fprintf(stderr,
 				"%s: something (%s) exists where dir should be\n",
-				__func__, path);
+				__func__, shadow_fullpath);
 			ls->d_errs++;
 			break;
 		}
 		return -1;
 	}
 
-	fd = open(path, O_RDWR | O_CREAT, 0644);
+	fd = open(shadow_fullpath, O_RDWR | O_CREAT, 0644);
 	if (fd < 0) {
 		fprintf(stderr, "%s: open/creat of %s failed, fd %d with %s\n",
-			__func__, path, fd, strerror(errno));
+			__func__, shadow_fullpath, fd, strerror(errno));
 		return fd;
 	}
 
-	wsize = strlen(yaml_buf);
-	rc = write(fd, yaml_buf, wsize);
+	rc = dprintf(fd, "---\n%s---\n", yaml_buf);
+	close(fd);
 	if (rc < 0) {
-		fprintf(stderr, "write failed\n");
+		fprintf(stderr, "%s: write failed to %s\n", __func__, shadow_fullpath);
 		printf("error: %s\n",strerror(errno));
-		close(fd);
 		return -1;
 	}
-	if (rc != wsize) {
-		fprintf(stderr, "%s: write completed only %d out of %d bytes\n",
-				__func__, rc, wsize);
-		close(fd);
-		return -1;
-	}
-
 	return 0;
 }
 /**
