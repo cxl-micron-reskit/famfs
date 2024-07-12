@@ -81,8 +81,10 @@ verify_not_mounted $DEV $MPT "test4.sh"
 SHADOWPATH=/tmp/shadowpath
 ${CLI} logplay --shadow -d /dev/bogodax && fail "shadow logplay should fail with bogus daxdev"
 sudo rm -rf $SHADOWPATH
-${CLI} logplay --shadow --daxdev $DEV -vv  $SHADOWPATH && \
-    fail "shadow logplay to nonexistent shadow dir should fail"
+${CLI} logplay --shadow --daxdev $DEV -vv  $SHADOWPATH/frob && \
+    fail "shadow logplay to nonexistent shadow dir should fail if parent doesn't exist"
+${CLI} logplay --shadow --daxdev $DEV -vv  $SHADOWPATH || \
+    fail "shadow logplay to nonexistent shadow dir should succeed if parent exists"
 ${CLI} logplay --daxdev $DEV -vv  $SHADOWPATH && \
     fail "logplay should fail if --daxdev is set without --shadow"
 

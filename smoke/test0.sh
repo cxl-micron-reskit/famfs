@@ -185,8 +185,8 @@ ${CLI} mkmeta /tmp/nonexistent   && fail "mkmeta on non-existing device should f
 ${CLI} mkmeta $DEV               || fail "mkmeta repeat should fail"
 
 # Replay the log, recovering the files that existed befure the umount
-${CLI} logplay -vr $MPT             || fail "logplay 3 should work but be nop"
-${CLI} logplay -m $MPT             || fail "logplay 3 should work but be nop"
+${CLI} logplay -m $MPT           || fail "logplay 3 (mmap) should work but be nop"
+${CLI} logplay -vr $MPT          || fail "logplay 4 (read) should work but be nop"
 
 # Re-verify the files from prior to the umount
 ${CLI} verify -S 1 -f $MPT/test1 || fail "verify test1 after replay"
