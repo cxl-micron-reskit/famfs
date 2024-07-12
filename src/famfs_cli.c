@@ -1021,7 +1021,6 @@ do_famfs_cli_creat(int argc, char *argv[])
 		/* These options don't set a flag.
 		 * We distinguish them by their indices.
 		 */
-		/*{"dryrun",       no_argument,       0, 'n'}, */
 		{0, 0, 0, 0}
 	};
 
@@ -1196,8 +1195,6 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 	int verbose = 0;
 	int c;
 
-	/* TODO: allow passing in uid/gid/mode on command line*/
-
 	/* XXX can't use any of the same strings as the global args! */
 	struct option mkdir_options[] = {
 		/* These options set a flag. */
@@ -1205,7 +1202,6 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 		/* These options don't set a flag.
 		 * We distinguish them by their indices.
 		 */
-		/*{"dryrun",       no_argument,       0, 'n'}, */
 		{"parents",      no_argument,         0,  'p'},
 		{"mode",        required_argument,    0,  'm'},
 		{"uid",         required_argument,             0,  'u'},
@@ -1315,7 +1311,6 @@ do_famfs_cli_verify(int argc, char *argv[])
 
 		case 'f': {
 			filename = optarg;
-			/* TODO: make sure filename is in a famfs file system */
 			break;
 		}
 		case 'h':

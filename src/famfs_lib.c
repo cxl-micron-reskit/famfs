@@ -89,6 +89,11 @@ static int famfs_mmap_superblock_and_log_raw(const char *devname,
 					     int read_only);
 static int open_superblock_file_read_only(const char *path, size_t  *sizep, char *mpt_out);
 
+/**
+ * get_multiplier()
+ *
+ * For parsing numbers on command lines with K/M/G for KiB etc.
+ */
 s64 get_multiplier(const char *endptr)
 {
 	size_t multiplier = 1;
@@ -1139,7 +1144,6 @@ famfs_mkmeta(const char *devname)
 				fprintf(stderr,
 					"%s: bad superblock file - umount/remount likely required\n",
 					__func__);
-				//unlink(sb_file);
 			}
 		} else {
 			fprintf(stderr,
@@ -1195,7 +1199,6 @@ famfs_mkmeta(const char *devname)
 				fprintf(stderr,
 					"%s: bad log file - umount/mount likely required\n",
 					__func__);
-				//unlink(log_file);
 			}
 		} else {
 			fprintf(stderr,
@@ -1751,10 +1754,6 @@ famfs_logplay(
 		 */
 		invalidate_processor_cache(logp, logp->famfs_log_len);
 	} else {
-		//size_t resid = 0;
-		//size_t total = 0;
-		//char *buf;
-
 		/* XXX: Hmm, not sure how to invalidate the processor cache before a posix read.
 		 * default is mmap; posix read may not work correctly for non-cache-coherent configs
 		 */
@@ -1765,27 +1764,11 @@ famfs_logplay(
 			fprintf(stderr, "%s: malloc %ld failed for log\n", __func__, log_size);
 			return -ENOMEM;
 		}
-#if 1
+
 		rc = famfs_file_read(lfd, (char *)logp, log_size, __func__, "log file", verbose);
 		if (rc)
 			goto err_out;
-#else
-		resid = log_size;
-		buf = (char *)logp;
-		do {
-			rc = read(lfd, &buf[total], resid);
-			if (rc < 0) {
-				fprintf(stderr, "%s: error %d reading log file\n",
-					__func__, errno);
-				return -errno;
-			}
-			printf("%s: read %d bytes of log\n", __func__, rc);
-			if (rc == 0)
-				goto err_out; /* if we didn't get the whole log, err out */
-			resid -= rc;
-			total += rc;
-		} while (resid > 0);
-#endif
+
 		/* Get superblock via posix read */
 		sb = calloc(1, sb_size);
 		if (!sb) {
@@ -1795,29 +1778,11 @@ famfs_logplay(
 				__func__, log_size);
 			return -ENOMEM;
 		}
-#if 1
+
 		rc = famfs_file_read(sfd, (char *)sb, sb_size, __func__,
 				     "superblock file", verbose);
 		if (rc)
 			goto err_out;
-#else
-		resid = sb_size;
-		total = 0;
-		buf = (char *)sb;
-		do {
-			rc = read(sfd, &buf[total], resid);
-			if (rc < 0) {
-				fprintf(stderr, "%s: error %d reading superblock file\n",
-					__func__, errno);
-				return -errno;
-			}
-			printf("%s: read %d bytes of superblock\n", __func__, rc);
-			if (rc == 0)
-				goto err_out; /* if we didn't get the whole log, err out */
-			resid -= rc;
-			total += rc;
-		} while (resid > 0);
-#endif
 	}
 
 	role = (client_mode) ? FAMFS_CLIENT : famfs_get_role(sb);
@@ -1942,7 +1907,6 @@ famfs_log_file_creation(
 
 	if (famfs_log_full(logp)) {
 		fprintf(stderr, "%s: log full\n", __func__);
-		//assert(0);
 		return -ENOMEM;
 	}
 
@@ -1993,7 +1957,6 @@ famfs_log_dir_creation(
 
 	if (famfs_log_full(logp)) {
 		fprintf(stderr, "%s: log full\n", __func__);
-		//assert(0);
 		return -ENOMEM;
 	}
 
@@ -2376,9 +2339,6 @@ famfs_fsck(
 		} else {
 			int sfd;
 			int lfd;
-			//char *buf;
-			//int resid;
-			//int total = 0;
 
 			sfd = open_superblock_file_read_only(path, NULL, NULL);
 			if (sfd < 0 || mock_failure == MOCK_FAIL_OPEN_SB) {
@@ -2389,13 +2349,8 @@ famfs_fsck(
 			sb = calloc(1, FAMFS_SUPERBLOCK_SIZE);
 			assert(sb);
 
-#if 1
 			rc = famfs_file_read(sfd, (char *)sb, FAMFS_SUPERBLOCK_SIZE, __func__,
 					     "superblock file", verbose);
-#else
-			/* Read a copy of the superblock */
-			rc = read(sfd, sb, FAMFS_SUPERBLOCK_SIZE); /* 2MiB multiple */
-#endif
 			if (rc != 0 || mock_failure == MOCK_FAIL_READ_SB) {
 				free(sb);
 				close(sfd);
@@ -2417,7 +2372,6 @@ famfs_fsck(
 			assert(logp);
 
 			/* Read a copy of the log */
-#if 1
 			rc = famfs_file_read(lfd, (char *)logp, sb->ts_log_len, __func__,
 					     "log file", verbose);
 			if (rc != 0
@@ -2429,33 +2383,6 @@ famfs_fsck(
 					__func__, errno);
 				goto err_out;
 			}
-#else			
-			resid = sb->ts_log_len;
-			buf = (char *)logp;
-			do {
-				rc = read(lfd, &buf[total], resid);
-				if (rc < 0 || mock_failure == MOCK_FAIL_READ_LOG) {
-					free(sb);
-					free(logp);
-					close(lfd);
-					fprintf(stderr, "%s: error %d reading log file\n",
-						__func__, errno);
-					return -errno;
-				}
-				if (verbose)
-					printf("%s: read %d bytes of log\n", __func__, rc);
-
-				if (rc == 0 || mock_failure == MOCK_FAIL_READ_FULL_LOG) {
-					fprintf(stderr, "%s: failed to read the full log\n",
-						__func__);
-					rc = -1;
-					close(lfd);
-					goto err_out;
-				}
-				resid -= rc;
-				total += rc;
-			} while (resid > 0);
-#endif
 			close(lfd);
 		}
 	}
@@ -2873,7 +2800,6 @@ famfs_file_alloc(
 	if (offset < 0) {
 		rc = -ENOMEM;
 		fprintf(stderr, "%s: Out of space!\n", __func__);
-		//assert(0);
 		goto out;
 	}
 	/* Allocation at offset 0 is always wrong - the superblock lives there */
@@ -3231,31 +3157,6 @@ famfs_dir_create(
 	return 0;
 }
 
-#if 0
-static int
-famfs_shadowfs_dir_create(
-	const char *shadowfspath,
-	const char *rpath,
-	mode_t      mode,
-	uid_t       uid,
-	gid_t       gid)
-{
-	int rc = 0;
-	char fullpath[PATH_MAX];
-
-	snprintf(fullpath, PATH_MAX - 1, "%s/%s", shadowfspath, rpath);
-
-	rc = mkdir(fullpath, mode);
-	if (rc) {
-		fprintf(stderr, "%s: failed to mkdir %s (rc %d errno %d)\n",
-			__func__, fullpath, rc, errno);
-		return -1;
-	}
-
-	return 0;
-}
-#endif
-
 /**
  * __famfs_mkdir()
  *
@@ -3282,10 +3183,10 @@ __famfs_mkdir(
 	gid_t       gid,
 	int         verbose)
 {
-	char realparent[PATH_MAX];
-	char fullpath[PATH_MAX];
 	char mpt_out[PATH_MAX] = { 0 };
 	char realdirpath[PATH_MAX];
+	char realparent[PATH_MAX];
+	char fullpath[PATH_MAX];
 	char *dirdupe   = NULL;
 	char *parentdir = NULL;
 	char *basedupe  = NULL;

@@ -663,25 +663,6 @@ TEST(famfs, famfs_log)
 	ASSERT_NE(rc, 0);
 	system("rm /tmp/testpipe");
 
-#if 0
-	/* this stuff is not working as expected. leaving for now. */
-	printf("uuid before: ");
-	famfs_print_uuid(&sb->ts_system_uuid);
-	/* change sys uuid in superblock (crc now wrong) */
-	memset(&sb->ts_system_uuid, 0, sizeof(uuid_le));
-
-	printf("uuid after: ");
-	famfs_print_uuid(&sb->ts_system_uuid);
-
-	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
-	ASSERT_NE(rc, 0);
-
-	/* now fix crc */
-	sb->ts_crc = famfs_gen_superblock_crc(sb);
-	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
-	ASSERT_NE(rc, 0);
-#endif
-
 }
 
 TEST(famfs, famfs_log_overflow_mkdir_p)
