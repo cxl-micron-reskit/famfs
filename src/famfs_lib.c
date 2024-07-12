@@ -77,7 +77,7 @@ static struct famfs_superblock *famfs_map_superblock_by_path(const char *path, i
 static int famfs_file_create(const char *path, mode_t mode, uid_t uid, gid_t gid,
 			     int disable_write);
 static int famfs_shadow_file_create(const char *path,
-				    const struct famfs_file_creation *fc,
+				    const struct famfs_file_meta *fc,
 				    struct famfs_log_stats *ls, int disable_write, int dry_run,
 				    int verbose);
 static int open_log_file_read_only(const char *path, size_t *sizep,
@@ -724,8 +724,8 @@ famfs_fsck_scan(
 		total_log_size = sizeof(struct famfs_log)
 			+ (sizeof(struct famfs_log_entry) * logp->famfs_log_last_index);
 		printf("  usable log size:   %ld\n", total_log_size);
-		printf("  sizeof(struct famfs_file_creation): %ld\n",
-		       sizeof(struct famfs_file_creation));
+		printf("  sizeof(struct famfs_file_meta): %ld\n",
+		       sizeof(struct famfs_file_meta));
 		printf("  sizeof(struct famfs_file_access):   %ld\n",
 		       sizeof(struct famfs_file_access));
 		printf("\n");
@@ -1032,8 +1032,8 @@ famfs_ext_to_simple_ext(
 		return NULL;
 
 	for (i = 0; i < ext_count; i++) {
-		se[i].famfs_extent_offset = te_list[i].offset;
-		se[i].famfs_extent_len    = te_list[i].len;
+		se[i].se_offset = te_list[i].offset;
+		se[i].se_len    = te_list[i].len;
 	}
 	return se;
 }
@@ -1071,8 +1071,8 @@ famfs_file_map_create(
 
 	/* TODO: check for overflow (nextents > max_extents) */
 	for (i = 0; i < nextents; i++) {
-		filemap.ext_list[i].offset = ext_list[i].famfs_extent_offset;
-		filemap.ext_list[i].len    = ext_list[i].famfs_extent_len;
+		filemap.ext_list[i].offset = ext_list[i].se_offset;
+		filemap.ext_list[i].len    = ext_list[i].se_len;
 	}
 
 	rc = ioctl(fd, FAMFSIOC_MAP_CREATE, &filemap);
@@ -1178,8 +1178,8 @@ famfs_mkmeta(const char *devname)
 	if (file_has_map(sbfd)) {
 		fprintf(stderr, "%s: found valid superblock file; doing nothing\n", __func__);
 	} else {
-		ext.famfs_extent_offset = 0;
-		ext.famfs_extent_len    = FAMFS_SUPERBLOCK_SIZE;
+		ext.se_offset = 0;
+		ext.se_len    = FAMFS_SUPERBLOCK_SIZE;
 		rc = famfs_file_map_create(sb_file, sbfd, FAMFS_SUPERBLOCK_SIZE, 1, &ext,
 					   FAMFS_SUPERBLOCK);
 		if (rc) {
@@ -1220,8 +1220,8 @@ famfs_mkmeta(const char *devname)
 	if (file_has_map(logfd)) {
 		fprintf(stderr, "%s: found valid log file; doing nothing\n", __func__);
 	} else {
-		ext.famfs_extent_offset = sb->ts_log_offset;
-		ext.famfs_extent_len    = sb->ts_log_len;
+		ext.se_offset = sb->ts_log_offset;
+		ext.se_len    = sb->ts_log_len;
 		rc = famfs_file_map_create(log_file, logfd, sb->ts_log_len, 1, &ext, FAMFS_LOG);
 		if (rc)
 			return -1;
@@ -1317,17 +1317,17 @@ famfs_log_full(const struct famfs_log *logp)
 }
 
 static inline int
-famfs_log_entry_fc_path_is_relative(const struct famfs_file_creation *fc)
+famfs_log_entry_fc_path_is_relative(const struct famfs_file_meta *fc)
 {
-	return ((strlen((char *)fc->famfs_relpath) >= 1)
-		&& (fc->famfs_relpath[0] != '/'));
+	return ((strlen((char *)fc->fm_relpath) >= 1)
+		&& (fc->fm_relpath[0] != '/'));
 }
 
 static inline int
 famfs_log_entry_md_path_is_relative(const struct famfs_mkdir *md)
 {
-	return ((strlen((char *)md->famfs_relpath) >= 1)
-		&& (md->famfs_relpath[0] != '/'));
+	return ((strlen((char *)md->md_relpath) >= 1)
+		&& (md->md_relpath[0] != '/'));
 }
 
 int
@@ -1420,7 +1420,7 @@ __famfs_logplay(
 
 		switch (le.famfs_log_entry_type) {
 		case FAMFS_LOG_FILE: {
-			const struct famfs_file_creation *fc = &le.famfs_fc;
+			const struct famfs_file_meta *fc = &le.famfs_fc;
 			struct famfs_simple_extent *el;
 			char fullpath[PATH_MAX];
 			char rpath[PATH_MAX];
@@ -1431,7 +1431,7 @@ __famfs_logplay(
 			ls.f_logged++;
 			if (verbose > 1)
 				printf("%s: %lld file=%s size=%lld\n", __func__, i,
-				       fc->famfs_relpath, fc->famfs_fc_size);
+				       fc->fm_relpath, fc->fm_size);
 
 			if (!famfs_log_entry_fc_path_is_relative(fc) || mock_path) {
 				fprintf(stderr,
@@ -1445,13 +1445,13 @@ __famfs_logplay(
 			 * is the superblock, which is not in the log. Check for files with
 			 * null offset...
 			 */
-			for (j = 0; j < fc->famfs_nextents; j++) {
-				const struct famfs_simple_extent *se = &fc->famfs_ext_list[j].se;
+			for (j = 0; j < fc->fm_nextents; j++) {
+				const struct famfs_simple_extent *se = &fc->fm_ext_list[j].se;
 
-				if (se->famfs_extent_offset == 0 || mock_path) {
+				if (se->se_offset == 0 || mock_path) {
 					fprintf(stderr,
 						"%s: ERROR file %s has extent with 0 offset\n",
-						__func__, fc->famfs_relpath);
+						__func__, fc->fm_relpath);
 					ls.f_errs++;
 					skip_file++;
 				}
@@ -1460,7 +1460,7 @@ __famfs_logplay(
 			if (skip_file)
 				continue;
 
-			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, fc->famfs_relpath);
+			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, fc->fm_relpath);
 			realpath(fullpath, rpath);
 
 			if (shadow) {
@@ -1480,19 +1480,19 @@ __famfs_logplay(
 				continue;
 			}
 			if (verbose) {
-				printf("famfs logplay: creating file %s", fc->famfs_relpath);
+				printf("famfs logplay: creating file %s", fc->fm_relpath);
 				if (verbose > 1)
-					printf(" mode %o", fc->fc_mode);
+					printf(" mode %o", fc->fm_mode);
 
 				printf("\n");
 			}
 
-			fd = famfs_file_create(rpath, fc->fc_mode, fc->fc_uid, fc->fc_gid,
+			fd = famfs_file_create(rpath, fc->fm_mode, fc->fm_uid, fc->fm_gid,
 					       (role == FAMFS_CLIENT) ? 1 : 0);
 			if (fd < 0) {
 				fprintf(stderr,
 					"%s: unable to create destfile (%s)\n",
-					__func__, fc->famfs_relpath);
+					__func__, fc->fm_relpath);
 
 				unlink(rpath);
 				ls.f_errs++;
@@ -1502,15 +1502,15 @@ __famfs_logplay(
 			/* Build extent list of famfs_simple_extent; the log entry has a
 			 * different kind of extent list...
 			 */
-			el = calloc(fc->famfs_nextents, sizeof(*el));
-			for (j = 0; j < fc->famfs_nextents; j++) {
-				const struct famfs_log_extent *tle = &fc->famfs_ext_list[j];
+			el = calloc(fc->fm_nextents, sizeof(*el));
+			for (j = 0; j < fc->fm_nextents; j++) {
+				const struct famfs_log_extent *tle = &fc->fm_ext_list[j];
 
-				el[j].famfs_extent_offset = tle[j].se.famfs_extent_offset;
-				el[j].famfs_extent_len    = tle[j].se.famfs_extent_len;
+				el[j].se_offset = tle[j].se.se_offset;
+				el[j].se_len    = tle[j].se.se_len;
 			}
-			famfs_file_map_create(rpath, fd, fc->famfs_fc_size,
-					      fc->famfs_nextents, el, FAMFS_REG);
+			famfs_file_map_create(rpath, fd, fc->fm_size,
+					      fc->fm_nextents, el, FAMFS_REG);
 			close(fd);
 			free(el);
 			ls.f_created++;
@@ -1538,12 +1538,12 @@ __famfs_logplay(
 
 			if (verbose)
 				printf("%s mkdir: %o %d:%d: %s \n", __func__,
-				       md->fc_mode, md->fc_uid, md->fc_gid, md->famfs_relpath);
+				       md->md_mode, md->md_uid, md->md_gid, md->md_relpath);
 
 			if (dry_run)
 				continue;
 
-			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, md->famfs_relpath);
+			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, md->md_relpath);
 			realpath(fullpath, rpath);
 
 			rc = stat(rpath, &st);
@@ -1577,14 +1577,14 @@ __famfs_logplay(
 			}
 
 			if (verbose)
-				printf("famfs logplay: creating directory %s\n", md->famfs_relpath);
+				printf("famfs logplay: creating directory %s\n", md->md_relpath);
 
-			rc = famfs_dir_create(mpt, (char *)md->famfs_relpath, md->fc_mode,
-					      md->fc_uid, md->fc_gid);
+			rc = famfs_dir_create(mpt, (char *)md->md_relpath, md->md_mode,
+					      md->md_uid, md->md_gid);
 			if (rc) {
 				fprintf(stderr,
 					"%s: error: unable to create directory (%s)\n",
-					__func__, md->famfs_relpath);
+					__func__, md->md_relpath);
 				ls.d_errs++;
 				continue;
 			}
@@ -1897,7 +1897,7 @@ famfs_log_file_creation(
 	size_t                      size)
 {
 	struct famfs_log_entry le = {0};
-	struct famfs_file_creation *fc = &le.famfs_fc;
+	struct famfs_file_meta *fc = &le.famfs_fc;
 	int i;
 
 	assert(logp);
@@ -1912,23 +1912,23 @@ famfs_log_file_creation(
 
 	le.famfs_log_entry_type = FAMFS_LOG_FILE;
 
-	fc->famfs_fc_size = size;
-	fc->famfs_nextents = nextents;
-	fc->famfs_fc_flags = FAMFS_FC_ALL_HOSTS_RW; /* XXX hard coded access for now */
+	fc->fm_size = size;
+	fc->fm_nextents = nextents;
+	fc->fm_flags = FAMFS_FC_ALL_HOSTS_RW; /* XXX hard coded access for now */
 
-	strncpy((char *)fc->famfs_relpath, relpath, FAMFS_MAX_PATHLEN - 1);
+	strncpy((char *)fc->fm_relpath, relpath, FAMFS_MAX_PATHLEN - 1);
 
-	fc->fc_mode = mode;
-	fc->fc_uid  = uid;
-	fc->fc_gid  = gid;
+	fc->fm_mode = mode;
+	fc->fm_uid  = uid;
+	fc->fm_gid  = gid;
 
 	/* Copy extents into log entry */
 	for (i = 0; i < nextents; i++) {
-		struct famfs_log_extent *ext = &fc->famfs_ext_list[i];
+		struct famfs_log_extent *ext = &fc->fm_ext_list[i];
 
-		ext->famfs_extent_type = FAMFS_EXT_SIMPLE;
-		ext->se.famfs_extent_offset = ext_list[i].famfs_extent_offset;
-		ext->se.famfs_extent_len    = ext_list[i].famfs_extent_len;
+		ext->ext_type = FAMFS_EXT_SIMPLE;
+		ext->se.se_offset = ext_list[i].se_offset;
+		ext->se.se_len    = ext_list[i].se_len;
 	}
 
 	return famfs_append_log(logp, &le);
@@ -1962,11 +1962,11 @@ famfs_log_dir_creation(
 
 	le.famfs_log_entry_type = FAMFS_LOG_MKDIR;
 
-	strncpy((char *)md->famfs_relpath, relpath, FAMFS_MAX_PATHLEN - 1);
+	strncpy((char *)md->md_relpath, relpath, FAMFS_MAX_PATHLEN - 1);
 
-	md->fc_mode = mode;
-	md->fc_uid  = uid;
-	md->fc_gid  = gid;
+	md->md_mode = mode;
+	md->md_uid  = uid;
+	md->md_gid  = gid;
 
 	return famfs_append_log(logp, &le);
 }
@@ -2547,19 +2547,19 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 
 		switch (le->famfs_log_entry_type) {
 		case FAMFS_LOG_FILE: {
-			const struct famfs_file_creation *fc = &le->famfs_fc;
-			const struct famfs_log_extent *ext = fc->famfs_ext_list;
+			const struct famfs_file_meta *fc = &le->famfs_fc;
+			const struct famfs_log_extent *ext = fc->fm_ext_list;
 
 			ls.f_logged++;
-			fsize_sum += fc->famfs_fc_size;
+			fsize_sum += fc->fm_size;
 			if (verbose > 1)
 				printf("%s: file=%s size=%lld\n", __func__,
-				       fc->famfs_relpath, fc->famfs_fc_size);
+				       fc->fm_relpath, fc->fm_size);
 
 			/* For each extent in this log entry, mark the bitmap as allocated */
-			for (j = 0; j < fc->famfs_nextents; j++) {
-				u64 ofs = ext[j].se.famfs_extent_offset;
-				u64 len = ext[j].se.famfs_extent_len;
+			for (j = 0; j < fc->fm_nextents; j++) {
+				u64 ofs = ext[j].se.se_offset;
+				u64 len = ext[j].se.se_len;
 				int rc;
 
 				assert(!(ofs % FAMFS_ALLOC_UNIT));
@@ -2805,8 +2805,8 @@ famfs_file_alloc(
 	/* Allocation at offset 0 is always wrong - the superblock lives there */
 	assert(offset != 0);
 
-	ext.famfs_extent_len    = round_size_to_alloc_unit(size);
-	ext.famfs_extent_offset = offset;
+	ext.se_len    = round_size_to_alloc_unit(size);
+	ext.se_offset = offset;
 
 	rc = famfs_log_file_creation(logp, 1, &ext,
 				     relpath, mode, uid, gid, size);
@@ -2887,19 +2887,19 @@ famfs_file_create(const char *path,
 /*
  * Caller of this function has to allocate memory to data buf
  * before calling this function, example below.
- * struct famfs_file_creation *data = malloc(sizeof(struct famfs_file_creation));
+ * struct famfs_file_meta *data = malloc(sizeof(struct famfs_file_meta));
  * famfs_get_shadow_file_data(path, data, 1);
  * Pass the buf to this function.
  */
 
-struct famfs_file_creation *
+struct famfs_file_meta *
 famfs_get_shadow_file_data(const char *path,
-		struct famfs_file_creation *data,
+		struct famfs_file_meta *data,
 		int verbose)
 {
 	int rc = 0;
 	int fd = 0;
-	struct famfs_file_creation *fc;
+	struct famfs_file_meta *fc;
 	char *buf = (char *)data;
 
 	fd = open(path, O_RDONLY, 0);
@@ -2909,21 +2909,21 @@ famfs_get_shadow_file_data(const char *path,
 		return NULL;
 	}
 
-	rc = read(fd, buf, sizeof(struct famfs_file_creation));
+	rc = read(fd, buf, sizeof(struct famfs_file_meta));
 	if (rc < 0) {
 		fprintf(stderr,"%s: read failed with %s\n",
 			__func__, strerror(errno));
 		return NULL;
 	}
 
-	fc = (struct famfs_file_creation *)buf;
+	fc = (struct famfs_file_meta *)buf;
 
 	if (verbose) {
 		printf("file: %s\nsize: %lld\nextents: %d\next1 offset: %lld\n"
 			"ext1 len: %lld\nuid: %d\ngid: %d\nmode: %d\n",
-                fc->famfs_relpath, fc->famfs_fc_size, fc->famfs_nextents,
-                fc->famfs_ext_list[0].se.famfs_extent_offset,
-		fc->famfs_ext_list[0].se.famfs_extent_len, fc->fc_uid, fc->fc_gid, fc->fc_mode);
+                fc->fm_relpath, fc->fm_size, fc->fm_nextents,
+                fc->fm_ext_list[0].se.se_offset,
+		fc->fm_ext_list[0].se.se_len, fc->fm_uid, fc->fm_gid, fc->fm_mode);
 	}
 
 	close(fd);
@@ -2936,7 +2936,7 @@ famfs_get_shadow_file_data(const char *path,
 static int
 famfs_shadow_file_create(
 	const char                        *shadow_fullpath,
-	const struct famfs_file_creation  *fc,
+	const struct famfs_file_meta      *fc,
 	struct famfs_log_stats            *ls,
 	int 	                          disable_write,
 	int                               dry_run,
@@ -2950,7 +2950,8 @@ famfs_shadow_file_create(
 	int fd;
 
 	snprintf(yaml_buf, FAMFS_YAML_MAX - 1,
-		 "path: %s\n"
+		 "file:\n"
+		 "  path: %s\n"
 		 "  size: %lld\n"
 		 "  flags: 0x%x\n"
 		 "  mode: 0%o\n"
@@ -2958,15 +2959,15 @@ famfs_shadow_file_create(
 		 "  gid: %d\n"
 		 "  nextents: %d\n"
 		 "  simple_ext_list:\n",
-		 fc->famfs_relpath, fc->famfs_fc_size,
-		 fc->famfs_fc_flags, fc->fc_mode, fc->fc_uid, fc->fc_gid,
-		 fc->famfs_nextents);
-	for (i = 0; i < fc->famfs_nextents; i++) {
+		 fc->fm_relpath, fc->fm_size,
+		 fc->fm_flags, fc->fm_mode, fc->fm_uid, fc->fm_gid,
+		 fc->fm_nextents);
+	for (i = 0; i < fc->fm_nextents; i++) {
 		snprintf(buf2, FAMFS_YAML_MAX - 1,
 			 "    - offset: 0x%llx\n"
 			 "      length: 0x%llx\n",
-			 fc->famfs_ext_list[i].se.famfs_extent_offset,
-			 fc->famfs_ext_list[i].se.famfs_extent_len);
+			 fc->fm_ext_list[i].se.se_offset,
+			 fc->fm_ext_list[i].se.se_len);
 		strncat(yaml_buf, buf2, FAMFS_YAML_MAX - 1);
 	}
 	if (verbose)
@@ -3012,6 +3013,7 @@ famfs_shadow_file_create(
 	if (fd < 0) {
 		fprintf(stderr, "%s: open/creat of %s failed, fd %d with %s\n",
 			__func__, shadow_fullpath, fd, strerror(errno));
+		ls->f_errs++;
 		return fd;
 	}
 
@@ -3020,8 +3022,10 @@ famfs_shadow_file_create(
 	if (rc < 0) {
 		fprintf(stderr, "%s: write failed to %s\n", __func__, shadow_fullpath);
 		printf("error: %s\n",strerror(errno));
+		ls->f_errs++;
 		return -1;
 	}
+	ls->f_created++;
 	return 0;
 }
 /**

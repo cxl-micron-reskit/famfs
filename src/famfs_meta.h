@@ -75,12 +75,6 @@ enum famfs_system_role {
 	FAMFS_NOSUPER, /* No valid superblock, so role is ambiguous */
 };
 
-/* Lives at the base of the .meta/log file: */
-struct famfs_log_cb {
-	u64 num_log_entries;
-	u64 next_free_offset; /* Offset where next log entry will go */
-};
-
 /* Extent types */
 
 enum famfs_log_ext_type {
@@ -92,12 +86,12 @@ enum famfs_log_ext_type {
  */
 struct famfs_simple_extent {
 	/* This extent is on the dax device with the superblock */
-	u64 famfs_extent_offset;
-	u64 famfs_extent_len;
+	u64 se_offset;
+	u64 se_len;
 };
 
 struct famfs_log_extent {
-	u32 famfs_extent_type;
+	u32 ext_type; /* enum famfs_log_ext_type */
 	union {
 		struct famfs_simple_extent se;
 		/* will include the other extent types eventually */
@@ -114,7 +108,7 @@ enum famfs_log_entry_type {
 #define FAMFS_MAX_HOSTNAME_LEN 32
 #define FAMFS_FC_BUF_LEN 512
 
-/* famfs_fc_flags */
+/* fm_flags */
 #define FAMFS_FC_ALL_HOSTS_RO (1 << 0)
 #define FAMFS_FC_ALL_HOSTS_RW (1 << 1)
 
@@ -123,27 +117,25 @@ enum famfs_log_entry_type {
 
 /* This log entry creates a directory */
 struct famfs_mkdir {
-	/* TODO: consistent field naming */
-	uid_t   fc_uid;
-	gid_t   fc_gid;
-	mode_t  fc_mode;
+	uid_t   md_uid;
+	gid_t   md_gid;
+	mode_t  md_mode;
 
-	u8      famfs_relpath[FAMFS_MAX_PATHLEN];
+	u8      md_relpath[FAMFS_MAX_PATHLEN];
 };
 
 /* This log entry creates a file */
-struct famfs_file_creation {
-	/* TODO: consistent field naming */
-	u64     famfs_fc_size;
-	u32     famfs_nextents;
-	u32     famfs_fc_flags;
+struct famfs_file_meta {
+	u64     fm_size;
+	u32     fm_nextents;
+	u32     fm_flags;
 
-	uid_t   fc_uid;
-	gid_t   fc_gid;
-	mode_t  fc_mode;
+	uid_t   fm_uid;
+	gid_t   fm_gid;
+	mode_t  fm_mode;
 
-	u8      famfs_relpath[FAMFS_MAX_PATHLEN];
-	struct  famfs_log_extent famfs_ext_list[FAMFS_FC_MAX_EXTENTS];
+	u8      fm_relpath[FAMFS_MAX_PATHLEN];
+	struct  famfs_log_extent fm_ext_list[FAMFS_FC_MAX_EXTENTS];
 };
 
 /* A log entry of type FAMFS_LOG_ACCESS contains a struct famfs_file_access entry.
@@ -161,7 +153,7 @@ struct famfs_log_entry {
 	u64     famfs_log_entry_seqnum;
 	u32     famfs_log_entry_type; /* FAMFS_LOG_FILE_CREATION or FAMFS_LOG_ACCESS */
 	union {
-		struct famfs_file_creation famfs_fc;
+		struct famfs_file_meta     famfs_fc;
 		struct famfs_mkdir         famfs_md;
 		struct famfs_file_access   famfs_fa;
 	};
