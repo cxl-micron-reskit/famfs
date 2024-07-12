@@ -575,7 +575,7 @@ TEST(famfs, famfs_log)
 
 	truncate("/tmp/famfs/.meta/.superblock", 8192);
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
-	ASSERT_EQ(rc, 0);
+	ASSERT_NE(rc, 0); /* Superblock file is short; this should fail */
 
 	truncate("/tmp/famfs/.meta/.superblock", 7);
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);

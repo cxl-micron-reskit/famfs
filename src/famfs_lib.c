@@ -118,6 +118,48 @@ s64 get_multiplier(const char *endptr)
 	return multiplier;
 }
 
+/**
+ * famfs_file_read()
+ *
+ * Read from a file, handling short reads
+ *
+ * Return values:
+ *  0 - success (the correct amount of data was read
+ * !0 - failure (the wrong amount of data, including NONE, was read)
+ */
+static ssize_t
+famfs_file_read(
+	int fd,
+	char *buf,
+	ssize_t size,
+	const char *func,
+	const char *msg,
+	int verbose)
+{
+	size_t resid = size;
+	size_t total = 0;
+	int rc;
+
+	assert(fd > 0);
+
+	do {
+		rc = read(fd, &buf[total], resid);
+		if (rc < 0) {
+			fprintf(stderr, "%s: error %d reading %s\n",
+				func, errno, msg);
+			return -errno;
+		}
+		if (verbose)
+			printf("%s: read %d bytes from %s\n", func, rc, msg);
+
+		if (rc == 0)
+			return -1; /* partial read is an error */
+		resid -= rc;
+		total += rc;
+	} while (resid > 0);
+	return 0;
+}
+
 void famfs_dump_super(struct famfs_superblock *sb)
 {
 	int rc;
@@ -392,7 +434,7 @@ famfs_print_role_string(int role)
  * Check whether this host is the master or not. If not the master, it must not attempt
  * to write the superblock or log, and files will default to read-only
  */
-static int
+static enum famfs_system_role
 famfs_get_role(const struct famfs_superblock *sb)
 {
 	uuid_le my_uuid;
@@ -1601,7 +1643,7 @@ famfs_shadow_logplay(
 				return -errno;
 			}
 		}
-		if (!rc) {
+		else if (!rc) {
 			switch (st.st_mode & S_IFMT) {
 			case S_IFDIR:
 				/* fspath (where shadow replay will happen) is a directory */
@@ -1709,9 +1751,9 @@ famfs_logplay(
 		 */
 		invalidate_processor_cache(logp, logp->famfs_log_len);
 	} else {
-		size_t resid = 0;
-		size_t total = 0;
-		char *buf;
+		//size_t resid = 0;
+		//size_t total = 0;
+		//char *buf;
 
 		/* XXX: Hmm, not sure how to invalidate the processor cache before a posix read.
 		 * default is mmap; posix read may not work correctly for non-cache-coherent configs
@@ -1723,6 +1765,11 @@ famfs_logplay(
 			fprintf(stderr, "%s: malloc %ld failed for log\n", __func__, log_size);
 			return -ENOMEM;
 		}
+#if 1
+		rc = famfs_file_read(lfd, (char *)logp, log_size, __func__, "log file", verbose);
+		if (rc)
+			goto err_out;
+#else
 		resid = log_size;
 		buf = (char *)logp;
 		do {
@@ -1738,7 +1785,7 @@ famfs_logplay(
 			resid -= rc;
 			total += rc;
 		} while (resid > 0);
-
+#endif
 		/* Get superblock via posix read */
 		sb = calloc(1, sb_size);
 		if (!sb) {
@@ -1748,7 +1795,14 @@ famfs_logplay(
 				__func__, log_size);
 			return -ENOMEM;
 		}
+#if 1
+		rc = famfs_file_read(sfd, (char *)sb, sb_size, __func__,
+				     "superblock file", verbose);
+		if (rc)
+			goto err_out;
+#else
 		resid = sb_size;
+		total = 0;
 		buf = (char *)sb;
 		do {
 			rc = read(sfd, &buf[total], resid);
@@ -1763,16 +1817,13 @@ famfs_logplay(
 			resid -= rc;
 			total += rc;
 		} while (resid > 0);
-
+#endif
 	}
 
-	rc = -1;
-	if (sb) {
-		role = (client_mode) ? FAMFS_CLIENT : famfs_get_role(sb);
+	role = (client_mode) ? FAMFS_CLIENT : famfs_get_role(sb);
 
-		rc = __famfs_logplay(logp, mpt_out, dry_run,
-				     client_mode, shadow, role, verbose);
-	}
+	rc = __famfs_logplay(logp, mpt_out, dry_run,
+			     client_mode, shadow, role, verbose);
 err_out:
 	if (use_mmap)
 		munmap(logp, log_size);
@@ -2325,33 +2376,32 @@ famfs_fsck(
 		} else {
 			int sfd;
 			int lfd;
-			char *buf;
-			int resid;
-			int total = 0;
+			//char *buf;
+			//int resid;
+			//int total = 0;
 
 			sfd = open_superblock_file_read_only(path, NULL, NULL);
 			if (sfd < 0 || mock_failure == MOCK_FAIL_OPEN_SB) {
 				fprintf(stderr, "%s: failed to open superblock file\n", __func__);
 				return -1;
 			}
-			/* Over-allocate so we can read 2MiB multiple */
-			sb = calloc(1, FAMFS_LOG_OFFSET);
+
+			sb = calloc(1, FAMFS_SUPERBLOCK_SIZE);
 			assert(sb);
 
+#if 1
+			rc = famfs_file_read(sfd, (char *)sb, FAMFS_SUPERBLOCK_SIZE, __func__,
+					     "superblock file", verbose);
+#else
 			/* Read a copy of the superblock */
 			rc = read(sfd, sb, FAMFS_SUPERBLOCK_SIZE); /* 2MiB multiple */
-			if (rc < 0 || mock_failure == MOCK_FAIL_READ_SB) {
+#endif
+			if (rc != 0 || mock_failure == MOCK_FAIL_READ_SB) {
 				free(sb);
 				close(sfd);
 				fprintf(stderr, "%s: error %d reading superblock file\n",
 					__func__, errno);
 				return -errno;
-			} else if (rc < sizeof(*sb)) {
-				free(sb);
-				close(sfd);
-				fprintf(stderr, "%s: error: short read of superblock %d/%ld\n",
-					__func__, rc, sizeof(*sb));
-				return -1;
 			}
 			close(sfd);
 
@@ -2367,6 +2417,19 @@ famfs_fsck(
 			assert(logp);
 
 			/* Read a copy of the log */
+#if 1
+			rc = famfs_file_read(lfd, (char *)logp, sb->ts_log_len, __func__,
+					     "log file", verbose);
+			if (rc != 0
+			    || mock_failure == MOCK_FAIL_READ_FULL_LOG
+			    || mock_failure == MOCK_FAIL_READ_LOG) {
+				close(lfd);
+				rc = -1;
+				fprintf(stderr, "%s: error %d reading log file\n",
+					__func__, errno);
+				goto err_out;
+			}
+#else			
 			resid = sb->ts_log_len;
 			buf = (char *)logp;
 			do {
@@ -2392,7 +2455,7 @@ famfs_fsck(
 				resid -= rc;
 				total += rc;
 			} while (resid > 0);
-
+#endif
 			close(lfd);
 		}
 	}
@@ -2407,12 +2470,12 @@ famfs_fsck(
 		return -1;
 	}
 	rc = famfs_fsck_scan(sb, logp, human, verbose);
+err_out:
 	if (!use_mmap && sb)
 		free(sb);
 	if (!use_mmap && logp)
 		free(logp);
 
-err_out:
 	return rc;
 }
 
