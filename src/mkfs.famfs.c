@@ -65,7 +65,6 @@ main(int argc, char *argv[])
 {
 	int c;
 
-	int arg_ct = 0;
 	char *daxdev = NULL;
 	int force = 0;
 	u64 loglen = 0x800000;
@@ -80,7 +79,6 @@ main(int argc, char *argv[])
 		char *endptr;
 		s64 mult;
 
-		arg_ct++;
 		switch (c) {
 		case 'k':
 			/* kill the superblock on the device */
