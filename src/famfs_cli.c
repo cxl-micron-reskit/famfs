@@ -81,7 +81,6 @@ int
 do_famfs_cli_logplay(int argc, char *argv[])
 {
 	int c;
-	int arg_ct = 0;
 	char *fspath;
 	int dry_run = 0;
 	int use_mmap = 0;
@@ -107,7 +106,6 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	while ((c = getopt_long(argc, argv, "+vrcmnh?",
 				logplay_options, &optind)) != EOF) {
 
-		arg_ct++;
 		switch (c) {
 		case 'n':
 			dry_run++;
@@ -184,7 +182,6 @@ do_famfs_cli_mount(int argc, char *argv[])
 {
 	int c;
 	int rc;
-	int arg_ct = 0;
 	int verbose = 0;
 	int use_read = 0;
 	int use_mmap = 0;
@@ -211,7 +208,6 @@ do_famfs_cli_mount(int argc, char *argv[])
 	while ((c = getopt_long(argc, argv, "+h?Rrmv",
 				mount_options, &optind)) != EOF) {
 
-		arg_ct++;
 		switch (c) {
 
 		case 'h':
@@ -337,7 +333,6 @@ do_famfs_cli_mkmeta(int argc, char *argv[])
 {
 	int c;
 
-	int arg_ct = 0;
 	char *daxdev = NULL;
 	char *realdaxdev = NULL;
 
@@ -354,7 +349,6 @@ do_famfs_cli_mkmeta(int argc, char *argv[])
 	while ((c = getopt_long(argc, argv, "+h?",
 				mkmeta_options, &optind)) != EOF) {
 
-		arg_ct++;
 		switch (c) {
 
 		case 'h':
@@ -420,7 +414,6 @@ do_famfs_cli_fsck(int argc, char *argv[])
 {
 	int c;
 
-	int arg_ct = 0;
 	char *daxdev = NULL;
 	int use_mmap = 0;
 	int use_read = 0;
@@ -443,7 +436,6 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	while ((c = getopt_long(argc, argv, "+vh?mr",
 				fsck_options, &optind)) != EOF) {
 
-		arg_ct++;
 		switch (c) {
 		case 'm':
 			use_mmap = 1;
@@ -529,7 +521,6 @@ int
 do_famfs_cli_cp(int argc, char *argv[])
 {
 	int c;
-	int arg_ct = 0;
 	int verbose = 0;
 	int remaining_args;
 	mode_t mode = 0; /* null mode inherits mode form source file */
@@ -556,7 +547,6 @@ do_famfs_cli_cp(int argc, char *argv[])
 	while ((c = getopt_long(argc, argv, "+rm:u:g:vh?",
 				cp_options, &optind)) != EOF) {
 
-		arg_ct++;
 		switch (c) {
 		case 'v':
 			verbose++;
@@ -651,7 +641,6 @@ do_famfs_cli_check(int argc, char *argv[])
 {
 	char *path = NULL;
 	int verbose = 0;
-	int arg_ct = 0;
 	int rc = 0;
 	int c;
 
@@ -669,7 +658,6 @@ do_famfs_cli_check(int argc, char *argv[])
 	while ((c = getopt_long(argc, argv, "+h?qv",
 				check_options, &optind)) != EOF) {
 
-		arg_ct++;
 		switch (c) {
 
 		case 'h':
@@ -736,7 +724,6 @@ do_famfs_cli_getmap(int argc, char *argv[])
 	int fd = 0;
 	int rc = 0;
 	char *filename = NULL;
-	int arg_ct = 0;
 	int quiet = 0;
 	int continue_on_err = 0;
 	struct stat st = { 0 };
@@ -754,7 +741,6 @@ do_famfs_cli_getmap(int argc, char *argv[])
 	while ((c = getopt_long(argc, argv, "+h?qc",
 				getmap_options, &optind)) != EOF) {
 
-		arg_ct++;
 		switch (c) {
 
 		case 'h':
@@ -896,7 +882,6 @@ int
 do_famfs_cli_clone(int argc, char *argv[])
 {
 	int c;
-	int arg_ct = 0;
 	int verbose = 0;
 
 	char *srcfile = NULL;
@@ -916,7 +901,6 @@ do_famfs_cli_clone(int argc, char *argv[])
 	while ((c = getopt_long(argc, argv, "+vh?",
 				clone_options, &optind)) != EOF) {
 
-		arg_ct++;
 		switch (c) {
 
 		case 'v':
@@ -993,7 +977,6 @@ do_famfs_cli_creat(int argc, char *argv[])
 
 	size_t fsize = 0;
 	s64 mult;
-	int arg_ct = 0;
 	uid_t uid = geteuid();
 	gid_t gid = getegid();
 	mode_t mode = 0644;
@@ -1028,7 +1011,6 @@ do_famfs_cli_creat(int argc, char *argv[])
 				creat_options, &optind)) != EOF) {
 		char *endptr;
 
-		arg_ct++;
 		switch (c) {
 
 		case 's':
@@ -1190,7 +1172,6 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 	mode_t mode = 0755;
 	int parents = 0;
 	int verbose = 0;
-	int arg_ct = 0;
 	int c;
 
 	/* TODO: allow passing in uid/gid/mode on command line*/
@@ -1217,7 +1198,6 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 	while ((c = getopt_long(argc, argv, "+pvm:u:g:h?",
 				mkdir_options, &optind)) != EOF) {
 
-		arg_ct++;
 		switch (c) {
 
 		case 'h':
@@ -1285,7 +1265,6 @@ do_famfs_cli_verify(int argc, char *argv[])
 	char *filename = NULL;
 
 	size_t fsize = 0;
-	int arg_ct = 0;
 	s64 seed = 0;
 	void *addr;
 	char *buf;
@@ -1306,7 +1285,6 @@ do_famfs_cli_verify(int argc, char *argv[])
 	while ((c = getopt_long(argc, argv, "+f:S:h?",
 				verify_options, &optind)) != EOF) {
 
-		arg_ct++;
 		switch (c) {
 
 		case 'S':
@@ -1388,11 +1366,9 @@ do_famfs_cli_flush(int argc, char *argv[])
 	char fullpath[PATH_MAX];
 	char *file = NULL;
 	int verbose = 0;
-	int arg_ct = 0;
 	int errs = 0;
 	int rc;
 	int c;
-
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option flush_options[] = {
@@ -1407,7 +1383,6 @@ do_famfs_cli_flush(int argc, char *argv[])
 	while ((c = getopt_long(argc, argv, "+vh?",
 				flush_options, &optind)) != EOF) {
 
-		arg_ct++;
 		switch (c) {
 
 		case 'v':
@@ -1501,7 +1476,6 @@ do_famfs_cli_chkread(int argc, char *argv[])
 	int is_log = 0;
 	int is_superblock = 0;
 	size_t fsize = 0;
-	int arg_ct = 0;
 	void *addr;
 	char *buf;
 	int rc = 0;
@@ -1520,7 +1494,6 @@ do_famfs_cli_chkread(int argc, char *argv[])
 	 */
 	while ((c = getopt_long(argc, argv, "+slh?",
 				chkread_options, &optind)) != EOF) {
-		arg_ct++;
 		switch (c) {
 		case 'h':
 		case '?':

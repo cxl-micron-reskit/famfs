@@ -138,7 +138,6 @@ main(int argc, char **argv)
 	int runtime = 0;
 	int verbose = 0;
 	s64 seed = 0;
-	int arg_ct;
 	int c, rc;
 	s64 mult;
 
@@ -174,7 +173,6 @@ main(int argc, char **argv)
 				pcq_options, &optind)) != EOF) {
 		char *endptr;
 
-		arg_ct++;
 		switch (c) {
 
 		case 'i':

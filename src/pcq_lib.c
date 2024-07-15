@@ -644,6 +644,7 @@ pcq_worker(void *arg)
 		a->result = run_consumer(a);
 		break;
 	case READONLY:
+		break;
 	}
 	return rc;
 }
@@ -651,14 +652,13 @@ pcq_worker(void *arg)
 void *status_worker(void *arg)
 {
 	struct pcq_status_thread_arg *a = arg;
-	u64 i;
 
 	if (!a->interval)
 		return NULL;
 
 	assert(a->p && a->c);
 
-	for (i = 1; ; i++) {
+	while (true) {
 		struct tm *local_now;
 		char time_str[80];
 		time_t now;
