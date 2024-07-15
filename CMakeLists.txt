@@ -1,6 +1,9 @@
 
 cmake_minimum_required(VERSION 3.15)
 
+# Uncomment for clang - which detects different issues than gcc...
+#set(CMAKE_C_COMPILER clang)
+
 set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -ggdb -Wall ")
@@ -32,17 +35,17 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   endif()
 endif()
 
-add_library(libfamfs src/famfs_lib.c  )
+add_library(libfamfs src/famfs_lib.c src/famfs_yaml.c )
 add_library(libpcq src/pcq_lib.c  )
 
 add_executable(famfs src/famfs_cli.c )
 add_executable(mkfs.famfs src/mkfs.famfs.c )
 add_executable(pcq src/pcq.c )
 
-target_link_libraries(famfs libfamfs famfstest uuid z)
-target_link_libraries(mkfs.famfs libfamfs uuid z)
-target_link_libraries(libfamfs  uuid z)
-target_link_libraries(pcq libpcq libfamfs uuid z famfstest)
+target_link_libraries(famfs libfamfs famfstest uuid z yaml)
+target_link_libraries(mkfs.famfs libfamfs uuid z yaml)
+target_link_libraries(libfamfs  uuid z yaml)
+target_link_libraries(pcq libpcq libfamfs uuid z famfstest yaml)
 
 add_executable(passthrough_ll fuse/passthrough_ll.c)
 add_executable(passthrough_hp fuse/passthrough_hp.cc)

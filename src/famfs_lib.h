@@ -57,4 +57,8 @@ int famfs_flush_file(const char *filename, int verbose);
 int file_not_famfs(const char *fname);
 s64 get_multiplier(const char *endptr);
 
+/* famfs_yaml.c */
+int famfs_emit_file_yaml(const struct famfs_file_meta *fm, FILE *outp);
+int famfs_parse_file_yaml(FILE *fp, struct famfs_file_meta *fm, int max_extents);
+
 #endif /* _H_FAMFS_LIB */

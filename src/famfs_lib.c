@@ -1555,8 +1555,8 @@ __famfs_logplay(
 						fprintf(stderr,
 							"famfs logplay: directory %s exists\n",
 							rpath);
-						ls.d_existed++;
 					}
+					ls.d_existed++;
 					break;
 
 				case S_IFREG:
@@ -2636,6 +2636,7 @@ bitmap_alloc_contiguous(u8 *bitmap,
 		*cur_pos = j;
 		return i * FAMFS_ALLOC_UNIT;
 next:
+		continue;
 	}
 	fprintf(stderr, "%s: alloc failed\n", __func__);
 	return -1;
@@ -2942,36 +2943,13 @@ famfs_shadow_file_create(
 	int                               dry_run,
 	int                               verbose)
 {
-	char yaml_buf[FAMFS_YAML_MAX];
-	char buf2[FAMFS_YAML_MAX];
+	FILE *fp;
 	struct stat st;
 	int rc = 0;
-	s64 i;
 	int fd;
 
-	snprintf(yaml_buf, FAMFS_YAML_MAX - 1,
-		 "file:\n"
-		 "  path: %s\n"
-		 "  size: %lld\n"
-		 "  flags: 0x%x\n"
-		 "  mode: 0%o\n"
-		 "  uid: %d\n"
-		 "  gid: %d\n"
-		 "  nextents: %d\n"
-		 "  simple_ext_list:\n",
-		 fc->fm_relpath, fc->fm_size,
-		 fc->fm_flags, fc->fm_mode, fc->fm_uid, fc->fm_gid,
-		 fc->fm_nextents);
-	for (i = 0; i < fc->fm_nextents; i++) {
-		snprintf(buf2, FAMFS_YAML_MAX - 1,
-			 "    - offset: 0x%llx\n"
-			 "      length: 0x%llx\n",
-			 fc->fm_ext_list[i].se.se_offset,
-			 fc->fm_ext_list[i].se.se_len);
-		strncat(yaml_buf, buf2, FAMFS_YAML_MAX - 1);
-	}
 	if (verbose)
-		printf(yaml_buf);
+		famfs_emit_file_yaml(fc, stdout);
 
 	if (dry_run)
 		return 0;
@@ -3014,20 +2992,26 @@ famfs_shadow_file_create(
 		fprintf(stderr, "%s: open/creat of %s failed, fd %d with %s\n",
 			__func__, shadow_fullpath, fd, strerror(errno));
 		ls->f_errs++;
-		return fd;
-	}
-
-	rc = dprintf(fd, "---\n%s---\n", yaml_buf);
-	close(fd);
-	if (rc < 0) {
-		fprintf(stderr, "%s: write failed to %s\n", __func__, shadow_fullpath);
-		printf("error: %s\n",strerror(errno));
-		ls->f_errs++;
 		return -1;
 	}
+	/* Open shadow file as a stream */
+	fp = fdopen(fd, "w");
+	if (!fp) {
+		fprintf(stderr, "%s: fdopen failed\n", __func__);
+		close(fd);
+		return -1;
+	}
+
+	/* Write the yaml metadata to the shadow file */
+	rc = famfs_emit_file_yaml(fc, fp);
+
+	fclose(fp);
+	close(fd);
+
 	ls->f_created++;
-	return 0;
+	return rc;
 }
+
 /**
  * __famfs_mkfile()
  *
