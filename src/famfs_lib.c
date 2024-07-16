@@ -2958,6 +2958,7 @@ famfs_test_shadow_yaml(FILE *fp, const struct famfs_file_meta *fc)
 	/* Make sure the read-back of the yaml results in an identical struct famfs_file_meta */
 	if (memcmp(fc, &readback, sizeof(readback))) {
 		fprintf(stderr, "%s: famfs_file_meta miscompare\n", __func__);
+		famfs_emit_file_yaml(&readback, stderr);
 		assert(0);
 		return;
 	}

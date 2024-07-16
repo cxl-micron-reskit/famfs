@@ -336,25 +336,46 @@ err_out:
 
 /* Read back in */
 
+const char *
+yaml_event_str(int event_type)
+{
+	switch (event_type) {
+	case YAML_NO_EVENT:
+		return "YAML_NO_EVENT";
+	case YAML_STREAM_START_EVENT:
+		return "YAML_STREAM_START_EVENT";
+	case YAML_STREAM_END_EVENT:
+		return "YAML_STREAM_END_EVENT";
+	case YAML_DOCUMENT_START_EVENT:
+		return "YAML_DOCUMENT_START_EVENT";
+	case YAML_ALIAS_EVENT:
+		return "YAML_ALIAS_EVENT";
+	case YAML_SCALAR_EVENT:
+		return "YAML_SCALAR_EVENT";
+	case YAML_SEQUENCE_START_EVENT:
+		return "YAML_SEQUENCE_START_EVENT";
+	case YAML_SEQUENCE_END_EVENT:
+		return "YAML_SEQUENCE_END_EVENT";
+	case YAML_MAPPING_START_EVENT:
+		return "YAML_MAPPING_START_EVENT";
+	case YAML_MAPPING_END_EVENT:
+		return "YAML_MAPPING_END_EVENT";
+	}
+	return "BAD EVENT TYPE";
+}
 
+static int
+famfs_yaml_key_has_value(char *key)
+{
+	/* If it's not any of our valueless tags, it has a value */
+	if (strcmp((char *)key, "file")
+	    && strcmp((char *)key, "simple_ext_list"))
+		return 1;
+
+	return 0;
+}
 
 #if 1
-#include <yaml.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-typedef struct {
-    int offset;
-    int length;
-} Tag;
-
-typedef struct {
-    char *name;
-    int size;
-    Tag tags[3];
-} File;
-
 int
 famfs_parse_file_yaml(
 	FILE *fp,
@@ -363,6 +384,7 @@ famfs_parse_file_yaml(
 {
 	yaml_parser_t parser;
 	yaml_event_t event;
+	int ev_num = 0;
 
 	if (!yaml_parser_initialize(&parser)) {
 		fprintf(stderr, "Failed to initialize parser\n");
@@ -382,19 +404,26 @@ famfs_parse_file_yaml(
 			break;
 		}
 
+		printf("[ %d %s state=%d ]\n", ev_num++, yaml_event_str(event.type), state);
 		switch (event.type) {
 		case YAML_STREAM_END_EVENT:
-			printf("[ YAML_STREAM_END_EVENT state=%d]\n", state);
 			done = 1;
 			break;
 		case YAML_SCALAR_EVENT:
-			printf("[ YAML_SCALAR_EVENT state=%d ]\n", state);
+			printf("---> value=%s\n", event.data.scalar.value);
+			/* State == 0 means a key; next event will be a value so save the key
+			 * State == 1 means a value; use the saved key to know which
+			 */
 			if (state == 0) {
-				current_key = strdup((char *)event.data.scalar.value);
-				state = 1;
+				/* File scalar event has no value; all others do */
+				if (famfs_yaml_key_has_value((char *)event.data.scalar.value)) {
+					/* If it's not a file event, save the value
+					 * (which is a key */
+					current_key = strdup((char *)event.data.scalar.value);
+					state = 1;
+				}
 			} else if (state == 1) {
-				printf("current_key %s: %s\n",
-				       current_key, event.data.scalar.value);
+				printf("--- current_key=%s\n", current_key);
 				if (strcmp(current_key, "path") == 0) {
 					/* TODO: check for overflow */
 					strncpy((char *)fm->fm_relpath,
@@ -421,6 +450,10 @@ famfs_parse_file_yaml(
 				} else if (strcmp(current_key, "length") == 0) {
 					fm->fm_ext_list[ext_index].se.se_len =
 						strtoull((char *)event.data.scalar.value, 0, 0);
+					/* XXX this assumes length must come after offset */
+					fm->fm_nextents++;
+					ext_index++;
+					assert(ext_index <= max_extents);
 				}
 				else {
 					printf("current_key not expected\n");
@@ -431,20 +464,17 @@ famfs_parse_file_yaml(
 			}
 			break;
 		case YAML_MAPPING_START_EVENT:
-			printf("[ YAML_MAPPING_START_EVENT (state=%d]\n", state);
 			if (current_key && strcmp(current_key, "tags") == 0) {
 				state = 2; // Parsing list of tags
 			}
 			break;
 		case YAML_MAPPING_END_EVENT:
-			printf("[ YAML_MAPPING_END_EVENT state=%d ]\n", state);
 			if (state == 2) {
 				ext_index++;
 				state = 0; // Finished a tag mapping
 			}
 			break;
 		default:
-			printf("[ YAML_EVENT: %d state=%d ]\n", event.type, state);
 			break;
 		}
 
