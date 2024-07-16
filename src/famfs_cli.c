@@ -162,6 +162,8 @@ do_famfs_cli_logplay(int argc, char *argv[])
 		fprintf(stderr, "Error: daxdev only used with shadow logplay\n");
 		return -1;
 	}
+	if (shadow > 1)
+		printf("Logplay: running in shadow test mode\n");
 
 	if (optind > (argc - 1)) {
 		fprintf(stderr, "Must specify mount_point "

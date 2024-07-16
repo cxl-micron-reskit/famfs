@@ -79,7 +79,7 @@ static int famfs_file_create(const char *path, mode_t mode, uid_t uid, gid_t gid
 static int famfs_shadow_file_create(const char *path,
 				    const struct famfs_file_meta *fc,
 				    struct famfs_log_stats *ls, int disable_write, int dry_run,
-				    int verbose);
+				    int testmode, int verbose);
 static int open_log_file_read_only(const char *path, size_t *sizep,
 				   char *mpt_out, enum lock_opt lo);
 static int famfs_mmap_superblock_and_log_raw(const char *devname,
@@ -1464,7 +1464,9 @@ __famfs_logplay(
 			realpath(fullpath, rpath);
 
 			if (shadow) {
-				famfs_shadow_file_create(rpath, fc, &ls, 0, dry_run, verbose);
+				int testmode = (shadow > 1) ? 1:0;
+				famfs_shadow_file_create(rpath, fc, &ls, 0, dry_run,
+							 testmode, verbose);
 				continue;
 			}
 
@@ -1621,6 +1623,7 @@ famfs_shadow_logplay(
 	int           dry_run,
 	int           client_mode,
 	const char   *daxdev,
+	int           testmode,
 	int           verbose)
 {
 	enum famfs_system_role role;
@@ -1669,7 +1672,8 @@ famfs_shadow_logplay(
 	}
 	role = (client_mode) ? FAMFS_CLIENT : famfs_get_role(sb);
 
-	return __famfs_logplay(logp, fspath, dry_run, client_mode, 1 /* shadow */,
+	return __famfs_logplay(logp, fspath, dry_run, client_mode,
+			       1 + testmode /* shadow */,
 			       role, verbose);
 }
 
@@ -1711,8 +1715,12 @@ famfs_logplay(
 	int lfd, sfd;
 	int rc;
 
-	if (shadow)
-		return famfs_shadow_logplay(fspath, dry_run, client_mode, daxdev, verbose);
+	if (shadow) {
+		int testmode = (shadow > 1) ? 1:0;
+
+		return famfs_shadow_logplay(fspath, dry_run, client_mode, daxdev,
+					    testmode, verbose);
+	}
 
 	/* Open log from meta file */
 	lfd = open_log_file_read_only(fspath, &log_size, mpt_out, NO_LOCK);
@@ -2934,6 +2942,27 @@ famfs_get_shadow_file_data(const char *path,
 
 #define FAMFS_YAML_MAX 8192
 
+void
+famfs_test_shadow_yaml(FILE *fp, const struct famfs_file_meta *fc)
+{
+	struct famfs_file_meta readback = { 0 };
+	int rc;
+
+	rewind(fp);
+	rc = famfs_parse_file_yaml(fp, &readback, FAMFS_FC_MAX_EXTENTS);
+	if (rc) {
+		fprintf(stderr, "%s: failed to parse shadow file yaml\n", __func__);
+		assert(0);
+		return;
+	}
+	/* Make sure the read-back of the yaml results in an identical struct famfs_file_meta */
+	if (memcmp(fc, &readback, sizeof(readback))) {
+		fprintf(stderr, "%s: famfs_file_meta miscompare\n", __func__);
+		assert(0);
+		return;
+	}
+}
+
 static int
 famfs_shadow_file_create(
 	const char                        *shadow_fullpath,
@@ -2941,6 +2970,7 @@ famfs_shadow_file_create(
 	struct famfs_log_stats            *ls,
 	int 	                          disable_write,
 	int                               dry_run,
+	int                               testmode,
 	int                               verbose)
 {
 	FILE *fp;
@@ -3005,6 +3035,9 @@ famfs_shadow_file_create(
 	/* Write the yaml metadata to the shadow file */
 	rc = famfs_emit_file_yaml(fc, fp);
 
+	if (testmode) {
+		famfs_test_shadow_yaml(fp, fc);
+	}
 	fclose(fp);
 	close(fd);
 

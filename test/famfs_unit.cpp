@@ -535,22 +535,22 @@ TEST(famfs, famfs_log)
 	 * Test famfs_logplay in shadow mode
 	 */
 	/* This should fail due to null daxdev */
-	rc = famfs_shadow_logplay("/tmp/famfs_shadow", 0, 0, NULL, 0);
+	rc = famfs_shadow_logplay("/tmp/famfs_shadow", 0, 0, NULL, 1, 0);
 	ASSERT_NE(rc, 0);
 
 	/* This should fail due to missing shadow fs path */
-	rc = famfs_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 0);
+	rc = famfs_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 1, 0);
 	ASSERT_NE(rc, 0);
 
 	/* This should fail due to shadow fs path being a file and not a directory */
 	system("touch /tmp/famfs_shadow");
-	rc = famfs_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 0);
+	rc = famfs_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 1, 0);
 	ASSERT_NE(rc, 0);
 	system("rm -f /tmp/famfs_shadow");
 
 	/* This should fail daxdev being bogus */
 	system("mkdir /tmp/famfs_shadow");
-	rc = famfs_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 0);
+	rc = famfs_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 1, 0);
 	ASSERT_NE(rc, 0);
 
 	/* Do a dry_run shadow log play */
