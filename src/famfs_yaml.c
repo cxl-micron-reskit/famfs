@@ -336,7 +336,151 @@ err_out:
 
 /* Read back in */
 
+
+
+#if 1
+#include <yaml.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct {
+    int offset;
+    int length;
+} Tag;
+
+typedef struct {
+    char *name;
+    int size;
+    Tag tags[3];
+} File;
+
+int
+famfs_parse_file_yaml(
+	FILE *fp,
+	struct famfs_file_meta *fm,
+	int max_extents)
+{
+	yaml_parser_t parser;
+	yaml_event_t event;
+
+	if (!yaml_parser_initialize(&parser)) {
+		fprintf(stderr, "Failed to initialize parser\n");
+		return -1;
+	}
+
+	yaml_parser_set_input_file(&parser, fp);
+
+	int done = 0;
+	int state = 0; // 0: expecting key, 1: expecting value
+	int ext_index = 0;
+	char *current_key = NULL;
+
+	while (!done) {
+		if (!yaml_parser_parse(&parser, &event)) {
+			fprintf(stderr, "Parser error %d\n", parser.error);
+			break;
+		}
+
+		switch (event.type) {
+		case YAML_STREAM_END_EVENT:
+			printf("[ YAML_STREAM_END_EVENT state=%d]\n", state);
+			done = 1;
+			break;
+		case YAML_SCALAR_EVENT:
+			printf("[ YAML_SCALAR_EVENT state=%d ]\n", state);
+			if (state == 0) {
+				current_key = strdup((char *)event.data.scalar.value);
+				state = 1;
+			} else if (state == 1) {
+				printf("current_key %s: %s\n",
+				       current_key, event.data.scalar.value);
+				if (strcmp(current_key, "path") == 0) {
+					/* TODO: check for overflow */
+					strncpy((char *)fm->fm_relpath,
+						(char *)event.data.scalar.value,
+						FAMFS_MAX_PATHLEN - 1);
+				} else if (strcmp(current_key, "size") == 0) {
+					fm->fm_size = strtoull((char *)event.data.scalar.value,
+							       0, 0);
+				} else if (strcmp(current_key, "flags") == 0) {
+					fm->fm_flags = strtoull((char *)event.data.scalar.value,
+							       0, 0);
+				} else if (strcmp(current_key, "mode") == 0) {
+					fm->fm_mode = strtoull((char *)event.data.scalar.value,
+							       0, 0);
+				} else if (strcmp(current_key, "uid") == 0) {
+					fm->fm_uid = strtoull((char *)event.data.scalar.value,
+							       0, 0);
+				} else if (strcmp(current_key, "gid") == 0) {
+					fm->fm_gid = strtoull((char *)event.data.scalar.value,
+							       0, 0);
+				} else if (strcmp(current_key, "offset") == 0) {
+					fm->fm_ext_list[ext_index].se.se_offset =
+						strtoull((char *)event.data.scalar.value, 0, 0);
+				} else if (strcmp(current_key, "length") == 0) {
+					fm->fm_ext_list[ext_index].se.se_len =
+						strtoull((char *)event.data.scalar.value, 0, 0);
+				}
+				else {
+					printf("current_key not expected\n");
+				}
+				free(current_key);
+				current_key = NULL;
+				state = 0;
+			}
+			break;
+		case YAML_MAPPING_START_EVENT:
+			printf("[ YAML_MAPPING_START_EVENT (state=%d]\n", state);
+			if (current_key && strcmp(current_key, "tags") == 0) {
+				state = 2; // Parsing list of tags
+			}
+			break;
+		case YAML_MAPPING_END_EVENT:
+			printf("[ YAML_MAPPING_END_EVENT state=%d ]\n", state);
+			if (state == 2) {
+				ext_index++;
+				state = 0; // Finished a tag mapping
+			}
+			break;
+		default:
+			printf("[ YAML_EVENT: %d state=%d ]\n", event.type, state);
+			break;
+		}
+
+		yaml_event_delete(&event);
+	}
+
+	yaml_parser_delete(&parser);
+	fclose(fp);
+	return 0;
+}
+
 #if 0
+int main()
+{
+	File file;
+	file.name = NULL;
+	file.size = 0;
+	memset(file.tags, 0, sizeof(file.tags));
+
+	parse_file_yaml(&file);
+
+	printf("Name: %s\n", file.name);
+	printf("Size: %d\n", file.size);
+	printf("Tags:\n");
+	for (int i = 0; i < 3; i++) {
+		printf("  - Offset: %d, Length: %d\n", file.tags[i].offset, file.tags[i].length);
+	}
+
+	// Free allocated memory
+	free(file.name);
+
+	return 0;
+}
+#endif
+  
+#else
 int
 famfs_parse_file_yaml(
 	FILE *fp,
@@ -408,7 +552,8 @@ famfs_parse_file_yaml(
 					fm->fm_ext_list[ext_num].se.se_len =
 						strtoull((char *)event.data.scalar.value, 0, 0);
 				} else {
-					printf("oops: current_key: %s\n", current_key);
+					printf("oops: state %d current_key: %s\n",
+					       state, current_key);
 				}
 
 				free(current_key);
