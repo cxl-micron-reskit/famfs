@@ -59,6 +59,6 @@ s64 get_multiplier(const char *endptr);
 
 /* famfs_yaml.c */
 int famfs_emit_file_yaml(const struct famfs_file_meta *fm, FILE *outp);
-int famfs_parse_yaml(FILE *fp, struct famfs_file_meta *fm, int max_extents);
+int famfs_parse_yaml(FILE *fp, struct famfs_file_meta *fm, int max_extents, int verbose);
 
 #endif /* _H_FAMFS_LIB */

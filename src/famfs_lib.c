@@ -2943,13 +2943,13 @@ famfs_get_shadow_file_data(const char *path,
 #define FAMFS_YAML_MAX 8192
 
 void
-famfs_test_shadow_yaml(FILE *fp, const struct famfs_file_meta *fc)
+famfs_test_shadow_yaml(FILE *fp, const struct famfs_file_meta *fc, int verbose)
 {
 	struct famfs_file_meta readback = { 0 };
 	int rc;
 
 	rewind(fp);
-	rc = famfs_parse_yaml(fp, &readback, FAMFS_FC_MAX_EXTENTS);
+	rc = famfs_parse_yaml(fp, &readback, FAMFS_FC_MAX_EXTENTS, verbose);
 	if (rc) {
 		fprintf(stderr, "%s: failed to parse shadow file yaml\n", __func__);
 		assert(0);
@@ -3037,7 +3037,7 @@ famfs_shadow_file_create(
 	rc = famfs_emit_file_yaml(fc, fp);
 
 	if (testmode) {
-		famfs_test_shadow_yaml(fp, fc);
+		famfs_test_shadow_yaml(fp, fc, verbose);
 	}
 	fclose(fp);
 	close(fd);
