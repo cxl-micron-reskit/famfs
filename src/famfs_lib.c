@@ -2949,7 +2949,7 @@ famfs_test_shadow_yaml(FILE *fp, const struct famfs_file_meta *fc)
 	int rc;
 
 	rewind(fp);
-	rc = famfs_parse_file_yaml(fp, &readback, FAMFS_FC_MAX_EXTENTS);
+	rc = famfs_parse_yaml(fp, &readback, FAMFS_FC_MAX_EXTENTS);
 	if (rc) {
 		fprintf(stderr, "%s: failed to parse shadow file yaml\n", __func__);
 		assert(0);

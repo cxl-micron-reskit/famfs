@@ -364,27 +364,222 @@ yaml_event_str(int event_type)
 	return "BAD EVENT TYPE";
 }
 
-static int
-famfs_yaml_key_has_value(char *key)
-{
-	/* If it's not any of our valueless tags, it has a value */
-	if (strcmp((char *)key, "file")
-	    && strcmp((char *)key, "simple_ext_list"))
-		return 1;
-
-	return 0;
+/* Get the next yaml event. If its type != ev_type, set rc=-1 and goto bad_target */
+#define GET_YAML_EVENT_OR_GOTO(PARSER, EV, ev_type, rc, bad_target) {			\
+	if (!yaml_parser_parse(PARSER, EV)) {						\
+		fprintf(stderr, "%s:%d yaml parser error\n", __func__, __LINE__);	\
+		rc = -1;								\
+		goto bad_target;							\
+	}										\
+	if ((EV)->type != ev_type) {							\
+		fprintf(stderr, "%s:%d: expected event type: %s but found %s\n", 	\
+			__func__, __LINE__,						\
+			yaml_event_str(ev_type),					\
+			yaml_event_str((EV)->type));					\
+		rc = -1;								\
+		yaml_event_delete(EV);							\
+		goto bad_target;							\
+	}										\
 }
 
-#if 1
+#define GET_YAML_EVENT(PARSER, EV, rc, bad_target) {					\
+	if (!yaml_parser_parse(PARSER, EV)) {						\
+		fprintf(stderr, "%s:%d yaml parser error\n", __func__, __LINE__); 	\
+		rc = -1;								\
+		goto bad_target;							\
+	}								\
+}
+
+static int
+famfs_parse_file_ext_list(
+	yaml_parser_t *parser,
+	struct famfs_file_meta *fm,
+	int max_extents)
+{
+	yaml_event_t event;
+	int ext_index = 0;
+	int ev_num = 0;
+	int done = 0;
+	int rc = 0;
+
+	/* "simple_ext_list" stanza starts wtiha  YAML_MAPPING_START_EVENT */
+	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_START_EVENT, rc, err_out);
+
+	while (!done) {
+		yaml_event_t val_event;
+		char *current_key = NULL;
+
+		GET_YAML_EVENT(parser, &event, rc, err_out);
+
+		printf("[ %d %s ]\n", ev_num++, yaml_event_str(event.type));
+		switch (event.type) {
+		case YAML_STREAM_END_EVENT:
+		case YAML_DOCUMENT_END_EVENT:
+			done = 1;
+			break;
+		case YAML_SCALAR_EVENT:
+			current_key = (char *)event.data.scalar.value;
+
+			printf("--- current_key=%s\n", current_key);
+
+			/* Note: this assumes that the offset always comes before the
+			 * length in an extent list entry */
+			if (strcmp(current_key, "offset") == 0) {
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+						       rc, err_out);
+				fm->fm_ext_list[ext_index].se.se_offset =
+					strtoull((char *)val_event.data.scalar.value, 0, 0);
+				yaml_event_delete(&val_event);
+
+				/* Get the "length" key */
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+						       rc, err_out);
+				if (strcmp("length", (char *)val_event.data.scalar.value)) {
+					fprintf(stderr, "%s: Error length didn't follow offset\n",
+						__func__);
+					rc = -1;
+					goto err_out;
+				}
+				yaml_event_delete(&val_event);
+
+				/* Get the length value */
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+						       rc, err_out);
+				fm->fm_ext_list[ext_index].se.se_len =
+					strtoull((char *)val_event.data.scalar.value, 0, 0);
+				yaml_event_delete(&val_event);
+
+				ext_index++;
+			} else {
+				fprintf(stderr, "%s: Bad scalar key %s\n",
+					__func__, current_key);
+			}
+
+			current_key = NULL;
+			break;
+
+		case YAML_MAPPING_END_EVENT:
+			done = 1;
+			break;
+		default:
+			printf("unexpected event %s\n", yaml_event_str(event.type));
+			break;
+		}
+
+		yaml_event_delete(&event);
+	}
+err_out:
+	return rc;
+}
+
 int
 famfs_parse_file_yaml(
+	yaml_parser_t *parser,
+	struct famfs_file_meta *fm,
+	int max_extents)
+{
+	yaml_event_t event;
+	int ev_num = 0;
+	int done = 0;
+	char *current_key = NULL;
+	int rc = 0;
+
+	/* "file" stanza starts wtiha  YAML_MAPPING_START_EVENT */
+	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_START_EVENT, rc, err_out);
+
+	while (!done) {
+		yaml_event_t val_event;
+
+		GET_YAML_EVENT(parser, &event, rc, err_out);
+
+		printf("[ %d %s ]\n", ev_num++, yaml_event_str(event.type));
+		switch (event.type) {
+		case YAML_STREAM_END_EVENT:
+			done = 1;
+			break;
+		case YAML_SCALAR_EVENT:
+			current_key = (char *)event.data.scalar.value;
+
+			printf("--- current_key=%s\n", current_key);
+			if (strcmp(current_key, "path") == 0) {
+				/* TODO: check for overflow */
+				strncpy((char *)fm->fm_relpath,
+					(char *)event.data.scalar.value,
+					FAMFS_MAX_PATHLEN - 1);
+			} else if (strcmp(current_key, "size") == 0) {
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+						       rc, err_out);
+				fm->fm_size = strtoull((char *)val_event.data.scalar.value,
+						       0, 0);
+				yaml_event_delete(&val_event);
+			} else if (strcmp(current_key, "flags") == 0) {
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+						       rc, err_out);
+				fm->fm_flags = strtoull((char *)val_event.data.scalar.value,
+							0, 0);
+				yaml_event_delete(&val_event);
+			} else if (strcmp(current_key, "mode") == 0) {
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+						       rc, err_out);
+				fm->fm_mode = strtoull((char *)val_event.data.scalar.value,
+						       0, 0);
+				yaml_event_delete(&val_event);
+			} else if (strcmp(current_key, "uid") == 0) {
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+						       rc, err_out);
+				fm->fm_uid = strtoull((char *)val_event.data.scalar.value,
+						      0, 0);
+				yaml_event_delete(&val_event);
+			} else if (strcmp(current_key, "gid") == 0) {
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+						       rc, err_out);
+				fm->fm_gid = strtoull((char *)val_event.data.scalar.value,
+						      0, 0);
+				yaml_event_delete(&val_event);
+			} else if (strcmp(current_key, "nextents") == 0) {
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+						       rc, err_out);
+				fm->fm_nextents = strtoull((char *)val_event.data.scalar.value,
+						      0, 0);
+				yaml_event_delete(&val_event);
+			} else if (strcmp(current_key, "simple_ext_list") == 0) {
+				rc = famfs_parse_file_ext_list(parser, fm, FAMFS_FC_MAX_EXTENTS);
+				if (rc)
+					goto err_out;
+			}
+
+			else {
+				fprintf(stderr, "%s: Unrecognized scalar key %s\n",
+					__func__, current_key);
+			}
+			current_key = NULL;
+			break;
+
+		case YAML_MAPPING_END_EVENT:
+			done = 1;
+			break;
+		default:
+			fprintf(stderr, "%s: unexpected event %s\n",
+				__func__, yaml_event_str(event.type));
+			break;
+		}
+
+		yaml_event_delete(&event);
+	}
+
+err_out:
+	return rc;
+}
+
+int
+famfs_parse_yaml(
 	FILE *fp,
 	struct famfs_file_meta *fm,
 	int max_extents)
 {
 	yaml_parser_t parser;
 	yaml_event_t event;
-	int ev_num = 0;
+	int rc = 0;
 
 	if (!yaml_parser_initialize(&parser)) {
 		fprintf(stderr, "Failed to initialize parser\n");
@@ -393,249 +588,42 @@ famfs_parse_file_yaml(
 
 	yaml_parser_set_input_file(&parser, fp);
 
-	int done = 0;
-	int state = 0; // 0: expecting key, 1: expecting value
-	int ext_index = 0;
-	char *current_key = NULL;
+	/* Look for YAML_STREAM_START_EVENT */
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_STREAM_START_EVENT, rc, err_out);
+	yaml_event_delete(&event);
 
-	while (!done) {
-		if (!yaml_parser_parse(&parser, &event)) {
-			fprintf(stderr, "Parser error %d\n", parser.error);
-			break;
+	/* Look for YAML_DOCUMENT_START_EVENT */
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_DOCUMENT_START_EVENT, rc, err_out);
+	yaml_event_delete(&event);
+
+	/* Look for YAML_MAPPING_START_EVENT */
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_MAPPING_START_EVENT, rc, err_out);
+	yaml_event_delete(&event);
+
+	/* Look for "file" stanza as scalar event
+	 * Theoretically there could be other stanzas later, but this is the only one now
+	 */
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_SCALAR_EVENT, rc, err_out);
+	if (strcmp((char *)"file", (char *)event.data.scalar.value) == 0) {
+		rc = famfs_parse_file_yaml(&parser, fm, max_extents);
+		if (rc) {
+			yaml_event_delete(&event);
+			goto err_out;
 		}
-
-		printf("[ %d %s state=%d ]\n", ev_num++, yaml_event_str(event.type), state);
-		switch (event.type) {
-		case YAML_STREAM_END_EVENT:
-			done = 1;
-			break;
-		case YAML_SCALAR_EVENT:
-			printf("---> value=%s\n", event.data.scalar.value);
-			/* State == 0 means a key; next event will be a value so save the key
-			 * State == 1 means a value; use the saved key to know which
-			 */
-			if (state == 0) {
-				/* File scalar event has no value; all others do */
-				if (famfs_yaml_key_has_value((char *)event.data.scalar.value)) {
-					/* If it's not a file event, save the value
-					 * (which is a key */
-					current_key = strdup((char *)event.data.scalar.value);
-					state = 1;
-				}
-			} else if (state == 1) {
-				printf("--- current_key=%s\n", current_key);
-				if (strcmp(current_key, "path") == 0) {
-					/* TODO: check for overflow */
-					strncpy((char *)fm->fm_relpath,
-						(char *)event.data.scalar.value,
-						FAMFS_MAX_PATHLEN - 1);
-				} else if (strcmp(current_key, "size") == 0) {
-					fm->fm_size = strtoull((char *)event.data.scalar.value,
-							       0, 0);
-				} else if (strcmp(current_key, "flags") == 0) {
-					fm->fm_flags = strtoull((char *)event.data.scalar.value,
-							       0, 0);
-				} else if (strcmp(current_key, "mode") == 0) {
-					fm->fm_mode = strtoull((char *)event.data.scalar.value,
-							       0, 0);
-				} else if (strcmp(current_key, "uid") == 0) {
-					fm->fm_uid = strtoull((char *)event.data.scalar.value,
-							       0, 0);
-				} else if (strcmp(current_key, "gid") == 0) {
-					fm->fm_gid = strtoull((char *)event.data.scalar.value,
-							       0, 0);
-				} else if (strcmp(current_key, "offset") == 0) {
-					fm->fm_ext_list[ext_index].se.se_offset =
-						strtoull((char *)event.data.scalar.value, 0, 0);
-				} else if (strcmp(current_key, "length") == 0) {
-					fm->fm_ext_list[ext_index].se.se_len =
-						strtoull((char *)event.data.scalar.value, 0, 0);
-					/* XXX this assumes length must come after offset */
-					fm->fm_nextents++;
-					ext_index++;
-					assert(ext_index <= max_extents);
-				}
-				else {
-					printf("current_key not expected\n");
-				}
-				free(current_key);
-				current_key = NULL;
-				state = 0;
-			}
-			break;
-		case YAML_MAPPING_START_EVENT:
-			if (current_key && strcmp(current_key, "tags") == 0) {
-				state = 2; // Parsing list of tags
-			}
-			break;
-		case YAML_MAPPING_END_EVENT:
-			if (state == 2) {
-				ext_index++;
-				state = 0; // Finished a tag mapping
-			}
-			break;
-		default:
-			break;
-		}
-
-		yaml_event_delete(&event);
 	}
+	yaml_event_delete(&event);
 
+	/* Look for YAML_DOCUMENT_END_EVENT */
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_DOCUMENT_END_EVENT, rc, err_out);
+	yaml_event_delete(&event);
+
+	/* Look for YAML_STREAM_END_EVENT */
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_STREAM_END_EVENT, rc, err_out);
+	yaml_event_delete(&event);
+
+err_out:
 	yaml_parser_delete(&parser);
 	fclose(fp);
-	return 0;
+	return rc;
 }
 
-#if 0
-int main()
-{
-	File file;
-	file.name = NULL;
-	file.size = 0;
-	memset(file.tags, 0, sizeof(file.tags));
-
-	parse_file_yaml(&file);
-
-	printf("Name: %s\n", file.name);
-	printf("Size: %d\n", file.size);
-	printf("Tags:\n");
-	for (int i = 0; i < 3; i++) {
-		printf("  - Offset: %d, Length: %d\n", file.tags[i].offset, file.tags[i].length);
-	}
-
-	// Free allocated memory
-	free(file.name);
-
-	return 0;
-}
-#endif
-  
-#else
-int
-famfs_parse_file_yaml(
-	FILE *fp,
-	struct famfs_file_meta *fm,
-	int max_extents)
-{
-	yaml_parser_t parser;
-	yaml_event_t event;
-	int done = 0;
-	int state = 0; /* 0: expecting key, 1: expecting value, 2: expecting extent fields */
-	int ext_num = 0;
-	char *current_key = NULL;
-
-
-	if (!yaml_parser_initialize(&parser)) {
-		fprintf(stderr, "Failed to initialize parser\n");
-		return -ENOMEM;
-	}
-
-	yaml_parser_set_input_file(&parser, fp);
-
-	while (!done) {
-		if (!yaml_parser_parse(&parser, &event)) {
-			fprintf(stderr, "Parser error %d\n", parser.error);
-			break;
-		}
-
-		switch (event.type) {
-		case YAML_STREAM_END_EVENT:
-			done = 1;
-			break;
-		case YAML_SCALAR_EVENT:
-			if (state == 0) {
-				current_key = strdup((char *)event.data.scalar.value);
-				state = 1;
-			} else if (state == 1) {
-				if (strcmp(current_key, "path") == 0) {
-					strncpy((char *)fm->fm_relpath,
-						(char *)event.data.scalar.value,
-						FAMFS_MAX_PATHLEN);
-				} else if (strcmp(current_key, "size") == 0) {
-					fm->fm_size = strtoull((char *)event.data.scalar.value,
-							       0, 0);
-				} else if (strcmp(current_key, "flags") == 0) {
-					fm->fm_flags = strtoul((char *)event.data.scalar.value,
-							       0, 0);
-				} else if (strcmp(current_key, "mode") == 0) {
-					fm->fm_mode = strtoul((char *)event.data.scalar.value,
-							      0, 8); /* must be octal */
-				} else if (strcmp(current_key, "uid") == 0) {
-					fm->fm_uid = strtoul((char *)event.data.scalar.value,
-							     0, 0);
-				} else if (strcmp(current_key, "gid") == 0) {
-					fm->fm_gid = strtoul((char *)event.data.scalar.value,
-							     0, 0);
-				} else if (strcmp(current_key, "nextents") == 0) {
-					fm->fm_nextents = strtoul((char *)event.data.scalar.value,
-								  0, 0);
-				} else if (strcmp(current_key, "offset") == 0) {
-					assert(state == 2);
-					assert(ext_num < fm->fm_nextents);
-					assert(ext_num < max_extents);
-					fm->fm_ext_list[ext_num].se.se_offset =
-						strtoull((char *)event.data.scalar.value, 0, 0);
-				} else if (strcmp(current_key, "length") == 0) {
-					assert(state == 2);
-					assert(ext_num < fm->fm_nextents);
-					assert(ext_num < max_extents);
-					fm->fm_ext_list[ext_num].se.se_len =
-						strtoull((char *)event.data.scalar.value, 0, 0);
-				} else {
-					printf("oops: state %d current_key: %s\n",
-					       state, current_key);
-				}
-
-				free(current_key);
-				current_key = NULL;
-				state = 0;
-			}
-			break;
-		case YAML_MAPPING_START_EVENT:
-			if (current_key && strcmp(current_key, "tags") == 0) {
-				state = 2; /* Parsing list of extents */
-			}
-			break;
-		case YAML_MAPPING_END_EVENT:
-			if (state == 2) {
-				ext_num++;
-				state = 0; /* Finished an extent mapping */
-			}
-			break;
-		default:
-			break;
-		}
-
-		yaml_event_delete(&event);
-	}
-
-	yaml_parser_delete(&parser);
-	fclose(fp);
-	return 0;
-}
-#endif
-
-#if 0
-int main() {
-    File file;
-    file.name = NULL;
-    file.size = 0;
-    memset(file.tags, 0, sizeof(file.tags));
-
-    parse_file_yaml(&file);
-
-    printf("Name: %s\n", file.name);
-    printf("Size: %d\n", file.size);
-    printf("Tags:\n");
-    for (int i = 0; i < 3; i++) {
-        printf("  - Offset: %d, Length: %d\n", file.tags[i].offset, file.tags[i].length);
-    }
-
-    // Free allocated memory
-    free(file.name);
-
-    return 0;
-}
-#endif
-
-/**/
