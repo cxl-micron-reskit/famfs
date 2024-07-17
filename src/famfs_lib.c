@@ -2962,6 +2962,7 @@ famfs_test_shadow_yaml(FILE *fp, const struct famfs_file_meta *fc, int verbose)
 		assert(0);
 		return;
 	}
+	printf("%s: shadow yaml good!\n", fc->fm_relpath);
 }
 
 static int
