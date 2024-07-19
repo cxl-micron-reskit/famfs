@@ -88,9 +88,19 @@ ${CLI} logplay --shadow --daxdev $DEV -vv  $SHADOWPATH || \
 ${CLI} logplay --daxdev $DEV -vv  $SHADOWPATH && \
     fail "logplay should fail if --daxdev is set without --shadow"
 
-mkdir -p /tmp/shadowpath
-${CLI} logplay --shadow --daxdev $DEV --dryrun -vv  $SHADOWPATH || \
-    fail "shadow logplay to existign shadow dir should succeed"
+sudo rm -rf $SHADOWPATH
+sudo mkdir -p $SHADOWPATH
+${CLI} logplay --shadow --daxdev $DEV -vv  $SHADOWPATH || \
+    fail "shadow logplay to existing shadow dir should succeed"
+${CLI} logplay --shadow --daxdev $DEV -vv  $SHADOWPATH || \
+    fail "redo shadow logplay to existing shadow dir should succeed"
+
+# Double shadow arg means re-parse yaml to test (if the shadow files are not already present)
+sudo rm -rf $SHADOWPATH
+${CLI} logplay --shadow --shadow --daxdev $DEV  -vv  $SHADOWPATH || \
+    fail "shadow logplay with yaml test to existing shadow dir should succeed"
+
+#TODO: add some bad yaml to the yaml tree to test failures (or maybe do this in unit tests?
 
 #
 # Test cli 'famfs mount'
