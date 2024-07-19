@@ -54,6 +54,8 @@ struct famfs_log_stats {
 	u64 d_existed;
 	u64 d_created;
 	u64 d_errs;
+	u64 yaml_errs;
+	u64 yaml_checked;
 };
 
 static u8 *
@@ -1375,7 +1377,7 @@ famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index)
  * Caller has already validated the superblock and log
  *
  * @logp        - pointer to a read-only copy or mmap of the log
- * @mpt         - mount point path (or shadow fs path if shadow==true
+ * @mpt         - mount point path (or shadow fs path if shadow==true)
  * @dry_run     - process the log but don't create the files & directories
  * @client_mode - for testing; play the log as if this is a client node, even on master
  * @shadow      - Play into shadow file system instead (for famfs-fuse)
@@ -1404,6 +1406,38 @@ __famfs_logplay(
 	if (famfs_validate_log_header(logp)) {
 		fprintf(stderr, "%s: invalid log header\n", __func__);
 		return -1;
+	}
+
+	/*
+	 * Non-shadow logplay has already verified that mpt exists and is a dir, because it
+	 * had to open the meta files. But for shadow logplay, we need to make sure mpt exists,
+	 * and create it if not.
+	 */
+	if (shadow) {
+		struct stat st;
+
+		rc = stat(mpt, &st);
+		if (rc) {
+			rc = mkdir(mpt, 0755);
+			if (rc) {
+				fprintf(stderr, "%s: failed to create shadow mpt %s\n",
+					__func__, mpt);
+				return -errno;
+			}
+		}
+		else if (!rc) {
+			switch (st.st_mode & S_IFMT) {
+			case S_IFDIR:
+				/* mpt (where shadow replay will happen) is a directory */
+				break;
+
+			default:
+				fprintf(stderr,
+					"%s: shadow mpt (%s) exists and is not a dir\n",
+					__func__, mpt);
+				return -EINVAL;
+			}
+		}
 	}
 
 	if (verbose)
@@ -1602,7 +1636,12 @@ __famfs_logplay(
 		}
 	}
 	famfs_print_log_stats("famfs_logplay", &ls, verbose);
+	if (ls.yaml_checked)
+		printf("%s: shadow yaml checked for %lld files\n", __func__, ls.yaml_checked);
 
+	if (ls.yaml_errs)
+		fprintf(stderr, "%s: there were %lld yaml errors detected\n",
+			__func__, ls.yaml_errs);
 	return (ls.f_errs + ls.d_errs);
 }
 
@@ -1634,34 +1673,6 @@ famfs_shadow_logplay(
 	if (!daxdev) {
 		fprintf(stderr, "%s: daxdev required\n", __func__);
 		return -EINVAL;
-	}
-
-	if (!dry_run) {
-		struct stat st;
-
-		/* If it's not a dry_run, fspath must exist and be a directory */
-		rc = stat(fspath, &st);
-		if (rc) {
-			rc = mkdir(fspath, 0755);
-			if (rc) {
-				fprintf(stderr, "%s: failed to create shadow fspath %s\n",
-					__func__, fspath);
-				return -errno;
-			}
-		}
-		else if (!rc) {
-			switch (st.st_mode & S_IFMT) {
-			case S_IFDIR:
-				/* fspath (where shadow replay will happen) is a directory */
-				break;
-
-			default:
-				fprintf(stderr,
-					"%s: something exists where shadow root dir should be (%s)\n",
-					__func__, fspath);
-				return -EINVAL;
-			}
-		}
 	}
 
 	rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &logp, 0, 1 /* read-only */);
@@ -2942,7 +2953,7 @@ famfs_get_shadow_file_data(const char *path,
 
 #define FAMFS_YAML_MAX 8192
 
-void
+static int
 famfs_test_shadow_yaml(FILE *fp, const struct famfs_file_meta *fc, int verbose)
 {
 	struct famfs_file_meta readback = { 0 };
@@ -2953,16 +2964,16 @@ famfs_test_shadow_yaml(FILE *fp, const struct famfs_file_meta *fc, int verbose)
 	if (rc) {
 		fprintf(stderr, "%s: failed to parse shadow file yaml\n", __func__);
 		assert(0);
-		return;
+		return -1;
 	}
 	/* Make sure the read-back of the yaml results in an identical struct famfs_file_meta */
 	if (memcmp(fc, &readback, sizeof(readback))) {
 		fprintf(stderr, "%s: famfs_file_meta miscompare\n", __func__);
 		famfs_emit_file_yaml(&readback, stderr);
-		assert(0);
-		return;
+		return -1;
 	}
 	printf("%s: shadow yaml good!\n", fc->fm_relpath);
+	return 0;
 }
 
 static int
@@ -3036,14 +3047,20 @@ famfs_shadow_file_create(
 
 	/* Write the yaml metadata to the shadow file */
 	rc = famfs_emit_file_yaml(fc, fp);
+	ls->f_created++;
 
 	if (testmode) {
-		famfs_test_shadow_yaml(fp, fc, verbose);
+		ls->yaml_checked++;
+		rc = famfs_test_shadow_yaml(fp, fc, verbose);
+		if (rc) {
+			/* In yaml testmode, yaml errrs are file errors */
+			ls->yaml_errs++;
+			ls->f_errs++;
+		}
 	}
 	fclose(fp);
 	close(fd);
 
-	ls->f_created++;
 	return rc;
 }
 

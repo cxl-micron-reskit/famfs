@@ -381,7 +381,7 @@ yaml_event_str(int event_type)
 		rc = -1;								\
 		yaml_event_delete(EV);							\
 		goto bad_target;							\
-	} else if (verbose)								\
+	} else if (verbose > 1)								\
 		printf("%s: %s (%s)\n", __func__, yaml_event_str((EV)->type),		\
 		       (ev_type == YAML_SCALAR_EVENT) ? (char *)((EV)->data.scalar.value) : ""); \
 }
@@ -391,7 +391,7 @@ yaml_event_str(int event_type)
 		fprintf(stderr, "%s:%d yaml parser error\n", __func__, __LINE__); 	\
 		rc = -1;								\
 		goto bad_target;							\
-	} else if (verbose)								\
+	} else if (verbose > 1)								\
 		printf("%s: %s (%s)\n", __func__, yaml_event_str((EV)->type), 		\
 		       ((EV)->type == YAML_SCALAR_EVENT) ? (char *)((EV)->data.scalar.value) : ""); \
 }
@@ -530,7 +530,7 @@ famfs_parse_file_yaml(
 				strncpy((char *)fm->fm_relpath,
 					(char *)val_event.data.scalar.value,
 					FAMFS_MAX_PATHLEN - verbose);
-				if (verbose) printf("%s: path: %s\n", __func__, fm->fm_relpath);
+				if (verbose > 1) printf("%s: path: %s\n", __func__, fm->fm_relpath);
 				yaml_event_delete(&val_event);
 			} else if (strcmp(current_key, "size") == 0) {
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
@@ -538,42 +538,42 @@ famfs_parse_file_yaml(
 				fm->fm_size = strtoull((char *)val_event.data.scalar.value,
 						       0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose) printf("%s: size: 0x%llx\n", __func__, fm->fm_size);
+				if (verbose > 1) printf("%s: size: 0x%llx\n", __func__, fm->fm_size);
 			} else if (strcmp(current_key, "flags") == 0) {
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				fm->fm_flags = strtoull((char *)val_event.data.scalar.value,
 							0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose) printf("%s: flags: 0x%x\n", __func__, fm->fm_flags);
+				if (verbose > 1) printf("%s: flags: 0x%x\n", __func__, fm->fm_flags);
 			} else if (strcmp(current_key, "mode") == 0) {
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				fm->fm_mode = strtoull((char *)val_event.data.scalar.value,
 						       0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose) printf("%s: mode: 0%o\n", __func__, fm->fm_mode);
+				if (verbose > 1) printf("%s: mode: 0%o\n", __func__, fm->fm_mode);
 			} else if (strcmp(current_key, "uid") == 0) {
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				fm->fm_uid = strtoull((char *)val_event.data.scalar.value,
 						      0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose) printf("%s: uid: %d\n", __func__, fm->fm_uid);
+				if (verbose > 1) printf("%s: uid: %d\n", __func__, fm->fm_uid);
 			} else if (strcmp(current_key, "gid") == 0) {
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				fm->fm_gid = strtoull((char *)val_event.data.scalar.value,
 						      0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose) printf("%s: gid: %d\n", __func__, fm->fm_gid);
+				if (verbose > 1) printf("%s: gid: %d\n", __func__, fm->fm_gid);
 			} else if (strcmp(current_key, "nextents") == 0) {
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				fm->fm_nextents = strtoull((char *)val_event.data.scalar.value,
 						      0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose) printf("%s: nextents: %d\n", __func__, fm->fm_nextents);
+				if (verbose > 1) printf("%s: nextents: %d\n", __func__, fm->fm_nextents);
 			} else if (strcmp(current_key, "simple_ext_list") == 0) {
 				rc = famfs_parse_file_ext_list(parser, fm, FAMFS_FC_MAX_EXTENTS,
 					verbose);
@@ -587,7 +587,7 @@ famfs_parse_file_yaml(
 			break;
 
 		case YAML_MAPPING_END_EVENT:
-			if (verbose)
+			if (verbose > 1)
 				printf("%s: Finished with file yaml\n", __func__);
 			done = 1;
 			break;
@@ -657,7 +657,6 @@ famfs_parse_yaml(
 
 err_out:
 	yaml_parser_delete(&parser);
-	fclose(fp);
 	return rc;
 }
 
