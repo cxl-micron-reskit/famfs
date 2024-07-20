@@ -469,6 +469,12 @@ famfs_parse_file_ext_list(
 		case YAML_MAPPING_START_EVENT:
 			if (verbose > 1)
 				printf("%s: extent %d is coming next\n", __func__, ext_index);
+			if (ext_index >= max_extents) {
+				fprintf(stderr, "%s: too many extents! (max=%d)\n",
+					__func__, max_extents);
+				rc = -EOVERFLOW;
+				goto err_out;
+			}
 			break;
 		case YAML_MAPPING_END_EVENT:
 			if (verbose > 1)
@@ -575,7 +581,7 @@ famfs_parse_file_yaml(
 				yaml_event_delete(&val_event);
 				if (verbose > 1) printf("%s: nextents: %d\n", __func__, fm->fm_nextents);
 			} else if (strcmp(current_key, "simple_ext_list") == 0) {
-				rc = famfs_parse_file_ext_list(parser, fm, FAMFS_FC_MAX_EXTENTS,
+				rc = famfs_parse_file_ext_list(parser, fm, max_extents,
 					verbose);
 				if (rc)
 					goto err_out;
