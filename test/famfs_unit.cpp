@@ -6,12 +6,15 @@
 #include <gtest/gtest.h>
 
 extern "C" {
+#include <stdio.h>
 #include <unistd.h>
 #include <linux/limits.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <errno.h>
+
 
 #include <linux/famfs_ioctl.h>
 #include "famfs_lib.h"
@@ -938,4 +941,169 @@ TEST(famfs, famfs_print_role_string) {
 	famfs_print_role_string(FAMFS_MASTER);
 	famfs_print_role_string(FAMFS_CLIENT);
 	famfs_print_role_string(FAMFS_NOSUPER);
+}
+
+static int truncate_stream(FILE *stream, off_t length) {
+    int fd = fileno(stream); // Obtain the file descriptor
+    if (fd == -1) {
+        perror("fileno");
+        return -1;
+    }
+
+    if (ftruncate(fd, length) == -1) {
+        perror("ftruncate");
+        return -1;
+    }
+
+    return 0;
+}
+
+static void famfs_yaml_test_reset(struct famfs_file_meta *fm, FILE *fp, char *yaml_str)
+{
+	memset(fm, 0, sizeof(*fm));
+	rewind(fp);
+	truncate_stream(fp, 0);
+	fprintf(fp, "%s", yaml_str);
+	rewind(fp);
+}
+
+TEST(famfs, famfs_file_yaml) {
+	struct famfs_file_meta fm;
+	FILE *fp = tmpfile();
+	char *my_yaml;
+	int rc;
+
+	/* Good yaml, single extent */
+	my_yaml = "---\n" /* Good yaml */
+		"file:\n"
+		"  path: 0446\n"
+		"  size: 1048576\n"
+		"  flags: 2\n"
+		"  mode: 0644\n"
+		"  uid: 42\n"
+		"  gid: 42\n"
+		"  nextents: 1\n"
+		"  simple_ext_list:\n"
+		"  - offset: 0x38600000\n"
+		"    length: 0x200000\n"
+		"...";
+	famfs_yaml_test_reset(&fm, fp, my_yaml);
+	rc = famfs_parse_yaml(fp, &fm, 1, 1);
+	ASSERT_EQ(rc, 0);
+
+	/* Good yaml, single extent */
+	my_yaml = "---\n" /* Good yaml */
+		"file:\n"
+		"  path: 0446\n"
+		"  size: 1048576\n"
+		"  flags: 2\n"
+		"  mode: 0644\n"
+		"  uid: 42\n"
+		"  gid: 42\n"
+		"  badkey: foobar\n" /* Unrecognized key */
+		"  nextents: 1\n"
+		"  simple_ext_list:\n"
+		"  - offset: 0x38600000\n"
+		"    length: 0x200000\n"
+		"...";
+	famfs_yaml_test_reset(&fm, fp, my_yaml);
+	rc = famfs_parse_yaml(fp, &fm, 1, 1);
+	ASSERT_EQ(rc, -EINVAL);
+
+	/* Good yaml, 3 extents */
+	my_yaml = "---\n" /* Good yaml */
+		"file:\n"
+		"  path: 0446\n"
+		"  size: 1048576\n"
+		"  flags: 2\n"
+		"  mode: 0644\n"
+		"  uid: 42\n"
+		"  gid: 42\n"
+		"  nextents: 3\n"
+		"  simple_ext_list:\n"
+		"  - offset: 0x38600000\n"
+		"    length: 0x200000\n"
+		"  - offset: 0x48600000\n"
+		"    length: 0x200000\n"
+		"  - offset: 0x58600000\n"
+		"    length: 0x200000\n"
+		"...";
+	famfs_yaml_test_reset(&fm, fp, my_yaml);
+	rc = famfs_parse_yaml(fp, &fm, FAMFS_FC_MAX_EXTENTS, 1); /* 3 extents is not an overflow */
+	ASSERT_EQ(rc, 0);
+	ASSERT_EQ(fm.fm_nextents, 3);
+	ASSERT_EQ(fm.fm_ext_list[0].se.se_offset, 0x38600000);
+	ASSERT_EQ(fm.fm_ext_list[0].se.se_len, 0x200000);
+	ASSERT_EQ(fm.fm_ext_list[1].se.se_offset, 0x48600000);
+	ASSERT_EQ(fm.fm_ext_list[1].se.se_len, 0x200000);
+	ASSERT_EQ(fm.fm_ext_list[2].se.se_offset, 0x58600000);
+	ASSERT_EQ(fm.fm_ext_list[2].se.se_len, 0x200000);
+
+	/* Malformed extent list */
+	famfs_yaml_test_reset(&fm, fp, my_yaml);
+	rc = famfs_parse_yaml(fp, &fm, 2, 1); /* 3 extents is an overflow this time */
+	ASSERT_EQ(rc, -EOVERFLOW);
+	my_yaml = "---\n" /* Good yaml */
+		"file:\n"
+		"  path: 0446\n"
+		"  size: 1048576\n"
+		"  flags: 2\n"
+		"  mode: 0644\n"
+		"  uid: 42\n"
+		"  gid: 42\n"
+		"  nextents: 1\n"
+		"  simple_ext_list:\n"
+		"  - length: 0x200000\n"   /* offset should be first */
+		"    offset: 0x38600000\n"
+		"...";
+	famfs_yaml_test_reset(&fm, fp, my_yaml);
+	rc = famfs_parse_yaml(fp, &fm, 1, 1);
+	ASSERT_EQ(rc, -1);
+
+	/* Length missing on one extent */
+	my_yaml = "---\n" /* Good yaml */
+		"file:\n"
+		"  path: 0446\n"
+		"  size: 1048576\n"
+		"  flags: 2\n"
+		"  mode: 0644\n"
+		"  uid: 42\n"
+		"  gid: 42\n"
+		"  nextents: 3\n"
+		"  simple_ext_list:\n"
+		"  - offset: 0x38600000\n"
+		"    length: 0x200000\n"
+		"  - offset: 0x48600000\n"
+		"  - offset: 0x58600000\n"
+		"    length: 0x200000\n"
+		"...";
+	famfs_yaml_test_reset(&fm, fp, my_yaml);
+	rc = famfs_parse_yaml(fp, &fm, FAMFS_FC_MAX_EXTENTS, 1); /* 3 extents is not an overflow */
+	ASSERT_EQ(rc, -1);
+
+	/* offset followed by something other than length on ext list */
+	my_yaml = "---\n" /* Good yaml */
+		"file:\n"
+		"  path: 0446\n"
+		"  size: 1048576\n"
+		"  flags: 2\n"
+		"  mode: 0644\n"
+		"  uid: 42\n"
+		"  gid: 42\n"
+		"  nextents: 3\n"
+		"  simple_ext_list:\n"
+		"  - offset: 0x38600000\n"
+		"    length: 0x200000\n"
+		"  - offset: 0x48600000\n"
+		"    fubar: 0x200000\n"
+		"  - offset: 0x58600000\n"
+		"    length: 0x200000\n"
+		"...";
+	famfs_yaml_test_reset(&fm, fp, my_yaml);
+	rc = famfs_parse_yaml(fp, &fm, FAMFS_FC_MAX_EXTENTS, 1); /* 3 extents is not an overflow */
+	ASSERT_EQ(rc, -1);
+
+	printf("%s", yaml_event_str(YAML_NO_EVENT));
+	printf("%s", yaml_event_str(YAML_ALIAS_EVENT));
+	printf("%s", yaml_event_str(1000));
 }

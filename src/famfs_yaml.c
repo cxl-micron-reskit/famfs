@@ -422,10 +422,6 @@ famfs_parse_file_ext_list(
 
 		//printf("[ %s %d %s ]\n", __func__, ev_num++, yaml_event_str(event.type));
 		switch (event.type) {
-		case YAML_STREAM_END_EVENT:
-		case YAML_DOCUMENT_END_EVENT:
-			done = 1;
-			break;
 		case YAML_SCALAR_EVENT:
 			current_key = (char *)event.data.scalar.value;
 
@@ -523,9 +519,6 @@ famfs_parse_file_yaml(
 		GET_YAML_EVENT(parser, &event, rc, err_out, verbose);
 
 		switch (event.type) {
-		case YAML_STREAM_END_EVENT:
-			done = 1;
-			break;
 		case YAML_SCALAR_EVENT:
 			current_key = (char *)event.data.scalar.value;
 
@@ -544,14 +537,16 @@ famfs_parse_file_yaml(
 				fm->fm_size = strtoull((char *)val_event.data.scalar.value,
 						       0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose > 1) printf("%s: size: 0x%llx\n", __func__, fm->fm_size);
+				if (verbose > 1) printf("%s: size: 0x%llx\n",
+							__func__, fm->fm_size);
 			} else if (strcmp(current_key, "flags") == 0) {
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				fm->fm_flags = strtoull((char *)val_event.data.scalar.value,
 							0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose > 1) printf("%s: flags: 0x%x\n", __func__, fm->fm_flags);
+				if (verbose > 1) printf("%s: flags: 0x%x\n",
+							__func__, fm->fm_flags);
 			} else if (strcmp(current_key, "mode") == 0) {
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
@@ -579,7 +574,8 @@ famfs_parse_file_yaml(
 				fm->fm_nextents = strtoull((char *)val_event.data.scalar.value,
 						      0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose > 1) printf("%s: nextents: %d\n", __func__, fm->fm_nextents);
+				if (verbose > 1) printf("%s: nextents: %d\n",
+							__func__, fm->fm_nextents);
 			} else if (strcmp(current_key, "simple_ext_list") == 0) {
 				rc = famfs_parse_file_ext_list(parser, fm, max_extents,
 					verbose);
@@ -588,6 +584,8 @@ famfs_parse_file_yaml(
 			} else {
 				fprintf(stderr, "%s: Unrecognized scalar key %s\n",
 					__func__, current_key);
+				rc = -EINVAL;
+				goto err_out;
 			}
 			current_key = NULL;
 			break;
@@ -598,7 +596,7 @@ famfs_parse_file_yaml(
 			done = 1;
 			break;
 		default:
-			fprintf(stderr, "%s: unexpected event %s\n",
+			fprintf(stderr, "%s: unexpected libyaml event %s\n",
 				__func__, yaml_event_str(event.type));
 			break;
 		}

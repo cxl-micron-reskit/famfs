@@ -10,6 +10,8 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   endif()
 endif()
 
+add_compile_options(-Wno-write-strings)
+
 include_directories("${PROJECT_SOURCE_DIR}/")
 include_directories("${PROJECT_SOURCE_DIR}/usr")
 include_directories("${PROJECT_SOURCE_DIR}/../kmod")
