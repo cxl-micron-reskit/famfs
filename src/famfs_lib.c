@@ -2910,54 +2910,6 @@ famfs_file_create(const char *path,
 	return fd;
 }
 
-
-/*
- * Caller of this function has to allocate memory to data buf
- * before calling this function, example below.
- * struct famfs_file_meta *data = malloc(sizeof(struct famfs_file_meta));
- * famfs_get_shadow_file_data(path, data, 1);
- * Pass the buf to this function.
- */
-
-struct famfs_file_meta *
-famfs_get_shadow_file_data(const char *path,
-		struct famfs_file_meta *data,
-		int verbose)
-{
-	int rc = 0;
-	int fd = 0;
-	struct famfs_file_meta *fc;
-	char *buf = (char *)data;
-
-	fd = open(path, O_RDONLY, 0);
-	if (fd < 0) {
-		fprintf(stderr, "%s: open of %s failed, fd %d with %s\n",
-			__func__, path, fd, strerror(errno));
-		return NULL;
-	}
-
-	rc = read(fd, buf, sizeof(struct famfs_file_meta));
-	if (rc < 0) {
-		fprintf(stderr,"%s: read failed with %s\n",
-			__func__, strerror(errno));
-		return NULL;
-	}
-
-	fc = (struct famfs_file_meta *)buf;
-
-	if (verbose) {
-		printf("file: %s\nsize: %lld\nextents: %d\next1 offset: %lld\n"
-			"ext1 len: %lld\nuid: %d\ngid: %d\nmode: %d\n",
-                fc->fm_relpath, fc->fm_size, fc->fm_nextents,
-                fc->fm_ext_list[0].se.se_offset,
-		fc->fm_ext_list[0].se.se_len, fc->fm_uid, fc->fm_gid, fc->fm_mode);
-	}
-
-	close(fd);
-	return fc;
-
-}
-
 #define FAMFS_YAML_MAX 8192
 
 static int
