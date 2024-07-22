@@ -90,6 +90,7 @@ static int famfs_mmap_superblock_and_log_raw(const char *devname,
 					     u64 log_len,
 					     int read_only);
 static int open_superblock_file_read_only(const char *path, size_t  *sizep, char *mpt_out);
+static char *famfs_relpath_from_fullpath(const char *mpt, char *fullpath);
 
 /**
  * get_multiplier()
@@ -1085,46 +1086,34 @@ famfs_file_map_create(
 	return rc;
 }
 
-/**n
- * famfs_mkmeta()
- *
- * Create the meta files (.meta/.superblock and .meta/.log)) in a mounted famfs
- * file system
- *
- * @devname - primary device for a famfs file system
- */
-int
-famfs_mkmeta(const char *devname)
+static int
+__famfs_mkmeta(
+	const char *mpt,
+	const struct famfs_superblock *sb,
+	const struct famfs_log *logp, /* hmm, not needed */
+	enum famfs_system_role role,
+	int shadow,
+	int verbose)
 {
-	struct stat st = {0};
-	int rc, sbfd, logfd;
-	char *mpt = NULL;
-	char dirpath[PATH_MAX];
-	char sb_file[PATH_MAX];
-	char log_file[PATH_MAX];
-	struct famfs_superblock *sb;
-	struct famfs_log *logp;
+	struct famfs_log_stats ls = {0};
 	struct famfs_simple_extent ext;
-	int role;
+	char dirpath[PATH_MAX]  = {0};
+	char sb_file[PATH_MAX]  = {0};
+	char log_file[PATH_MAX] = {0};
+	struct stat st = {0};
+	int sbfd, logfd;
+	int rc;
 
-	dirpath[0] = 0;
-
-	/* Get mount point path */
-	mpt = famfs_get_mpt_by_dev(devname);
-	if (!mpt) {
-		fprintf(stderr, "%s: unable to resolve mount pt from dev %s\n", __func__, devname);
-		return -1;
-	}
+	assert(sb);
+	assert(logp);
 
 	strncat(dirpath, mpt,     PATH_MAX - 1);
 	strncat(dirpath, "/",     PATH_MAX - 1);
 	strncat(dirpath, ".meta", PATH_MAX - 1);
-	free(mpt);
-	mpt = NULL;
 
 	/* Create the meta directory */
 	if (stat(dirpath, &st) == -1) {
-		rc = mkdir(dirpath, 0700);
+		rc = mkdir(dirpath, 0755);
 		if (rc)
 			fprintf(stderr, "%s: error creating directory %s\n",
 				__func__, dirpath);
@@ -1154,43 +1143,48 @@ famfs_mkmeta(const char *devname)
 			return -EINVAL;
 		}
 	}
-	/* Also check if log exists and clean up if bad */
 
-	rc = famfs_mmap_superblock_and_log_raw(devname, &sb, &logp, 0 /* figure out log size */,
-					       1 /* Read only */);
-	if (rc) {
-		fprintf(stderr, "%s: superblock/log accessfailed\n", __func__);
-		return -1;
-	}
+	if (shadow) {
+		/* Create shadow superblock file */
+		struct famfs_file_meta fm = {0};
 
-	if (famfs_check_super(sb)) {
-		fprintf(stderr, "%s: no valid superblock on device %s\n", __func__, devname);
-		return -1;
-	}
+		fm.fm_size = FAMFS_SUPERBLOCK_SIZE;
+		fm.fm_nextents = 1;
+		fm.fm_flags = 0;
+		fm.fm_uid = 0;
+		fm.fm_gid = 0;
+		fm.fm_mode = 0444;
+		strncpy((char *)fm.fm_relpath, famfs_relpath_from_fullpath(mpt, sb_file),
+			FAMFS_MAX_PATHLEN - 1);
 
-	role = famfs_get_role(sb);
+		fm.fm_ext_list[0].se.se_offset = 0;
+		fm.fm_ext_list[0].se.se_len = FAMFS_SUPERBLOCK_SIZE;
 
-	/* Create and provide mapping for Superblock file */
-	sbfd = open(sb_file, O_RDWR|O_CREAT, 0444 /* sb file is read-only everywhere */);
-	if (sbfd < 0) {
-		fprintf(stderr, "%s: failed to create file %s\n", __func__, sb_file);
-		return -1;
-	}
-
-	if (file_has_map(sbfd)) {
-		fprintf(stderr, "%s: found valid superblock file; doing nothing\n", __func__);
+		famfs_shadow_file_create(sb_file, &fm, &ls, 0, 0, 0, verbose);
 	} else {
-		ext.se_offset = 0;
-		ext.se_len    = FAMFS_SUPERBLOCK_SIZE;
-		rc = famfs_file_map_create(sb_file, sbfd, FAMFS_SUPERBLOCK_SIZE, 1, &ext,
-					   FAMFS_SUPERBLOCK);
-		if (rc) {
-			close(sbfd);
-			unlink(sb_file);
-			return -rc;
+		/* Create and provide mapping for Superblock file */
+		sbfd = open(sb_file, O_RDWR|O_CREAT, 0444 /* sb file is read-only everywhere */);
+		if (sbfd < 0) {
+			fprintf(stderr, "%s: failed to create file %s\n", __func__, sb_file);
+			return -1;
 		}
+
+		if (file_has_map(sbfd)) {
+			fprintf(stderr, "%s: found valid superblock file; doing nothing\n",
+				__func__);
+		} else {
+			ext.se_offset = 0;
+			ext.se_len    = FAMFS_SUPERBLOCK_SIZE;
+			rc = famfs_file_map_create(sb_file, sbfd, FAMFS_SUPERBLOCK_SIZE, 1, &ext,
+						   FAMFS_SUPERBLOCK);
+			if (rc) {
+				close(sbfd);
+				unlink(sb_file);
+				return -rc;
+			}
+		}
+		close(sbfd);
 	}
-	close(sbfd);
 
 	/* Check if log file already exists, and cleanup if bad */
 	rc = stat(log_file, &st);
@@ -1210,28 +1204,92 @@ famfs_mkmeta(const char *devname)
 		}
 	}
 
-	/* Create and provide mapping for log file
-	 * Log is only writable on the master node
-	 */
-	logfd = open(log_file, O_RDWR|O_CREAT, (role == FAMFS_MASTER) ? 0644 : 0444);
-	if (logfd < 0) {
-		fprintf(stderr, "%s: failed to create file %s\n", __func__, log_file);
+	if (shadow) {
+		/* Create shadow logk file */
+		struct famfs_file_meta fm = {0};
+
+		fm.fm_size = FAMFS_SUPERBLOCK_SIZE;
+		fm.fm_nextents = 1;
+		fm.fm_flags = 0;
+		fm.fm_uid = 0;
+		fm.fm_gid = 0;
+		fm.fm_mode = (role == FAMFS_MASTER) ? 0644 : 0444;
+		strncpy((char *)fm.fm_relpath, famfs_relpath_from_fullpath(mpt, log_file),
+			FAMFS_MAX_PATHLEN - 1);
+
+		fm.fm_ext_list[0].se.se_offset = sb->ts_log_offset;;
+		fm.fm_ext_list[0].se.se_len = sb->ts_log_len;
+
+		famfs_shadow_file_create(log_file, &fm, &ls, 0, 0, 0, verbose);
+	} else {
+		/* Create and provide mapping for log file
+		 * Log is only writable on the master node
+		 */
+		logfd = open(log_file, O_RDWR|O_CREAT, (role == FAMFS_MASTER) ? 0644 : 0444);
+		if (logfd < 0) {
+			fprintf(stderr, "%s: failed to create file %s\n", __func__, log_file);
+			return -1;
+		}
+
+		if (file_has_map(logfd)) {
+			fprintf(stderr, "%s: found valid log file; doing nothing\n", __func__);
+		} else {
+			ext.se_offset = sb->ts_log_offset;
+			ext.se_len    = sb->ts_log_len;
+			rc = famfs_file_map_create(log_file, logfd, sb->ts_log_len, 1,
+						   &ext, FAMFS_LOG);
+			if (rc)
+				return -1;
+		}
+		close(logfd);
+	}
+	printf("%s: Meta files successfully created\n", __func__);
+	return 0;
+}
+	
+/**
+ * famfs_mkmeta()
+ *
+ * Create the meta files (.meta/.superblock and .meta/.log)) in a mounted famfs
+ * file system
+ *
+ * @devname - primary device for a famfs file system
+ */
+int
+famfs_mkmeta(
+	const char *devname,
+	int verbose)
+{
+	struct famfs_superblock *sb;
+	enum famfs_system_role role;
+	struct famfs_log *logp;
+	char *mpt = NULL;
+	int rc;
+
+	/* Get mount point path */
+	mpt = famfs_get_mpt_by_dev(devname);
+	if (!mpt) {
+		fprintf(stderr, "%s: unable to resolve mount pt from dev %s\n", __func__, devname);
 		return -1;
 	}
 
-	if (file_has_map(logfd)) {
-		fprintf(stderr, "%s: found valid log file; doing nothing\n", __func__);
-	} else {
-		ext.se_offset = sb->ts_log_offset;
-		ext.se_len    = sb->ts_log_len;
-		rc = famfs_file_map_create(log_file, logfd, sb->ts_log_len, 1, &ext, FAMFS_LOG);
-		if (rc)
-			return -1;
+	rc = famfs_mmap_superblock_and_log_raw(devname, &sb, &logp, 0 /* figure out log size */,
+					       1 /* Read only */);
+	if (rc) {
+		fprintf(stderr, "%s: superblock/log access failed\n", __func__);
+		return -1;
 	}
 
-	close(logfd);
-	printf("%s: Meta files successfully created\n", __func__);
-	return 0;
+	if (famfs_check_super(sb)) {
+		fprintf(stderr, "%s: no valid superblock on device %s\n", __func__, devname);
+		return -1;
+	}
+
+	role = famfs_get_role(sb);
+
+	rc = __famfs_mkmeta(mpt, sb, logp, role, 0 /* not shadow */, verbose);
+	free(mpt);
+	return rc;
 }
 
 /**
@@ -1376,8 +1434,9 @@ famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index)
  * Inner function to play the log for a famfs file system
  * Caller has already validated the superblock and log
  *
- * @logp        - pointer to a read-only copy or mmap of the log
  * @mpt         - mount point path (or shadow fs path if shadow==true)
+ * @sb          - superblock (may be NULL unless it's a shadow logplay)
+ * @logp        - pointer to a read-only copy or mmap of the log
  * @dry_run     - process the log but don't create the files & directories
  * @client_mode - for testing; play the log as if this is a client node, even on master
  * @shadow      - Play into shadow file system instead (for famfs-fuse)
@@ -1387,8 +1446,9 @@ famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index)
  */
 int
 __famfs_logplay(
-	const struct famfs_log	*logp,
 	const char		*mpt,
+	const struct famfs_superblock *sb,
+	const struct famfs_log	*logp,
 	int                     dry_run,
 	int                     client_mode,
 	int                     shadow,
@@ -1438,6 +1498,13 @@ __famfs_logplay(
 				return -EINVAL;
 			}
 		}
+		assert(sb);
+		rc = __famfs_mkmeta(mpt, sb, logp, role, 1, verbose);
+		if (rc) {
+			fprintf(stderr, "%s: shadow mkmeta failed\n", __func__);
+			return -1;
+		}
+
 	}
 
 	if (verbose)
@@ -1645,6 +1712,17 @@ __famfs_logplay(
 	return (ls.f_errs + ls.d_errs);
 }
 
+#if 0
+static int
+famfs_shadow_mkmeta(
+	struct famfs_superblock *sb,
+	struct famfs_log *logp,
+	const char *fspath)
+{
+	
+}
+#endif
+
 /**
  * famfs_shadow_logplay()
  *
@@ -1670,6 +1748,8 @@ famfs_shadow_logplay(
 	struct famfs_log *logp;
 	int rc;
 
+	assert(testmode == 0 || testmode == 1);
+
 	if (!daxdev) {
 		fprintf(stderr, "%s: daxdev required\n", __func__);
 		return -EINVAL;
@@ -1683,9 +1763,16 @@ famfs_shadow_logplay(
 	}
 	role = (client_mode) ? FAMFS_CLIENT : famfs_get_role(sb);
 
-	return __famfs_logplay(logp, fspath, dry_run, client_mode,
+#if 0
+	rc = __famfs_mkmeta(fspath, sb, logp, role, 1 /* shadow */, verbose);
+	if (rc)
+		goto err_out;
+#endif
+	rc = __famfs_logplay(fspath, sb, logp, dry_run, client_mode,
 			       1 + testmode /* shadow */,
 			       role, verbose);
+//err_out:
+	return rc;
 }
 
 /**
@@ -1806,7 +1893,7 @@ famfs_logplay(
 
 	role = (client_mode) ? FAMFS_CLIENT : famfs_get_role(sb);
 
-	rc = __famfs_logplay(logp, mpt_out, dry_run,
+	rc = __famfs_logplay(mpt_out, sb, logp, dry_run,
 			     client_mode, shadow, role, verbose);
 err_out:
 	if (use_mmap)
@@ -2313,11 +2400,11 @@ famfs_fsck(
 		 */
 		mpt = famfs_get_mpt_by_dev(path);
 		if (mpt) {
+			free(mpt);
 			if (!force) {
 				fprintf(stderr,
 					"%s: error - cannot fsck by device (%s) when mounted\n",
 					__func__, path);
-				free(mpt);
 				return -EBUSY;
 			}
 			fprintf(stderr, "%s: Attempting %s mmap when fs is mounted\n",
@@ -2332,6 +2419,7 @@ famfs_fsck(
 		rc = famfs_mmap_superblock_and_log_raw(path, &sb, &logp,
 						       0 /* figure out log size */,
 						       1 /* read-only */);
+
 		break;
 	}
 	case S_IFREG:
@@ -2912,6 +3000,13 @@ famfs_file_create(const char *path,
 
 #define FAMFS_YAML_MAX 8192
 
+/**
+ * test_shadow_yaml()
+ *
+ * This function parses-back yaml file yaml, into a temporary struct famfs_file_meta,
+ * and verifies that it exactly matches the original. This is only intended for testing
+ * yaml generation and parsing.
+ */
 static int
 famfs_test_shadow_yaml(FILE *fp, const struct famfs_file_meta *fc, int verbose)
 {
@@ -2950,6 +3045,8 @@ famfs_shadow_file_create(
 	int rc = 0;
 	int fd;
 
+	assert(fc);
+	assert(ls);
 	if (verbose)
 		famfs_emit_file_yaml(fc, stdout);
 

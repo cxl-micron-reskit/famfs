@@ -34,7 +34,7 @@ int famfs_fsck(const char *devname, int use_mmap, int human, int force, int verb
 
 void famfs_uuidgen(uuid_le *uuid);
 int famfs_get_system_uuid(uuid_le *uuid_out);
-int famfs_mkmeta(const char *devname);
+int famfs_mkmeta(const char *devname, int verbose);
 u64 famfs_alloc(const char *devname, u64 size);
 int famfs_logplay(const char *mpt, int use_mmap,
 		  int dry_run, int client_mode, int shadow, const char *daxdev, int verbose);

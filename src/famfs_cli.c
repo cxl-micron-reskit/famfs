@@ -312,7 +312,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 		goto err_out;
 	}
 
-	rc = famfs_mkmeta(realdaxdev);
+	rc = famfs_mkmeta(realdaxdev, verbose);
 	if (rc) {
 		fprintf(stderr, "famfs mount: err %d from mkmeta; unmounting\n", rc);
 		umount(realmpt);
@@ -359,10 +359,12 @@ do_famfs_cli_mkmeta(int argc, char *argv[])
 
 	char *daxdev = NULL;
 	char *realdaxdev = NULL;
+	int verbose = 0;
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option mkmeta_options[] = {
 		/* These options set a */
+		{"verbose",    no_argument,            0,  'v'},
 		{0, 0, 0, 0}
 	};
 
@@ -370,11 +372,13 @@ do_famfs_cli_mkmeta(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+h?",
+	while ((c = getopt_long(argc, argv, "+vh?",
 				mkmeta_options, &optind)) != EOF) {
 
 		switch (c) {
-
+		case 'v':
+			verbose++;
+			break;
 		case 'h':
 		case '?':
 			famfs_mkmeta_usage(argc, argv);
@@ -397,7 +401,7 @@ do_famfs_cli_mkmeta(int argc, char *argv[])
 		free(realdaxdev);
 		return -1;
 	}
-	famfs_mkmeta(realdaxdev);
+	famfs_mkmeta(realdaxdev, verbose);
 	free(realdaxdev);
 	return 0;
 }
