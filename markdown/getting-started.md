@@ -37,6 +37,10 @@ sudo dnf install g++
 sudo dnf install libuuid-devel
 sudo dnf install daxctl ndctl
 sudo dnf install gcovr
+sudo dnf install valgrind
+sudo dnf install systemd-devel
+sudo dnf install meson
+sudo dnf install libyaml-devel
 ```
 Pay attention to error messages when you build, new dependencies may arise later, and
 different kernel installations may have different missing dependencies.
@@ -50,6 +54,10 @@ sudo apt install uuid-dev
 sudo apt install zlib1g-dev
 sudo apt install daxctl ndctl
 sudo apt install gcovr
+sudo apt install valgrind
+sudo apt install libsystemd-dev
+sudo apt install meson
+sudo apt install libyaml-dev
 ```
 Pay attention to error messages when you build, new dependencies may arise later, and
 different kernel installations may have different missing dependencies.
