@@ -596,11 +596,11 @@ TEST(famfs, famfs_log)
 	rc = famfs_fsck_scan(sb, logp, 1, 3);
 	ASSERT_EQ(rc, 0);
 
-	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 1 /* mmap */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 1 /* mmap */, 1, 0, 1);
 	ASSERT_EQ(rc, 0);
-	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 0, 1);
 	ASSERT_EQ(rc, 0);
-	rc = famfs_fsck("/tmp/nonexistent-file", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/nonexistent-file", 0 /* read */, 1, 0, 1);
 	ASSERT_NE(rc, 0);
 
 	/* Save good copies of the log and superblock */
@@ -608,38 +608,38 @@ TEST(famfs, famfs_log)
 	system("cp /tmp/famfs/.meta/.superblock /tmp/famfs/.meta/.superblock.save");
 
 	truncate("/tmp/famfs/.meta/.superblock", 8192);
-	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 0, 1);
 	ASSERT_NE(rc, 0); /* Superblock file is short; this should fail */
 
 	truncate("/tmp/famfs/.meta/.superblock", 7);
-	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 0, 1);
 	ASSERT_NE(rc, 0);
 
 	truncate("/tmp/famfs/.meta/.log", 8192);
-	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 0, 1);
 	ASSERT_NE(rc, 0);
 
 	unlink("/tmp/famfs/.meta/.log");
-	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 0, 1);
 	ASSERT_NE(rc, 0);
-	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 1 /* mmap */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 1 /* mmap */, 1, 0, 1);
 	ASSERT_NE(rc, 0);
 	unlink("/tmp/famfs/.meta/.superblock");
-	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 0, 1);
 	ASSERT_NE(rc, 0);
-	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 1 /* mmap */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 1 /* mmap */, 1, 0, 1);
 	ASSERT_NE(rc, 0);
 
 	system("chmod 200 /tmp/famfs/.meta/.log");
-	rc = famfs_fsck("/tmp/famfs/.meta/.log", 1 /* mmap */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.log", 1 /* mmap */, 1, 0, 1);
 	ASSERT_NE(rc, 0);
-	rc = famfs_fsck("/tmp/famfs/.meta/.log", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.log", 0 /* read */, 1, 0, 1);
 	ASSERT_NE(rc, 0);
 
 	system("chmod 200 /tmp/famfs/.meta/.superblock");
-	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 1 /* mmap */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 1 /* mmap */, 1, 0, 1);
 	ASSERT_NE(rc, 0);
-	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 0, 1);
 	ASSERT_NE(rc, 0);
 
 	system("cp /tmp/famfs/.meta/.log.save /tmp/famfs/.meta/.log");
@@ -661,39 +661,39 @@ TEST(famfs, famfs_log)
 	mock_role = 0;
 
 	mock_failure = MOCK_FAIL_OPEN_SB;
-	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 0, 1);
 	ASSERT_NE(rc, 0);
 	mock_failure = MOCK_FAIL_NONE;
 
 	mock_failure = MOCK_FAIL_READ_SB;
-	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 0, 1);
 	ASSERT_NE(rc, 0);
 	mock_failure = MOCK_FAIL_NONE;
 
 	mock_failure = MOCK_FAIL_OPEN_LOG;
-	rc = famfs_fsck("/tmp/famfs/.meta/.log", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.log", 0 /* read */, 1, 0, 1);
 	ASSERT_NE(rc, 0);
 	mock_failure = MOCK_FAIL_NONE;
 
 	mock_failure = MOCK_FAIL_READ_LOG;
-	rc = famfs_fsck("/tmp/famfs/.meta/.log", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.log", 0 /* read */, 1, 0, 1);
 	ASSERT_NE(rc, 0);
 	mock_failure = MOCK_FAIL_NONE;
 
 	mock_failure = MOCK_FAIL_READ_FULL_LOG;
-	rc = famfs_fsck("/tmp/famfs/.meta/.log", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.log", 0 /* read */, 1, 0, 1);
 	ASSERT_NE(rc, 0);
 	mock_failure = MOCK_FAIL_NONE;
 
 	/* create a invalide block device to fail _get_Device_size*/
 	system("mknod -m 200 /tmp/testblock b 3 3");
-	rc = famfs_fsck("/tmp/testblock", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/testblock", 0 /* read */, 1, 0, 1);
 	ASSERT_NE(rc, 0);
 	system("rm /tmp/testblock");
 
 	/* create a non-reg, non-block, non char device, i.e. pipe device*/
 	system("mknod -m 200 /tmp/testpipe p");
-	rc = famfs_fsck("/tmp/testpipe", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/testpipe", 0 /* read */, 1, 0, 1);
 	ASSERT_NE(rc, 0);
 	system("rm /tmp/testpipe");
 
@@ -737,13 +737,13 @@ TEST(famfs, famfs_log_overflow_mkdir_p)
 	}
 
 	/* Let's check how many log entries are left */
-	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 0, 1);
 	ASSERT_EQ(rc, 0);
 
 	famfs_dump_log(logp);
 
 	/* Let's check how many log entries are left */
-	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 0, 1);
 	ASSERT_EQ(rc, 0);
 
 	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0, FAMFS_MASTER, 0);
@@ -880,13 +880,13 @@ TEST(famfs, famfs_log_overflow_files)
 	}
 
 	/* Let's check how many log entries are left */
-	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 0, 1);
 	ASSERT_EQ(rc, 0);
 
 	famfs_dump_log(logp);
 
 	/* Let's check how many log entries are left */
-	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 1);
+	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 0, 1);
 	ASSERT_EQ(rc, 0);
 
 	rc = __famfs_logplay(logp, "/tmp/famfs", 0, 0, 0, FAMFS_MASTER, 0);

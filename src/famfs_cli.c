@@ -443,6 +443,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	int use_read = 0;
 	int human = 0; /* -h is no longer --help... */
 	int verbose = 0;
+	int force = 0;
 
 	/* XXX can't use any of the same strings as the global args! */
 	struct option fsck_options[] = {
@@ -450,6 +451,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 		{"mmap",        no_argument,             0,  'm'},
 		{"human",       no_argument,             0,  'h'},
 		{"verbose",     no_argument,             0,  'v'},
+		{"force",       no_argument,             0,  'f'},
 		{0, 0, 0, 0}
 	};
 
@@ -457,7 +459,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+vh?mr",
+	while ((c = getopt_long(argc, argv, "+vh?mrf",
 				fsck_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -475,6 +477,10 @@ do_famfs_cli_fsck(int argc, char *argv[])
 			break;
 		case 'v':
 			verbose++;
+			break;
+		case 'f':
+			/* This "hidden" option tries to mmap devdax even when a fs is mounted */
+			force++;
 			break;
 		case '?':
 			famfs_fsck_usage(argc, argv);
@@ -499,7 +505,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	}
 
 	daxdev = argv[optind++];
-	return famfs_fsck(daxdev, use_mmap, human, verbose);
+	return famfs_fsck(daxdev, use_mmap, human, force, verbose);
 }
 
 

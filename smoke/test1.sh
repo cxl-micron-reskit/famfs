@@ -80,6 +80,7 @@ ${CLI} fsck $MPT || fail "fsck by path should succeed when mounted"
 # Try exclusive open in driver to make this test good;
 # (currently succeeds but it should fail)
 ${CLI} fsck $DEV && fail "fsck by dev should fail when mounted"
+${CLI} fsck --force $DEV || fail "fsck by dev when mounted should succeed if forced"
 
 ${CLI} fsck /boguspath          && fail "fsck should fail on bogus path"
 ${CLI_NOSUDO} fsck bogusrelpath && fail "fsck should fail on bogus relative path"

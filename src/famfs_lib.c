@@ -2278,6 +2278,7 @@ famfs_fsck(
 	const char *path,
 	int use_mmap,
 	int human,
+	int force,
 	int verbose)
 {
 	struct famfs_superblock *sb = NULL;
@@ -2312,11 +2313,17 @@ famfs_fsck(
 		 */
 		mpt = famfs_get_mpt_by_dev(path);
 		if (mpt) {
-			fprintf(stderr, "%s: error - cannot fsck by device (%s) when mounted\n",
+			if (!force) {
+				fprintf(stderr,
+					"%s: error - cannot fsck by device (%s) when mounted\n",
+					__func__, path);
+				free(mpt);
+				return -EBUSY;
+			}
+			fprintf(stderr, "%s: Attempting %s mmap when fs is mounted\n",
 				__func__, path);
-			free(mpt);
-			return -EBUSY;
 		}
+
 		/* If it's a device, we'll try to mmap superblock and log from the device */
 		rc = famfs_get_device_size(path, &size, NULL);
 		if (rc < 0)
