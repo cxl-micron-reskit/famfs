@@ -53,6 +53,16 @@ while (( $# > 0)); do
 	    SKIP_PCQ=1
 	    SKIP_FIO=1
 	    ;;
+	(--yaml)
+	    # Just test0 and test_shadow_yaml
+	    SKIP_TEST1=1
+	    SKIP_TEST2=1
+	    SKIP_TEST3=1
+	    SKIP_TEST4=1
+	    SKIP_PCQ=1
+	    SKIP_FIO=1
+	    SKIP_ERRS=1
+	    ;;
 	(-4)
 	    TEST_ALL=0
 	    TEST4=1
@@ -143,6 +153,9 @@ if [ -z "$SKIP_PCQ" ]; then
 fi
 if [ -z "$SKIP_FIO" ]; then
     ./smoke/test_fio.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
+fi
+if [ -z "$SKIP_SHADOW_YAML" ]; then
+    ./smoke/test_shadow_yaml.sh $VGARG -b $BIN -s $SCRIPTS -d $DEV  || exit -1
 fi
 if [ -z "$SKIP_ERRS" ]; then
     sleep "${SLEEP_TIME}"

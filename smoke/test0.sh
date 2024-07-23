@@ -239,8 +239,7 @@ ${CLI} check -vvv $MPT        && fail "famfs check should fail due to unmapped f
 sudo rm $MPT/unmapped_file
 ${CLI} check -v $MPT          || fail "famfs check should succeed after removing unmapped file"
 
-
-${CLI_NOSUDO} fsck -hv $MPT && fail "fsck without sudo should fail"
+${CLI_NOSUDO} fsck -hv $MPT || fail "fsck without sudo should succeed"
 
 ${CLI} flush -?          || fail "flush -? should work"
 ${CLI} flush             && fail "flush with no args should fail"
