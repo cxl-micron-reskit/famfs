@@ -14,7 +14,6 @@
 #define ASSERT_NE_GOTO(rc, val, bad_target) {	\
 	if (rc == val) {			\
 	    line = __LINE__;			\
-	    err = 1;				\
 	    goto bad_target;			\
 	}					\
 }
@@ -37,7 +36,6 @@ __famfs_emit_yaml_ext_list(
 	char strbuf[160];
 	int i, rc;
 	int line;
-	int err = 0;
 
 	/* The extent list */
 	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"simple_ext_list",
@@ -103,14 +101,13 @@ __famfs_emit_yaml_ext_list(
 	rc = yaml_emitter_emit(emitter, event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 
+	return 0;
 err_out:
-	if (err) {
-		fprintf(stderr, "%s: fail line %d rc %d errno %d problem (%s)\n",
-			__func__, line, rc, errno, emitter->problem);
-		perror("");
-		assert(0);
-	}
-	return 1;
+	fprintf(stderr, "%s: fail line %d rc %d errno %d problem (%s)\n",
+		__func__, line, rc, errno, emitter->problem);
+	perror("");
+
+	return -1;
 }
 
 
@@ -132,7 +129,6 @@ __famfs_emit_yaml_file_section(
 	char strbuf[160];
 	int rc;
 	int line;
-	int err = 0;
 
 	/* Relative path */
 	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"path",
@@ -227,14 +223,14 @@ __famfs_emit_yaml_file_section(
 	/* Drop in the extent list */
 	__famfs_emit_yaml_ext_list(emitter, event, fm);
 
+	return 0;
 err_out:
-	if (err) {
-		fprintf(stderr, "%s: fail line %d rc %d errno %d problem (%s)\n",
-			__func__, line, rc, errno, emitter->problem);
-		perror("");
-		assert(0);
-	}
-	return 1;
+	fprintf(stderr, "%s: fail line %d rc %d errno %d problem (%s)\n",
+		__func__, line, rc, errno, emitter->problem);
+	perror("");
+	assert(0);
+
+	return -1;
 }
 
 /**
@@ -250,11 +246,8 @@ famfs_emit_file_yaml(
 {
 	yaml_emitter_t emitter;
 	yaml_event_t event;
-	//char strbuf[160];
-	int err = 0;
 	int line;
 	int rc;
-	//int i;
 
 	if (!yaml_emitter_initialize(&emitter)) {
 		fprintf(stderr, "Failed to initialize emitter\n");
@@ -263,7 +256,7 @@ famfs_emit_file_yaml(
 
 	yaml_emitter_set_output_file(&emitter, outp);
 
-	// Start Stream
+	/* Start stream */
 	if (!yaml_stream_start_event_initialize(&event, YAML_UTF8_ENCODING)) {
 		fprintf(stderr, "yaml_stream_start_event_initialize() failed\n");
 		goto err_out;
@@ -271,7 +264,7 @@ famfs_emit_file_yaml(
 	rc = yaml_emitter_emit(&emitter, &event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 
-	// Start Document
+	/* Start Document */
 	rc = yaml_document_start_event_initialize(&event, NULL, NULL, NULL, 0);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(&emitter, &event);
@@ -283,14 +276,14 @@ famfs_emit_file_yaml(
 	rc = yaml_emitter_emit(&emitter, &event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 
-	// Key: file
+	/* Key: file */
 	rc = yaml_scalar_event_initialize(&event, NULL, NULL, (yaml_char_t *)"file",
 				     -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(&emitter, &event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 
-	// Start Mapping for file
+	/* Start Mapping for file */
 	rc = yaml_mapping_start_event_initialize(&event, NULL, NULL, 1, YAML_BLOCK_MAPPING_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(&emitter, &event);
@@ -323,15 +316,15 @@ famfs_emit_file_yaml(
 	rc = yaml_emitter_emit(&emitter, &event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 
-err_out:
-	if (err) {
-		fprintf(stderr, "%s: fail line %d rc %d errno %d problem (%s)\n",
-			__func__, line, rc, errno, emitter.problem);
-		perror("");
-		return -1;
-	}
 	yaml_emitter_delete(&emitter);
 	return 0;
+err_out:
+	fprintf(stderr, "%s: fail line %d rc %d errno %d problem (%s)\n",
+		__func__, line, rc, errno, emitter.problem);
+	perror("");
+
+	yaml_emitter_delete(&emitter);
+	return -1;
 }
 
 /* Read back in */
@@ -407,25 +400,31 @@ famfs_parse_file_ext_list(
 	int ext_index = 0;
 	int done = 0;
 	int rc = 0;
+	int type;
 
 	/* "simple_ext_list" stanza starts wtiha  YAML_SEQUENCE_START_EVENT */
 	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_SEQUENCE_START_EVENT, rc, err_out, verbose);
+	yaml_event_delete(&event);
 
 	/* "simple_ext_list" stanza starts wtiha  YAML_MAPPING_START_EVENT */
 	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_START_EVENT, rc, err_out, verbose);
+	yaml_event_delete(&event);
 
 	while (!done) {
 		yaml_event_t val_event;
-		char *current_key = NULL;
+#define MAX_KEY 80
+		char current_key[MAX_KEY];
 
 		GET_YAML_EVENT(parser, &event, rc, err_out, verbose);
+		type = event.type;
 
-		//printf("[ %s %d %s ]\n", __func__, ev_num++, yaml_event_str(event.type));
-		switch (event.type) {
+		if (type == YAML_SCALAR_EVENT)
+			strncpy(current_key, (char *)event.data.scalar.value, MAX_KEY - 1);
+
+		yaml_event_delete(&event);
+
+		switch (type) {
 		case YAML_SCALAR_EVENT:
-			current_key = (char *)event.data.scalar.value;
-
-			//printf("--- current_key=%s\n", current_key);
 
 			/* Note: this assumes that the offset always comes before the
 			 * length in an extent list entry */
@@ -452,14 +451,12 @@ famfs_parse_file_ext_list(
 						       rc, err_out, verbose);
 				fm->fm_ext_list[ext_index].se.se_len =
 					strtoull((char *)val_event.data.scalar.value, 0, 0);
-				yaml_event_delete(&val_event);
 
 			} else {
 				fprintf(stderr, "%s: Bad scalar key %s\n",
 					__func__, current_key);
 			}
 
-			current_key = NULL;
 			break;
 
 		case YAML_MAPPING_START_EVENT:
@@ -469,6 +466,7 @@ famfs_parse_file_ext_list(
 				fprintf(stderr, "%s: too many extents! (max=%d)\n",
 					__func__, max_extents);
 				rc = -EOVERFLOW;
+				yaml_event_delete(&event);
 				goto err_out;
 			}
 			break;
@@ -489,11 +487,12 @@ famfs_parse_file_ext_list(
 				       __func__, yaml_event_str(event.type));
 			break;
 		}
+		yaml_event_delete(&val_event);
 
 	}
 	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_END_EVENT, rc, err_out, verbose);
 err_out:
-	yaml_event_delete(&event);
+
 	return rc;
 }
 
@@ -505,7 +504,6 @@ famfs_parse_file_yaml(
 	int verbose)
 {
 	yaml_event_t event;
-	//int ev_num = 0;
 	int done = 0;
 	char *current_key = NULL;
 	int rc = 0;
