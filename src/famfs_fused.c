@@ -6,35 +6,7 @@
   See the file COPYING.
 */
 /*
- * Copyright (C) 2023-2024 Micron Technology, Inc.  All rights reserved.
- */
-
-/** @file
- *
- * This file system mirrors the existing file system hierarchy of the
- * system, starting at the root file system. This is implemented by
- * just "passing through" all requests to the corresponding user-space
- * libc functions. In contrast to passthrough.c and passthrough_fh.c,
- * this implementation uses the low-level API. Its performance should
- * be the least bad among the three, but many operations are not
- * implemented. In particular, it is not possible to remove files (or
- * directories) because the code necessary to defer actual removal
- * until the file is not opened anymore would make the example much
- * more complicated.
- *
- * When writeback caching is enabled (-o writeback mount option), it
- * is only possible to write to files for which the mounting user has
- * read permissions. This is because the writeback cache requires the
- * kernel to be able to issue read requests for all files (which the
- * passthrough filesystem cannot satisfy if it can't read the file in
- * the underlying filesystem).
- *
- * Compile with:
- *
- *     gcc -Wall passthrough_ll.c `pkg-config fuse3 --cflags --libs` -o passthrough_ll
- *
- * ## Source code ##
- * \include passthrough_ll.c
+ * Copyright (C) 2024 Micron Technology, Inc.  All rights reserved.
  */
 
 #define _GNU_SOURCE
@@ -97,7 +69,7 @@ struct famfs_data {
 	double timeout;
 	int cache;
 	int timeout_set;
-	struct famfs_inode root; /* protected by lo->mutex */
+	struct famfs_inode root; /* protected by ->mutex */
 };
 
 static const struct fuse_opt famfs_opts[] = {
@@ -151,7 +123,10 @@ static struct famfs_data *famfs_data(fuse_req_t req)
 	return (struct famfs_data *) fuse_req_userdata(req);
 }
 
-static struct famfs_inode *famfs_inode(fuse_req_t req, fuse_ino_t ino)
+static struct famfs_inode *
+famfs_inode(
+	fuse_req_t req,
+	fuse_ino_t ino)
 {
 	if (ino == FUSE_ROOT_ID)
 		return &famfs_data(req)->root;
@@ -159,7 +134,8 @@ static struct famfs_inode *famfs_inode(fuse_req_t req, fuse_ino_t ino)
 		return (struct famfs_inode *) (uintptr_t) ino;
 }
 
-static int famfs_fd(fuse_req_t req, fuse_ino_t ino)
+static int
+famfs_fd(fuse_req_t req, fuse_ino_t ino)
 {
 	return famfs_inode(req, ino)->fd;
 }
@@ -169,8 +145,9 @@ static bool famfs_debug(fuse_req_t req)
 	return famfs_data(req)->debug != 0;
 }
 
-static void famfs_init(void *userdata,
-		    struct fuse_conn_info *conn)
+static void famfs_init(
+	void *userdata,
+	struct fuse_conn_info *conn)
 {
 	struct famfs_data *lo = (struct famfs_data*) userdata;
 
@@ -199,8 +176,11 @@ static void famfs_destroy(void *userdata)
 	}
 }
 
-static void famfs_getattr(fuse_req_t req, fuse_ino_t ino,
-			     struct fuse_file_info *fi)
+static void
+famfs_getattr(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	struct fuse_file_info *fi)
 {
 	int res;
 	struct stat buf;
@@ -215,8 +195,13 @@ static void famfs_getattr(fuse_req_t req, fuse_ino_t ino,
 	fuse_reply_attr(req, &buf, lo->timeout);
 }
 
-static void famfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr,
-		       int valid, struct fuse_file_info *fi)
+static void
+famfs_setattr(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	struct stat *attr,
+	int valid,
+	struct fuse_file_info *fi)
 {
 	int saverr;
 	char procname[64];
@@ -308,8 +293,12 @@ static struct famfs_inode *famfs_find(struct famfs_data *lo, struct stat *st)
 	return ret;
 }
 
-static int famfs_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
-			 struct fuse_entry_param *e)
+static int
+famfs_do_lookup(
+	fuse_req_t req,
+	fuse_ino_t parent,
+	const char *name,
+	struct fuse_entry_param *e)
 {
 	int newfd;
 	int res;
@@ -370,7 +359,11 @@ out_err:
 	return saverr;
 }
 
-static void famfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
+static void
+famfs_lookup(
+	fuse_req_t req,
+	fuse_ino_t parent,
+	const char *name)
 {
 	struct fuse_entry_param e;
 	int err;
@@ -386,9 +379,14 @@ static void famfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 		fuse_reply_entry(req, &e);
 }
 
-static void famfs_mknod_symlink(fuse_req_t req, fuse_ino_t parent,
-			     const char *name, mode_t mode, dev_t rdev,
-			     const char *link)
+static void
+famfs_mknod_symlink(
+	fuse_req_t req,
+	fuse_ino_t parent,
+	const char *name,
+	mode_t mode,
+	dev_t rdev,
+	const char *link)
 {
 	int res;
 	int saverr;
@@ -416,26 +414,43 @@ out:
 	fuse_reply_err(req, saverr);
 }
 
-static void famfs_mknod(fuse_req_t req, fuse_ino_t parent,
-		     const char *name, mode_t mode, dev_t rdev)
+static void
+famfs_mknod(
+	fuse_req_t req,
+	fuse_ino_t parent,
+	const char *name,
+	mode_t mode,
+	dev_t rdev)
 {
 	famfs_mknod_symlink(req, parent, name, mode, rdev, NULL);
 }
 
-static void famfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
-		     mode_t mode)
+static void
+famfs_mkdir(
+	fuse_req_t req,
+	fuse_ino_t parent,
+	const char *name,
+	mode_t mode)
 {
 	famfs_mknod_symlink(req, parent, name, S_IFDIR | mode, 0, NULL);
 }
 
-static void famfs_symlink(fuse_req_t req, const char *link,
-		       fuse_ino_t parent, const char *name)
+static void
+famfs_symlink(
+	fuse_req_t req,
+	const char *link,
+	fuse_ino_t parent,
+	const char *name)
 {
 	famfs_mknod_symlink(req, parent, name, S_IFLNK, 0, link);
 }
 
-static void famfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t parent,
-		    const char *name)
+static void
+famfs_link(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	fuse_ino_t parent,
+	const char *name)
 {
 	int res;
 	struct famfs_data *lo = famfs_data(req);
@@ -476,7 +491,11 @@ out_err:
 	fuse_reply_err(req, saverr);
 }
 
-static void famfs_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name)
+static void
+famfs_rmdir(
+	fuse_req_t req,
+	fuse_ino_t parent,
+	const char *name)
 {
 	int res;
 
@@ -485,9 +504,14 @@ static void famfs_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name)
 	fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
-static void famfs_rename(fuse_req_t req, fuse_ino_t parent, const char *name,
-		      fuse_ino_t newparent, const char *newname,
-		      unsigned int flags)
+static void
+famfs_rename(
+	fuse_req_t req,
+	fuse_ino_t parent,
+	const char *name,
+	fuse_ino_t newparent,
+	const char *newname,
+	unsigned int flags)
 {
 	int res;
 
@@ -502,7 +526,11 @@ static void famfs_rename(fuse_req_t req, fuse_ino_t parent, const char *name,
 	fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
-static void famfs_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
+static void
+famfs_unlink(
+	fuse_req_t req,
+	fuse_ino_t parent,
+	const char *name)
 {
 	int res;
 
@@ -511,7 +539,11 @@ static void famfs_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
 	fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
-static void unref_inode(struct famfs_data *lo, struct famfs_inode *inode, uint64_t n)
+static void
+unref_inode(
+	struct famfs_data *lo,
+	struct famfs_inode *inode,
+	uint64_t n)
 {
 	if (!inode)
 		return;
@@ -536,7 +568,11 @@ static void unref_inode(struct famfs_data *lo, struct famfs_inode *inode, uint64
 	}
 }
 
-static void famfs_forget_one(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup)
+static void
+famfs_forget_one(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	uint64_t nlookup)
 {
 	struct famfs_data *lo = famfs_data(req);
 	struct famfs_inode *inode = famfs_inode(req, ino);
@@ -551,14 +587,21 @@ static void famfs_forget_one(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup)
 	unref_inode(lo, inode, nlookup);
 }
 
-static void famfs_forget(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup)
+static void
+famfs_forget(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	uint64_t nlookup)
 {
 	famfs_forget_one(req, ino, nlookup);
 	fuse_reply_none(req);
 }
 
-static void famfs_forget_multi(fuse_req_t req, size_t count,
-				struct fuse_forget_data *forgets)
+static void
+famfs_forget_multi(
+	fuse_req_t req,
+	size_t count,
+	struct fuse_forget_data *forgets)
 {
 	int i;
 
@@ -567,7 +610,10 @@ static void famfs_forget_multi(fuse_req_t req, size_t count,
 	fuse_reply_none(req);
 }
 
-static void famfs_readlink(fuse_req_t req, fuse_ino_t ino)
+static void
+famfs_readlink(
+	fuse_req_t req,
+	fuse_ino_t ino)
 {
 	char buf[PATH_MAX + 1];
 	int res;
@@ -590,12 +636,17 @@ struct famfs_dirp {
 	off_t offset;
 };
 
-static struct famfs_dirp *famfs_dirp(struct fuse_file_info *fi)
+static struct famfs_dirp *
+famfs_dirp(struct fuse_file_info *fi)
 {
 	return (struct famfs_dirp *) (uintptr_t) fi->fh;
 }
 
-static void famfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+static void
+famfs_opendir(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	struct fuse_file_info *fi)
 {
 	int error = ENOMEM;
 	struct famfs_data *lo = famfs_data(req);
@@ -634,14 +685,21 @@ out_err:
 	fuse_reply_err(req, error);
 }
 
-static int is_dot_or_dotdot(const char *name)
+static int
+is_dot_or_dotdot(const char *name)
 {
 	return name[0] == '.' && (name[1] == '\0' ||
 				  (name[1] == '.' && name[2] == '\0'));
 }
 
-static void famfs_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
-			  off_t offset, struct fuse_file_info *fi, int plus)
+static void
+famfs_do_readdir(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	size_t size,
+	off_t offset,
+	struct fuse_file_info *fi,
+	int plus)
 {
 	struct famfs_dirp *d = famfs_dirp(fi);
 	char *buf;
@@ -733,19 +791,33 @@ error:
     free(buf);
 }
 
-static void famfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
-		       off_t offset, struct fuse_file_info *fi)
+static void
+famfs_readdir(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	size_t size,
+	off_t offset,
+	struct fuse_file_info *fi)
 {
 	famfs_do_readdir(req, ino, size, offset, fi, 0);
 }
 
-static void famfs_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size,
-			   off_t offset, struct fuse_file_info *fi)
+static void
+famfs_readdirplus(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	size_t size,
+	off_t offset,
+	struct fuse_file_info *fi)
 {
 	famfs_do_readdir(req, ino, size, offset, fi, 1);
 }
 
-static void famfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+static void
+famfs_releasedir(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	struct fuse_file_info *fi)
 {
 	struct famfs_dirp *d = famfs_dirp(fi);
 	(void) ino;
@@ -754,8 +826,13 @@ static void famfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_in
 	fuse_reply_err(req, 0);
 }
 
-static void famfs_create(fuse_req_t req, fuse_ino_t parent, const char *name,
-		      mode_t mode, struct fuse_file_info *fi)
+static void
+famfs_create(
+	fuse_req_t req,
+	fuse_ino_t parent,
+	const char *name,
+	mode_t mode,
+	struct fuse_file_info *fi)
 {
 	int fd;
 	struct famfs_data *lo = famfs_data(req);
@@ -789,8 +866,12 @@ static void famfs_create(fuse_req_t req, fuse_ino_t parent, const char *name,
 		fuse_reply_create(req, &e, fi);
 }
 
-static void famfs_fsyncdir(fuse_req_t req, fuse_ino_t ino, int datasync,
-			struct fuse_file_info *fi)
+static void
+famfs_fsyncdir(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	int datasync,
+	struct fuse_file_info *fi)
 {
 	int res;
 	int fd = dirfd(famfs_dirp(fi)->dp);
@@ -802,7 +883,11 @@ static void famfs_fsyncdir(fuse_req_t req, fuse_ino_t ino, int datasync,
 	fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
-static void famfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+static void
+famfs_open(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	struct fuse_file_info *fi)
 {
 	int fd;
 	char buf[64];
@@ -853,7 +938,11 @@ static void famfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
 	fuse_reply_open(req, fi);
 }
 
-static void famfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+static void
+famfs_release(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	struct fuse_file_info *fi)
 {
 	(void) ino;
 
@@ -861,7 +950,11 @@ static void famfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info 
 	fuse_reply_err(req, 0);
 }
 
-static void famfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+static void
+famfs_flush(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	struct fuse_file_info *fi)
 {
 	int res;
 	(void) ino;
@@ -869,8 +962,12 @@ static void famfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *f
 	fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
-static void famfs_fsync(fuse_req_t req, fuse_ino_t ino, int datasync,
-		     struct fuse_file_info *fi)
+static void
+famfs_fsync(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	int datasync,
+	struct fuse_file_info *fi)
 {
 	int res;
 	(void) ino;
@@ -881,8 +978,13 @@ static void famfs_fsync(fuse_req_t req, fuse_ino_t ino, int datasync,
 	fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
-static void famfs_read(fuse_req_t req, fuse_ino_t ino, size_t size,
-		    off_t offset, struct fuse_file_info *fi)
+static void
+famfs_read(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	size_t size,
+	off_t offset,
+	struct fuse_file_info *fi)
 {
 	struct fuse_bufvec buf = FUSE_BUFVEC_INIT(size);
 
@@ -897,9 +999,13 @@ static void famfs_read(fuse_req_t req, fuse_ino_t ino, size_t size,
 	fuse_reply_data(req, &buf, FUSE_BUF_SPLICE_MOVE);
 }
 
-static void famfs_write_buf(fuse_req_t req, fuse_ino_t ino,
-			 struct fuse_bufvec *in_buf, off_t off,
-			 struct fuse_file_info *fi)
+static void
+famfs_write_buf(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	struct fuse_bufvec *in_buf,
+	off_t off,
+	struct fuse_file_info *fi)
 {
 	(void) ino;
 	ssize_t res;
@@ -920,7 +1026,10 @@ static void famfs_write_buf(fuse_req_t req, fuse_ino_t ino,
 		fuse_reply_write(req, (size_t) res);
 }
 
-static void famfs_statfs(fuse_req_t req, fuse_ino_t ino)
+static void
+famfs_statfs(
+	fuse_req_t req,
+	fuse_ino_t ino)
 {
 	int res;
 	struct statvfs stbuf;
@@ -932,8 +1041,14 @@ static void famfs_statfs(fuse_req_t req, fuse_ino_t ino)
 		fuse_reply_statfs(req, &stbuf);
 }
 
-static void famfs_fallocate(fuse_req_t req, fuse_ino_t ino, int mode,
-			 off_t offset, off_t length, struct fuse_file_info *fi)
+static void
+famfs_fallocate(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	int mode,
+	off_t offset,
+	off_t length,
+	struct fuse_file_info *fi)
 {
 	int err = EOPNOTSUPP;
 	(void) ino;
@@ -955,8 +1070,12 @@ static void famfs_fallocate(fuse_req_t req, fuse_ino_t ino, int mode,
 	fuse_reply_err(req, err);
 }
 
-static void famfs_flock(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
-		     int op)
+static void
+famfs_flock(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	struct fuse_file_info *fi,
+	int op)
 {
 	int res;
 	(void) ino;
@@ -966,8 +1085,12 @@ static void famfs_flock(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *f
 	fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
-static void famfs_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
-			size_t size)
+static void
+famfs_getxattr(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	const char *name,
+	size_t size)
 {
 	char *value = NULL;
 	char procname[64];
@@ -1017,7 +1140,11 @@ out:
 	goto out_free;
 }
 
-static void famfs_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size)
+static void
+famfs_listxattr(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	size_t size)
 {
 	char *value = NULL;
 	char procname[64];
@@ -1067,8 +1194,14 @@ out:
 	goto out_free;
 }
 
-static void famfs_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
-			const char *value, size_t size, int flags)
+static void
+famfs_setxattr(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	const char *name,
+	const char *value,
+	size_t size,
+	int flags)
 {
 	char procname[64];
 	struct famfs_inode *inode = famfs_inode(req, ino);
@@ -1093,7 +1226,11 @@ out:
 	fuse_reply_err(req, saverr);
 }
 
-static void famfs_removexattr(fuse_req_t req, fuse_ino_t ino, const char *name)
+static void
+famfs_removexattr(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	const char *name)
 {
 	char procname[64];
 	struct famfs_inode *inode = famfs_inode(req, ino);
@@ -1119,11 +1256,17 @@ out:
 }
 
 #ifdef HAVE_COPY_FILE_RANGE
-static void famfs_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_in,
-			       struct fuse_file_info *fi_in,
-			       fuse_ino_t ino_out, off_t off_out,
-			       struct fuse_file_info *fi_out, size_t len,
-			       int flags)
+static void
+famfs_copy_file_range(
+	fuse_req_t req,
+	fuse_ino_t ino_in,
+	off_t off_in,
+	struct fuse_file_info *fi_in,
+	fuse_ino_t ino_out,
+	off_t off_out,
+	struct fuse_file_info *fi_out,
+	size_t len,
+	int flags)
 {
 	ssize_t res;
 
@@ -1143,8 +1286,13 @@ static void famfs_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_i
 }
 #endif
 
-static void famfs_lseek(fuse_req_t req, fuse_ino_t ino, off_t off, int whence,
-		     struct fuse_file_info *fi)
+static void
+famfs_lseek(
+	fuse_req_t req,
+	fuse_ino_t ino,
+	off_t off,
+	int whence,
+	struct fuse_file_info *fi)
 {
 	off_t res;
 
@@ -1213,7 +1361,11 @@ void jg_print_fuse_opts(struct fuse_cmdline_opts *opts)
 	       opts->clone_fd, opts->max_idle_threads, opts->max_threads);
 }
 
-void fused_syslog(enum fuse_log_level level, const char *fmt, va_list ap) {
+void
+fused_syslog(
+	enum fuse_log_level level,
+	const char *fmt, va_list ap)
+{
 	sd_journal_printv(level, fmt, ap);
 }
 
@@ -1223,17 +1375,17 @@ int main(int argc, char *argv[])
 	struct fuse_session *se;
 	struct fuse_cmdline_opts opts;
 	struct fuse_loop_config *config;
-	struct famfs_data lo = { .debug = 0,
+	struct famfs_data famfs_data = { .debug = 0,
 	                      .writeback = 0 };
 	int ret = -1;
 
 	/* Don't mask creation mode, kernel already did that */
 	umask(0);
 
-	pthread_mutex_init(&lo.mutex, NULL);
-	lo.root.next = lo.root.prev = &lo.root;
-	lo.root.fd = -1;
-	lo.cache = CACHE_NORMAL;
+	pthread_mutex_init(&famfs_data.mutex, NULL);
+	famfs_data.root.next = famfs_data.root.prev = &famfs_data.root;
+	famfs_data.root.fd = -1;
+	famfs_data.cache = CACHE_NORMAL;
 
 	fuse_set_log_func(fused_syslog);
 
@@ -1260,19 +1412,19 @@ int main(int argc, char *argv[])
 		goto err_out1;
 	}
 
-	if (fuse_opt_parse(&args, &lo, famfs_opts, NULL)== -1)
+	if (fuse_opt_parse(&args, &famfs_data, famfs_opts, NULL)== -1)
 		return 1;
 
-	lo.debug = opts.debug;
-	lo.root.refcount = 2;
-	if (lo.source) {
+	famfs_data.debug = opts.debug;
+	famfs_data.root.refcount = 2;
+	if (famfs_data.source) {
 		struct stat stat;
 		int res;
 
-		res = lstat(lo.source, &stat);
+		res = lstat(famfs_data.source, &stat);
 		if (res == -1) {
 			fuse_log(FUSE_LOG_ERR, "failed to stat source (\"%s\"): %m\n",
-				 lo.source);
+				 famfs_data.source);
 			exit(1);
 		}
 		if (!S_ISDIR(stat.st_mode)) {
@@ -1281,40 +1433,40 @@ int main(int argc, char *argv[])
 		}
 
 	} else {
-		lo.source = strdup("/");
-		if(!lo.source) {
+		famfs_data.source = strdup("/");
+		if(!famfs_data.source) {
 			fuse_log(FUSE_LOG_ERR, "fuse: memory allocation failed\n");
 			exit(1);
 		}
 	}
-	if (!lo.timeout_set) {
-		switch (lo.cache) {
+	if (!famfs_data.timeout_set) {
+		switch (famfs_data.cache) {
 		case CACHE_NEVER:
-			lo.timeout = 0.0;
+			famfs_data.timeout = 0.0;
 			break;
 
 		case CACHE_NORMAL:
-			lo.timeout = 1.0;
+			famfs_data.timeout = 1.0;
 			break;
 
 		case CACHE_ALWAYS:
-			lo.timeout = 86400.0;
+			famfs_data.timeout = 86400.0;
 			break;
 		}
-	} else if (lo.timeout < 0) {
+	} else if (famfs_data.timeout < 0) {
 		fuse_log(FUSE_LOG_ERR, "timeout is negative (%lf)\n",
-			 lo.timeout);
+			 famfs_data.timeout);
 		exit(1);
 	}
 
-	lo.root.fd = open(lo.source, O_PATH);
-	if (lo.root.fd == -1) {
+	famfs_data.root.fd = open(famfs_data.source, O_PATH);
+	if (famfs_data.root.fd == -1) {
 		fuse_log(FUSE_LOG_ERR, "open(\"%s\", O_PATH): %m\n",
-			 lo.source);
+			 famfs_data.source);
 		exit(1);
 	}
 
-	se = fuse_session_new(&args, &famfs_oper, sizeof(famfs_oper), &lo);
+	se = fuse_session_new(&args, &famfs_oper, sizeof(famfs_oper), &famfs_data);
 	if (se == NULL)
 	    goto err_out1;
 
@@ -1348,9 +1500,9 @@ err_out1:
 	free(opts.mountpoint);
 	fuse_opt_free_args(&args);
 
-	if (lo.root.fd >= 0)
-		close(lo.root.fd);
+	if (famfs_data.root.fd >= 0)
+		close(famfs_data.root.fd);
 
-	free(lo.source);
+	free(famfs_data.source);
 	return ret ? 1 : 0;
 }
