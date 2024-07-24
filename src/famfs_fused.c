@@ -5,6 +5,9 @@
   This program can be distributed under the terms of the GNU GPLv2.
   See the file COPYING.
 */
+/*
+ * Copyright (C) 2023-2024 Micron Technology, Inc.  All rights reserved.
+ */
 
 /** @file
  *
@@ -56,8 +59,8 @@
 
 #include "../fuse/passthrough_helpers.h"
 
-/* We are re-using pointers to our `struct lo_inode` and `struct
-   lo_dirp` elements as inodes. This means that we must be able to
+/* We are re-using pointers to our `struct famfs_inode` and `struct
+   famfs_dirp` elements as inodes. This means that we must be able to
    store uintptr_t values in a fuse_ino_t variable. The following
    incantation checks this condition at compile time. */
 #if defined(__GNUC__) && (__GNUC__ > 4 || __GNUC__ == 4 && __GNUC_MINOR__ >= 6) && !defined __cplusplus
@@ -69,9 +72,9 @@ struct _uintptr_to_must_hold_fuse_ino_t_dummy_struct \
 			((sizeof(fuse_ino_t) >= sizeof(uintptr_t)) ? 1 : -1); };
 #endif
 
-struct lo_inode {
-	struct lo_inode *next; /* protected by lo->mutex */
-	struct lo_inode *prev; /* protected by lo->mutex */
+struct famfs_inode {
+	struct famfs_inode *next; /* protected by lo->mutex */
+	struct famfs_inode *prev; /* protected by lo->mutex */
 	int fd;
 	ino_t ino;
 	dev_t dev;
@@ -84,7 +87,7 @@ enum {
 	CACHE_ALWAYS,
 };
 
-struct lo_data {
+struct famfs_data {
 	pthread_mutex_t mutex;
 	int debug;
 	int writeback;
@@ -94,34 +97,34 @@ struct lo_data {
 	double timeout;
 	int cache;
 	int timeout_set;
-	struct lo_inode root; /* protected by lo->mutex */
+	struct famfs_inode root; /* protected by lo->mutex */
 };
 
-static const struct fuse_opt lo_opts[] = {
+static const struct fuse_opt famfs_opts[] = {
 	{ "writeback",
-	  offsetof(struct lo_data, writeback), 1 },
+	  offsetof(struct famfs_data, writeback), 1 },
 	{ "no_writeback",
-	  offsetof(struct lo_data, writeback), 0 },
+	  offsetof(struct famfs_data, writeback), 0 },
 	{ "source=%s",
-	  offsetof(struct lo_data, source), 0 },
+	  offsetof(struct famfs_data, source), 0 },
 	{ "flock",
-	  offsetof(struct lo_data, flock), 1 },
+	  offsetof(struct famfs_data, flock), 1 },
 	{ "no_flock",
-	  offsetof(struct lo_data, flock), 0 },
+	  offsetof(struct famfs_data, flock), 0 },
 	{ "xattr",
-	  offsetof(struct lo_data, xattr), 1 },
+	  offsetof(struct famfs_data, xattr), 1 },
 	{ "no_xattr",
-	  offsetof(struct lo_data, xattr), 0 },
+	  offsetof(struct famfs_data, xattr), 0 },
 	{ "timeout=%lf",
-	  offsetof(struct lo_data, timeout), 0 },
+	  offsetof(struct famfs_data, timeout), 0 },
 	{ "timeout=",
-	  offsetof(struct lo_data, timeout_set), 1 },
+	  offsetof(struct famfs_data, timeout_set), 1 },
 	{ "cache=never",
-	  offsetof(struct lo_data, cache), CACHE_NEVER },
+	  offsetof(struct famfs_data, cache), CACHE_NEVER },
 	{ "cache=auto",
-	  offsetof(struct lo_data, cache), CACHE_NORMAL },
+	  offsetof(struct famfs_data, cache), CACHE_NORMAL },
 	{ "cache=always",
-	  offsetof(struct lo_data, cache), CACHE_ALWAYS },
+	  offsetof(struct famfs_data, cache), CACHE_ALWAYS },
 
 	FUSE_OPT_END
 };
@@ -143,81 +146,81 @@ static void passthrough_ll_help(void)
 "    -o cache=always        Cache always\n");
 }
 
-static struct lo_data *lo_data(fuse_req_t req)
+static struct famfs_data *famfs_data(fuse_req_t req)
 {
-	return (struct lo_data *) fuse_req_userdata(req);
+	return (struct famfs_data *) fuse_req_userdata(req);
 }
 
-static struct lo_inode *lo_inode(fuse_req_t req, fuse_ino_t ino)
+static struct famfs_inode *famfs_inode(fuse_req_t req, fuse_ino_t ino)
 {
 	if (ino == FUSE_ROOT_ID)
-		return &lo_data(req)->root;
+		return &famfs_data(req)->root;
 	else
-		return (struct lo_inode *) (uintptr_t) ino;
+		return (struct famfs_inode *) (uintptr_t) ino;
 }
 
-static int lo_fd(fuse_req_t req, fuse_ino_t ino)
+static int famfs_fd(fuse_req_t req, fuse_ino_t ino)
 {
-	return lo_inode(req, ino)->fd;
+	return famfs_inode(req, ino)->fd;
 }
 
-static bool lo_debug(fuse_req_t req)
+static bool famfs_debug(fuse_req_t req)
 {
-	return lo_data(req)->debug != 0;
+	return famfs_data(req)->debug != 0;
 }
 
-static void lo_init(void *userdata,
+static void famfs_init(void *userdata,
 		    struct fuse_conn_info *conn)
 {
-	struct lo_data *lo = (struct lo_data*) userdata;
+	struct famfs_data *lo = (struct famfs_data*) userdata;
 
 	if (lo->writeback &&
 	    conn->capable & FUSE_CAP_WRITEBACK_CACHE) {
 		if (lo->debug)
-			fuse_log(FUSE_LOG_DEBUG, "lo_init: activating writeback\n");
+			fuse_log(FUSE_LOG_DEBUG, "famfs_init: activating writeback\n");
 		conn->want |= FUSE_CAP_WRITEBACK_CACHE;
 	}
 	if (lo->flock && conn->capable & FUSE_CAP_FLOCK_LOCKS) {
 		if (lo->debug)
-			fuse_log(FUSE_LOG_DEBUG, "lo_init: activating flock locks\n");
+			fuse_log(FUSE_LOG_DEBUG, "famfs_init: activating flock locks\n");
 		conn->want |= FUSE_CAP_FLOCK_LOCKS;
 	}
 }
 
-static void lo_destroy(void *userdata)
+static void famfs_destroy(void *userdata)
 {
-	struct lo_data *lo = (struct lo_data*) userdata;
+	struct famfs_data *lo = (struct famfs_data*) userdata;
 
 	while (lo->root.next != &lo->root) {
-		struct lo_inode* next = lo->root.next;
+		struct famfs_inode* next = lo->root.next;
 		lo->root.next = next->next;
 		close(next->fd);
 		free(next);
 	}
 }
 
-static void lo_getattr(fuse_req_t req, fuse_ino_t ino,
+static void famfs_getattr(fuse_req_t req, fuse_ino_t ino,
 			     struct fuse_file_info *fi)
 {
 	int res;
 	struct stat buf;
-	struct lo_data *lo = lo_data(req);
+	struct famfs_data *lo = famfs_data(req);
 
 	(void) fi;
 
-	res = fstatat(lo_fd(req, ino), "", &buf, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+	res = fstatat(famfs_fd(req, ino), "", &buf, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
 	if (res == -1)
 		return (void) fuse_reply_err(req, errno);
 
 	fuse_reply_attr(req, &buf, lo->timeout);
 }
 
-static void lo_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr,
+static void famfs_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr,
 		       int valid, struct fuse_file_info *fi)
 {
 	int saverr;
 	char procname[64];
-	struct lo_inode *inode = lo_inode(req, ino);
+	struct famfs_inode *inode = famfs_inode(req, ino);
 	int ifd = inode->fd;
 	int res;
 
@@ -280,17 +283,17 @@ static void lo_setattr(fuse_req_t req, fuse_ino_t ino, struct stat *attr,
 			goto out_err;
 	}
 
-	return lo_getattr(req, ino, fi);
+	return famfs_getattr(req, ino, fi);
 
 out_err:
 	saverr = errno;
 	fuse_reply_err(req, saverr);
 }
 
-static struct lo_inode *lo_find(struct lo_data *lo, struct stat *st)
+static struct famfs_inode *famfs_find(struct famfs_data *lo, struct stat *st)
 {
-	struct lo_inode *p;
-	struct lo_inode *ret = NULL;
+	struct famfs_inode *p;
+	struct famfs_inode *ret = NULL;
 
 	pthread_mutex_lock(&lo->mutex);
 	for (p = lo->root.next; p != &lo->root; p = p->next) {
@@ -305,20 +308,20 @@ static struct lo_inode *lo_find(struct lo_data *lo, struct stat *st)
 	return ret;
 }
 
-static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
+static int famfs_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
 			 struct fuse_entry_param *e)
 {
 	int newfd;
 	int res;
 	int saverr;
-	struct lo_data *lo = lo_data(req);
-	struct lo_inode *inode;
+	struct famfs_data *lo = famfs_data(req);
+	struct famfs_inode *inode;
 
 	memset(e, 0, sizeof(*e));
 	e->attr_timeout = lo->timeout;
 	e->entry_timeout = lo->timeout;
 
-	newfd = openat(lo_fd(req, parent), name, O_PATH | O_NOFOLLOW);
+	newfd = openat(famfs_fd(req, parent), name, O_PATH | O_NOFOLLOW);
 	if (newfd == -1)
 		goto out_err;
 
@@ -326,15 +329,15 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
 	if (res == -1)
 		goto out_err;
 
-	inode = lo_find(lo_data(req), &e->attr);
+	inode = famfs_find(famfs_data(req), &e->attr);
 	if (inode) {
 		close(newfd);
 		newfd = -1;
 	} else {
-		struct lo_inode *prev, *next;
+		struct famfs_inode *prev, *next;
 
 		saverr = ENOMEM;
-		inode = calloc(1, sizeof(struct lo_inode));
+		inode = calloc(1, sizeof(struct famfs_inode));
 		if (!inode)
 			goto out_err;
 
@@ -354,7 +357,7 @@ static int lo_do_lookup(fuse_req_t req, fuse_ino_t parent, const char *name,
 	}
 	e->ino = (uintptr_t) inode;
 
-	if (lo_debug(req))
+	if (famfs_debug(req))
 		fuse_log(FUSE_LOG_DEBUG, "  %lli/%s -> %lli\n",
 			(unsigned long long) parent, name, (unsigned long long) e->ino);
 
@@ -367,29 +370,29 @@ out_err:
 	return saverr;
 }
 
-static void lo_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
+static void famfs_lookup(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
 	struct fuse_entry_param e;
 	int err;
 
-	if (lo_debug(req))
-		fuse_log(FUSE_LOG_DEBUG, "lo_lookup(parent=%" PRIu64 ", name=%s)\n",
+	if (famfs_debug(req))
+		fuse_log(FUSE_LOG_DEBUG, "famfs_lookup(parent=%" PRIu64 ", name=%s)\n",
 			parent, name);
 
-	err = lo_do_lookup(req, parent, name, &e);
+	err = famfs_do_lookup(req, parent, name, &e);
 	if (err)
 		fuse_reply_err(req, err);
 	else
 		fuse_reply_entry(req, &e);
 }
 
-static void lo_mknod_symlink(fuse_req_t req, fuse_ino_t parent,
+static void famfs_mknod_symlink(fuse_req_t req, fuse_ino_t parent,
 			     const char *name, mode_t mode, dev_t rdev,
 			     const char *link)
 {
 	int res;
 	int saverr;
-	struct lo_inode *dir = lo_inode(req, parent);
+	struct famfs_inode *dir = famfs_inode(req, parent);
 	struct fuse_entry_param e;
 
 	res = mknod_wrapper(dir->fd, name, link, mode, rdev);
@@ -398,11 +401,11 @@ static void lo_mknod_symlink(fuse_req_t req, fuse_ino_t parent,
 	if (res == -1)
 		goto out;
 
-	saverr = lo_do_lookup(req, parent, name, &e);
+	saverr = famfs_do_lookup(req, parent, name, &e);
 	if (saverr)
 		goto out;
 
-	if (lo_debug(req))
+	if (famfs_debug(req))
 		fuse_log(FUSE_LOG_DEBUG, "  %lli/%s -> %lli\n",
 			(unsigned long long) parent, name, (unsigned long long) e.ino);
 
@@ -413,30 +416,30 @@ out:
 	fuse_reply_err(req, saverr);
 }
 
-static void lo_mknod(fuse_req_t req, fuse_ino_t parent,
+static void famfs_mknod(fuse_req_t req, fuse_ino_t parent,
 		     const char *name, mode_t mode, dev_t rdev)
 {
-	lo_mknod_symlink(req, parent, name, mode, rdev, NULL);
+	famfs_mknod_symlink(req, parent, name, mode, rdev, NULL);
 }
 
-static void lo_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
+static void famfs_mkdir(fuse_req_t req, fuse_ino_t parent, const char *name,
 		     mode_t mode)
 {
-	lo_mknod_symlink(req, parent, name, S_IFDIR | mode, 0, NULL);
+	famfs_mknod_symlink(req, parent, name, S_IFDIR | mode, 0, NULL);
 }
 
-static void lo_symlink(fuse_req_t req, const char *link,
+static void famfs_symlink(fuse_req_t req, const char *link,
 		       fuse_ino_t parent, const char *name)
 {
-	lo_mknod_symlink(req, parent, name, S_IFLNK, 0, link);
+	famfs_mknod_symlink(req, parent, name, S_IFLNK, 0, link);
 }
 
-static void lo_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t parent,
+static void famfs_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t parent,
 		    const char *name)
 {
 	int res;
-	struct lo_data *lo = lo_data(req);
-	struct lo_inode *inode = lo_inode(req, ino);
+	struct famfs_data *lo = famfs_data(req);
+	struct famfs_inode *inode = famfs_inode(req, ino);
 	struct fuse_entry_param e;
 	char procname[64];
 	int saverr;
@@ -446,7 +449,7 @@ static void lo_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t parent,
 	e.entry_timeout = lo->timeout;
 
 	sprintf(procname, "/proc/self/fd/%i", inode->fd);
-	res = linkat(AT_FDCWD, procname, lo_fd(req, parent), name,
+	res = linkat(AT_FDCWD, procname, famfs_fd(req, parent), name,
 		     AT_SYMLINK_FOLLOW);
 	if (res == -1)
 		goto out_err;
@@ -460,7 +463,7 @@ static void lo_link(fuse_req_t req, fuse_ino_t ino, fuse_ino_t parent,
 	pthread_mutex_unlock(&lo->mutex);
 	e.ino = (uintptr_t) inode;
 
-	if (lo_debug(req))
+	if (famfs_debug(req))
 		fuse_log(FUSE_LOG_DEBUG, "  %lli/%s -> %lli\n",
 			(unsigned long long) parent, name,
 			(unsigned long long) e.ino);
@@ -473,16 +476,16 @@ out_err:
 	fuse_reply_err(req, saverr);
 }
 
-static void lo_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name)
+static void famfs_rmdir(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
 	int res;
 
-	res = unlinkat(lo_fd(req, parent), name, AT_REMOVEDIR);
+	res = unlinkat(famfs_fd(req, parent), name, AT_REMOVEDIR);
 
 	fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
-static void lo_rename(fuse_req_t req, fuse_ino_t parent, const char *name,
+static void famfs_rename(fuse_req_t req, fuse_ino_t parent, const char *name,
 		      fuse_ino_t newparent, const char *newname,
 		      unsigned int flags)
 {
@@ -493,22 +496,22 @@ static void lo_rename(fuse_req_t req, fuse_ino_t parent, const char *name,
 		return;
 	}
 
-	res = renameat(lo_fd(req, parent), name,
-			lo_fd(req, newparent), newname);
+	res = renameat(famfs_fd(req, parent), name,
+			famfs_fd(req, newparent), newname);
 
 	fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
-static void lo_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
+static void famfs_unlink(fuse_req_t req, fuse_ino_t parent, const char *name)
 {
 	int res;
 
-	res = unlinkat(lo_fd(req, parent), name, 0);
+	res = unlinkat(famfs_fd(req, parent), name, 0);
 
 	fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
-static void unref_inode(struct lo_data *lo, struct lo_inode *inode, uint64_t n)
+static void unref_inode(struct famfs_data *lo, struct famfs_inode *inode, uint64_t n)
 {
 	if (!inode)
 		return;
@@ -517,7 +520,7 @@ static void unref_inode(struct lo_data *lo, struct lo_inode *inode, uint64_t n)
 	assert(inode->refcount >= n);
 	inode->refcount -= n;
 	if (!inode->refcount) {
-		struct lo_inode *prev, *next;
+		struct famfs_inode *prev, *next;
 
 		prev = inode->prev;
 		next = inode->next;
@@ -533,12 +536,12 @@ static void unref_inode(struct lo_data *lo, struct lo_inode *inode, uint64_t n)
 	}
 }
 
-static void lo_forget_one(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup)
+static void famfs_forget_one(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup)
 {
-	struct lo_data *lo = lo_data(req);
-	struct lo_inode *inode = lo_inode(req, ino);
+	struct famfs_data *lo = famfs_data(req);
+	struct famfs_inode *inode = famfs_inode(req, ino);
 
-	if (lo_debug(req)) {
+	if (famfs_debug(req)) {
 		fuse_log(FUSE_LOG_DEBUG, "  forget %lli %lli -%lli\n",
 			(unsigned long long) ino,
 			(unsigned long long) inode->refcount,
@@ -548,28 +551,28 @@ static void lo_forget_one(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup)
 	unref_inode(lo, inode, nlookup);
 }
 
-static void lo_forget(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup)
+static void famfs_forget(fuse_req_t req, fuse_ino_t ino, uint64_t nlookup)
 {
-	lo_forget_one(req, ino, nlookup);
+	famfs_forget_one(req, ino, nlookup);
 	fuse_reply_none(req);
 }
 
-static void lo_forget_multi(fuse_req_t req, size_t count,
+static void famfs_forget_multi(fuse_req_t req, size_t count,
 				struct fuse_forget_data *forgets)
 {
 	int i;
 
 	for (i = 0; i < count; i++)
-		lo_forget_one(req, forgets[i].ino, forgets[i].nlookup);
+		famfs_forget_one(req, forgets[i].ino, forgets[i].nlookup);
 	fuse_reply_none(req);
 }
 
-static void lo_readlink(fuse_req_t req, fuse_ino_t ino)
+static void famfs_readlink(fuse_req_t req, fuse_ino_t ino)
 {
 	char buf[PATH_MAX + 1];
 	int res;
 
-	res = readlinkat(lo_fd(req, ino), "", buf, sizeof(buf));
+	res = readlinkat(famfs_fd(req, ino), "", buf, sizeof(buf));
 	if (res == -1)
 		return (void) fuse_reply_err(req, errno);
 
@@ -581,29 +584,29 @@ static void lo_readlink(fuse_req_t req, fuse_ino_t ino)
 	fuse_reply_readlink(req, buf);
 }
 
-struct lo_dirp {
+struct famfs_dirp {
 	DIR *dp;
 	struct dirent *entry;
 	off_t offset;
 };
 
-static struct lo_dirp *lo_dirp(struct fuse_file_info *fi)
+static struct famfs_dirp *famfs_dirp(struct fuse_file_info *fi)
 {
-	return (struct lo_dirp *) (uintptr_t) fi->fh;
+	return (struct famfs_dirp *) (uintptr_t) fi->fh;
 }
 
-static void lo_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+static void famfs_opendir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
 	int error = ENOMEM;
-	struct lo_data *lo = lo_data(req);
-	struct lo_dirp *d;
+	struct famfs_data *lo = famfs_data(req);
+	struct famfs_dirp *d;
 	int fd;
 
-	d = calloc(1, sizeof(struct lo_dirp));
+	d = calloc(1, sizeof(struct famfs_dirp));
 	if (d == NULL)
 		goto out_err;
 
-	fd = openat(lo_fd(req, ino), ".", O_RDONLY);
+	fd = openat(famfs_fd(req, ino), ".", O_RDONLY);
 	if (fd == -1)
 		goto out_errno;
 
@@ -637,10 +640,10 @@ static int is_dot_or_dotdot(const char *name)
 				  (name[1] == '.' && name[2] == '\0'));
 }
 
-static void lo_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
+static void famfs_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 			  off_t offset, struct fuse_file_info *fi, int plus)
 {
-	struct lo_dirp *d = lo_dirp(fi);
+	struct famfs_dirp *d = famfs_dirp(fi);
 	char *buf;
 	char *p;
 	size_t rem = size;
@@ -688,7 +691,7 @@ static void lo_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 					.attr.st_mode = d->entry->d_type << 12,
 				};
 			} else {
-				err = lo_do_lookup(req, ino, name, &e);
+				err = famfs_do_lookup(req, ino, name, &e);
 				if (err)
 					goto error;
 				entry_ino = e.ino;
@@ -706,7 +709,7 @@ static void lo_do_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 		}
 		if (entsize > rem) {
 			if (entry_ino != 0) 
-				lo_forget_one(req, entry_ino, 1);
+				famfs_forget_one(req, entry_ino, 1);
 			break;
 		}
 		
@@ -730,40 +733,40 @@ error:
     free(buf);
 }
 
-static void lo_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
+static void famfs_readdir(fuse_req_t req, fuse_ino_t ino, size_t size,
 		       off_t offset, struct fuse_file_info *fi)
 {
-	lo_do_readdir(req, ino, size, offset, fi, 0);
+	famfs_do_readdir(req, ino, size, offset, fi, 0);
 }
 
-static void lo_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size,
+static void famfs_readdirplus(fuse_req_t req, fuse_ino_t ino, size_t size,
 			   off_t offset, struct fuse_file_info *fi)
 {
-	lo_do_readdir(req, ino, size, offset, fi, 1);
+	famfs_do_readdir(req, ino, size, offset, fi, 1);
 }
 
-static void lo_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+static void famfs_releasedir(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
-	struct lo_dirp *d = lo_dirp(fi);
+	struct famfs_dirp *d = famfs_dirp(fi);
 	(void) ino;
 	closedir(d->dp);
 	free(d);
 	fuse_reply_err(req, 0);
 }
 
-static void lo_create(fuse_req_t req, fuse_ino_t parent, const char *name,
+static void famfs_create(fuse_req_t req, fuse_ino_t parent, const char *name,
 		      mode_t mode, struct fuse_file_info *fi)
 {
 	int fd;
-	struct lo_data *lo = lo_data(req);
+	struct famfs_data *lo = famfs_data(req);
 	struct fuse_entry_param e;
 	int err;
 
-	if (lo_debug(req))
-		fuse_log(FUSE_LOG_DEBUG, "lo_create(parent=%" PRIu64 ", name=%s)\n",
+	if (famfs_debug(req))
+		fuse_log(FUSE_LOG_DEBUG, "famfs_create(parent=%" PRIu64 ", name=%s)\n",
 			parent, name);
 
-	fd = openat(lo_fd(req, parent), name,
+	fd = openat(famfs_fd(req, parent), name,
 		    (fi->flags | O_CREAT) & ~O_NOFOLLOW, mode);
 	if (fd == -1)
 		return (void) fuse_reply_err(req, errno);
@@ -779,18 +782,18 @@ static void lo_create(fuse_req_t req, fuse_ino_t parent, const char *name,
 	   in current function. */
 	fi->parallel_direct_writes = 1;
 
-	err = lo_do_lookup(req, parent, name, &e);
+	err = famfs_do_lookup(req, parent, name, &e);
 	if (err)
 		fuse_reply_err(req, err);
 	else
 		fuse_reply_create(req, &e, fi);
 }
 
-static void lo_fsyncdir(fuse_req_t req, fuse_ino_t ino, int datasync,
+static void famfs_fsyncdir(fuse_req_t req, fuse_ino_t ino, int datasync,
 			struct fuse_file_info *fi)
 {
 	int res;
-	int fd = dirfd(lo_dirp(fi)->dp);
+	int fd = dirfd(famfs_dirp(fi)->dp);
 	(void) ino;
 	if (datasync)
 		res = fdatasync(fd);
@@ -799,14 +802,14 @@ static void lo_fsyncdir(fuse_req_t req, fuse_ino_t ino, int datasync,
 	fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
-static void lo_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+static void famfs_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
 	int fd;
 	char buf[64];
-	struct lo_data *lo = lo_data(req);
+	struct famfs_data *lo = famfs_data(req);
 
-	if (lo_debug(req))
-		fuse_log(FUSE_LOG_DEBUG, "lo_open(ino=%" PRIu64 ", flags=%d)\n",
+	if (famfs_debug(req))
+		fuse_log(FUSE_LOG_DEBUG, "famfs_open(ino=%" PRIu64 ", flags=%d)\n",
 			ino, fi->flags);
 
 	/* With writeback cache, kernel may send read requests even
@@ -825,7 +828,7 @@ static void lo_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 	if (lo->writeback && (fi->flags & O_APPEND))
 		fi->flags &= ~O_APPEND;
 
-	sprintf(buf, "/proc/self/fd/%i", lo_fd(req, ino));
+	sprintf(buf, "/proc/self/fd/%i", famfs_fd(req, ino));
 	fd = open(buf, fi->flags & ~O_NOFOLLOW);
 	if (fd == -1)
 		return (void) fuse_reply_err(req, errno);
@@ -850,7 +853,7 @@ static void lo_open(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 	fuse_reply_open(req, fi);
 }
 
-static void lo_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+static void famfs_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
 	(void) ino;
 
@@ -858,7 +861,7 @@ static void lo_release(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi
 	fuse_reply_err(req, 0);
 }
 
-static void lo_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
+static void famfs_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 {
 	int res;
 	(void) ino;
@@ -866,7 +869,7 @@ static void lo_flush(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi)
 	fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
-static void lo_fsync(fuse_req_t req, fuse_ino_t ino, int datasync,
+static void famfs_fsync(fuse_req_t req, fuse_ino_t ino, int datasync,
 		     struct fuse_file_info *fi)
 {
 	int res;
@@ -878,13 +881,13 @@ static void lo_fsync(fuse_req_t req, fuse_ino_t ino, int datasync,
 	fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
-static void lo_read(fuse_req_t req, fuse_ino_t ino, size_t size,
+static void famfs_read(fuse_req_t req, fuse_ino_t ino, size_t size,
 		    off_t offset, struct fuse_file_info *fi)
 {
 	struct fuse_bufvec buf = FUSE_BUFVEC_INIT(size);
 
-	if (lo_debug(req))
-		fuse_log(FUSE_LOG_DEBUG, "lo_read(ino=%" PRIu64 ", size=%zd, "
+	if (famfs_debug(req))
+		fuse_log(FUSE_LOG_DEBUG, "famfs_read(ino=%" PRIu64 ", size=%zd, "
 			"off=%lu)\n", ino, size, (unsigned long) offset);
 
 	buf.buf[0].flags = FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK;
@@ -894,7 +897,7 @@ static void lo_read(fuse_req_t req, fuse_ino_t ino, size_t size,
 	fuse_reply_data(req, &buf, FUSE_BUF_SPLICE_MOVE);
 }
 
-static void lo_write_buf(fuse_req_t req, fuse_ino_t ino,
+static void famfs_write_buf(fuse_req_t req, fuse_ino_t ino,
 			 struct fuse_bufvec *in_buf, off_t off,
 			 struct fuse_file_info *fi)
 {
@@ -906,8 +909,8 @@ static void lo_write_buf(fuse_req_t req, fuse_ino_t ino,
 	out_buf.buf[0].fd = fi->fh;
 	out_buf.buf[0].pos = off;
 
-	if (lo_debug(req))
-		fuse_log(FUSE_LOG_DEBUG, "lo_write(ino=%" PRIu64 ", size=%zd, off=%lu)\n",
+	if (famfs_debug(req))
+		fuse_log(FUSE_LOG_DEBUG, "famfs_write(ino=%" PRIu64 ", size=%zd, off=%lu)\n",
 			ino, out_buf.buf[0].size, (unsigned long) off);
 
 	res = fuse_buf_copy(&out_buf, in_buf, 0);
@@ -917,19 +920,19 @@ static void lo_write_buf(fuse_req_t req, fuse_ino_t ino,
 		fuse_reply_write(req, (size_t) res);
 }
 
-static void lo_statfs(fuse_req_t req, fuse_ino_t ino)
+static void famfs_statfs(fuse_req_t req, fuse_ino_t ino)
 {
 	int res;
 	struct statvfs stbuf;
 
-	res = fstatvfs(lo_fd(req, ino), &stbuf);
+	res = fstatvfs(famfs_fd(req, ino), &stbuf);
 	if (res == -1)
 		fuse_reply_err(req, errno);
 	else
 		fuse_reply_statfs(req, &stbuf);
 }
 
-static void lo_fallocate(fuse_req_t req, fuse_ino_t ino, int mode,
+static void famfs_fallocate(fuse_req_t req, fuse_ino_t ino, int mode,
 			 off_t offset, off_t length, struct fuse_file_info *fi)
 {
 	int err = EOPNOTSUPP;
@@ -952,7 +955,7 @@ static void lo_fallocate(fuse_req_t req, fuse_ino_t ino, int mode,
 	fuse_reply_err(req, err);
 }
 
-static void lo_flock(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
+static void famfs_flock(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
 		     int op)
 {
 	int res;
@@ -963,21 +966,21 @@ static void lo_flock(fuse_req_t req, fuse_ino_t ino, struct fuse_file_info *fi,
 	fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
-static void lo_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
+static void famfs_getxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
 			size_t size)
 {
 	char *value = NULL;
 	char procname[64];
-	struct lo_inode *inode = lo_inode(req, ino);
+	struct famfs_inode *inode = famfs_inode(req, ino);
 	ssize_t ret;
 	int saverr;
 
 	saverr = ENOSYS;
-	if (!lo_data(req)->xattr)
+	if (!famfs_data(req)->xattr)
 		goto out;
 
-	if (lo_debug(req)) {
-		fuse_log(FUSE_LOG_DEBUG, "lo_getxattr(ino=%" PRIu64 ", name=%s size=%zd)\n",
+	if (famfs_debug(req)) {
+		fuse_log(FUSE_LOG_DEBUG, "famfs_getxattr(ino=%" PRIu64 ", name=%s size=%zd)\n",
 			ino, name, size);
 	}
 
@@ -1014,20 +1017,20 @@ out:
 	goto out_free;
 }
 
-static void lo_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size)
+static void famfs_listxattr(fuse_req_t req, fuse_ino_t ino, size_t size)
 {
 	char *value = NULL;
 	char procname[64];
-	struct lo_inode *inode = lo_inode(req, ino);
+	struct famfs_inode *inode = famfs_inode(req, ino);
 	ssize_t ret;
 	int saverr;
 
 	saverr = ENOSYS;
-	if (!lo_data(req)->xattr)
+	if (!famfs_data(req)->xattr)
 		goto out;
 
-	if (lo_debug(req)) {
-		fuse_log(FUSE_LOG_DEBUG, "lo_listxattr(ino=%" PRIu64 ", size=%zd)\n",
+	if (famfs_debug(req)) {
+		fuse_log(FUSE_LOG_DEBUG, "famfs_listxattr(ino=%" PRIu64 ", size=%zd)\n",
 			ino, size);
 	}
 
@@ -1064,20 +1067,20 @@ out:
 	goto out_free;
 }
 
-static void lo_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
+static void famfs_setxattr(fuse_req_t req, fuse_ino_t ino, const char *name,
 			const char *value, size_t size, int flags)
 {
 	char procname[64];
-	struct lo_inode *inode = lo_inode(req, ino);
+	struct famfs_inode *inode = famfs_inode(req, ino);
 	ssize_t ret;
 	int saverr;
 
 	saverr = ENOSYS;
-	if (!lo_data(req)->xattr)
+	if (!famfs_data(req)->xattr)
 		goto out;
 
-	if (lo_debug(req)) {
-		fuse_log(FUSE_LOG_DEBUG, "lo_setxattr(ino=%" PRIu64 ", name=%s value=%s size=%zd)\n",
+	if (famfs_debug(req)) {
+		fuse_log(FUSE_LOG_DEBUG, "famfs_setxattr(ino=%" PRIu64 ", name=%s value=%s size=%zd)\n",
 			ino, name, value, size);
 	}
 
@@ -1090,19 +1093,19 @@ out:
 	fuse_reply_err(req, saverr);
 }
 
-static void lo_removexattr(fuse_req_t req, fuse_ino_t ino, const char *name)
+static void famfs_removexattr(fuse_req_t req, fuse_ino_t ino, const char *name)
 {
 	char procname[64];
-	struct lo_inode *inode = lo_inode(req, ino);
+	struct famfs_inode *inode = famfs_inode(req, ino);
 	ssize_t ret;
 	int saverr;
 
 	saverr = ENOSYS;
-	if (!lo_data(req)->xattr)
+	if (!famfs_data(req)->xattr)
 		goto out;
 
-	if (lo_debug(req)) {
-		fuse_log(FUSE_LOG_DEBUG, "lo_removexattr(ino=%" PRIu64 ", name=%s)\n",
+	if (famfs_debug(req)) {
+		fuse_log(FUSE_LOG_DEBUG, "famfs_removexattr(ino=%" PRIu64 ", name=%s)\n",
 			ino, name);
 	}
 
@@ -1116,7 +1119,7 @@ out:
 }
 
 #ifdef HAVE_COPY_FILE_RANGE
-static void lo_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_in,
+static void famfs_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_in,
 			       struct fuse_file_info *fi_in,
 			       fuse_ino_t ino_out, off_t off_out,
 			       struct fuse_file_info *fi_out, size_t len,
@@ -1124,8 +1127,8 @@ static void lo_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_in,
 {
 	ssize_t res;
 
-	if (lo_debug(req))
-		fuse_log(FUSE_LOG_DEBUG, "lo_copy_file_range(ino=%" PRIu64 "/fd=%lu, "
+	if (famfs_debug(req))
+		fuse_log(FUSE_LOG_DEBUG, "famfs_copy_file_range(ino=%" PRIu64 "/fd=%lu, "
 				"off=%lu, ino=%" PRIu64 "/fd=%lu, "
 				"off=%lu, size=%zd, flags=0x%x)\n",
 			ino_in, fi_in->fh, off_in, ino_out, fi_out->fh, off_out,
@@ -1140,7 +1143,7 @@ static void lo_copy_file_range(fuse_req_t req, fuse_ino_t ino_in, off_t off_in,
 }
 #endif
 
-static void lo_lseek(fuse_req_t req, fuse_ino_t ino, off_t off, int whence,
+static void famfs_lseek(fuse_req_t req, fuse_ino_t ino, off_t off, int whence,
 		     struct fuse_file_info *fi)
 {
 	off_t res;
@@ -1153,45 +1156,45 @@ static void lo_lseek(fuse_req_t req, fuse_ino_t ino, off_t off, int whence,
 		fuse_reply_err(req, errno);
 }
 
-static const struct fuse_lowlevel_ops lo_oper = {
-	.init		= lo_init,
-	.destroy	= lo_destroy,
-	.lookup		= lo_lookup,
-	.mkdir		= lo_mkdir,
-	.mknod		= lo_mknod,
-	.symlink	= lo_symlink,
-	.link		= lo_link,
-	.unlink		= lo_unlink,
-	.rmdir		= lo_rmdir,
-	.rename		= lo_rename,
-	.forget		= lo_forget,
-	.forget_multi	= lo_forget_multi,
-	.getattr	= lo_getattr,
-	.setattr	= lo_setattr,
-	.readlink	= lo_readlink,
-	.opendir	= lo_opendir,
-	.readdir	= lo_readdir,
-	.readdirplus	= lo_readdirplus,
-	.releasedir	= lo_releasedir,
-	.fsyncdir	= lo_fsyncdir,
-	.create		= lo_create,
-	.open		= lo_open,
-	.release	= lo_release,
-	.flush		= lo_flush,
-	.fsync		= lo_fsync,
-	.read		= lo_read,
-	.write_buf      = lo_write_buf,
-	.statfs		= lo_statfs,
-	.fallocate	= lo_fallocate,
-	.flock		= lo_flock,
-	.getxattr	= lo_getxattr,
-	.listxattr	= lo_listxattr,
-	.setxattr	= lo_setxattr,
-	.removexattr	= lo_removexattr,
+static const struct fuse_lowlevel_ops famfs_oper = {
+	.init		= famfs_init,
+	.destroy	= famfs_destroy,
+	.lookup		= famfs_lookup,
+	.mkdir		= famfs_mkdir,
+	.mknod		= famfs_mknod,
+	.symlink	= famfs_symlink,
+	.link		= famfs_link,
+	.unlink		= famfs_unlink,
+	.rmdir		= famfs_rmdir,
+	.rename		= famfs_rename,
+	.forget		= famfs_forget,
+	.forget_multi	= famfs_forget_multi,
+	.getattr	= famfs_getattr,
+	.setattr	= famfs_setattr,
+	.readlink	= famfs_readlink,
+	.opendir	= famfs_opendir,
+	.readdir	= famfs_readdir,
+	.readdirplus	= famfs_readdirplus,
+	.releasedir	= famfs_releasedir,
+	.fsyncdir	= famfs_fsyncdir,
+	.create		= famfs_create,
+	.open		= famfs_open,
+	.release	= famfs_release,
+	.flush		= famfs_flush,
+	.fsync		= famfs_fsync,
+	.read		= famfs_read,
+	.write_buf      = famfs_write_buf,
+	.statfs		= famfs_statfs,
+	.fallocate	= famfs_fallocate,
+	.flock		= famfs_flock,
+	.getxattr	= famfs_getxattr,
+	.listxattr	= famfs_listxattr,
+	.setxattr	= famfs_setxattr,
+	.removexattr	= famfs_removexattr,
 #ifdef HAVE_COPY_FILE_RANGE
-	.copy_file_range = lo_copy_file_range,
+	.copy_file_range = famfs_copy_file_range,
 #endif
-	.lseek		= lo_lseek,
+	.lseek		= famfs_lseek,
 };
 
 void jg_print_fuse_opts(struct fuse_cmdline_opts *opts)
@@ -1220,7 +1223,7 @@ int main(int argc, char *argv[])
 	struct fuse_session *se;
 	struct fuse_cmdline_opts opts;
 	struct fuse_loop_config *config;
-	struct lo_data lo = { .debug = 0,
+	struct famfs_data lo = { .debug = 0,
 	                      .writeback = 0 };
 	int ret = -1;
 
@@ -1257,7 +1260,7 @@ int main(int argc, char *argv[])
 		goto err_out1;
 	}
 
-	if (fuse_opt_parse(&args, &lo, lo_opts, NULL)== -1)
+	if (fuse_opt_parse(&args, &lo, famfs_opts, NULL)== -1)
 		return 1;
 
 	lo.debug = opts.debug;
@@ -1311,7 +1314,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	se = fuse_session_new(&args, &lo_oper, sizeof(lo_oper), &lo);
+	se = fuse_session_new(&args, &famfs_oper, sizeof(famfs_oper), &lo);
 	if (se == NULL)
 	    goto err_out1;
 
