@@ -9,3 +9,7 @@ modules.order
 cli-ref.md
 html
 latex
+cmake-modules
+tmp/
+tools/
+TAGS
