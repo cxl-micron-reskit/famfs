@@ -11,6 +11,11 @@ kernel can be accessed one of the following ways:
 * [Famfs v1 patch set at lore.kernel.org](https://lore.kernel.org/linux-fsdevel/cover.1708709155.git.john@groves.net/T/#t) - Famfs was published to the Linux community in February 2024.
 * [famfs-linux git repo](https://github.com/cxl-micron-reskit/famfs-linux) - The famfs v2 patches are also available as the default branch in this git repo.
 
+# Famfs Talks
+* [Famfs was introduced at the 2023 Linux Plumbers Conference](https://lpc.events/event/17/contributions/1455/) ([abstract](https://lpc.events/event/17/contributions/1455/), [slides](https://lpc.events/event/17/contributions/1455/attachments/1179/2546/cxl-shared-fam-what-is-needed-v4.pdf), [youtube](https://www.youtube.com/watch?v=aA_DgO95gLo))
+* [Famfs session at LSFMM 2024](https://www.youtube.com/watch?v=nMaZhXJJgmU&list=PLbzoR-pLrL6oj1rVTXLnV7cOuetvjKn9q&index=67) (todo: add slides)
+* [Famfs and shared memory status session at the 2024 Linux Plumbers Conference](https://lpc.events/event/18/contributions/1827/)
+
 # What is Famfs?
 
 Famfs is a scale-out shared-memory file system. If two or more hosts have shared access
@@ -72,10 +77,6 @@ Why do we need a new fs-dax file system when others (e.g. xfs and ext4) exist? B
 fs-dax file systems use write-back metadata (as pretty much all conventional file systems do).
 Write-back metadata is not compatible with scale-out shared memory access, because two or more hosts
 have no way to agree on the definitive state of metadata (not to mention space allocation).
-
-[Famfs was introduced at the 2023 Linux Plumbers Conference](https://lpc.events/event/17/contributions/1455/).
-The linked page contains the abstract, plus links to the slides and a
-youtube video of the talk.
 
 ## What is dax?
 In Linux, special purpose memory is exposed as a dax device (e.g. ```/dev/dax0.0``` or
