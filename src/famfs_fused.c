@@ -101,6 +101,16 @@ static const struct fuse_opt famfs_opts[] = {
 	FUSE_OPT_END
 };
 
+void dump_fuse_args(struct fuse_args *args)
+{
+	int i;
+
+	printf("%s: %s\n", __func__, (args->allocated) ? "(allocated)": "");
+	for (i = 0; i<args->argc; i++)
+		printf("\t%d: %s\n", i, args->argv[i]);
+
+}
+
 static void passthrough_ll_help(void)
 {
 	printf(
@@ -1389,12 +1399,19 @@ int main(int argc, char *argv[])
 
 	fuse_set_log_func(fused_syslog);
 
+	/*
+	 * This gets opts (fuse_cmdline_opts)
+	 * (This is a struct containing option fields)
+	 */
 	if (fuse_parse_cmdline(&args, &opts) != 0)
 		return 1;
 	if (opts.show_help) {
 		printf("usage: %s [options] <mountpoint>\n\n", argv[0]);
+		printf("fuse_cmdline_help()----------------------------------\n");
 		fuse_cmdline_help();
+		printf("fuse_lowlevel_help()----------------------------------\n");
 		fuse_lowlevel_help();
+		printf("passthrough_ll_help()----------------------------------\n");
 		passthrough_ll_help();
 		ret = 0;
 		goto err_out1;
@@ -1412,6 +1429,10 @@ int main(int argc, char *argv[])
 		goto err_out1;
 	}
 
+	dump_fuse_args(&args);
+	/*
+	 * This parses famfs_data from 
+	 */
 	if (fuse_opt_parse(&args, &famfs_data, famfs_opts, NULL)== -1)
 		return 1;
 
@@ -1466,6 +1487,9 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
+	/*
+	 * this creates the fuse session
+	 */
 	se = fuse_session_new(&args, &famfs_oper, sizeof(famfs_oper), &famfs_data);
 	if (se == NULL)
 	    goto err_out1;
