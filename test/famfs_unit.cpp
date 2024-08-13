@@ -574,10 +574,10 @@ TEST(famfs, famfs_log)
 	mock_path = 0;
 	logp->entries[0].famfs_log_entry_type = tmp;
 
-	/* reach FAMFS_LOG_ACCESS */
+	/* reach FAMFS_LOG_INVALID */
 	mock_failure = MOCK_FAIL_GENERIC;
 	tmp = logp->entries[0].famfs_log_entry_type;
-	logp->entries[0].famfs_log_entry_type = FAMFS_LOG_ACCESS;
+	logp->entries[0].famfs_log_entry_type = FAMFS_LOG_INVALID;
 	rc = __famfs_logplay("/tmp/famfs", sb, logp, 0, 0, 0, FAMFS_MASTER, 1);
 	ASSERT_EQ(rc, 0);
 	mock_failure = MOCK_FAIL_NONE;
@@ -1032,12 +1032,12 @@ TEST(famfs, famfs_file_yaml) {
 	rc = famfs_parse_yaml(fp, &fm, FAMFS_FC_MAX_EXTENTS, 1); /* 3 extents is not an overflow */
 	ASSERT_EQ(rc, 0);
 	ASSERT_EQ(fm.fm_nextents, 3);
-	ASSERT_EQ(fm.fm_ext_list[0].se.se_offset, 0x38600000);
-	ASSERT_EQ(fm.fm_ext_list[0].se.se_len, 0x200000);
-	ASSERT_EQ(fm.fm_ext_list[1].se.se_offset, 0x48600000);
-	ASSERT_EQ(fm.fm_ext_list[1].se.se_len, 0x200000);
-	ASSERT_EQ(fm.fm_ext_list[2].se.se_offset, 0x58600000);
-	ASSERT_EQ(fm.fm_ext_list[2].se.se_len, 0x200000);
+	ASSERT_EQ(fm.fm_fmap.se[0].se_offset, 0x38600000);
+	ASSERT_EQ(fm.fm_fmap.se[0].se_len, 0x200000);
+	ASSERT_EQ(fm.fm_fmap.se[1].se_offset, 0x48600000);
+	ASSERT_EQ(fm.fm_fmap.se[1].se_len, 0x200000);
+	ASSERT_EQ(fm.fm_fmap.se[2].se_offset, 0x58600000);
+	ASSERT_EQ(fm.fm_fmap.se[2].se_len, 0x200000);
 
 	/* Malformed extent list */
 	famfs_yaml_test_reset(&fm, fp, my_yaml);

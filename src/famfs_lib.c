@@ -723,14 +723,17 @@ famfs_fsck_scan(
 		printf("  sizeof(log header) %ld\n", sizeof(struct famfs_log));
 		printf("  sizeof(log_entry)  %ld\n", sizeof(struct famfs_log_entry));
 
+		printf("  sizeof(famfs_interleaved_ext): %ld\n",
+		       sizeof(struct famfs_interleaved_ext));
+		printf("  sizeof(famfs_simple_ext): %ld\n",
+		       sizeof(struct famfs_simple_extent));
+
 		printf("  last_log_index:    %lld\n", logp->famfs_log_last_index);
 		total_log_size = sizeof(struct famfs_log)
 			+ (sizeof(struct famfs_log_entry) * logp->famfs_log_last_index);
 		printf("  usable log size:   %ld\n", total_log_size);
 		printf("  sizeof(struct famfs_file_meta): %ld\n",
 		       sizeof(struct famfs_file_meta));
-		printf("  sizeof(struct famfs_file_access):   %ld\n",
-		       sizeof(struct famfs_file_access));
 		printf("\n");
 	}
 	return errors;
@@ -1157,8 +1160,8 @@ __famfs_mkmeta(
 		strncpy((char *)fm.fm_relpath, famfs_relpath_from_fullpath(mpt, sb_file),
 			FAMFS_MAX_PATHLEN - 1);
 
-		fm.fm_ext_list[0].se.se_offset = 0;
-		fm.fm_ext_list[0].se.se_len = FAMFS_SUPERBLOCK_SIZE;
+		fm.fm_fmap.se[0].se_offset = 0;
+		fm.fm_fmap.se[0].se_len = FAMFS_SUPERBLOCK_SIZE;
 
 		famfs_shadow_file_create(sb_file, &fm, &ls, 0, 0, 0, verbose);
 	} else {
@@ -1217,8 +1220,8 @@ __famfs_mkmeta(
 		strncpy((char *)fm.fm_relpath, famfs_relpath_from_fullpath(mpt, log_file),
 			FAMFS_MAX_PATHLEN - 1);
 
-		fm.fm_ext_list[0].se.se_offset = sb->ts_log_offset;;
-		fm.fm_ext_list[0].se.se_len = sb->ts_log_len;
+		fm.fm_fmap.se[0].se_offset = sb->ts_log_offset;;
+		fm.fm_fmap.se[0].se_len = sb->ts_log_len;
 
 		famfs_shadow_file_create(log_file, &fm, &ls, 0, 0, 0, verbose);
 	} else {
@@ -1547,7 +1550,7 @@ __famfs_logplay(
 			 * null offset...
 			 */
 			for (j = 0; j < fc->fm_nextents; j++) {
-				const struct famfs_simple_extent *se = &fc->fm_ext_list[j].se;
+				const struct famfs_simple_extent *se = &fc->fm_fmap.se[j];
 
 				if (se->se_offset == 0 || mock_path) {
 					fprintf(stderr,
@@ -1607,10 +1610,10 @@ __famfs_logplay(
 			 */
 			el = calloc(fc->fm_nextents, sizeof(*el));
 			for (j = 0; j < fc->fm_nextents; j++) {
-				const struct famfs_log_extent *tle = &fc->fm_ext_list[j];
+				const struct famfs_log_fmap *tle = &fc->fm_fmap;
 
-				el[j].se_offset = tle[j].se.se_offset;
-				el[j].se_len    = tle[j].se.se_len;
+				el[j].se_offset = tle->se[j].se_offset;
+				el[j].se_len    = tle->se[j].se_len;
 			}
 			famfs_file_map_create(rpath, fd, fc->fm_size,
 					      fc->fm_nextents, el, FAMFS_REG);
@@ -1695,7 +1698,6 @@ __famfs_logplay(
 			ls.d_created++;
 			break;
 		}
-		case FAMFS_LOG_ACCESS:
 		default:
 			if (verbose)
 				printf("%s: invalid log entry\n", __func__);
@@ -2027,14 +2029,14 @@ famfs_log_file_creation(
 	fc->fm_mode = mode;
 	fc->fm_uid  = uid;
 	fc->fm_gid  = gid;
+	fc->ext_type =  FAMFS_EXT_SIMPLE;
 
 	/* Copy extents into log entry */
 	for (i = 0; i < nextents; i++) {
-		struct famfs_log_extent *ext = &fc->fm_ext_list[i];
+		struct famfs_log_fmap *ext = &fc->fm_fmap;
 
-		ext->ext_type = FAMFS_EXT_SIMPLE;
-		ext->se.se_offset = ext_list[i].se_offset;
-		ext->se.se_len    = ext_list[i].se_len;
+		ext->se[i].se_offset = ext_list[i].se_offset;
+		ext->se[i].se_len    = ext_list[i].se_len;
 	}
 
 	return famfs_append_log(logp, &le);
@@ -2621,7 +2623,6 @@ put_sb_log_into_bitmap(u8 *bitmap, u64 log_len, u64 *alloc_sum)
  * @log_stats_out    - Optional pointer to struct log_stats to be copied out
  * @verbose
  */
-/* XXX: should get log size from superblock */
 static u8 *
 famfs_build_bitmap(const struct famfs_log   *logp,
 		   u64                       dev_size_in,
@@ -2662,7 +2663,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 		switch (le->famfs_log_entry_type) {
 		case FAMFS_LOG_FILE: {
 			const struct famfs_file_meta *fc = &le->famfs_fc;
-			const struct famfs_log_extent *ext = fc->fm_ext_list;
+			const struct famfs_log_fmap *ext = &fc->fm_fmap;
 
 			ls.f_logged++;
 			fsize_sum += fc->fm_size;
@@ -2672,8 +2673,8 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 
 			/* For each extent in this log entry, mark the bitmap as allocated */
 			for (j = 0; j < fc->fm_nextents; j++) {
-				u64 ofs = ext[j].se.se_offset;
-				u64 len = ext[j].se.se_len;
+				u64 ofs = ext->se[j].se_offset;
+				u64 len = ext->se[j].se_len;
 				int rc;
 
 				assert(!(ofs % FAMFS_ALLOC_UNIT));
@@ -2688,7 +2689,6 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 			/* Ignore directory log entries - no space is used */
 			break;
 
-		case FAMFS_LOG_ACCESS:
 		default:
 			printf("%s: invalid log entry\n", __func__);
 			break;
@@ -3397,8 +3397,8 @@ famfs_mkdir(
 /**
  * famfs_make_parent_dir()
  *
- * Recurse upwards through the path till we find a directory that exists
- * On the way back, create the missing directories for "mkdir -p"
+ * Recurse upwards through the path till we find a directory that exists.
+ * On the way back down, create the missing directories for "mkdir -p".
  * If the first vallid path we find is not a directory, that's an error.
  *
  * @lp

@@ -79,7 +79,12 @@ enum famfs_system_role {
 
 enum famfs_log_ext_type {
 	FAMFS_EXT_SIMPLE,
+	FAMFS_EXT_INTERLEAVE,
 };
+
+/* Maximum number of extents in a FC extent list */
+#define FAMFS_FC_MAX_EXTENTS 8
+#define FAMFS_MAX_INTERLEAVED_EXTENTS 1
 
 /* TODO: get rid of this extent type, and use the one from the kernel instead
  * (which will avoid silly translations...
@@ -90,10 +95,33 @@ struct famfs_simple_extent {
 	u64 se_len;
 };
 
-struct famfs_log_extent {
+/**
+ * @famfs_interleaved_ext
+ *
+ * We consider this a single file mapping "extent", but it has "sub-extents"
+ * to describe the ranges that back each strip.
+ * In the future when each strip might be on a different memory(dax) device,
+ * so ie_strips will need to be a struct that contains a device index.
+ *
+ * For now we require that the entire map be a single famfs_interleaved_ext
+ * (i.e. FAMFS_MAX_INTERLEAVED_EXTENTS == 1)
+ */
+struct famfs_interleaved_ext {
+	u64 ie_nranges;
+	u64 ie_chunk_size;
+	struct famfs_simple_extent ie_strips[FAMFS_FC_MAX_EXTENTS];
+};
+
+/*
+ * The map of a file's data in the log.
+ * It can either be a simple extent list, or an interleaved_ext list
+ * (and the latter only allows one interleaved extent).
+ */
+struct famfs_log_fmap {
 	u32 ext_type; /* enum famfs_log_ext_type */
 	union {
-		struct famfs_simple_extent se;
+		struct famfs_simple_extent se[FAMFS_FC_MAX_EXTENTS];
+		struct famfs_interleaved_ext ie[FAMFS_MAX_INTERLEAVED_EXTENTS];
 		/* will include the other extent types eventually */
 	};
 };
@@ -101,7 +129,8 @@ struct famfs_log_extent {
 enum famfs_log_entry_type {
 	FAMFS_LOG_FILE,    /* This type of log entry creates a file */
 	FAMFS_LOG_MKDIR,
-	FAMFS_LOG_ACCESS,  /* This type of log entry gives a host access to a file */
+	FAMFS_LOG_DELETE,
+	FAMFS_LOG_INVALID,
 };
 
 #define FAMFS_MAX_PATHLEN 80
@@ -112,8 +141,6 @@ enum famfs_log_entry_type {
 #define FAMFS_FC_ALL_HOSTS_RO (1 << 0)
 #define FAMFS_FC_ALL_HOSTS_RW (1 << 1)
 
-/* Maximum number of extents in a FC extent list */
-#define FAMFS_FC_MAX_EXTENTS 8
 
 /* This log entry creates a directory */
 struct famfs_mkdir {
@@ -135,18 +162,8 @@ struct famfs_file_meta {
 	mode_t  fm_mode;
 
 	u8      fm_relpath[FAMFS_MAX_PATHLEN];
-	struct  famfs_log_extent fm_ext_list[FAMFS_FC_MAX_EXTENTS];
-};
-
-/* A log entry of type FAMFS_LOG_ACCESS contains a struct famfs_file_access entry.
- */
-struct famfs_file_access {
-	char    fa_hostname[FAMFS_MAX_HOSTNAME_LEN];
-	uid_t   fa_uid;
-	gid_t   fa_gid;
-	u8      fa_owner_perm;
-	u8      fa_group_perm;
-	u8      fa_other_perm;
+	u8      ext_type;
+	struct  famfs_log_fmap fm_fmap;
 };
 
 struct famfs_log_entry {
@@ -155,7 +172,6 @@ struct famfs_log_entry {
 	union {
 		struct famfs_file_meta     famfs_fc;
 		struct famfs_mkdir         famfs_md;
-		struct famfs_file_access   famfs_fa;
 	};
 	unsigned long famfs_log_entry_crc;
 };

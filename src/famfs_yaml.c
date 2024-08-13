@@ -67,7 +67,7 @@ __famfs_emit_yaml_ext_list(
 		rc = yaml_emitter_emit(emitter, event);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 
-		sprintf(strbuf, "0x%llx", fm->fm_ext_list[i].se.se_offset);
+		sprintf(strbuf, "0x%llx", fm->fm_fmap.se[i].se_offset);
 		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
 						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 		ASSERT_NE_GOTO(rc, 0, err_out);
@@ -81,7 +81,7 @@ __famfs_emit_yaml_ext_list(
 		rc = yaml_emitter_emit(emitter, event);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 
-		sprintf(strbuf, "0x%llx", fm->fm_ext_list[i].se.se_len);
+		sprintf(strbuf, "0x%llx", fm->fm_fmap.se[i].se_len);
 		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
 						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 		ASSERT_NE_GOTO(rc, 0, err_out);
@@ -431,7 +431,7 @@ famfs_parse_file_ext_list(
 			if (strcmp(current_key, "offset") == 0) {
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
-				fm->fm_ext_list[ext_index].se.se_offset =
+				fm->fm_fmap.se[ext_index].se_offset =
 					strtoull((char *)val_event.data.scalar.value, 0, 0);
 				yaml_event_delete(&val_event);
 
@@ -449,7 +449,7 @@ famfs_parse_file_ext_list(
 				/* Get the length value */
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
-				fm->fm_ext_list[ext_index].se.se_len =
+				fm->fm_fmap.se[ext_index].se_len =
 					strtoull((char *)val_event.data.scalar.value, 0, 0);
 
 			} else {
