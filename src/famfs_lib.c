@@ -1523,6 +1523,8 @@ __famfs_logplay(
 		}
 		ls.n_entries++;
 
+		famfs_dump_logentry(&le, i, __func__, verbose);
+
 		switch (le.famfs_log_entry_type) {
 		case FAMFS_LOG_FILE: {
 			const struct famfs_file_meta *fm = &le.famfs_fm;
@@ -1534,9 +1536,6 @@ __famfs_logplay(
 			int fd;
 
 			ls.f_logged++;
-			if (verbose > 1)
-				printf("%s: %lld file=%s size=%lld\n", __func__, i,
-				       fm->fm_relpath, fm->fm_size);
 
 			if (!famfs_log_entry_fc_path_is_relative(fm) || mock_path) {
 				fprintf(stderr,
@@ -1646,10 +1645,6 @@ __famfs_logplay(
 
 			if (skip_dir)
 				continue;
-
-			if (verbose)
-				printf("%s mkdir: %o %d:%d: %s \n", __func__,
-				       md->md_mode, md->md_uid, md->md_gid, md->md_relpath);
 
 			if (dry_run)
 				continue;
@@ -4123,23 +4118,23 @@ famfs_clone(const char *srcfile,
 	    const char *destfile,
 	    int   verbose)
 {
+	struct famfs_simple_extent *se = NULL;
 	struct famfs_ioc_map filemap = {0};
 	struct famfs_extent *ext_list = NULL;
+	uuid_le src_fs_uuid, dest_fs_uuid;
 	struct famfs_log_fmap fmap = {0};
 	char srcfullpath[PATH_MAX];
 	char destfullpath[PATH_MAX];
+	int src_role, dest_role;
+	char mpt_out[PATH_MAX];
+	struct famfs_log *logp;
+	char *relpath = NULL;
+	struct stat src_stat;
+	size_t log_size;
 	int lfd = 0;
 	int sfd = 0;
 	int dfd = 0;
-	char mpt_out[PATH_MAX];
-	char *relpath = NULL;
-	struct famfs_log *logp;
 	void *addr;
-	size_t log_size;
-	struct famfs_simple_extent *se = NULL;
-	int src_role, dest_role;
-	uuid_le src_fs_uuid, dest_fs_uuid;
-	struct stat src_stat;
 	int rc;
 	int i;
 
@@ -4207,11 +4202,14 @@ famfs_clone(const char *srcfile,
 	/*
 	 * Get map for source file
 	 */
+	/* Get the map, which includes the extent count */
 	rc = ioctl(sfd, FAMFSIOC_MAP_GET, &filemap);
 	if (rc) {
 		fprintf(stderr, "%s: MAP_GET returned %d errno %d\n", __func__, rc, errno);
 		goto err_out;
 	}
+
+	/* Now that we have the extent count, we can get the extent list */
 	ext_list = calloc(filemap.ext_list_count, sizeof(struct famfs_extent));
 	rc = ioctl(sfd, FAMFSIOC_MAP_GETEXT, ext_list);
 	if (rc) {
@@ -4278,8 +4276,8 @@ famfs_clone(const char *srcfile,
 	fmap.fmap_ext_type = FAMFS_EXT_SIMPLE;
 	fmap.fmap_nextents = filemap.ext_list_count;
 	for (i = 0; i< filemap.ext_list_count; i++) {
-		fmap.se[i].se_offset = filemap.ext_list[i].offset;
-		fmap.se[i].se_len    = filemap.ext_list[i].len;
+		fmap.se[i].se_offset = se[i].se_offset;
+		fmap.se[i].se_len    = se[i].se_len;
 	}
 
 	rc = famfs_log_file_creation(logp, &fmap,
