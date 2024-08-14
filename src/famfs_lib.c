@@ -1057,7 +1057,6 @@ famfs_ext_to_simple_ext(
  */
 static int
 famfs_file_map_create(
-	const char                 *path,
 	int                         fd,
 	size_t                      size,
 	int                         nextents,
@@ -1083,8 +1082,8 @@ famfs_file_map_create(
 
 	rc = ioctl(fd, FAMFSIOC_MAP_CREATE, &filemap);
 	if (rc)
-		fprintf(stderr, "%s: failed MAP_CREATE for file %s (errno %d)\n",
-			__func__, path, errno);
+		fprintf(stderr, "%s: failed MAP_CREATE for file (errno %d)\n",
+			__func__, errno);
 
 	return rc;
 }
@@ -1178,9 +1177,11 @@ __famfs_mkmeta(
 		} else {
 			ext.se_offset = 0;
 			ext.se_len    = FAMFS_SUPERBLOCK_SIZE;
-			rc = famfs_file_map_create(sb_file, sbfd, FAMFS_SUPERBLOCK_SIZE, 1, &ext,
+			rc = famfs_file_map_create(sbfd, FAMFS_SUPERBLOCK_SIZE, 1, &ext,
 						   FAMFS_SUPERBLOCK);
 			if (rc) {
+				fprintf(stderr, "%s: failed to create superblock file %s\n",
+					__func__, sb_file);
 				close(sbfd);
 				unlink(sb_file);
 				return -rc;
@@ -1239,10 +1240,13 @@ __famfs_mkmeta(
 		} else {
 			ext.se_offset = sb->ts_log_offset;
 			ext.se_len    = sb->ts_log_len;
-			rc = famfs_file_map_create(log_file, logfd, sb->ts_log_len, 1,
+			rc = famfs_file_map_create(logfd, sb->ts_log_len, 1,
 						   &ext, FAMFS_LOG);
-			if (rc)
+			if (rc) {
+				fprintf(stderr, "%s: failed to create log file %s\n",
+					__func__, log_file);
 				return -1;
+			}
 		}
 		close(logfd);
 	}
@@ -1615,8 +1619,12 @@ __famfs_logplay(
 				el[j].se_offset = tle->se[j].se_offset;
 				el[j].se_len    = tle->se[j].se_len;
 			}
-			famfs_file_map_create(rpath, fd, fc->fm_size,
-					      fc->fm_nextents, el, FAMFS_REG);
+			rc = famfs_file_map_create(fd, fc->fm_size,
+						   fc->fm_nextents, el, FAMFS_REG);
+			if (rc)
+				fprintf(stderr, "%s: failed to create file %s\n",
+					__func__, rpath);
+
 			close(fd);
 			free(el);
 			ls.f_created++;
@@ -2880,36 +2888,18 @@ famfs_release_locked_log(struct famfs_locked_log *lp)
  */
 static int
 famfs_file_alloc(
-	struct famfs_locked_log *lp,
-	int                      fd,
-	const char              *path,
-	mode_t                   mode,
-	uid_t                    uid,
-	gid_t                    gid,
-	u64                      size,
-	int                      verbose)
+	struct famfs_locked_log    *lp,
+	u64                         size,
+	struct famfs_simple_extent *ext_list_out,
+	int                        *ext_list_count_out,
+	int                         verbose)
 {
-	struct famfs_simple_extent ext = {0};
-	struct famfs_log *logp;
-	char mpt[PATH_MAX];
-	char *relpath;
-	char *rpath = strdup(path);
+	struct famfs_simple_extent *ext = calloc(1, sizeof(*ext));
 	s64 offset;
 	int rc = 0;
 
-	assert(lp);
-	assert(fd > 0);
-
-	/* XXX do we need the non-locked-log case? */
-	logp = lp->logp;
-	strncpy(mpt, lp->mpt, PATH_MAX - 1);
-
-	/* For the log, we need the path relative to the mount point.
-	 * getting this before we allocate is cleaner if the path is sombhow bogus
-	 */
-	relpath = famfs_relpath_from_fullpath(mpt, rpath);
-	if (!relpath)
-		return -EINVAL;
+	assert(ext_list_out);
+	assert(ext_list_count_out);
 
 	offset = famfs_alloc_contiguous(lp, size, verbose);
 	if (offset < 0) {
@@ -2917,12 +2907,17 @@ famfs_file_alloc(
 		fprintf(stderr, "%s: Out of space!\n", __func__);
 		goto out;
 	}
+
 	/* Allocation at offset 0 is always wrong - the superblock lives there */
 	assert(offset != 0);
 
-	ext.se_len    = round_size_to_alloc_unit(size);
-	ext.se_offset = offset;
+	ext->se_len    = round_size_to_alloc_unit(size);
+	ext->se_offset = offset;
 
+	ext_list_out = ext;
+	*ext_list_count_out = 1;
+
+#if 0
 	rc = famfs_log_file_creation(logp, 1, &ext,
 				     relpath, mode, uid, gid, size);
 	if (rc)
@@ -2930,8 +2925,8 @@ famfs_file_alloc(
 
 	if (!mock_kmod)
 		rc =  famfs_file_map_create(path, fd, size, 1, &ext, FAMFS_REG);
+#endif
 out:
-	free(rpath);
 	return rc;
 }
 
@@ -3150,31 +3145,101 @@ __famfs_mkfile(
 	size_t                   size,
 	int                      verbose)
 {
+	struct famfs_simple_extent ext;
 	char fullpath[PATH_MAX];
-	int fd, rc;
+	struct famfs_log *logp;
+	char mpt[PATH_MAX];
+	struct stat st;
+	char *relpath;
+	int ext_count;
+	char *rpath;
+	int fd = -1;
+	int rc;
 
 	assert(lp);
 	assert(size > 0);
+
+#if 1
+	/* TODO: */
+	/* Don't create the file yet, but...
+	 * 1. File must not exist
+	 * 2. Parent path must exist
+	 * 3. Parent path must be in a famfs file system
+	 * Otherwise fail
+	 */
+	if (stat(filename, &st) == 0) {
+		fprintf(stderr, "%s: Error: file %s already exists\n", __func__, filename);
+		return -1;
+	} else {
+		char *tmp_path = strdup(filename);
+		char *parent_path = dirname(tmp_path);
+
+		rc = stat(parent_path, &st);
+		free(tmp_path);
+		if (rc != 0) {
+			fprintf(stderr, "%s: Error %s parent dri does not exist\n",
+				__func__, filename);
+			return -1;
+		}
+		switch (st.st_mode & S_IFMT) {
+		case S_IFDIR:
+			break; /* all good - parent is a directory */
+		default:
+			fprintf(stderr, "%s: Error %s parent exists but is not a directory\n",
+				__func__, filename);
+			return -1;
+			break;
+		}
+
+		/* TODO: verify parent_path is in a famfs mount */
+	}
+#else
+	/* Create the file */
+	fd = famfs_file_create(filename, mode, uid, gid, 0);
+	if (fd <= 0)
+		return fd;
+#endif
+	/* XXX do we need the non-locked-log case? */
+	logp = lp->logp;
+	strncpy(mpt, lp->mpt, PATH_MAX - 1);
+
+
+	/* If the file doesn't fit, it will be created but then unlinked
+	 * (and never logged). This is probably OK
+	 */
+	rc = famfs_file_alloc(lp, size, &ext, &ext_count, verbose);
+	if (rc) {
+		fprintf(stderr, "%s: famfs_file_alloc(%s, size=%ld) failed\n",
+			__func__, fullpath, size);
+		return -1;
+	}
 
 	/* Create the file */
 	fd = famfs_file_create(filename, mode, uid, gid, 0);
 	if (fd <= 0)
 		return fd;
 
-	/* Clean up the filename path. (Can't call realpath until the file exists) */
-	assert(realpath(filename, fullpath));
+	/* Log the file creation */
 
-	/* If the file doesn't fit, it will be created but then unlinked
-	 * (and never logged). This is probably OK
+	/* For the log, we need the path relative to the mount point.
+	 * getting this before we allocate is cleaner if the path is sombhow bogus
 	 */
-	rc = famfs_file_alloc(lp, fd, fullpath, mode, uid, gid, size, verbose);
-	if (rc) {
-		fprintf(stderr, "%s: famfs_file_alloc(%s, size=%ld) failed\n",
-			__func__, fullpath, size);
-		close(fd);
-		unlink(fullpath);
-		return -1;
+	rpath = strdup(fullpath);
+	relpath = famfs_relpath_from_fullpath(mpt, rpath);
+	if (!relpath)
+		return -EINVAL;
+
+	rc = famfs_log_file_creation(logp, ext_count, &ext,
+				     relpath, mode, uid, gid, size);
+	if (rc)
+		return rc;
+
+	/* Create the local file instance (either v1 or v2/shadow) */
+	if (!mock_kmod) {
+		/* TODO: create the file */
+		rc =  famfs_file_map_create(fd, size, ext_count, &ext, FAMFS_REG);
 	}
+
 	return fd;
 }
 
@@ -4165,10 +4230,11 @@ famfs_clone(const char *srcfile,
 		rc = -ENOMEM;
 		goto err_out;
 	}
-	rc = famfs_file_map_create(destfile, dfd, filemap.file_size, filemap.ext_list_count,
+	rc = famfs_file_map_create(dfd, filemap.file_size, filemap.ext_list_count,
 				   se, FAMFS_REG);
 	if (rc) {
-		fprintf(stderr, "%s: failed to create destination file\n", __func__);
+		fprintf(stderr, "%s: failed to create destination file %s\n",
+			__func__, destfile);
 		goto err_out;
 	}
 
