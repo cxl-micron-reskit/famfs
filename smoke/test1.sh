@@ -298,6 +298,10 @@ cd $MPT
 ${CLI} cp dirtarg/* dirtarg2 && fail "cp wildcard should succeed but return nonzero when there is a directory that matches the wildcard"
 cd -
 
+# The files should have been copied in the command above; it's just that there
+# is a directory dirtarg/foo which will not have been copied because we used
+# a wildcard, but not --recursive
+
 # Should still be able to verify the files in dirtarg2
 ${CLI} verify -S 42 -f $MPT/dirtarg2/${F}_cp0 || fail "verify wildcard 2 ${F}_cp0"
 ${CLI} verify -S 42 -f $MPT/dirtarg2/${F}_cp1 || fail "verify wildcard 2 ${F}_cp1"
