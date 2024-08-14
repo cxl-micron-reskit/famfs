@@ -395,7 +395,7 @@ TEST(famfs, __famfs_cp)
 
 	/* exercise verbose path */
 	system("touch /tmp/src");
-	rc = __famfs_cp((struct famfs_locked_log *)0xdeadbeef,
+	rc = __famfs_cp(&ll,
 			"/tmp/src",
 			"xx",
 			0, 0, 0, 2);
@@ -405,7 +405,7 @@ TEST(famfs, __famfs_cp)
 	/* fail open of src file */
 	system("dd if=/dev/random of=/tmp/src bs=4096 count=1");
 	mock_failure = MOCK_FAIL_OPEN;
-	rc = __famfs_cp((struct famfs_locked_log *)0xdeadbeef,
+	rc = __famfs_cp(&ll,
 			"/tmp/src",
 			"xx",
 			0, 0, 0, 2);
@@ -415,7 +415,7 @@ TEST(famfs, __famfs_cp)
 
 	/* fail fd of dest file */
 	system("dd if=/dev/random of=/tmp/src bs=4096 count=1");
-	rc = __famfs_cp((struct famfs_locked_log *)0xdeadbeef,
+	rc = __famfs_cp(&ll,
 			"/tmp/src",
 			"/tmp/dest",
 			0, 0, 0, 2);

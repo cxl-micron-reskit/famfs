@@ -1045,7 +1045,7 @@ famfs_ext_to_simple_ext(
 }
 
 /**
- * famfs_file_map_create()
+ * famfs_v1_set_file_map()
  *
  * This function attaches an allocated simple extent list to a file
  *
@@ -1056,11 +1056,11 @@ famfs_ext_to_simple_ext(
  * @extent_list
  */
 static int
-famfs_file_map_create(
+famfs_v1_set_file_map(
 	int                         fd,
 	size_t                      size,
 	int                         nextents,
-	struct famfs_simple_extent *ext_list,
+	struct famfs_simple_extent *ext_list, /* TODO: convert to famfs_log_fmap */
 	enum famfs_file_type        type)
 {
 	struct famfs_ioc_map filemap = {0};
@@ -1177,7 +1177,7 @@ __famfs_mkmeta(
 		} else {
 			ext.se_offset = 0;
 			ext.se_len    = FAMFS_SUPERBLOCK_SIZE;
-			rc = famfs_file_map_create(sbfd, FAMFS_SUPERBLOCK_SIZE, 1, &ext,
+			rc = famfs_v1_set_file_map(sbfd, FAMFS_SUPERBLOCK_SIZE, 1, &ext,
 						   FAMFS_SUPERBLOCK);
 			if (rc) {
 				fprintf(stderr, "%s: failed to create superblock file %s\n",
@@ -1240,7 +1240,7 @@ __famfs_mkmeta(
 		} else {
 			ext.se_offset = sb->ts_log_offset;
 			ext.se_len    = sb->ts_log_len;
-			rc = famfs_file_map_create(logfd, sb->ts_log_len, 1,
+			rc = famfs_v1_set_file_map(logfd, sb->ts_log_len, 1,
 						   &ext, FAMFS_LOG);
 			if (rc) {
 				fprintf(stderr, "%s: failed to create log file %s\n",
@@ -1619,7 +1619,7 @@ __famfs_logplay(
 				el[j].se_offset = tle->se[j].se_offset;
 				el[j].se_len    = tle->se[j].se_len;
 			}
-			rc = famfs_file_map_create(fd, fc->fm_size,
+			rc = famfs_v1_set_file_map(fd, fc->fm_size,
 						   fc->fm_nextents, el, FAMFS_REG);
 			if (rc)
 				fprintf(stderr, "%s: failed to create file %s\n",
@@ -2869,16 +2869,12 @@ famfs_release_locked_log(struct famfs_locked_log *lp)
  *
  * Caller has already done the following:
  * * Verify that master role via the superblock
- * * Create the stub of the new file and verify that it is in a famfs file system
+ * * Verify that creating this file is legit (does not already exist etc.)
  *
  * @lp       - Struct famfs_locked_log or NULL
- * @fd       - File descriptor for newly-created empty target file
- * @path     - Full path of file to allocate (needed for log entry).
- *             Caller should use realpath to get this.
- * @mode     -
- * @uid      -
- * @gid      -
  * @size     - size to alloacte
+ * @ext_list_out: Allocated extent list (if rc==0)
+ *                (caller is responsible for freeing this list)
  * @verbose  -
  *
  * Returns 0 on success
@@ -2888,11 +2884,11 @@ famfs_release_locked_log(struct famfs_locked_log *lp)
  */
 static int
 famfs_file_alloc(
-	struct famfs_locked_log    *lp,
-	u64                         size,
-	struct famfs_simple_extent *ext_list_out,
-	int                        *ext_list_count_out,
-	int                         verbose)
+	struct famfs_locked_log     *lp,
+	u64                          size,
+	struct famfs_simple_extent **ext_list_out, /* TODO: switch to famfs_log_fmap */
+	int                         *ext_list_count_out,
+	int                          verbose)
 {
 	struct famfs_simple_extent *ext = calloc(1, sizeof(*ext));
 	s64 offset;
@@ -2914,7 +2910,7 @@ famfs_file_alloc(
 	ext->se_len    = round_size_to_alloc_unit(size);
 	ext->se_offset = offset;
 
-	ext_list_out = ext;
+	*ext_list_out = ext;
 	*ext_list_count_out = 1;
 
 #if 0
@@ -2924,7 +2920,7 @@ famfs_file_alloc(
 		goto out;
 
 	if (!mock_kmod)
-		rc =  famfs_file_map_create(path, fd, size, 1, &ext, FAMFS_REG);
+		rc =  famfs_v1_set_file_map(path, fd, size, 1, &ext, FAMFS_REG);
 #endif
 out:
 	return rc;
@@ -3145,14 +3141,14 @@ __famfs_mkfile(
 	size_t                   size,
 	int                      verbose)
 {
-	struct famfs_simple_extent ext;
-	char fullpath[PATH_MAX];
+	struct famfs_simple_extent *ext = NULL;
 	struct famfs_log *logp;
+	char *fullpath = NULL;
+	char *relpath = NULL;
+	char *rpath = NULL;
 	char mpt[PATH_MAX];
+	int ext_count = 0;
 	struct stat st;
-	char *relpath;
-	int ext_count;
-	char *rpath;
 	int fd = -1;
 	int rc;
 
@@ -3203,18 +3199,20 @@ __famfs_mkfile(
 	logp = lp->logp;
 	strncpy(mpt, lp->mpt, PATH_MAX - 1);
 
-
-	/* If the file doesn't fit, it will be created but then unlinked
-	 * (and never logged). This is probably OK
-	 */
 	rc = famfs_file_alloc(lp, size, &ext, &ext_count, verbose);
 	if (rc) {
 		fprintf(stderr, "%s: famfs_file_alloc(%s, size=%ld) failed\n",
-			__func__, fullpath, size);
+			__func__, filename, size);
 		return -1;
 	}
+	assert(ext_count == 1);
 
-	/* Create the file */
+	/* Create the file
+	 * V1: this creates an empty file in famfs via normal posix tools
+	 * V2: TBD...
+	 *    * This needs to play this log entry into its new shadow file
+	 *    * Then open the shadow file via the fuse mount
+	 */
 	fd = famfs_file_create(filename, mode, uid, gid, 0);
 	if (fd <= 0)
 		return fd;
@@ -3224,21 +3222,41 @@ __famfs_mkfile(
 	/* For the log, we need the path relative to the mount point.
 	 * getting this before we allocate is cleaner if the path is sombhow bogus
 	 */
-	rpath = strdup(fullpath);
-	relpath = famfs_relpath_from_fullpath(mpt, rpath);
-	if (!relpath)
-		return -EINVAL;
+	rpath = strdup(filename);
+	printf("filename %s rpath %s\n", filename, rpath);
+#if 1
+	assert((fullpath = realpath(rpath, NULL)));
+#else
+	fullpath = realpath(rpath, NULL);
+	printf("fullpath %s:\n", fulllpath);
+#endif
 
-	rc = famfs_log_file_creation(logp, ext_count, &ext,
+	relpath = famfs_relpath_from_fullpath(mpt, fullpath);
+	if (!relpath) {
+		close(fd);
+		fd = -1;
+		goto out;
+	}
+	rc = famfs_log_file_creation(logp, ext_count, ext,
 				     relpath, mode, uid, gid, size);
 	if (rc)
 		return rc;
 
 	/* Create the local file instance (either v1 or v2/shadow) */
 	if (!mock_kmod) {
-		/* TODO: create the file */
-		rc =  famfs_file_map_create(fd, size, ext_count, &ext, FAMFS_REG);
+
+		/* V1: call the 
+		 *
+		 */
+		rc =  famfs_v1_set_file_map(fd, size, ext_count, ext, FAMFS_REG);
+		if (rc)
+			fprintf(stderr, "%s: failed to create destination file %s\n",
+				__func__, filename);
 	}
+
+out:
+	if (rpath)
+		free(rpath);
 
 	return fd;
 }
@@ -4230,7 +4248,7 @@ famfs_clone(const char *srcfile,
 		rc = -ENOMEM;
 		goto err_out;
 	}
-	rc = famfs_file_map_create(dfd, filemap.file_size, filemap.ext_list_count,
+	rc = famfs_v1_set_file_map(dfd, filemap.file_size, filemap.ext_list_count,
 				   se, FAMFS_REG);
 	if (rc) {
 		fprintf(stderr, "%s: failed to create destination file %s\n",
