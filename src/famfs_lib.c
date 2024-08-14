@@ -3600,9 +3600,6 @@ famfs_mkdir_parents(
  * Copy a file from any file system into famfs. A destination file is created and
  * allocated, and the data is copied info it.
  *
- * Biggest current shortcoming is that globbing and recursion is not suported.
- * Hopefully we'll get there soon.
- *
  * @lp       - famfs_locked_log struct
  * @srcfile  - must exist and be a regular file
  * @destfile - must not exist (and will be a regular file). If @destfile does not fall
