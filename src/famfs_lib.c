@@ -633,12 +633,11 @@ famfs_fsck_scan(
 	u8 *bitmap;
 	u64 nbits;
 	int role;
-	int i;
 
 	assert(sb);
 	assert(logp);
 
-	dev_capacity = sb->ts_devlist[0].dd_size;
+	dev_capacity = sb->ts_daxdev.dd_size;
 	effective_log_size = sizeof(*logp) +
 		(logp->famfs_log_next_index * sizeof(struct famfs_log_entry));
 
@@ -655,16 +654,9 @@ famfs_fsck_scan(
 	famfs_print_role_string(role);
 
 	printf("  sizeof superblock: %ld\n", sizeof(struct famfs_superblock));
-	printf("  num_daxdevs:       %d\n", sb->ts_num_daxdevs);
-	for (i = 0; i < sb->ts_num_daxdevs; i++) {
-		if (i == 0)
-			printf("  primary: ");
-		else
-			printf("         %d: ", i);
-
-		printf("%s   %ld\n",
-		       sb->ts_devlist[i].dd_daxdev, sb->ts_devlist[i].dd_size);
-	}
+	//printf("  num_daxdevs:       %d\n", sb->ts_num_daxdevs);
+	printf("  primary: %s   %ld\n",
+	       sb->ts_daxdev.dd_daxdev, sb->ts_daxdev.dd_size);
 
 	/*
 	 * print log info
@@ -1151,13 +1143,16 @@ __famfs_mkmeta(
 		struct famfs_file_meta fm = {0};
 
 		fm.fm_size = FAMFS_SUPERBLOCK_SIZE;
-		fm.fm_nextents = 1;
+		//fm.fm_nextents = 1;
 		fm.fm_flags = 0;
 		fm.fm_uid = 0;
 		fm.fm_gid = 0;
 		fm.fm_mode = 0444;
 		strncpy((char *)fm.fm_relpath, famfs_relpath_from_fullpath(mpt, sb_file),
 			FAMFS_MAX_PATHLEN - 1);
+
+		fm.fm_fmap.fmap_ext_type = FAMFS_EXT_SIMPLE;
+		fm.fm_fmap.fmap_nextents = 1;
 
 		fm.fm_fmap.se[0].se_offset = 0;
 		fm.fm_fmap.se[0].se_len = FAMFS_SUPERBLOCK_SIZE;
@@ -1213,7 +1208,7 @@ __famfs_mkmeta(
 		struct famfs_file_meta fm = {0};
 
 		fm.fm_size = FAMFS_SUPERBLOCK_SIZE;
-		fm.fm_nextents = 1;
+		//fm.fm_nextents = 1;
 		fm.fm_flags = 0;
 		fm.fm_uid = 0;
 		fm.fm_gid = 0;
@@ -1221,6 +1216,8 @@ __famfs_mkmeta(
 		strncpy((char *)fm.fm_relpath, famfs_relpath_from_fullpath(mpt, log_file),
 			FAMFS_MAX_PATHLEN - 1);
 
+		fm.fm_fmap.fmap_ext_type = FAMFS_EXT_SIMPLE;
+		fm.fm_fmap.fmap_nextents = 1;
 		fm.fm_fmap.se[0].se_offset = sb->ts_log_offset;;
 		fm.fm_fmap.se[0].se_len = sb->ts_log_len;
 
@@ -1528,7 +1525,7 @@ __famfs_logplay(
 
 		switch (le.famfs_log_entry_type) {
 		case FAMFS_LOG_FILE: {
-			const struct famfs_file_meta *fc = &le.famfs_fc;
+			const struct famfs_file_meta *fm = &le.famfs_fm;
 			struct famfs_simple_extent *el;
 			char fullpath[PATH_MAX];
 			char rpath[PATH_MAX];
@@ -1539,9 +1536,9 @@ __famfs_logplay(
 			ls.f_logged++;
 			if (verbose > 1)
 				printf("%s: %lld file=%s size=%lld\n", __func__, i,
-				       fc->fm_relpath, fc->fm_size);
+				       fm->fm_relpath, fm->fm_size);
 
-			if (!famfs_log_entry_fc_path_is_relative(fc) || mock_path) {
+			if (!famfs_log_entry_fc_path_is_relative(fm) || mock_path) {
 				fprintf(stderr,
 					"%s: ignoring log entry; path is not relative\n",
 					__func__);
@@ -1553,13 +1550,13 @@ __famfs_logplay(
 			 * is the superblock, which is not in the log. Check for files with
 			 * null offset...
 			 */
-			for (j = 0; j < fc->fm_nextents; j++) {
-				const struct famfs_simple_extent *se = &fc->fm_fmap.se[j];
+			for (j = 0; j < fm->fm_fmap.fmap_nextents; j++) {
+				const struct famfs_simple_extent *se = &fm->fm_fmap.se[j];
 
 				if (se->se_offset == 0 || mock_path) {
 					fprintf(stderr,
 						"%s: ERROR file %s has extent with 0 offset\n",
-						__func__, fc->fm_relpath);
+						__func__, fm->fm_relpath);
 					ls.f_errs++;
 					skip_file++;
 				}
@@ -1568,12 +1565,12 @@ __famfs_logplay(
 			if (skip_file)
 				continue;
 
-			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, fc->fm_relpath);
+			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, fm->fm_relpath);
 			realpath(fullpath, rpath);
 
 			if (shadow) {
 				int testmode = (shadow > 1) ? 1:0;
-				famfs_shadow_file_create(rpath, fc, &ls, 0, dry_run,
+				famfs_shadow_file_create(rpath, fm, &ls, 0, dry_run,
 							 testmode, verbose);
 				continue;
 			}
@@ -1590,19 +1587,19 @@ __famfs_logplay(
 				continue;
 			}
 			if (verbose) {
-				printf("famfs logplay: creating file %s", fc->fm_relpath);
+				printf("famfs logplay: creating file %s", fm->fm_relpath);
 				if (verbose > 1)
-					printf(" mode %o", fc->fm_mode);
+					printf(" mode %o", fm->fm_mode);
 
 				printf("\n");
 			}
 
-			fd = famfs_file_create(rpath, fc->fm_mode, fc->fm_uid, fc->fm_gid,
+			fd = famfs_file_create(rpath, fm->fm_mode, fm->fm_uid, fm->fm_gid,
 					       (role == FAMFS_CLIENT) ? 1 : 0);
 			if (fd < 0) {
 				fprintf(stderr,
 					"%s: unable to create destfile (%s)\n",
-					__func__, fc->fm_relpath);
+					__func__, fm->fm_relpath);
 
 				unlink(rpath);
 				ls.f_errs++;
@@ -1612,15 +1609,15 @@ __famfs_logplay(
 			/* Build extent list of famfs_simple_extent; the log entry has a
 			 * different kind of extent list...
 			 */
-			el = calloc(fc->fm_nextents, sizeof(*el));
-			for (j = 0; j < fc->fm_nextents; j++) {
-				const struct famfs_log_fmap *tle = &fc->fm_fmap;
+			el = calloc(fm->fm_fmap.fmap_nextents, sizeof(*el));
+			for (j = 0; j < fm->fm_fmap.fmap_nextents; j++) {
+				const struct famfs_log_fmap *tle = &fm->fm_fmap;
 
 				el[j].se_offset = tle->se[j].se_offset;
 				el[j].se_len    = tle->se[j].se_len;
 			}
-			rc = famfs_v1_set_file_map(fd, fc->fm_size,
-						   fc->fm_nextents, el, FAMFS_REG);
+			rc = famfs_v1_set_file_map(fd, fm->fm_size,
+						   fm->fm_fmap.fmap_nextents, el, FAMFS_REG);
 			if (rc)
 				fprintf(stderr, "%s: failed to create file %s\n",
 					__func__, rpath);
@@ -2003,22 +2000,23 @@ famfs_relpath_from_fullpath(
  */
 static int
 famfs_log_file_creation(
-	struct famfs_log           *logp,
-	u64                         nextents,
-	struct famfs_simple_extent *ext_list,
-	const char                 *relpath,
-	mode_t                      mode,
-	uid_t                       uid,
-	gid_t                       gid,
-	size_t                      size)
+	struct famfs_log            *logp,
+	//u64                         nextents,
+	//struct famfs_simple_extent *ext_list,
+	const struct famfs_log_fmap *fmap,
+	const char                  *relpath,
+	mode_t                       mode,
+	uid_t                        uid,
+	gid_t                        gid,
+	size_t                       size)
 {
 	struct famfs_log_entry le = {0};
-	struct famfs_file_meta *fc = &le.famfs_fc;
+	struct famfs_file_meta *fm = &le.famfs_fm;
 	int i;
 
 	assert(logp);
-	assert(ext_list);
-	assert(nextents >= 1);
+	assert(fmap);
+	assert(fmap->fmap_nextents >= 1);
 	assert(relpath[0] != '/');
 
 	if (famfs_log_full(logp)) {
@@ -2028,23 +2026,25 @@ famfs_log_file_creation(
 
 	le.famfs_log_entry_type = FAMFS_LOG_FILE;
 
-	fc->fm_size = size;
-	fc->fm_nextents = nextents;
-	fc->fm_flags = FAMFS_FC_ALL_HOSTS_RW; /* XXX hard coded access for now */
+	fm->fm_size = size;
+	//fm->fm_nextents = fmap->fmap_nextents;
+	fm->fm_flags = FAMFS_FM_ALL_HOSTS_RW; /* XXX hard coded access for now */
 
-	strncpy((char *)fc->fm_relpath, relpath, FAMFS_MAX_PATHLEN - 1);
+	strncpy((char *)fm->fm_relpath, relpath, FAMFS_MAX_PATHLEN - 1);
 
-	fc->fm_mode = mode;
-	fc->fm_uid  = uid;
-	fc->fm_gid  = gid;
-	fc->ext_type =  FAMFS_EXT_SIMPLE;
+	fm->fm_mode = mode;
+	fm->fm_uid  = uid;
+	fm->fm_gid  = gid;
+
+	fm->fm_fmap.fmap_ext_type =  FAMFS_EXT_SIMPLE;
+	fm->fm_fmap.fmap_nextents = fmap->fmap_nextents;
 
 	/* Copy extents into log entry */
-	for (i = 0; i < nextents; i++) {
-		struct famfs_log_fmap *ext = &fc->fm_fmap;
+	for (i = 0; i < fmap->fmap_nextents; i++) {
+		//struct famfs_log_fmap *ext = &fm->fm_fmap;
 
-		ext->se[i].se_offset = ext_list[i].se_offset;
-		ext->se[i].se_len    = ext_list[i].se_len;
+		fm->fm_fmap.se[i].se_offset = fmap->se[i].se_offset;
+		fm->fm_fmap.se[i].se_len    = fmap->se[i].se_len;
 	}
 
 	return famfs_append_log(logp, &le);
@@ -2565,7 +2565,7 @@ famfs_validate_superblock_by_path(const char *path)
 		fprintf(stderr, "%s: invalid superblock\n", __func__);
 		return -1;
 	}
-	daxdevsize = sb->ts_devlist[0].dd_size;
+	daxdevsize = sb->ts_daxdev.dd_size;
 	munmap(sb, FAMFS_SUPERBLOCK_SIZE);
 	close(sfd);
 	return daxdevsize;
@@ -2670,17 +2670,17 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 
 		switch (le->famfs_log_entry_type) {
 		case FAMFS_LOG_FILE: {
-			const struct famfs_file_meta *fc = &le->famfs_fc;
-			const struct famfs_log_fmap *ext = &fc->fm_fmap;
+			const struct famfs_file_meta *fm = &le->famfs_fm;
+			const struct famfs_log_fmap *ext = &fm->fm_fmap;
 
 			ls.f_logged++;
-			fsize_sum += fc->fm_size;
+			fsize_sum += fm->fm_size;
 			if (verbose > 1)
 				printf("%s: file=%s size=%lld\n", __func__,
-				       fc->fm_relpath, fc->fm_size);
+				       fm->fm_relpath, fm->fm_size);
 
 			/* For each extent in this log entry, mark the bitmap as allocated */
-			for (j = 0; j < fc->fm_nextents; j++) {
+			for (j = 0; j < fm->fm_fmap.fmap_nextents; j++) {
 				u64 ofs = ext->se[j].se_offset;
 				u64 len = ext->se[j].se_len;
 				int rc;
@@ -2863,7 +2863,7 @@ famfs_release_locked_log(struct famfs_locked_log *lp)
 }
 
 /**
- * famfs_file_alloc()
+ * famfs_file_alloc_contiguous()
  *
  * Alllocate space for a file, making it ready to use
  *
@@ -2871,11 +2871,11 @@ famfs_release_locked_log(struct famfs_locked_log *lp)
  * * Verify that master role via the superblock
  * * Verify that creating this file is legit (does not already exist etc.)
  *
- * @lp       - Struct famfs_locked_log or NULL
- * @size     - size to alloacte
- * @ext_list_out: Allocated extent list (if rc==0)
+ * @lp:       Struct famfs_locked_log or NULL
+ * @size:     size to alloacte
+ * @fmap_out: Allocated extent list (if rc==0)
  *                (caller is responsible for freeing this list)
- * @verbose  -
+ * @verbose:
  *
  * Returns 0 on success
  * On error, returns:
@@ -2883,19 +2883,17 @@ famfs_release_locked_log(struct famfs_locked_log *lp)
  * <0 - Errors that should cause an abort (such as out of space or log full)
  */
 static int
-famfs_file_alloc(
+famfs_file_alloc_contiguous(
 	struct famfs_locked_log     *lp,
 	u64                          size,
-	struct famfs_simple_extent **ext_list_out, /* TODO: switch to famfs_log_fmap */
-	int                         *ext_list_count_out,
+	struct famfs_log_fmap      **fmap_out,
 	int                          verbose)
 {
-	struct famfs_simple_extent *ext = calloc(1, sizeof(*ext));
+	struct famfs_log_fmap *fmap = calloc(1, sizeof(*fmap));
 	s64 offset;
 	int rc = 0;
 
-	assert(ext_list_out);
-	assert(ext_list_count_out);
+	assert(fmap_out);
 
 	offset = famfs_alloc_contiguous(lp, size, verbose);
 	if (offset < 0) {
@@ -2907,11 +2905,12 @@ famfs_file_alloc(
 	/* Allocation at offset 0 is always wrong - the superblock lives there */
 	assert(offset != 0);
 
-	ext->se_len    = round_size_to_alloc_unit(size);
-	ext->se_offset = offset;
+	fmap->fmap_ext_type = FAMFS_EXT_SIMPLE;
+	fmap->se[0].se_len = round_size_to_alloc_unit(size);
+	fmap->se[0].se_offset = offset;
+	fmap->fmap_nextents = 1;
 
-	*ext_list_out = ext;
-	*ext_list_count_out = 1;
+	*fmap_out = fmap;
 
 #if 0
 	rc = famfs_log_file_creation(logp, 1, &ext,
@@ -3005,7 +3004,7 @@ famfs_test_shadow_yaml(FILE *fp, const struct famfs_file_meta *fc, int verbose)
 	int rc;
 
 	rewind(fp);
-	rc = famfs_parse_yaml(fp, &readback, FAMFS_FC_MAX_EXTENTS, verbose);
+	rc = famfs_parse_yaml(fp, &readback, FAMFS_MAX_SIMPLE_EXTENTS, verbose);
 	if (rc) {
 		fprintf(stderr, "%s: failed to parse shadow file yaml\n", __func__);
 		assert(0);
@@ -3141,13 +3140,12 @@ __famfs_mkfile(
 	size_t                   size,
 	int                      verbose)
 {
-	struct famfs_simple_extent *ext = NULL;
+	struct famfs_log_fmap *fmap = NULL;
 	struct famfs_log *logp;
 	char *fullpath = NULL;
 	char *relpath = NULL;
 	char *rpath = NULL;
 	char mpt[PATH_MAX];
-	int ext_count = 0;
 	struct stat st;
 	int fd = -1;
 	int rc;
@@ -3199,13 +3197,14 @@ __famfs_mkfile(
 	logp = lp->logp;
 	strncpy(mpt, lp->mpt, PATH_MAX - 1);
 
-	rc = famfs_file_alloc(lp, size, &ext, &ext_count, verbose);
+	rc = famfs_file_alloc_contiguous(lp, size, &fmap, verbose);
 	if (rc) {
-		fprintf(stderr, "%s: famfs_file_alloc(%s, size=%ld) failed\n",
+		fprintf(stderr, "%s: famfs_file_alloc_contiguous(%s, size=%ld) failed\n",
 			__func__, filename, size);
 		return -1;
 	}
-	assert(ext_count == 1);
+	assert(fmap->fmap_nextents == 1);
+	assert(fmap->fmap_ext_type == FAMFS_EXT_SIMPLE);
 
 	/* Create the file
 	 * V1: this creates an empty file in famfs via normal posix tools
@@ -3237,7 +3236,7 @@ __famfs_mkfile(
 		fd = -1;
 		goto out;
 	}
-	rc = famfs_log_file_creation(logp, ext_count, ext,
+	rc = famfs_log_file_creation(logp, fmap,
 				     relpath, mode, uid, gid, size);
 	if (rc)
 		return rc;
@@ -3248,10 +3247,18 @@ __famfs_mkfile(
 		/* V1: call the 
 		 *
 		 */
-		rc =  famfs_v1_set_file_map(fd, size, ext_count, ext, FAMFS_REG);
-		if (rc)
-			fprintf(stderr, "%s: failed to create destination file %s\n",
-				__func__, filename);
+		if (fmap->fmap_ext_type == FAMFS_EXT_SIMPLE) {
+			rc =  famfs_v1_set_file_map(fd, size, fmap->fmap_nextents, fmap->se,
+						    FAMFS_REG);
+			if (rc)
+				fprintf(stderr, "%s: failed to create destination file %s\n",
+					__func__, filename);
+		} else {
+			fprintf(stderr,
+				"%s: un-handled extent type %d; write some code and try again\n",
+				__func__, fmap->fmap_ext_type);
+			assert(0);
+		}
 	}
 
 out:
@@ -3673,8 +3680,8 @@ __famfs_cp(
 		return 1;
 	}
 
-	/* XXX famfs_mkfile() calls famfs_file_alloc()
-	 * famfs_file_alloc() allocates and logs the file under log lock
+	/* XXX famfs_mkfile() calls famfs_file_alloc_contiguous()
+	 * famfs_file_alloc_contiguous() allocates and logs the file under log lock
 	 * but this function copies the data into the file after the log lock is released
 	 * Need a way of holding the lock until the data is copied.
 	 */
@@ -4118,6 +4125,7 @@ famfs_clone(const char *srcfile,
 {
 	struct famfs_ioc_map filemap = {0};
 	struct famfs_extent *ext_list = NULL;
+	struct famfs_log_fmap fmap = {0};
 	char srcfullpath[PATH_MAX];
 	char destfullpath[PATH_MAX];
 	int lfd = 0;
@@ -4133,6 +4141,7 @@ famfs_clone(const char *srcfile,
 	uuid_le src_fs_uuid, dest_fs_uuid;
 	struct stat src_stat;
 	int rc;
+	int i;
 
 	/* srcfile must already exist; Go ahead and check that first */
 	if (realpath(srcfile, srcfullpath) == NULL) {
@@ -4265,7 +4274,15 @@ famfs_clone(const char *srcfile,
 		goto err_out;
 	}
 
-	rc = famfs_log_file_creation(logp, filemap.ext_list_count, se,
+	assert(filemap.extent_type == SIMPLE_DAX_EXTENT);
+	fmap.fmap_ext_type = FAMFS_EXT_SIMPLE;
+	fmap.fmap_nextents = filemap.ext_list_count;
+	for (i = 0; i< filemap.ext_list_count; i++) {
+		fmap.se[i].se_offset = filemap.ext_list[i].offset;
+		fmap.se[i].se_len    = filemap.ext_list[i].len;
+	}
+
+	rc = famfs_log_file_creation(logp, &fmap,
 				     relpath, src_stat.st_mode, src_stat.st_uid, src_stat.st_gid,
 				     filemap.file_size);
 	if (rc) {
@@ -4351,9 +4368,9 @@ __famfs_mkfs(const char              *daxdev,
 	famfs_uuidgen(&sb->ts_uuid);
 
 	/* Configure the first daxdev */
-	sb->ts_num_daxdevs = 1;
-	sb->ts_devlist[0].dd_size = device_size;
-	strncpy(sb->ts_devlist[0].dd_daxdev, daxdev, FAMFS_DEVNAME_LEN);
+	//sb->ts_num_daxdevs = 1;
+	sb->ts_daxdev.dd_size = device_size;
+	strncpy(sb->ts_daxdev.dd_daxdev, daxdev, FAMFS_DEVNAME_LEN);
 
 	/* Calculate superblock crc */
 	sb->ts_crc = famfs_gen_superblock_crc(sb); /* gotta do this last! */

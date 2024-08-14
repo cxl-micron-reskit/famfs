@@ -52,7 +52,7 @@ __famfs_emit_yaml_ext_list(
 	ASSERT_NE_GOTO(rc, 0, err_out);
 
 	/* The extents */
-	for (i = 0; i < fm->fm_nextents; i++) {
+	for (i = 0; i < fm->fm_fmap.fmap_nextents; i++) {
 		/* YAML_MAPPING_START_EVENT: Start of extent */
 		rc = yaml_mapping_start_event_initialize(event, NULL, NULL, 1,
 							 YAML_BLOCK_MAPPING_STYLE);
@@ -213,7 +213,7 @@ __famfs_emit_yaml_file_section(
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(emitter, event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
-	sprintf(strbuf, "%d", fm->fm_nextents);
+	sprintf(strbuf, "%d", fm->fm_fmap.fmap_nextents);
 	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
 					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
@@ -569,11 +569,11 @@ famfs_parse_file_yaml(
 			} else if (strcmp(current_key, "nextents") == 0) {
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
-				fm->fm_nextents = strtoull((char *)val_event.data.scalar.value,
+				fm->fm_fmap.fmap_nextents = strtoull((char *)val_event.data.scalar.value,
 						      0, 0);
 				yaml_event_delete(&val_event);
 				if (verbose > 1) printf("%s: nextents: %d\n",
-							__func__, fm->fm_nextents);
+							__func__, fm->fm_fmap.fmap_nextents);
 			} else if (strcmp(current_key, "simple_ext_list") == 0) {
 				rc = famfs_parse_file_ext_list(parser, fm, max_extents,
 					verbose);

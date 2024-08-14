@@ -1029,9 +1029,9 @@ TEST(famfs, famfs_file_yaml) {
 		"    length: 0x200000\n"
 		"...";
 	famfs_yaml_test_reset(&fm, fp, my_yaml);
-	rc = famfs_parse_yaml(fp, &fm, FAMFS_FC_MAX_EXTENTS, 1); /* 3 extents is not an overflow */
+	rc = famfs_parse_yaml(fp, &fm, FAMFS_MAX_SIMPLE_EXTENTS, 1); /* 3 extents is not an overflow */
 	ASSERT_EQ(rc, 0);
-	ASSERT_EQ(fm.fm_nextents, 3);
+	ASSERT_EQ(fm.fm_fmap.fmap_nextents, 3);
 	ASSERT_EQ(fm.fm_fmap.se[0].se_offset, 0x38600000);
 	ASSERT_EQ(fm.fm_fmap.se[0].se_len, 0x200000);
 	ASSERT_EQ(fm.fm_fmap.se[1].se_offset, 0x48600000);
@@ -1078,7 +1078,7 @@ TEST(famfs, famfs_file_yaml) {
 		"    length: 0x200000\n"
 		"...";
 	famfs_yaml_test_reset(&fm, fp, my_yaml);
-	rc = famfs_parse_yaml(fp, &fm, FAMFS_FC_MAX_EXTENTS, 1); /* 3 extents is not an overflow */
+	rc = famfs_parse_yaml(fp, &fm, FAMFS_MAX_SIMPLE_EXTENTS, 1); /* 3 extents is not an overflow */
 	ASSERT_EQ(rc, -1);
 
 	/* offset followed by something other than length on ext list */
@@ -1100,7 +1100,7 @@ TEST(famfs, famfs_file_yaml) {
 		"    length: 0x200000\n"
 		"...";
 	famfs_yaml_test_reset(&fm, fp, my_yaml);
-	rc = famfs_parse_yaml(fp, &fm, FAMFS_FC_MAX_EXTENTS, 1); /* 3 extents is not an overflow */
+	rc = famfs_parse_yaml(fp, &fm, FAMFS_MAX_SIMPLE_EXTENTS, 1); /* 3 extents is not an overflow */
 	ASSERT_EQ(rc, -1);
 
 	printf("%s", yaml_event_str(YAML_NO_EVENT));

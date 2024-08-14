@@ -24,7 +24,7 @@
 
 #define FAMFS_SUPER_MAGIC      0x87b282ff
 #define FAMFS_CURRENT_VERSION  46
-#define FAMFS_MAX_DAXDEVS      64
+//#define FAMFS_MAX_DAXDEVS      64
 
 #define FAMFS_LOG_OFFSET    0x200000 /* 2MiB */
 #define FAMFS_LOG_LEN       0x800000 /* 8MiB */
@@ -64,9 +64,9 @@ struct famfs_superblock {
 	uuid_le             ts_uuid;        /* UUID of this file system */
 	uuid_le             ts_system_uuid; /* system uuid */
 	u64                 ts_crc;         /* Covers all fields prior to this one */
-	u32                 ts_num_daxdevs; /* limit is FAMFS_MAX_DAXDEVS */
+	//u32                 ts_num_daxdevs; /* limit is FAMFS_MAX_DAXDEVS */
 	u32                 ts_sb_flags;
-	struct famfs_daxdev ts_devlist[FAMFS_SUPERBLOCK_MAX_DAXDEVS];
+	struct famfs_daxdev ts_daxdev;
 };
 
 enum famfs_system_role {
@@ -83,7 +83,7 @@ enum famfs_log_ext_type {
 };
 
 /* Maximum number of extents in a FC extent list */
-#define FAMFS_FC_MAX_EXTENTS 8
+#define FAMFS_MAX_SIMPLE_EXTENTS 8
 #define FAMFS_MAX_INTERLEAVED_EXTENTS 1
 
 /* TODO: get rid of this extent type, and use the one from the kernel instead
@@ -107,9 +107,9 @@ struct famfs_simple_extent {
  * (i.e. FAMFS_MAX_INTERLEAVED_EXTENTS == 1)
  */
 struct famfs_interleaved_ext {
-	u64 ie_nranges;
+	u64 ie_nstrips;
 	u64 ie_chunk_size;
-	struct famfs_simple_extent ie_strips[FAMFS_FC_MAX_EXTENTS];
+	struct famfs_simple_extent ie_strips[FAMFS_MAX_SIMPLE_EXTENTS];
 };
 
 /*
@@ -118,9 +118,10 @@ struct famfs_interleaved_ext {
  * (and the latter only allows one interleaved extent).
  */
 struct famfs_log_fmap {
-	u32 ext_type; /* enum famfs_log_ext_type */
+	u32 fmap_ext_type; /* enum famfs_log_ext_type */
+	u32 fmap_nextents;
 	union {
-		struct famfs_simple_extent se[FAMFS_FC_MAX_EXTENTS];
+		struct famfs_simple_extent se[FAMFS_MAX_SIMPLE_EXTENTS];
 		struct famfs_interleaved_ext ie[FAMFS_MAX_INTERLEAVED_EXTENTS];
 		/* will include the other extent types eventually */
 	};
@@ -135,11 +136,11 @@ enum famfs_log_entry_type {
 
 #define FAMFS_MAX_PATHLEN 80
 #define FAMFS_MAX_HOSTNAME_LEN 32
-#define FAMFS_FC_BUF_LEN 512
+#define FAMFS_FM_BUF_LEN 512
 
 /* fm_flags */
-#define FAMFS_FC_ALL_HOSTS_RO (1 << 0)
-#define FAMFS_FC_ALL_HOSTS_RW (1 << 1)
+#define FAMFS_FM_ALL_HOSTS_RO (1 << 0)
+#define FAMFS_FM_ALL_HOSTS_RW (1 << 1)
 
 
 /* This log entry creates a directory */
@@ -154,7 +155,7 @@ struct famfs_mkdir {
 /* This log entry creates a file */
 struct famfs_file_meta {
 	u64     fm_size;
-	u32     fm_nextents;
+	//u32     fm_nextents;
 	u32     fm_flags;
 
 	uid_t   fm_uid;
@@ -170,7 +171,7 @@ struct famfs_log_entry {
 	u64     famfs_log_entry_seqnum;
 	u32     famfs_log_entry_type; /* FAMFS_LOG_FILE_CREATION or FAMFS_LOG_ACCESS */
 	union {
-		struct famfs_file_meta     famfs_fc;
+		struct famfs_file_meta     famfs_fm;
 		struct famfs_mkdir         famfs_md;
 	};
 	unsigned long famfs_log_entry_crc;
