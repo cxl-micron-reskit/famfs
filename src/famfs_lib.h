@@ -33,7 +33,6 @@ int famfs_check_super(const struct famfs_superblock *sb);
 int famfs_fsck(const char *devname, int use_mmap, int human, int force, int verbose);
 
 void famfs_uuidgen(uuid_le *uuid);
-int famfs_get_system_uuid(uuid_le *uuid_out);
 int famfs_mkmeta(const char *devname, int verbose);
 u64 famfs_alloc(const char *devname, u64 size);
 int famfs_logplay(const char *mpt, int use_mmap,
@@ -50,16 +49,18 @@ int famfs_mkdir_parents(const char *dirpath, mode_t mode, uid_t uid, gid_t gid, 
 int famfs_mkfs(const char *daxdev, u64 log_len, int kill, int force);
 int famfs_check(const char *path, int verbose);
 
-void famfs_dump_log(struct famfs_log *logp);
-void famfs_dump_super(struct famfs_superblock *sb);
 int famfs_flush_file(const char *filename, int verbose);
 
 int file_not_famfs(const char *fname);
-s64 get_multiplier(const char *endptr);
 
 /* famfs_misc.c */
-void famfs_dump_logentry(const struct famfs_log_entry *le, const int index, const char *prefix,
-			int verbose);
+s64 get_multiplier(const char *endptr);
+void famfs_dump_logentry(const struct famfs_log_entry *le, const int index,
+			 const char *prefix, int verbose);
+void famfs_dump_log(struct famfs_log *logp);
+void famfs_dump_super(struct famfs_superblock *sb);
+int famfs_get_system_uuid(uuid_le *uuid_out);
+void famfs_print_uuid(const uuid_le *uuid);
 
 /* famfs_yaml.c */
 #include <yaml.h>

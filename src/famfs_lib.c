@@ -93,40 +93,6 @@ static int open_superblock_file_read_only(const char *path, size_t  *sizep, char
 static char *famfs_relpath_from_fullpath(const char *mpt, char *fullpath);
 
 /**
- * get_multiplier()
- *
- * For parsing numbers on command lines with K/M/G for KiB etc.
- */
-s64 get_multiplier(const char *endptr)
-{
-	size_t multiplier = 1;
-
-	if (!endptr)
-		return 1;
-
-	switch (*endptr) {
-	case 'k':
-	case 'K':
-		multiplier = 1024;
-		break;
-	case 'm':
-	case 'M':
-		multiplier = 1024 * 1024;
-		break;
-	case 'g':
-	case 'G':
-		multiplier = 1024 * 1024 * 1024;
-		break;
-	case 0:
-		return 1;
-	}
-	++endptr;
-	if (*endptr) /* If the unit was not the last char in string, it's an error */
-		return -1;
-	return multiplier;
-}
-
-/**
  * famfs_file_read()
  *
  * Read from a file, handling short reads
@@ -166,38 +132,6 @@ famfs_file_read(
 		total += rc;
 	} while (resid > 0);
 	return 0;
-}
-
-void famfs_dump_super(struct famfs_superblock *sb)
-{
-	int rc;
-
-	assert(sb);
-	rc = famfs_check_super(sb);
-	if (rc)
-		fprintf(stderr, "invalid superblock\n");
-
-	printf("famfs superblock:\n");
-	printf("\tmagic:       %llx\n", sb->ts_magic);
-	printf("\tversion:     %lld\n", sb->ts_version);
-	printf("\tlog offset:  %lld\n", sb->ts_log_offset);
-	printf("\tlog len:     %lld\n", sb->ts_log_len);
-}
-
-void famfs_dump_log(struct famfs_log *logp)
-{
-	int rc;
-
-	assert(logp);
-	rc = famfs_validate_log_header(logp);
-	if (rc)
-		fprintf(stderr, "Error invalid log header\n");
-
-	printf("famfs log: (%p)\n", logp);
-	printf("\tmagic:      %llx\n", logp->famfs_log_magic);
-	printf("\tlen:        %lld\n", logp->famfs_log_len);
-	printf("\tlast index: %lld\n", logp->famfs_log_last_index);
-	printf("\tnext index: %lld\n", logp->famfs_log_next_index);
 }
 
 /**
@@ -301,124 +235,6 @@ mu_print_bitmap(u8 *bitmap, int num_bits)
 	printf("\n");
 }
 
-
-void
-famfs_uuidgen(uuid_le *uuid)
-{
-	uuid_t local_uuid;
-
-	uuid_generate(local_uuid);
-	memcpy(uuid, &local_uuid, sizeof(local_uuid));
-}
-
-static void
-famfs_print_uuid(const uuid_le *uuid)
-{
-	uuid_t local_uuid;
-	char uuid_str[37];
-
-	memcpy(&local_uuid, uuid, sizeof(local_uuid));
-	uuid_unparse(local_uuid, uuid_str);
-
-	printf("%s\n", uuid_str);
-}
-
-#define SYS_UUID_DIR "/opt/famfs"
-/*
- * Check if uuid file exists, if not, create it
- * and update it with a new uuid.
- *
- */
-int famfs_create_sys_uuid_file(char *sys_uuid_file)
-{
-	int uuid_fd, rc;
-	char uuid_str[37];  /* UUIDs are 36 char long, plus null terminator */
-	uuid_t local_uuid;
-	struct stat st = {0};
-	uuid_le sys_uuid;
-
-	/* Do nothing if file is present */
-	rc = stat(sys_uuid_file, &st);
-	if (rc == 0 && (st.st_mode & S_IFMT) == S_IFREG)
-		return 0;
-
-	/* File not found, check for directory */
-	rc = stat(SYS_UUID_DIR, &st);
-	if (rc < 0 && errno == ENOENT) {
-		/* No directory found, create one */
-		rc = mkdir(SYS_UUID_DIR, 0755);
-		if (rc || mock_uuid) {
-			fprintf(stderr, "%s: error creating dir %s errno: %d\n",
-				__func__, SYS_UUID_DIR, errno);
-			return -1;
-		}
-	}
-
-	uuid_fd = open(sys_uuid_file, O_RDWR | O_CREAT, 0444);
-	if (uuid_fd < 0) {
-		fprintf(stderr, "%s: failed to open/create %s errno %d.\n",
-			__func__, sys_uuid_file, errno);
-		return -1;
-	}
-
-	famfs_uuidgen(&sys_uuid);
-	memcpy(&local_uuid, &sys_uuid, sizeof(sys_uuid));
-	uuid_unparse(local_uuid, uuid_str);
-	rc = write(uuid_fd, uuid_str, 37);
-	if (rc < 0 || mock_uuid) {
-		fprintf(stderr, "%s: failed to write uuid to %s, errno: %d\n",
-			__func__, sys_uuid_file, errno);
-		unlink(sys_uuid_file);
-		return -1;
-	}
-	return 0;
-}
-
-#define SYS_UUID_FILE "system_uuid"
-
-int
-famfs_get_system_uuid(uuid_le *uuid_out)
-{
-	FILE *f;
-	char uuid_str[48];  /* UUIDs are 36 characters long, plus null terminator */
-	uuid_t uuid;
-	char sys_uuid_file_path[PATH_MAX] = {0};
-
-	snprintf(sys_uuid_file_path, PATH_MAX - 1, "%s/%s",
-			SYS_UUID_DIR, SYS_UUID_FILE);
-
-	if (famfs_create_sys_uuid_file(sys_uuid_file_path) < 0) {
-		fprintf(stderr, "Failed to create system-uuid file\n");
-		return -1;
-	}
-	f = fopen(sys_uuid_file_path, "r");
-	if (f == NULL) {
-		fprintf(stderr, "%s: unable to open system uuid at %s\n",
-				__func__, sys_uuid_file_path);
-		return -errno;
-	}
-
-	/* gpt */
-	if (fscanf(f, "%36s", uuid_str) != 1 || mock_uuid) {
-		fprintf(stderr, "%s: unable to read system uuid at %s, errno: %d\n",
-				__func__, sys_uuid_file_path, errno);
-		fclose(f);
-		unlink(sys_uuid_file_path);
-		return -1;
-	}
-
-	fclose(f);
-
-	if (uuid_parse(uuid_str, uuid) == -1) {
-		/* If this fails, we should check for a famfs-specific UUID file - and if
-		 * that doesn't already exist we should generate the UUID and write the file
-		 */
-		fprintf(stderr, "%s: Error parsing UUID (%s)\n", __func__, uuid_str);
-		return -EINVAL;
-	}
-	memcpy(uuid_out, uuid, sizeof(uuid));
-	return 0;
-}
 
 void
 famfs_print_role_string(int role)
@@ -1126,7 +942,7 @@ __famfs_mkmeta(
 			/* Superblock file exists */
 			if (st.st_size != FAMFS_SUPERBLOCK_SIZE) {
 				fprintf(stderr,
-					"%s: bad superblock file - umount/remount likely required\n",
+					"%s: bad superblock file - remount likely required\n",
 					__func__);
 			}
 		} else {
@@ -4575,37 +4391,4 @@ famfs_check(const char *path,
 	nerrs += nerrs_out;
 	printf("%s: %lld files, %lld directories, %lld errors\n", __func__, nfiles, ndirs, nerrs);
 	return rc;
-}
-
-int
-famfs_flush_file(const char *filename, int verbose)
-{
-	struct stat st;
-	size_t size;
-	void *addr;
-	int rc;
-
-	rc = stat(filename, &st);
-	if (rc < 0) {
-		fprintf(stderr, "%s: file not found (%s)\n", __func__, filename);
-		return 3;
-	}
-	if ((st.st_mode & S_IFMT) != S_IFREG) {
-		if (verbose)
-			fprintf(stderr, "%s: not a regular file: (%s)\n", __func__, filename);
-		return 2;
-	}
-
-	/* Only flush regular files */
-
-	addr = famfs_mmap_whole_file(filename, 1, &size);
-	if (!addr)
-		return 1;
-
-	if (verbose > 1)
-		printf("%s: flushing: %s\n", __func__, filename);
-
-	/* We don't know caller needs a flush or an invalidate, so barriers on both sides */
-	hard_flush_processor_cache(addr, size);
-	return 0;
 }
