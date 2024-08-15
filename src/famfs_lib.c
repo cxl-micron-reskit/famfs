@@ -654,7 +654,6 @@ famfs_fsck_scan(
 	famfs_print_role_string(role);
 
 	printf("  sizeof superblock: %ld\n", sizeof(struct famfs_superblock));
-	//printf("  num_daxdevs:       %d\n", sb->ts_num_daxdevs);
 	printf("  primary: %s   %ld\n",
 	       sb->ts_daxdev.dd_daxdev, sb->ts_daxdev.dd_size);
 
@@ -1143,7 +1142,6 @@ __famfs_mkmeta(
 		struct famfs_file_meta fm = {0};
 
 		fm.fm_size = FAMFS_SUPERBLOCK_SIZE;
-		//fm.fm_nextents = 1;
 		fm.fm_flags = 0;
 		fm.fm_uid = 0;
 		fm.fm_gid = 0;
@@ -1208,7 +1206,6 @@ __famfs_mkmeta(
 		struct famfs_file_meta fm = {0};
 
 		fm.fm_size = FAMFS_SUPERBLOCK_SIZE;
-		//fm.fm_nextents = 1;
 		fm.fm_flags = 0;
 		fm.fm_uid = 0;
 		fm.fm_gid = 0;
@@ -1714,17 +1711,6 @@ __famfs_logplay(
 	return (ls.f_errs + ls.d_errs);
 }
 
-#if 0
-static int
-famfs_shadow_mkmeta(
-	struct famfs_superblock *sb,
-	struct famfs_log *logp,
-	const char *fspath)
-{
-	
-}
-#endif
-
 /**
  * famfs_shadow_logplay()
  *
@@ -1765,15 +1751,9 @@ famfs_shadow_logplay(
 	}
 	role = (client_mode) ? FAMFS_CLIENT : famfs_get_role(sb);
 
-#if 0
-	rc = __famfs_mkmeta(fspath, sb, logp, role, 1 /* shadow */, verbose);
-	if (rc)
-		goto err_out;
-#endif
 	rc = __famfs_logplay(fspath, sb, logp, dry_run, client_mode,
 			       1 + testmode /* shadow */,
 			       role, verbose);
-//err_out:
 	return rc;
 }
 
@@ -1996,8 +1976,6 @@ famfs_relpath_from_fullpath(
 static int
 famfs_log_file_creation(
 	struct famfs_log            *logp,
-	//u64                         nextents,
-	//struct famfs_simple_extent *ext_list,
 	const struct famfs_log_fmap *fmap,
 	const char                  *relpath,
 	mode_t                       mode,
@@ -2022,7 +2000,6 @@ famfs_log_file_creation(
 	le.famfs_log_entry_type = FAMFS_LOG_FILE;
 
 	fm->fm_size = size;
-	//fm->fm_nextents = fmap->fmap_nextents;
 	fm->fm_flags = FAMFS_FM_ALL_HOSTS_RW; /* XXX hard coded access for now */
 
 	strncpy((char *)fm->fm_relpath, relpath, FAMFS_MAX_PATHLEN - 1);
@@ -2036,8 +2013,6 @@ famfs_log_file_creation(
 
 	/* Copy extents into log entry */
 	for (i = 0; i < fmap->fmap_nextents; i++) {
-		//struct famfs_log_fmap *ext = &fm->fm_fmap;
-
 		fm->fm_fmap.se[i].se_offset = fmap->se[i].se_offset;
 		fm->fm_fmap.se[i].se_len    = fmap->se[i].se_len;
 	}
@@ -2907,15 +2882,6 @@ famfs_file_alloc_contiguous(
 
 	*fmap_out = fmap;
 
-#if 0
-	rc = famfs_log_file_creation(logp, 1, &ext,
-				     relpath, mode, uid, gid, size);
-	if (rc)
-		goto out;
-
-	if (!mock_kmod)
-		rc =  famfs_v1_set_file_map(path, fd, size, 1, &ext, FAMFS_REG);
-#endif
 out:
 	return rc;
 }
@@ -3148,7 +3114,6 @@ __famfs_mkfile(
 	assert(lp);
 	assert(size > 0);
 
-#if 1
 	/* TODO: */
 	/* Don't create the file yet, but...
 	 * 1. File must not exist
@@ -3182,12 +3147,7 @@ __famfs_mkfile(
 
 		/* TODO: verify parent_path is in a famfs mount */
 	}
-#else
-	/* Create the file */
-	fd = famfs_file_create(filename, mode, uid, gid, 0);
-	if (fd <= 0)
-		return fd;
-#endif
+
 	/* XXX do we need the non-locked-log case? */
 	logp = lp->logp;
 	strncpy(mpt, lp->mpt, PATH_MAX - 1);
@@ -4367,7 +4327,6 @@ __famfs_mkfs(const char              *daxdev,
 	famfs_uuidgen(&sb->ts_uuid);
 
 	/* Configure the first daxdev */
-	//sb->ts_num_daxdevs = 1;
 	sb->ts_daxdev.dd_size = device_size;
 	strncpy(sb->ts_daxdev.dd_daxdev, daxdev, FAMFS_DEVNAME_LEN);
 
@@ -4516,7 +4475,6 @@ famfs_recursive_check(const char *dirpath,
 			if (fd <= 0) {
 				fprintf(stderr, "%s: failed to open file %s\n",
 					__func__, fullpath);
-				//nerrs++;
 				continue;
 			}
 			rc = ioctl(fd, FAMFSIOC_MAP_GET, &filemap);
