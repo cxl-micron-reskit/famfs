@@ -3209,7 +3209,7 @@ __famfs_mkfile(
 	 */
 	fd = famfs_file_create(filename, mode, uid, gid, 0);
 	if (fd <= 0)
-		return fd;
+		goto out;
 
 	/* Log the file creation */
 
@@ -3218,12 +3218,9 @@ __famfs_mkfile(
 	 */
 	rpath = strdup(filename);
 	printf("filename %s rpath %s\n", filename, rpath);
-#if 1
+
+	/* realpath should not fail because we just created the file */
 	assert((fullpath = realpath(rpath, NULL)));
-#else
-	fullpath = realpath(rpath, NULL);
-	printf("fullpath %s:\n", fulllpath);
-#endif
 
 	relpath = famfs_relpath_from_fullpath(mpt, fullpath);
 	if (!relpath) {
@@ -3257,6 +3254,10 @@ __famfs_mkfile(
 	}
 
 out:
+	if (fmap)
+		free(fmap);
+	if (fullpath)
+		free(fullpath);
 	if (rpath)
 		free(rpath);
 
