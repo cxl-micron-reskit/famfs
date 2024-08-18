@@ -2520,25 +2520,38 @@ famfs_build_bitmap(const struct famfs_log   *logp,
  * @bitmap
  * @nbits - number of bits in the bitmap
  * @alloc_size - size to allocate in bytes (must convert to bits)
+ * @cur_pos: Starting offset to search from
+ * @alloc_range: size (bytes) of range to allocate from (starting at @cur_pos)
+ *               (zero maens alloc from the whole bitmap)
+ *               (this is used for strided/striped allocations)
  *
  * Return value: the offset in bytes
  */
 static s64
-bitmap_alloc_contiguous(u8 *bitmap,
-			u64 nbits,
-			u64 alloc_size,
-			u64 *cur_pos)
+bitmap_alloc_contiguous(
+	u8 *bitmap,
+	u64 nbits,
+	u64 alloc_size,
+	u64 *cur_pos,
+	u64 alloc_range)
 {
 	u64 i, j;
 	u64 alloc_bits = (alloc_size + FAMFS_ALLOC_UNIT - 1) /  FAMFS_ALLOC_UNIT;
 	u64 bitmap_remainder;
+	u64 start_idx;
+	u64 alloc_range_nbits;
 
-	for (i = *cur_pos; i < nbits; i++) {
+	assert(cur_pos);
+
+	start_idx = *cur_pos / FAMFS_ALLOC_UNIT;
+	alloc_range_nbits = (alloc_range) ? (alloc_range / FAMFS_ALLOC_UNIT) : nbits;
+
+	for (i = start_idx; i < nbits; i++) {
 		/* Skip bits that are set... */
 		if (mu_bitmap_test(bitmap, i))
 			continue;
 
-		bitmap_remainder = nbits - i;
+		bitmap_remainder = start_idx + alloc_range_nbits - i;
 		if (alloc_bits > bitmap_remainder) /* Remaining space is not enough */
 			return -1;
 
@@ -2551,7 +2564,7 @@ bitmap_alloc_contiguous(u8 *bitmap,
 		 */
 		for (j = i; j < (i+alloc_bits); j++)
 			mse_bitmap_set32(bitmap, j);
-		*cur_pos = j;
+		*cur_pos = j * FAMFS_ALLOC_UNIT;
 		return i * FAMFS_ALLOC_UNIT;
 next:
 		continue;
@@ -2637,7 +2650,7 @@ famfs_alloc_contiguous(struct famfs_locked_log *lp, u64 size, int verbose)
 		}
 		lp->cur_pos = 0;
 	}
-	return bitmap_alloc_contiguous(lp->bitmap, lp->nbits, size, &lp->cur_pos);
+	return bitmap_alloc_contiguous(lp->bitmap, lp->nbits, size, &lp->cur_pos, 0);
 }
 
 
