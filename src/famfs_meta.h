@@ -23,7 +23,7 @@
 #define STATIC_ASSERT(cond, msg) typedef char static_assertion_##msg[(cond) ? 1 : -1]
 
 #define FAMFS_SUPER_MAGIC      0x87b282ff
-#define FAMFS_CURRENT_VERSION  46
+#define FAMFS_CURRENT_VERSION  47
 //#define FAMFS_MAX_DAXDEVS      64
 
 #define FAMFS_LOG_OFFSET    0x200000 /* 2MiB */
@@ -62,9 +62,9 @@ struct famfs_superblock {
 	u64                 ts_log_offset;  /* offset to the start of the log file */
 	u64                 ts_log_len;
 	uuid_le             ts_uuid;        /* UUID of this file system */
+	uuid_le             ts_dev_uuid;    /* uuid of this device */
 	uuid_le             ts_system_uuid; /* system uuid */
 	u64                 ts_crc;         /* Covers all fields prior to this one */
-	//u32                 ts_num_daxdevs; /* limit is FAMFS_MAX_DAXDEVS */
 	u32                 ts_sb_flags;
 	struct famfs_daxdev ts_daxdev;
 };
@@ -91,6 +91,7 @@ enum famfs_log_ext_type {
  */
 struct famfs_simple_extent {
 	/* This extent is on the dax device with the superblock */
+	u64 se_devindex; /* Must be 0 until multi-device support appears */
 	u64 se_offset;
 	u64 se_len;
 };
@@ -155,7 +156,6 @@ struct famfs_mkdir {
 /* This log entry creates a file */
 struct famfs_file_meta {
 	u64     fm_size;
-	//u32     fm_nextents;
 	u32     fm_flags;
 
 	uid_t   fm_uid;

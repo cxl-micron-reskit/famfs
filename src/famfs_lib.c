@@ -396,6 +396,7 @@ famfs_gen_superblock_crc(const struct famfs_superblock *sb)
 	crc = crc32(crc, (const unsigned char *)&sb->ts_log_offset,  sizeof(sb->ts_log_offset));
 	crc = crc32(crc, (const unsigned char *)&sb->ts_log_len,     sizeof(sb->ts_log_len));
 	crc = crc32(crc, (const unsigned char *)&sb->ts_uuid,        sizeof(sb->ts_uuid));
+	crc = crc32(crc, (const unsigned char *)&sb->ts_dev_uuid,    sizeof(sb->ts_uuid));
 	crc = crc32(crc, (const unsigned char *)&sb->ts_system_uuid, sizeof(sb->ts_system_uuid));
 	return crc;
 }
@@ -463,6 +464,8 @@ famfs_fsck_scan(
 	printf("Famfs Superblock:\n");
 	printf("  Filesystem UUID:   ");
 	famfs_print_uuid(&sb->ts_uuid);
+	printf("  Device UUID:       ");
+	famfs_print_uuid(&sb->ts_dev_uuid);
 	printf("  System UUID:       ");
 	famfs_print_uuid(&sb->ts_system_uuid);
 	printf("  role of this node: ");
@@ -527,12 +530,18 @@ famfs_fsck_scan(
 		printf("  log_offset:        %lld\n", sb->ts_log_offset);
 		printf("  log_len:           %lld\n", sb->ts_log_len);
 
-		printf("  sizeof(log header) %ld\n", sizeof(struct famfs_log));
-		printf("  sizeof(log_entry)  %ld\n", sizeof(struct famfs_log_entry));
+		printf("  log_entry components:\n");
+		printf("      sizeof(log header) %ld\n", sizeof(struct famfs_log));
+		printf("      sizeof(log_entry)  %ld\n", sizeof(struct famfs_log_entry));
+		printf("          sizeof(mkdir)     %ld\n", sizeof(struct famfs_mkdir));
+		printf("          sizeof(file_meta) %ld\n", sizeof(struct famfs_file_meta));
+		printf("              sizeof(fmap)    %ld\n", sizeof(struct famfs_log_fmap));
 
-		printf("  sizeof(famfs_interleaved_ext): %ld\n",
+		printf("                  sizeof(interleaved_ext[%d]): %ld\n",
+		       FAMFS_MAX_INTERLEAVED_EXTENTS,
 		       sizeof(struct famfs_interleaved_ext));
-		printf("  sizeof(famfs_simple_ext): %ld\n",
+		printf("                  sizeof(famfs_simple_ext[%d]): %ld\n",
+		       FAMFS_MAX_SIMPLE_EXTENTS,
 		       sizeof(struct famfs_simple_extent));
 
 		printf("  last_log_index:    %lld\n", logp->famfs_log_last_index);
@@ -2392,8 +2401,9 @@ static inline u64 set_extent_in_bitmap(u8 *bitmap, u64 offset, u64 len, u64 *all
  * The two files that are not in the log are the superblock and the log. So these
  * files need to be manually added to the allocation bitmap. This function does that.
  *
- * @bitmap  - The bitmap
- * @log_len - size of the log (superblock size is invariant)
+ * @bitmap:    The bitmap
+ * @log_len:   Size of the log (superblock size is invariant)
+ * @alloc_sum: Amount of space marked as allocated for  the superblock and log
  */
 static inline void
 put_sb_log_into_bitmap(u8 *bitmap, u64 log_len, u64 *alloc_sum)
@@ -4141,6 +4151,10 @@ __famfs_mkfs(const char              *daxdev,
 	sb->ts_log_offset = FAMFS_LOG_OFFSET;
 	sb->ts_log_len    = log_len;
 	famfs_uuidgen(&sb->ts_uuid);
+
+	/* Note: generated UUIDs are ok now, but we will need to use tagged-capaciyt
+	 * UUIDs when CXL3 provdies UUIDs as tags */
+	famfs_uuidgen(&sb->ts_dev_uuid);
 
 	/* Configure the first daxdev */
 	sb->ts_daxdev.dd_size = device_size;
