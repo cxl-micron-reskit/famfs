@@ -76,7 +76,7 @@ famfs_dir_create(
 	gid_t       gid);
 
 static struct famfs_superblock *famfs_map_superblock_by_path(const char *path, int read_only);
-static int famfs_file_create(const char *path, mode_t mode, uid_t uid, gid_t gid,
+static int famfs_file_create_stub(const char *path, mode_t mode, uid_t uid, gid_t gid,
 			     int disable_write);
 static int famfs_shadow_file_create(const char *path,
 				    const struct famfs_file_meta *fc,
@@ -138,8 +138,6 @@ famfs_file_read(
  * famfs_module_loaded()
  *
  * This function checks whether the famfs kernel modulle is loaded
- *
- * @verbose - print informative output
  *
  * Returns: 1 if the module is loaded, and 0 if not
  */
@@ -300,7 +298,9 @@ famfs_get_role_by_dev(const char *daxdev)
 }
 
 static int
-famfs_get_role_by_path(const char *path, uuid_le *fs_uuid_out)
+famfs_get_role_by_path(
+	const char *path,
+	uuid_le *fs_uuid_out)
 {
 	struct famfs_superblock *sb;
 	int role;
@@ -320,9 +320,10 @@ famfs_get_role_by_path(const char *path, uuid_le *fs_uuid_out)
 }
 
 int
-famfs_get_device_size(const char       *fname,
-		      size_t           *size,
-		      enum famfs_extent_type *type)
+famfs_get_device_size(
+	const char       *fname,
+	size_t           *size,
+	enum famfs_extent_type *type)
 {
 	char spath[PATH_MAX];
 	char *basename;
@@ -573,19 +574,20 @@ famfs_fsck_scan(
  * The superblock is not validated - UNLESS we need to get the log size from it, in which
  * case we must validate the superblock.
  *
- * @devname   - dax device name
- * @sbp       - (mandatory) Return superblock in this pointer
- * @logp      - (optional)  Map log and return it in this pointer
- * @log_size  - If nonzero, map this size. If zero, figure out the log size from the superblock
- *              and map the correct size. (if no valid superblock, don't map the log)
- * @read_only - map sb and log read-only if nonzero
+ * @devname:   dax device name
+ * @sbp:       (mandatory) Return superblock in this pointer
+ * @logp:      (optional)  Map log and return it in this pointer
+ * @log_size:  If nonzero, map this size. If zero, figure out the log size from the superblock
+ *             and map the correct size. (if no valid superblock, don't map the log)
+ * @read_only: map sb and log read-only if nonzero
  */
 static int
-famfs_mmap_superblock_and_log_raw(const char *devname,
-				  struct famfs_superblock **sbp,
-				  struct famfs_log **logp,
-				  u64 log_size,
-				  int read_only)
+famfs_mmap_superblock_and_log_raw(
+	const char *devname,
+	struct famfs_superblock **sbp,
+	struct famfs_log **logp,
+	u64 log_size,
+	int read_only)
 {
 	struct famfs_superblock *sb;
 	int fd = 0;
@@ -701,7 +703,7 @@ famfs_check_super(const struct famfs_superblock *sb)
 /**
  * famfs_get_mpt_by_dev()
  *
- * @mtdev = the primary dax device for a famfs file system.
+ * @mtdev: the primary dax device for a famfs file system.
  *
  * This function determines the mount point by parsing /proc/mounts to find the mount point
  * from a dax device name.
@@ -765,15 +767,17 @@ out:
  *
  * check whether a path is a famfs mount point via /proc/mounts
  *
- * @path
- * @dev_out - if non-null, the device name will be copied here
+ * @path:
+ * @dev_out: if non-null, the device name will be copied here
  *
  * Return values
  * 1 - the path is an active famfs mount point
  * 0 - the path is not an active famfs mount point
  */
 static int
-famfs_path_is_mount_pt(const char *path, char *dev_out)
+famfs_path_is_mount_pt(
+	const char *path,
+	char *dev_out)
 {
 	FILE *fp;
 	char *line = NULL;
@@ -865,11 +869,11 @@ famfs_ext_to_simple_ext(
  *
  * This function attaches an allocated simple extent list to a file
  *
- * @path
- * @fd           - file descriptor for the file whose map will be created (already open)
- * @size
- * @nextents
- * @extent_list
+ * @path:
+ * @fd:           file descriptor for the file whose map will be created (already open)
+ * @size:
+ * @nextents:
+ * @extent_list:
  */
 static int
 famfs_v1_set_file_map(
@@ -1079,7 +1083,7 @@ __famfs_mkmeta(
  * Create the meta files (.meta/.superblock and .meta/.log)) in a mounted famfs
  * file system
  *
- * @devname - primary device for a famfs file system
+ * @devname: primary device for a famfs file system
  */
 int
 famfs_mkmeta(
@@ -1121,9 +1125,9 @@ famfs_mkmeta(
 /**
  * mmap_whole_file()
  *
- * @fname
- * @read_only - mmap will be read-only if true
- * @size      - size will be stored if this pointer is non-NULL
+ * @fname:
+ * @read_only: mmap will be read-only if true
+ * @size:      size will be stored if this pointer is non-NULL
  *
  * TODO: this is only used by the cli for file verification. Move to CLI?
  * Returns:
@@ -1260,13 +1264,13 @@ famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index)
  * Inner function to play the log for a famfs file system
  * Caller has already validated the superblock and log
  *
- * @mpt         - mount point path (or shadow fs path if shadow==true)
- * @sb          - superblock (may be NULL unless it's a shadow logplay)
- * @logp        - pointer to a read-only copy or mmap of the log
- * @dry_run     - process the log but don't create the files & directories
- * @client_mode - for testing; play the log as if this is a client node, even on master
- * @shadow      - Play into shadow file system instead (for famfs-fuse)
- * @verbose     - verbose flag
+ * @mpt:         mount point path (or shadow fs path if shadow==true)
+ * @sb:          superblock (may be NULL unless it's a shadow logplay)
+ * @logp:        pointer to a read-only copy or mmap of the log
+ * @dry_run:     process the log but don't create the files & directories
+ * @client_mode: for testing; play the log as if this is a client node, even on master
+ * @shadow:      Play into shadow file system instead (for famfs-fuse)
+ * @verbose:     verbose flag
  *
  * Returns value: Number of errors detected (0=complete success)
  */
@@ -1415,7 +1419,7 @@ __famfs_logplay(
 				printf("\n");
 			}
 
-			fd = famfs_file_create(rpath, fm->fm_mode, fm->fm_uid, fm->fm_gid,
+			fd = famfs_file_create_stub(rpath, fm->fm_mode, fm->fm_uid, fm->fm_gid,
 					       (role == FAMFS_CLIENT) ? 1 : 0);
 			if (fd < 0) {
 				fprintf(stderr,
@@ -1541,11 +1545,11 @@ __famfs_logplay(
  *
  * Play the log into a shadow famfs file system (for famsf_fused)
  *
- * @fspath      - Root path of shadow file system
- * @dry_run     - Parse and print but don't create shadow files / directories
- * @client_mode - Logplay as client, not master
- * @daxdev      - Dax device to map the superblock and log from
- * @verbose
+ * @fspath:      Root path of shadow file system
+ * @dry_run:     Parse and print but don't create shadow files / directories
+ * @client_mode: Logplay as client, not master
+ * @daxdev:      Dax device to map the superblock and log from
+ * @verbose:
  */
 int
 famfs_shadow_logplay(
@@ -1593,13 +1597,13 @@ famfs_shadow_logplay(
  * This function gets and verifies the superblock and log, and then calls the inner
  * logplay function to do the work (in the shadow case, via famfs_shadow_logplay()
  *
- * @fspath      - mount point, or any path within the famfs file system
- * @use_mmap    - Use mmap rather than reading the log into a buffer
- * @dry_run     - process the log but don't create the files & directories
- * @client_mode - for testing; play the log as if this is a client node, even on master
- * @shadow      - Play yaml files into a shadow file system (for famfs-fuse)
- * @daxdev      - If it's a shadow logplay, get SB and log from this daxdev
- * @verbose     - verbose flag
+ * @fspath:      mount point, or any path within the famfs file system
+ * @use_mmap:    Use mmap rather than reading the log into a buffer
+ * @dry_run:     process the log but don't create the files & directories
+ * @client_mode: for testing; play the log as if this is a client node, even on master
+ * @shadow:      Play yaml files into a shadow file system (for famfs-fuse)
+ * @daxdev:      If it's a shadow logplay, get SB and log from this daxdev
+ * @verbose:     verbose flag
  */
 int
 famfs_logplay(
@@ -1721,8 +1725,8 @@ err_out:
 /**
  * famfs_append_log()
  *
- * @logp - pointer to struct famfs_log in memory media
- * @e    - pointer to log entry in memory
+ * @logp: pointer to struct famfs_log in memory media
+ * @e:    pointer to log entry in memory
  *
  * NOTE: this function is not re-entrant. Must hold a lock or mutex when calling this
  * function if there is any chance of re-entrancy.
@@ -1763,8 +1767,8 @@ famfs_append_log(struct famfs_log       *logp,
  *
  * Returns a pointer to the relpath. This pointer points within the fullpath string
  *
- * @mpt - mount point string (rationalized by realpath())
- * @fullpath
+ * @mpt:      mount point string (rationalized by realpath())
+ * @fullpath:
  */
 static char *
 famfs_relpath_from_fullpath(
@@ -1890,8 +1894,6 @@ famfs_log_dir_creation(
  * This is useful in mkdir -p, where the path might be several layers deeper than
  * the deepest existing dir.
  *
- * @path
- *
  * Returns: a real sub-path, if found
  */
 static char *
@@ -1938,24 +1940,24 @@ find_real_parent_path(const char *path)
  * but there are also (unit test) cases where it is useful to exercise this logic
  * even if the ascended @path is not in a famfs file system.
  *
- * @path       - any path within a famfs file system (from mount pt on down)
- * @relpath    - the relative path to open (relative to the mount point)
- * @read_only
- * @size_out   - File size will be returned if this pointer is non-NULL
- * @mpt_out    - Mount point will be returned if this pointer is non-NULL
- *               (the string space is assumed to be of size PATH_MAX)
- * @no_fscheck - For unit tests only - don't check whether the file with @relpath
- *               is actually in a famfs file system.
+ * @path:       any path within a famfs file system (from mount pt on down)
+ * @relpath:    the relative path to open (relative to the mount point)
+ * @read_only:
+ * @size_out:   File size will be returned if this pointer is non-NULL
+ * @mpt_out:    Mount point will be returned if this pointer is non-NULL
+ *              (the string space is assumed to be of size PATH_MAX)
+ * @no_fscheck: For unit tests only - don't check whether the file with @relpath
+ *              is actually in a famfs file system.
  */
 int
 __open_relpath(
-	const char *path,
-	const char *relpath,
-	int         read_only,
-	size_t     *size_out,
-	char       *mpt_out,
-	enum lock_opt lockopt,
-	int         no_fscheck)
+	const char    *path,
+	const char    *relpath,
+	int            read_only,
+	size_t        *size_out,
+	char          *mpt_out,
+	enum lock_opt  lockopt,
+	int            no_fscheck)
 {
 	int openmode = (read_only) ? O_RDONLY : O_RDWR;
 	char *rpath;
@@ -2366,10 +2368,19 @@ famfs_validate_superblock_by_path(const char *path)
 	return daxdevsize;
 }
 
+/***********************************************************************************
+ * Allocation and bitmaps
+ */
+
 /**
  * set_extent_in_bitmap() - Set bits for an allocation range
  */
-static inline u64 set_extent_in_bitmap(u8 *bitmap, u64 offset, u64 len, u64 *alloc_sum)
+static inline u64
+set_extent_in_bitmap(
+	u8 *bitmap,
+	u64 offset,
+	u64 len,
+	u64 *alloc_sum)
 {
 	u64 errors = 0;
 	u64 page_num;
@@ -2415,17 +2426,17 @@ put_sb_log_into_bitmap(u8 *bitmap, u64 log_len, u64 *alloc_sum)
  * famfs_build_bitmap()
  *
  * XXX: this is only aware of the first daxdev in the superblock's list
- * @logp
- * @size_in          - total size of allocation space in bytes
- * @bitmap_nbits_out - output: size of the bitmap
- * @alloc_errors_out - output: number of times a file referenced a bit that was already set
- * @fsize_total_out  - output: if ptr non-null, this is the sum of the file sizes
- * @alloc_sum_out    - output: if ptr non-null, this is the sum of all allocation sizes
+ * @logp:
+ * @size_in:          total size of allocation space in bytes
+ * @bitmap_nbits_out: output: size of the bitmap
+ * @alloc_errors_out: output: number of times a file referenced a bit that was already set
+ * @fsize_total_out:  output: if ptr non-null, this is the sum of the file sizes
+ * @alloc_sum_out:    output: if ptr non-null, this is the sum of all allocation sizes
  *                    (excluding double-allocations; space amplification is
  *                     @alloc_sum / @size_total provided there are no double allocations,
  *                     b/c those will increase size_total but not alloc_sum)
- * @log_stats_out    - Optional pointer to struct log_stats to be copied out
- * @verbose
+ * @log_stats_out:    Optional pointer to struct log_stats to be copied out
+ * @verbose:
  */
 static u8 *
 famfs_build_bitmap(const struct famfs_log   *logp,
@@ -2517,10 +2528,10 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 /**
  * bitmap_alloc_contiguous()
  *
- * @bitmap
- * @nbits - number of bits in the bitmap
- * @alloc_size - size to allocate in bytes (must convert to bits)
- * @cur_pos: Starting offset to search from
+ * @bitmap:
+ * @nbits:       number of bits in the bitmap
+ * @alloc_size:  size to allocate in bytes (must convert to bits)
+ * @cur_pos:     Starting offset to search from
  * @alloc_range: size (bytes) of range to allocate from (starting at @cur_pos)
  *               (zero maens alloc from the whole bitmap)
  *               (this is used for strided/striped allocations)
@@ -2574,71 +2585,17 @@ next:
 }
 
 /**
- * famfs_init_locked_log()
- *
- * @lp
- * @fspath - the mount point full path, or any full path within a mounted famfs FS
- */
-int
-famfs_init_locked_log(struct famfs_locked_log *lp,
-		      const char *fspath,
-		      int verbose)
-{
-	size_t log_size;
-	void *addr;
-	int role;
-	int rc;
-
-	memset(lp, 0, sizeof(*lp));
-
-	lp->devsize = famfs_validate_superblock_by_path(fspath);
-	if (lp->devsize < 0)
-		return -1;
-
-	/* famfs_get_role also validates the superblock */
-	role = famfs_get_role_by_path(fspath, NULL);
-	if (role != FAMFS_MASTER) {
-		fprintf(stderr, "%s: Error not running on FAMFS_MASTER node for this FS\n",
-			__func__);
-		rc = -1;
-		goto err_out;
-	}
-
-	/* Log file */
-	lp->lfd = open_log_file_writable(fspath, &log_size, lp->mpt, BLOCKING_LOCK);
-	if (lp->lfd < 0) {
-		fprintf(stderr, "%s: Unable to open famfs log for writing\n", __func__);
-		/* If we can't open the log file for writing, don't allocate */
-		rc = lp->lfd;
-		goto err_out;
-	}
-
-	addr = mmap(0, log_size, PROT_READ | PROT_WRITE, MAP_SHARED, lp->lfd, 0);
-	if (addr == MAP_FAILED) {
-		fprintf(stderr, "%s: Failed to mmap log file\n", __func__);
-		rc = -1;
-		goto err_out;
-	}
-	lp->logp = (struct famfs_log *)addr;
-	invalidate_processor_cache(lp->logp, log_size); /* Invalidate the processor cache for the log */
-	assert(lp->logp->famfs_log_len == log_size);
-	return 0;
-
-err_out:
-	if (lp->lfd)
-		close(lp->lfd);
-	return rc;
-}
-
-/**
  * famfs_alloc_contiguous()
  *
- * @lp      - locked log struct. Will perform bitmap build if no already done
- * @size
- * @verbose
+ * @lp:      locked log struct. Will perform bitmap build if no already done
+ * @size:    Size to allocate
+ * @verbose:
  */
 static s64
-famfs_alloc_contiguous(struct famfs_locked_log *lp, u64 size, int verbose)
+famfs_alloc_contiguous(
+	struct famfs_locked_log *lp,
+	u64 size,
+	int verbose)
 {
 	if (!lp->bitmap) {
 		/* Bitmap is needed and hasn't been built yet */
@@ -2651,24 +2608,6 @@ famfs_alloc_contiguous(struct famfs_locked_log *lp, u64 size, int verbose)
 		lp->cur_pos = 0;
 	}
 	return bitmap_alloc_contiguous(lp->bitmap, lp->nbits, size, &lp->cur_pos, 0);
-}
-
-
-int
-famfs_release_locked_log(struct famfs_locked_log *lp)
-{
-	int rc;
-
-	if (lp->bitmap)
-		free(lp->bitmap);
-
-	assert(lp->lfd > 0);
-	rc = flock(lp->lfd, LOCK_UN);
-	if (rc)
-		fprintf(stderr, "%s: unlock returned an error\n", __func__);
-
-	close(lp->lfd);
-	return rc;
 }
 
 /**
@@ -2725,28 +2664,109 @@ out:
 	return rc;
 }
 
+/***********************************************************************************
+ * Locked Log Abstraction
+ */
+
 /**
- * famfs_file_create()
+ * famfs_init_locked_log()
  *
- * Create a file but don't allocate dax space yet
+ * @lp:     locked_log structure (mandatory)
+ * @fspath: The mount point full path, or any full path within a mounted famfs FS
+ * @verbose:
+ */
+int
+famfs_init_locked_log(
+	struct famfs_locked_log *lp,
+	const char *fspath,
+	int verbose)
+{
+	size_t log_size;
+	void *addr;
+	int role;
+	int rc;
+
+	memset(lp, 0, sizeof(*lp));
+
+	lp->devsize = famfs_validate_superblock_by_path(fspath);
+	if (lp->devsize < 0)
+		return -1;
+
+	/* famfs_get_role also validates the superblock */
+	role = famfs_get_role_by_path(fspath, NULL);
+	if (role != FAMFS_MASTER) {
+		fprintf(stderr, "%s: Error not running on FAMFS_MASTER node for this FS\n",
+			__func__);
+		rc = -1;
+		goto err_out;
+	}
+
+	/* Log file */
+	lp->lfd = open_log_file_writable(fspath, &log_size, lp->mpt, BLOCKING_LOCK);
+	if (lp->lfd < 0) {
+		fprintf(stderr, "%s: Unable to open famfs log for writing\n", __func__);
+		/* If we can't open the log file for writing, don't allocate */
+		rc = lp->lfd;
+		goto err_out;
+	}
+
+	addr = mmap(0, log_size, PROT_READ | PROT_WRITE, MAP_SHARED, lp->lfd, 0);
+	if (addr == MAP_FAILED) {
+		fprintf(stderr, "%s: Failed to mmap log file\n", __func__);
+		rc = -1;
+		goto err_out;
+	}
+	lp->logp = (struct famfs_log *)addr;
+	invalidate_processor_cache(lp->logp, log_size); /* Invalidate the processor cache for the log */
+	assert(lp->logp->famfs_log_len == log_size);
+	return 0;
+
+err_out:
+	if (lp->lfd)
+		close(lp->lfd);
+	return rc;
+}
+
+int
+famfs_release_locked_log(struct famfs_locked_log *lp)
+{
+	int rc;
+
+	if (lp->bitmap)
+		free(lp->bitmap);
+
+	assert(lp->lfd > 0);
+	rc = flock(lp->lfd, LOCK_UN);
+	if (rc)
+		fprintf(stderr, "%s: unlock returned an error\n", __func__);
+
+	close(lp->lfd);
+	return rc;
+}
+
+/**
+ * famfs_file_create_stub()
  *
- * @path
- * @mode
- * @uid  - used if both uid and gid are non-null
- * @gid  - used if both uid and gid are non-null
- * @disable_write - if this flag is non-zero, write permissions will be removed from the mode
- *                  (we default files to read-only on client systems)
+ * Create a famfs v1 stub file but don't allocate dax space yet. File map will be added later.
+ *
+ * @path:
+ * @mode:
+ * @uid:           used if both uid and gid are non-null
+ * @gid:           used if both uid and gid are non-null
+ * @disable_write: if this flag is non-zero, write permissions will be removed from the mode
+ *                 (we default files to read-only on client systems)
  *
  * Returns a file descriptior or -EBADF if the path is not in a famfs file system
  *
  * TODO: append "_empty" to function name
  */
 static int
-famfs_file_create(const char *path,
-		  mode_t      mode,
-		  uid_t       uid,
-		  gid_t       gid,
-		  int         disable_write)
+famfs_file_create_stub(
+	const char *path,
+	mode_t      mode,
+	uid_t       uid,
+	gid_t       gid,
+	int         disable_write)
 {
 	struct stat st;
 	int rc = 0;
@@ -2787,8 +2807,6 @@ famfs_file_create(const char *path,
 	}
 	return fd;
 }
-
-#define FAMFS_YAML_MAX 8192
 
 /**
  * test_shadow_yaml()
@@ -3006,7 +3024,7 @@ __famfs_mkfile(
 	 *    * This needs to play this log entry into its new shadow file
 	 *    * Then open the shadow file via the fuse mount
 	 */
-	fd = famfs_file_create(filename, mode, uid, gid, 0);
+	fd = famfs_file_create_stub(filename, mode, uid, gid, 0);
 	if (fd <= 0)
 		goto out;
 
@@ -3063,6 +3081,11 @@ out:
 	return fd;
 }
 
+/**
+ * famfs_mkfile()
+ *
+ * Do the full job of creatign and allocating a famfs file
+ */
 int
 famfs_mkfile(
 	const char       *filename,
@@ -4035,7 +4058,8 @@ famfs_clone(const char *srcfile,
 	/* Create the destination file. This will be unlinked later if we don't get all
 	 * the way through the operation.
 	 */
-	dfd = famfs_file_create(destfile, src_stat.st_mode, src_stat.st_uid, src_stat.st_gid, 0);
+	dfd = famfs_file_create_stub(destfile, src_stat.st_mode,
+				     src_stat.st_uid, src_stat.st_gid, 0);
 	if (dfd < 0) {
 		fprintf(stderr, "%s: failed to create file %s\n", __func__, destfile);
 		rc = -1;

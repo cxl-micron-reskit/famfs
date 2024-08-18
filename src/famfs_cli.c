@@ -86,15 +86,14 @@ do_famfs_cli_logplay(int argc, char *argv[])
 {
 	int c;
 	char *fspath;
+	int shadow = 0;
+	int verbose = 0;
 	int dry_run = 0;
 	int use_mmap = 0;
 	int use_read = 0;
 	int client_mode = 0;
-	int verbose = 0;
-	int shadow = 0;
 	char *daxdev = NULL;
 
-	/* XXX can't use any of the same strings as the global args! */
 	struct option logplay_options[] = {
 		/* These options set a */
 		{"dryrun",    no_argument,             0,  'n'},
@@ -355,13 +354,11 @@ famfs_mkmeta_usage(int   argc,
 int
 do_famfs_cli_mkmeta(int argc, char *argv[])
 {
+	char *realdaxdev = NULL;
+	char *daxdev = NULL;
+	int verbose = 0;
 	int c;
 
-	char *daxdev = NULL;
-	char *realdaxdev = NULL;
-	int verbose = 0;
-
-	/* XXX can't use any of the same strings as the global args! */
 	struct option mkmeta_options[] = {
 		/* These options set a */
 		{"verbose",    no_argument,            0,  'v'},
@@ -445,11 +442,10 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	char *daxdev = NULL;
 	int use_mmap = 0;
 	int use_read = 0;
-	int human = 0; /* -h is no longer --help... */
 	int verbose = 0;
 	int force = 0;
+	int human = 0; /* -h is no longer --help... */
 
-	/* XXX can't use any of the same strings as the global args! */
 	struct option fsck_options[] = {
 		/* These options set a */
 		{"mmap",        no_argument,             0,  'm'},
@@ -554,17 +550,16 @@ famfs_cp_usage(int   argc,
 int
 do_famfs_cli_cp(int argc, char *argv[])
 {
-	int c;
-	int verbose = 0;
-	int remaining_args;
-	mode_t mode = 0; /* null mode inherits mode form source file */
 	uid_t uid = getuid();
 	gid_t gid = getgid();
 	mode_t current_umask;
+	int remaining_args;
 	int recursive = 0;
+	int verbose = 0;
+	mode_t mode = 0; /* null mode inherits mode form source file */
 	int rc;
+	int c;
 
-	/* XXX can't use any of the same strings as the global args! */
 	struct option cp_options[] = {
 		/* These options set a */
 		{"mode",        required_argument,    0,  'm'},
@@ -678,7 +673,6 @@ do_famfs_cli_check(int argc, char *argv[])
 	int rc = 0;
 	int c;
 
-	/* XXX can't use any of the same strings as the global args! */
 	struct option check_options[] = {
 		/* These options set a */
 		{"verbose",     no_argument,          0,  'v'},
@@ -754,14 +748,14 @@ int
 do_famfs_cli_getmap(int argc, char *argv[])
 {
 	struct famfs_ioc_map filemap = {0};
-	int c, i;
-	int fd = 0;
-	int rc = 0;
-	char *filename = NULL;
-	int quiet = 0;
 	int continue_on_err = 0;
 	struct stat st = { 0 };
-	/* XXX can't use any of the same strings as the global args! */
+	char *filename = NULL;
+	int quiet = 0;
+	int fd = 0;
+	int rc = 0;
+	int c, i;
+
 	struct option getmap_options[] = {
 		/* These options set a */
 		{"quiet",     no_argument,          0,  'q'},
@@ -917,12 +911,10 @@ do_famfs_cli_clone(int argc, char *argv[])
 {
 	int c;
 	int verbose = 0;
-
 	char *srcfile = NULL;
 	char *destfile = NULL;
 	char srcfullpath[PATH_MAX];
 
-	/* XXX can't use any of the same strings as the global args! */
 	struct option clone_options[] = {
 		/* These options set a */
 		{0, 0, 0, 0}
@@ -1005,22 +997,20 @@ famfs_creat_usage(int   argc,
 int
 do_famfs_cli_creat(int argc, char *argv[])
 {
-	int c, rc;
-	int fd = 0;
-	char *filename = NULL;
-
-	size_t fsize = 0;
-	s64 mult;
 	uid_t uid = geteuid();
 	gid_t gid = getegid();
+	char *filename = NULL;
+	mode_t current_umask;
 	mode_t mode = 0644;
-	s64 seed = 0;
 	int randomize = 0;
 	int verbose = 0;
-	mode_t current_umask;
+	size_t fsize = 0;
 	struct stat st;
+	s64 seed = 0;
+	int fd = 0;
+	int c, rc;
+	s64 mult;
 
-	/* XXX can't use any of the same strings as the global args! */
 	struct option creat_options[] = {
 		/* These options set a flag. */
 		{"size",        required_argument,             0,  's'},
@@ -1207,7 +1197,6 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 	int verbose = 0;
 	int c;
 
-	/* XXX can't use any of the same strings as the global args! */
 	struct option mkdir_options[] = {
 		/* These options set a flag. */
 
@@ -1291,16 +1280,14 @@ famfs_verify_usage(int   argc,
 int
 do_famfs_cli_verify(int argc, char *argv[])
 {
-	int c, fd;
 	char *filename = NULL;
-
 	size_t fsize = 0;
 	s64 seed = 0;
 	void *addr;
-	char *buf;
 	s64 rc = 0;
+	char *buf;
+	int c, fd;
 
-	/* XXX can't use any of the same strings as the global args! */
 	struct option verify_options[] = {
 		/* These options set a */
 		{"seed",        required_argument,             0,  'S'},
@@ -1399,7 +1386,6 @@ do_famfs_cli_flush(int argc, char *argv[])
 	int rc;
 	int c;
 
-	/* XXX can't use any of the same strings as the global args! */
 	struct option flush_options[] = {
 		/* These options set a */
 		{0, 0, 0, 0}
@@ -1511,7 +1497,6 @@ do_famfs_cli_chkread(int argc, char *argv[])
 	char *readbuf = NULL;
 	struct stat st;
 
-	/* XXX can't use any of the same strings as the global args! */
 	struct option chkread_options[] = {
 		/* These options set a */
 		{0, 0, 0, 0}
