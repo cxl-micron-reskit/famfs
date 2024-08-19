@@ -39,6 +39,28 @@ struct famfs_locked_log {
 	char              mpt[PATH_MAX];
 };
 
+struct famfs_log_stats {
+	u64 n_entries;
+	u64 f_logged;
+	u64 f_existed;
+	u64 f_created;
+	u64 f_errs;
+	u64 d_logged;
+	u64 d_existed;
+	u64 d_created;
+	u64 d_errs;
+	u64 yaml_errs;
+	u64 yaml_checked;
+};
+
+/* Exported for internal use */
+u8 *famfs_build_bitmap(const struct famfs_log *logp, u64 dev_size_in,
+		   u64 *bitmap_nbits_out, u64 *alloc_errors_out, u64 *size_total_out,
+		   u64 *alloc_total_out, struct famfs_log_stats *log_stats_out,
+		   int verbose);
+int famfs_file_alloc_contiguous(struct famfs_locked_log *lp, u64 size,
+				struct famfs_log_fmap **fmap_out, int verbose);
+
 
 /* Only exported for unit tests */
 int famfs_validate_log_header(const struct famfs_log *logp);

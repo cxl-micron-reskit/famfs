@@ -35,7 +35,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   endif()
 endif()
 
-add_library(libfamfs src/famfs_lib.c src/famfs_misc.c src/famfs_yaml.c )
+add_library(libfamfs src/famfs_lib.c src/famfs_alloc.c src/famfs_misc.c src/famfs_yaml.c )
 add_library(libpcq src/pcq_lib.c  )
 
 add_executable(famfs src/famfs_cli.c )

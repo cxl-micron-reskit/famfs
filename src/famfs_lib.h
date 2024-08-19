@@ -32,9 +32,8 @@ extern int famfs_get_device_size(const char *fname, size_t *size, enum famfs_ext
 int famfs_check_super(const struct famfs_superblock *sb);
 int famfs_fsck(const char *devname, int use_mmap, int human, int force, int verbose);
 
-void famfs_uuidgen(uuid_le *uuid);
 int famfs_mkmeta(const char *devname, int verbose);
-u64 famfs_alloc(const char *devname, u64 size);
+//u64 famfs_alloc(const char *devname, u64 size);
 int famfs_logplay(const char *mpt, int use_mmap,
 		  int dry_run, int client_mode, int shadow, const char *daxdev, int verbose);
 
@@ -54,6 +53,7 @@ int famfs_flush_file(const char *filename, int verbose);
 int file_not_famfs(const char *fname);
 
 /* famfs_misc.c */
+void famfs_uuidgen(uuid_le *uuid);
 s64 get_multiplier(const char *endptr);
 void famfs_dump_logentry(const struct famfs_log_entry *le, const int index,
 			 const char *prefix, int verbose);
