@@ -38,7 +38,7 @@
 #include "mu_mem.h"
 
 
-static void
+void
 mu_print_bitmap(u8 *bitmap, int num_bits)
 {
 	int i, val;
@@ -291,7 +291,7 @@ bitmap_free_contiguous(
 	u64 nbits_free = (len + FAMFS_ALLOC_UNIT - 1) / FAMFS_ALLOC_UNIT;
 	u64 i;
 
-	assert((start_bitnum + nbits_free) < nbits);
+	assert((start_bitnum + nbits_free) <= nbits);
 	assert(!(offset % FAMFS_ALLOC_UNIT));
 
 	for (i = start_bitnum; i < (start_bitnum + nbits_free); i++)
@@ -429,6 +429,7 @@ static int next_bucket(struct bucket_series *bs)
 	return(bs->buckets[bs->current++]);
 }
 
+
 static int
 famfs_file_strided_alloc(
 	struct famfs_locked_log *lp,
@@ -439,85 +440,130 @@ famfs_file_strided_alloc(
 	struct famfs_simple_extent *strips;
 	struct famfs_log_fmap *fmap;
 	struct bucket_series bs = { 0 };
-	u64 bucket_size;
-	u64 strip_size;
-	u64 stripe_size;
+	u64 nstrips_allocated = 0;
+	int nstripes;
+	u64 tmp;
+	/* Quantities in allocation units (au) */
+	u64 alloc_size_au, devsize_au, bucket_size_au, stripe_size_au, strip_size_au, chunk_size_au;
 	int i, j;
 
 	assert(lp->nbuckets && lp->nstrips);
 	assert(lp->nstrips <= lp->nbuckets);
-	assert(!(lp->chunk_size & (lp->chunk_size - 1))); /* chunk_size must be power of 2 */
 
-	bucket_size = lp->devsize / lp->nbuckets;
+	if (lp->chunk_size & (lp->chunk_size - 1)) {
+		fprintf(stderr, "%s: chunk_size=0x%llx must be a power of 2\n",
+			__func__, lp->chunk_size);
+		return -EINVAL;
+	}
+	if (size < lp->chunk_size) {
+		/* if the file size is less than a chunk, fall back to a contiguous allocation
+		 * from a random bucket
+		 */
+
+		lp->cur_pos = 0;
+		return famfs_file_alloc_contiguous(lp, size, fmap_out, verbose);
+	}
+	if (lp->chunk_size % FAMFS_ALLOC_UNIT) {
+		fprintf(stderr, "%s: chunk_size=0x%llx must be a multiple of FAMFS_ALLOC_UNIT\n",
+			__func__, lp->chunk_size);
+		return -EINVAL;
+	}
+
+
+	alloc_size_au = (size + FAMFS_ALLOC_UNIT - 1) / FAMFS_ALLOC_UNIT;
+
+	/* Authoritative device, bucket, stripe and strip sizes are in allocation units */
+	chunk_size_au  = lp->chunk_size / FAMFS_ALLOC_UNIT;
+	devsize_au     = lp->devsize / FAMFS_ALLOC_UNIT;    /* This may round down */
+	bucket_size_au = devsize_au / lp->nbuckets;             /* This may also round down */
+	stripe_size_au = lp->nstrips * chunk_size_au;
+	assert(!(stripe_size_au % lp->nstrips));
+
+	nstripes = (alloc_size_au + stripe_size_au - 1) / stripe_size_au;
+	strip_size_au  = nstripes * chunk_size_au;
+
+	/* Just for curiosity, let's check how much space at the end of devsize is leftover
+	 * after the last bucket */
+	tmp = bucket_size_au * FAMFS_ALLOC_UNIT * lp->nbuckets;
+	assert(tmp <= lp->devsize);
+	if (verbose && tmp < lp->devsize)
+		printf("%s: nbuckets=%lld wastes %lld bytes of dev capacity\n",
+		       __func__, lp->nbuckets, lp->devsize - tmp);
+
+	if (verbose > 1)
+		printf("%s: size=0x%llx stripe_size=0x%llx strip_size=0x%llx\n",
+		       __func__, size,
+		       stripe_size_au * FAMFS_ALLOC_UNIT,
+		       strip_size_au * FAMFS_ALLOC_UNIT);
+
+	/* Bucketize the stride regions in random order */
+	init_bucket_series(&bs, lp->nbuckets);
 
 	fmap = calloc(1, sizeof(*fmap));
 	if (!fmap)
 		return -ENOMEM;
 
-	stripe_size = lp->nbuckets * bucket_size;
-	strip_size = (size + stripe_size - 1) / stripe_size; /* initially no partial stripes */
-
-	/* Bucketize the stride regions in random order */
-	init_bucket_series(&bs, lp->nbuckets);
-
-	if (size < lp->chunk_size) {
-		/* if the file size is less than a chunk, faull back to a contiguous allocatino
-		 * from a random bucket
-		 */
-		u64 bucket_num = next_bucket(&bs);
-
-		free(fmap);
-		lp->cur_pos = bucket_num * bucket_size;
-		return famfs_file_alloc_contiguous(lp, size, fmap_out, verbose);
-	}
-
-#if 0
-	/* later:
-	 * If the file is less than one stripe, reduce the strip count to get closer to a stripe
-	 */
-	if (size <= (stripe_size - 1)) {
-		u64 bucket_num = next_bucket(&bs);
-	}
-#endif
+	fmap->fmap_ext_type = FAMFS_EXT_INTERLEAVE;
 
 	/* We currently only support one striped extent - hence index [0] */
 	fmap->ie[0].ie_nstrips = lp->nstrips;
 	fmap->ie[0].ie_chunk_size = lp->chunk_size;
+	fmap->ie[0].ie_nstrips = lp->nstrips;
 	strips = fmap->ie[0].ie_strips;
 
 	/* Allocate our strips. If nstrips is <  nbuckets, we can tolerate some failures */
-	for (i = 0; i < lp->nstrips; /* index updated manually */) {
+	for (i = 0; i < lp->nbuckets; i++) {
 		int bucket_num = next_bucket(&bs);
 		s64 ofs;
+		u64 pos = bucket_num * bucket_size_au * FAMFS_ALLOC_UNIT;
 
-		/* This is how we all from the right bucket: */
-		lp->cur_pos = bucket_num * bucket_size;
-		ofs = famfs_alloc_contiguous(lp, strip_size, bucket_size, verbose);
+		ofs = bitmap_alloc_contiguous(lp->bitmap, lp->nbits,
+					      strip_size_au * FAMFS_ALLOC_UNIT,
+					      &pos,
+					      bucket_size_au * FAMFS_ALLOC_UNIT);
 
 		if (ofs > 0) {
 
-			strips[i].se_devindex = 0;
-			strips[i].se_offset = ofs;
-			strips[i].se_len = strip_size;
+			strips[nstrips_allocated].se_devindex = 0;
+			strips[nstrips_allocated].se_offset = ofs;
+			strips[nstrips_allocated].se_len = strip_size_au * FAMFS_ALLOC_UNIT;
 
 			if (verbose)
-				printf("%s: strip %d ofs 0x%llx len %lld\n",
-				       __func__, i, ofs, strip_size);
-			i++;
+				printf("%s: strip %d bucket %d ofs 0x%llx len %lld\n",
+				       __func__, i, bucket_num, ofs,
+				       strip_size_au * FAMFS_ALLOC_UNIT);
+			nstrips_allocated++;
 		}
 	}
 
-	if (i < lp->nstrips) {
+	if (nstrips_allocated < lp->nstrips) {
 		/* Allocation failed; got fewer strips than needed */
-		fprintf(stderr, "%s: failed %lld strips @%lldb each; got %d strips\n",
-			__func__, lp->nstrips, strip_size, i);
+		fprintf(stderr, "%s: failed %lld strips @%lldb each; got %lld strips\n",
+			__func__, lp->nstrips, strip_size_au * FAMFS_ALLOC_UNIT,
+			nstrips_allocated);
+
+		if (verbose > 1) {
+			printf("%s: before freeing strips from failed alloc:", __func__);
+			mu_print_bitmap(lp->bitmap, lp->nbits);
+		}
 
 		for (j = 0; j < i; j++)
 			bitmap_free_contiguous(lp->bitmap, lp->nbits,
 					       strips[j].se_offset, strips[j].se_len);
+		free(fmap);
+		if (verbose > 1) {
+			printf("%s: after:", __func__);
+			mu_print_bitmap(lp->bitmap, lp->nbits);
+		}
 
 		return -ENOMEM;
 	}
+	fmap->fmap_nextents = 1;
+	*fmap_out = fmap;
+
+	if (verbose > 1)
+		mu_print_bitmap(lp->bitmap, lp->nbits);
+
 	return 0;
 }
 

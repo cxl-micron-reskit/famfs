@@ -50,27 +50,38 @@ int create_mock_famfs_instance(
 	char *buf  = (char *)calloc(1, FAMFS_LOG_LEN);
 	struct famfs_superblock *sb;
 	struct famfs_log *logp;
+	char pathbuf[PATH_MAX];
 	mode_t mode = 0777;
 	int lfd, sfd;
 	void *addr;
 	int rc;
 
-	system("rm -rf /tmp/famfs");
+	if (strstr(path, "/tmp/") != path) {
+		/* Don't allow a unit test running as root to blow away arbitrary file systems :D */
+		printf("%s: path (%s) must begin with /tmp", __func__, path);
+		return -1;
+	}
+	snprintf(pathbuf, PATH_MAX - 1, "rm -rf %s", path);
+	system(pathbuf);
 
 	/* Create fake famfs and famfs/.meta mount point */
-	rc = mkdir("/tmp/famfs", mode);
+	rc = mkdir(path, mode);
 	famfs_assert_eq(rc, 0);
 
-	rc = mkdir("/tmp/famfs/.meta", mode);
+	snprintf(pathbuf, PATH_MAX - 1, "%s/.meta", path);
+	rc = mkdir(pathbuf, mode);
 	famfs_assert_eq(rc, 0);
 
 	/* Create fake log and superblock files */
-	sfd = open("/tmp/famfs/.meta/.superblock", O_RDWR | O_CREAT, 0666);
+	snprintf(pathbuf, PATH_MAX - 1, "%s/.meta/.superblock", path);
+	sfd = open(pathbuf, O_RDWR | O_CREAT, 0666);
 	famfs_assert_gt(sfd, 0);
-	lfd = open("/tmp/famfs/.meta/.log", O_RDWR | O_CREAT, 0666);
+
+	snprintf(pathbuf, PATH_MAX - 1, "%s/.meta/.log", path);
+	lfd = open(pathbuf, O_RDWR | O_CREAT, 0666);
 	famfs_assert_gt(lfd, 0);
 
-	/* Zero out the superblock and llog files */
+	/* Zero out the superblock and log files */
 	rc = write(sfd, buf, FAMFS_SUPERBLOCK_SIZE);
 	famfs_assert_eq(rc, FAMFS_SUPERBLOCK_SIZE);
 

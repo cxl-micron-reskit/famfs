@@ -359,13 +359,13 @@ TEST(famfs, mmap_whole_file)
 
 TEST(famfs, __famfs_cp)
 {
-	int rc;
 	u64 device_size = 1024 * 1024 * 256;
 	struct famfs_locked_log ll;
 	struct famfs_superblock *sb;
-	struct famfs_log *logp;
 	extern int mock_failure;
+	struct famfs_log *logp;
 	extern int mock_kmod;
+	int rc;
 
 	/* Prepare a fake famfs  */
 	mock_kmod = 1;
@@ -444,6 +444,109 @@ TEST(famfs, __famfs_cp)
 			0, 0, 0, 2);
 	system("rm /tmp/src");
 	mock_kmod = 0;
+	ASSERT_NE(rc, 0);
+}
+
+TEST(famfs, famfs_alloc)
+{
+	u64 device_size = 1024 * 1024 * 256;
+	struct famfs_log_fmap *fmap = NULL;
+	struct famfs_superblock *sb;
+	struct famfs_locked_log ll;
+	//extern int mock_failure;
+	struct famfs_log *logp;
+	extern int mock_kmod;
+	int rc;
+
+	/* Prepare a fake famfs  */
+	mock_kmod = 1;
+	rc = create_mock_famfs_instance("/tmp/famfs", device_size, &sb, &logp);
+	ASSERT_EQ(rc, 0);
+	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
+	ASSERT_EQ(rc, 0);
+	mock_kmod = 0;
+
+	rc = famfs_file_alloc(&ll, 4096, &fmap, 1);
+	ASSERT_EQ(rc, 0);
+
+	printf("locked_log: devsize %lld/0x%llx, nbits %lld\n",
+	       ll.devsize, ll.devsize, ll.nbits);
+
+	mu_print_bitmap(ll.bitmap, ll.nbits);
+	//ASSERT_NE(fmap, NULL);
+	ASSERT_EQ(fmap->fmap_ext_type, FAMFS_EXT_SIMPLE);
+	ASSERT_EQ(fmap->fmap_nextents, 1);
+	ASSERT_NE(fmap->se[0].se_offset, 0);
+
+#define MiB 0x100000
+
+	/* Now set up for striped allocation */
+	ll.nbuckets = 8; /* each bucket is 32MiB */
+	ll.nstrips = 8;
+	ll.chunk_size = 2 * MiB;
+	rc = famfs_file_alloc(&ll, 8 * 16 * MiB, &fmap, 2); /* This should fit */
+	ASSERT_EQ(rc, 0);
+	//ASSERT_NE(fmap, NULL);
+	ASSERT_EQ(fmap->fmap_ext_type, FAMFS_EXT_INTERLEAVE);
+	ASSERT_EQ(fmap->fmap_nextents, 1);
+	ASSERT_EQ(fmap->ie[0].ie_nstrips, ll.nstrips);
+	ASSERT_EQ(fmap->ie[0].ie_chunk_size, ll.chunk_size);
+	ASSERT_EQ(fmap->ie[0].ie_nstrips, 8);
+
+	/* A second allocation of the same size should fail on the first strip, because
+	 * the superblock and log are there */
+	rc = famfs_file_alloc(&ll, 8 * 16 * MiB, &fmap, 2);
+	ASSERT_NE(rc, 0);
+
+	/* Allocating a small file should be non-strided if size < chunk_size */
+	rc = famfs_file_alloc(&ll, 4096, &fmap, 1);
+	ASSERT_EQ(rc, 0);
+
+	/* Chunk size must be a multiple of FAMFS_ALLOC_UNIT, so this should fail */
+	ll.chunk_size += 1;
+
+	/* But small alloc should still succeed because it won't be strided */
+	rc = famfs_file_alloc(&ll, 4 * MiB, &fmap, 1);
+	ASSERT_NE(rc, 0);
+
+	ll.chunk_size--; /* make it valid again */
+	ll.nstrips = 6;  /* Fewer strips; try an alloc that not all strips can handle,
+			  * but enough can */
+
+	printf("1:\n");
+	rc = famfs_file_alloc(&ll, 16 * MiB, &fmap, 2);
+	ASSERT_EQ(rc, 0);
+
+	printf("2:\n");
+	rc = famfs_file_alloc(&ll, 16 * MiB, &fmap, 2);
+	ASSERT_EQ(rc, 0);
+
+	printf("3:\n");
+	rc = famfs_file_alloc(&ll, 16 * MiB, &fmap, 2);
+	ASSERT_EQ(rc, 0);
+
+	printf("4:\n");
+	rc = famfs_file_alloc(&ll, 16 * MiB, &fmap, 2);
+	ASSERT_EQ(rc, 0);
+
+	printf("5:\n");
+	rc = famfs_file_alloc(&ll, 16 * MiB, &fmap, 2);
+	ASSERT_NE(rc, 0);
+
+	/* There should only be 1 extent left. Do an alloc that should get it */
+	rc = famfs_file_alloc(&ll, 1 * MiB, &fmap, 2);
+	ASSERT_EQ(rc, 0);
+
+	mu_print_bitmap(ll.bitmap, ll.nbits);
+
+	/* additional allocations should fail no matter what */
+	rc = famfs_file_alloc(&ll, 1 * MiB, &fmap, 2);
+	ASSERT_NE(rc, 0);
+	rc = famfs_file_alloc(&ll, 1, &fmap, 2);
+	ASSERT_NE(rc, 0);
+	rc = famfs_file_alloc(&ll, 100 * MiB, &fmap, 2);
+	ASSERT_NE(rc, 0);
+	rc = famfs_file_alloc(&ll, 1000 * MiB, &fmap, 2);
 	ASSERT_NE(rc, 0);
 }
 
