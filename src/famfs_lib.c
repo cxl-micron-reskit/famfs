@@ -2659,9 +2659,9 @@ __famfs_mkfile(
 	logp = lp->logp;
 	strncpy(mpt, lp->mpt, PATH_MAX - 1);
 
-	rc = famfs_file_alloc_contiguous(lp, size, &fmap, verbose);
+	rc = famfs_file_alloc(lp, size, &fmap, verbose);
 	if (rc) {
-		fprintf(stderr, "%s: famfs_file_alloc_contiguous(%s, size=%ld) failed\n",
+		fprintf(stderr, "%s: famfs_file_alloc(%s, size=%ld) failed\n",
 			__func__, filename, size);
 		return -1;
 	}
@@ -3148,8 +3148,8 @@ __famfs_cp(
 		return 1;
 	}
 
-	/* XXX famfs_mkfile() calls famfs_file_alloc_contiguous()
-	 * famfs_file_alloc_contiguous() allocates and logs the file under log lock
+	/* XXX famfs_mkfile() calls famfs_file_alloc()
+	 * famfs_file_alloc() allocates and logs the file under log lock
 	 * but this function copies the data into the file after the log lock is released
 	 * Need a way of holding the lock until the data is copied.
 	 */

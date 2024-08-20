@@ -227,7 +227,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
  * @nbits:       number of bits in the bitmap
  * @alloc_size:  size to allocate in bytes (must convert to bits)
  * @cur_pos:     Starting offset to search from
- * @alloc_range: size (bytes) of range to allocate from (starting at @cur_pos)
+ * @range_size:  size (bytes) of range to allocate from (starting at @cur_pos)
  *               (zero maens alloc from the whole bitmap)
  *               (this is used for strided/striped allocations)
  *
@@ -239,25 +239,26 @@ bitmap_alloc_contiguous(
 	u64 nbits,
 	u64 alloc_size,
 	u64 *cur_pos,
-	u64 alloc_range)
+	u64 range_size)
 {
 	u64 i, j;
 	u64 alloc_bits = (alloc_size + FAMFS_ALLOC_UNIT - 1) /  FAMFS_ALLOC_UNIT;
 	u64 bitmap_remainder;
 	u64 start_idx;
-	u64 alloc_range_nbits;
+	u64 range_size_nbits;
 
 	assert(cur_pos);
 
 	start_idx = *cur_pos / FAMFS_ALLOC_UNIT;
-	alloc_range_nbits = (alloc_range) ? (alloc_range / FAMFS_ALLOC_UNIT) : nbits;
+	range_size_nbits = (range_size) ?
+		((range_size + FAMFS_ALLOC_UNIT - 1) / FAMFS_ALLOC_UNIT) : nbits;
 
 	for (i = start_idx; i < nbits; i++) {
 		/* Skip bits that are set... */
 		if (mu_bitmap_test(bitmap, i))
 			continue;
 
-		bitmap_remainder = start_idx + alloc_range_nbits - i;
+		bitmap_remainder = start_idx + range_size_nbits - i;
 		if (alloc_bits > bitmap_remainder) /* Remaining space is not enough */
 			return -1;
 
@@ -279,17 +280,37 @@ next:
 	return -1;
 }
 
+static void
+bitmap_free_contiguous(
+	u8 *bitmap,
+	u64 nbits,
+	u64 offset,
+	u64 len)
+{
+	u64 start_bitnum = (offset / FAMFS_ALLOC_UNIT);
+	u64 nbits_free = (len + FAMFS_ALLOC_UNIT - 1) / FAMFS_ALLOC_UNIT;
+	u64 i;
+
+	assert((start_bitnum + nbits_free) < nbits);
+	assert(!(offset % FAMFS_ALLOC_UNIT));
+
+	for (i = start_bitnum; i < (start_bitnum + nbits_free); i++)
+		assert(mu_bitmap_test_and_clear(bitmap, i)); /* Stop if any bits are aleady clear */
+}
+
 /**
  * famfs_alloc_contiguous()
  *
  * @lp:      locked log struct. Will perform bitmap build if no already done
  * @size:    Size to allocate
+ * @range_size: fail the allocation if it can't be met within this size of the starting point
  * @verbose:
  */
 static s64
 famfs_alloc_contiguous(
 	struct famfs_locked_log *lp,
 	u64 size,
+	u64 range_size,
 	int verbose)
 {
 	if (!lp->bitmap) {
@@ -302,7 +323,7 @@ famfs_alloc_contiguous(
 		}
 		lp->cur_pos = 0;
 	}
-	return bitmap_alloc_contiguous(lp->bitmap, lp->nbits, size, &lp->cur_pos, 0);
+	return bitmap_alloc_contiguous(lp->bitmap, lp->nbits, size, &lp->cur_pos, range_size);
 }
 
 /**
@@ -338,7 +359,8 @@ famfs_file_alloc_contiguous(
 
 	assert(fmap_out);
 
-	offset = famfs_alloc_contiguous(lp, size, verbose);
+	offset = famfs_alloc_contiguous(lp, size, 0 /* No range limit */,
+					verbose);
 	if (offset < 0) {
 		rc = -ENOMEM;
 		fprintf(stderr, "%s: Out of space!\n", __func__);
@@ -357,5 +379,158 @@ famfs_file_alloc_contiguous(
 
 out:
 	return rc;
+}
+
+/*******************************************************************************
+ * Strided allocator stuff
+ */
+
+#define BUCKET_SERIES_MAX 64
+
+struct bucket_series {
+	int nbuckets;
+	int current;
+	int buckets[BUCKET_SERIES_MAX];
+};
+
+static void
+init_bucket_series(
+	struct bucket_series *bs,
+	int nbuckets)
+{
+	int i;
+
+	assert(bs);
+	bs->nbuckets = nbuckets;
+
+	for (int i = 0; i < nbuckets; i++) {
+		bs->buckets[i] = i;
+	}
+
+	/* Randomize the order of the bucket values */
+	srand(time(NULL));
+	for (i = nbuckets - 1; i > 0; i--) {
+		int j = rand() % (i + 1);
+		int tmp;
+
+		tmp = bs->buckets[i];
+		bs->buckets[i] = bs->buckets[j];
+		bs->buckets[j] = tmp;
+	}
+
+	bs->current = 0;
+}
+
+static int next_bucket(struct bucket_series *bs)
+{
+	if (bs->current >= bs->nbuckets)
+		return -1;
+
+	return(bs->buckets[bs->current++]);
+}
+
+static int
+famfs_file_strided_alloc(
+	struct famfs_locked_log *lp,
+	u64 size,
+	struct famfs_log_fmap **fmap_out,
+	int verbose)
+{
+	struct famfs_simple_extent *strips;
+	struct famfs_log_fmap *fmap;
+	struct bucket_series bs = { 0 };
+	u64 bucket_size;
+	u64 strip_size;
+	u64 stripe_size;
+	int i, j;
+
+	assert(lp->nbuckets && lp->nstrips);
+	assert(lp->nstrips <= lp->nbuckets);
+	assert(!(lp->chunk_size & (lp->chunk_size - 1))); /* chunk_size must be power of 2 */
+
+	bucket_size = lp->devsize / lp->nbuckets;
+
+	fmap = calloc(1, sizeof(*fmap));
+	if (!fmap)
+		return -ENOMEM;
+
+	stripe_size = lp->nbuckets * bucket_size;
+	strip_size = (size + stripe_size - 1) / stripe_size; /* initially no partial stripes */
+
+	/* Bucketize the stride regions in random order */
+	init_bucket_series(&bs, lp->nbuckets);
+
+	if (size < lp->chunk_size) {
+		/* if the file size is less than a chunk, faull back to a contiguous allocatino
+		 * from a random bucket
+		 */
+		u64 bucket_num = next_bucket(&bs);
+
+		free(fmap);
+		lp->cur_pos = bucket_num * bucket_size;
+		return famfs_file_alloc_contiguous(lp, size, fmap_out, verbose);
+	}
+
+#if 0
+	/* later:
+	 * If the file is less than one stripe, reduce the strip count to get closer to a stripe
+	 */
+	if (size <= (stripe_size - 1)) {
+		u64 bucket_num = next_bucket(&bs);
+	}
+#endif
+
+	/* We currently only support one striped extent - hence index [0] */
+	fmap->ie[0].ie_nstrips = lp->nstrips;
+	fmap->ie[0].ie_chunk_size = lp->chunk_size;
+	strips = fmap->ie[0].ie_strips;
+
+	/* Allocate our strips. If nstrips is <  nbuckets, we can tolerate some failures */
+	for (i = 0; i < lp->nstrips; /* index updated manually */) {
+		int bucket_num = next_bucket(&bs);
+		s64 ofs;
+
+		/* This is how we all from the right bucket: */
+		lp->cur_pos = bucket_num * bucket_size;
+		ofs = famfs_alloc_contiguous(lp, strip_size, bucket_size, verbose);
+
+		if (ofs > 0) {
+
+			strips[i].se_devindex = 0;
+			strips[i].se_offset = ofs;
+			strips[i].se_len = strip_size;
+
+			if (verbose)
+				printf("%s: strip %d ofs 0x%llx len %lld\n",
+				       __func__, i, ofs, strip_size);
+			i++;
+		}
+	}
+
+	if (i < lp->nstrips) {
+		/* Allocation failed; got fewer strips than needed */
+		fprintf(stderr, "%s: failed %lld strips @%lldb each; got %d strips\n",
+			__func__, lp->nstrips, strip_size, i);
+
+		for (j = 0; j < i; j++)
+			bitmap_free_contiguous(lp->bitmap, lp->nbits,
+					       strips[j].se_offset, strips[j].se_len);
+
+		return -ENOMEM;
+	}
+	return 0;
+}
+
+int
+famfs_file_alloc(
+	struct famfs_locked_log     *lp,
+	u64                          size,
+	struct famfs_log_fmap      **fmap_out,
+	int                          verbose)
+{
+	if (!lp->nbuckets || !lp->nstrips)
+		return famfs_file_alloc_contiguous(lp, size, fmap_out, verbose);
+
+	return famfs_file_strided_alloc(lp, size, fmap_out, verbose);
 }
 

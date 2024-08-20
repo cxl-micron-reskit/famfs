@@ -117,6 +117,10 @@ struct famfs_interleaved_ext {
  * The map of a file's data in the log.
  * It can either be a simple extent list, or an interleaved_ext list
  * (and the latter only allows one interleaved extent).
+ *
+ * Note these are arrays and not pointers to make this structure friendly to
+ * writing to and reading from the metadata log. This may evolve if we adopt a
+ * proper omf (on-media format) implementation.
  */
 struct famfs_log_fmap {
 	u32 fmap_ext_type; /* enum famfs_log_ext_type */

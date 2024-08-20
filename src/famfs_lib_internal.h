@@ -33,9 +33,19 @@ struct famfs_locked_log {
 	s64               devsize;
 	struct famfs_log *logp;
 	int               lfd;
-	u64               nbits;
-	u64               cur_pos;
 	u8               *bitmap;
+	u64               nbits;
+	/* In simple linear allocations, remembering the current position speeds up
+	 * repetitive allocations (under a single locked_log session) because we don't
+	 * have re-iterate over the allocated portino of the bitmap */
+	u64               cur_pos;
+	/* alloc is contiguous if nbuckets or nstrips are clear;
+	 * if both are set thhe backing device is bucketized at bucket_size, and each
+	 * allocation is striped across nstrips buckets (though smaller allocations
+	 * will use fewer strips) */
+	u64               nbuckets;
+	u64               nstrips;
+	u64               chunk_size;
 	char              mpt[PATH_MAX];
 };
 
@@ -58,8 +68,8 @@ u8 *famfs_build_bitmap(const struct famfs_log *logp, u64 dev_size_in,
 		   u64 *bitmap_nbits_out, u64 *alloc_errors_out, u64 *size_total_out,
 		   u64 *alloc_total_out, struct famfs_log_stats *log_stats_out,
 		   int verbose);
-int famfs_file_alloc_contiguous(struct famfs_locked_log *lp, u64 size,
-				struct famfs_log_fmap **fmap_out, int verbose);
+int famfs_file_alloc(struct famfs_locked_log *lp, u64 size,
+		     struct famfs_log_fmap **fmap_out, int verbose);
 
 
 /* Only exported for unit tests */

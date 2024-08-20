@@ -33,7 +33,6 @@ int famfs_check_super(const struct famfs_superblock *sb);
 int famfs_fsck(const char *devname, int use_mmap, int human, int force, int verbose);
 
 int famfs_mkmeta(const char *devname, int verbose);
-//u64 famfs_alloc(const char *devname, u64 size);
 int famfs_logplay(const char *mpt, int use_mmap,
 		  int dry_run, int client_mode, int shadow, const char *daxdev, int verbose);
 
