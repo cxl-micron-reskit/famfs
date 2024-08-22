@@ -358,6 +358,7 @@ famfs_file_alloc_contiguous(
 	int rc = 0;
 
 	assert(fmap_out);
+	assert(fmap);
 
 	offset = famfs_alloc_contiguous(lp, size, 0 /* No range limit */,
 					verbose);
@@ -371,6 +372,7 @@ famfs_file_alloc_contiguous(
 	assert(offset != 0);
 
 	fmap->fmap_ext_type = FAMFS_EXT_SIMPLE;
+	fmap->se[0].se_devindex = 0;
 	fmap->se[0].se_len = round_size_to_alloc_unit(size);
 	fmap->se[0].se_offset = offset;
 	fmap->fmap_nextents = 1;

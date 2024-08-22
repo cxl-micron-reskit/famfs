@@ -226,30 +226,6 @@ err_out:
 	return -1;
 }
 
-#if 0
-int
-__famfs_emit_yaml_ext_list(
-	yaml_emitter_t               *emitter,
-	yaml_event_t                 *event,
-	struct famfs_log_fmap        *fmap)
-{
-	switch (fm->ext_type) {
-	case FAMFS_EXT_SIMPLE:
-		return __famfs_emit_yaml_simple_ext_list(emitter, event,
-							 fmap->se, fmap->fmap_nextents);
-		break;
-	case FAMFS_EXT_INTERLEAVE:
-		return __famfs_emit_yaml_striped_ext_list(emitter, event, fm);
-		break;
-		
-	default:
-		fprintf(stderr, "%s: invalid ext type %d\n", __func__,
-			fm->fm_fmap.fmap_ext_type);
-	}
-	return -1;
-}
-#endif
-
 /**
  * __famfs_emit_yaml_file_section()
  *

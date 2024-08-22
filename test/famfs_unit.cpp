@@ -453,16 +453,19 @@ TEST(famfs, famfs_alloc)
 	struct famfs_log_fmap *fmap = NULL;
 	struct famfs_superblock *sb;
 	struct famfs_locked_log ll;
+	char *fspath = "/tmp/famfs";
+	char bro_path[PATH_MAX];
 	//extern int mock_failure;
 	struct famfs_log *logp;
 	extern int mock_kmod;
+	int fd;
 	int rc;
 
 	/* Prepare a fake famfs  */
 	mock_kmod = 1;
-	rc = create_mock_famfs_instance("/tmp/famfs", device_size, &sb, &logp);
+	rc = create_mock_famfs_instance(fspath, device_size, &sb, &logp);
 	ASSERT_EQ(rc, 0);
-	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
+	rc = famfs_init_locked_log(&ll, fspath, 1);
 	ASSERT_EQ(rc, 0);
 	mock_kmod = 0;
 
@@ -548,6 +551,65 @@ TEST(famfs, famfs_alloc)
 	ASSERT_NE(rc, 0);
 	rc = famfs_file_alloc(&ll, 1000 * MiB, &fmap, 2);
 	ASSERT_NE(rc, 0);
+
+	/* Blow away and re-create the mock famfs instance */
+	mock_kmod = 1;
+	rc = create_mock_famfs_instance(fspath, device_size, &sb, &logp);
+	ASSERT_EQ(rc, 0);
+	rc = famfs_init_locked_log(&ll, fspath, 1);
+	ASSERT_EQ(rc, 0);
+
+	sprintf(bro_path, "%s/non-interleaved-file", fspath);
+	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 2097152, 1);
+	ASSERT_GT(fd, 0);
+
+	/* Now set up for striped allocation */
+	ll.nbuckets = 8; /* each bucket is 32MiB */
+	ll.nstrips = 8;
+	ll.chunk_size = 2 * MiB;
+
+	/* This allocation will fall back to non-interleaved because it's too small */
+	sprintf(bro_path, "%s/non-interleaved_file", fspath);
+	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 2097152, 1);
+	ASSERT_GT(fd, NULL);
+	close(fd);
+
+	/* This allocation will be interleaved */
+	sprintf(bro_path, "%s/fallback-file0", fspath);
+	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 32 * MiB, 1);
+	ASSERT_GT(fd, 0);
+	close(fd);
+
+	/* This allocation will be interleaved with space amplification */
+	sprintf(bro_path, "%s/interleaved-file0", fspath);
+	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 3 * MiB, 1);
+	ASSERT_GT(fd, 0);
+
+	/* This allocation will be interleaved with a bit less space amp */
+	sprintf(bro_path, "%s/interleaved-file1", fspath);
+	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 8 * MiB, 1);
+	ASSERT_GT(fd, 0);
+	close(fd);
+
+	/* Do a dry_run shadow log play */
+	rc = __famfs_logplay(fspath, sb, logp,
+			     1 /* dry_run */,
+			     0 /* client_mode */,
+			     1 /* shadow */,
+			     FAMFS_MASTER,
+			     1 /* verbose */);
+	ASSERT_EQ(rc, 0);
+
+	/* Do a full shadow log play */
+	rc = __famfs_logplay(fspath, sb, logp,
+			     1 /* dry_run */,
+			     0 /* client_mode */,
+			     1 /* shadow */,
+			     FAMFS_MASTER,
+			     1 /* verbose */);
+	ASSERT_EQ(rc, 0);
+
+	mock_kmod = 0;
 }
 
 TEST(famfs, famfs_log)
@@ -648,7 +710,7 @@ TEST(famfs, famfs_log)
 
 	/* Re-do shadow logplay when the files already exist */
 	/* Do a shadow log play; shadow==2 will cause the yaml to be re-parsed and verified */
-	rc = __famfs_logplay("/tmp/famfs_shadow2", sb, logp, 0 /* dry_run */,
+	rc = __famfs_logplay("/tmp/famfs_shadow2", sb, logp, 1 /* dry_run */,
 			     0, 2 /* shadow */, FAMFS_MASTER, 1);
 	ASSERT_EQ(rc, 0);
 
@@ -1209,4 +1271,25 @@ TEST(famfs, famfs_file_yaml) {
 	printf("%s", yaml_event_str(YAML_NO_EVENT));
 	printf("%s", yaml_event_str(YAML_ALIAS_EVENT));
 	printf("%s", yaml_event_str(1000));
+
+
+	/* Let's try parsing some striped extent yaml */
+
+	my_yaml = "---\n" /* Good yaml */
+		"file:\n"
+		"  path: 0446\n"
+		"  size: 1048576\n"
+		"  flags: 2\n"
+		"  mode: 0644\n"
+		"  uid: 42\n"
+		"  gid: 42\n"
+		"  nextents: 1\n"
+		"  striped_ext_list:\n"
+		"  - offset: 0x38600000\n"
+		"    length: 0x200000\n"
+		"...";
+	famfs_yaml_test_reset(&fm, fp, my_yaml);
+	rc = famfs_parse_yaml(fp, &fm, 1, 1);
+	ASSERT_EQ(rc, 0);
+
 }

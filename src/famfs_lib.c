@@ -842,11 +842,103 @@ famfs_v1_set_file_map(
 
 	/* TODO: check for overflow (nextents > max_extents) */
 	for (i = 0; i < nextents; i++) {
+		/* The v1 extent list doesn't have an extent_type */
 		filemap.ext_list[i].offset = ext_list[i].se_offset;
 		filemap.ext_list[i].len    = ext_list[i].se_len;
 	}
 
 	rc = ioctl(fd, FAMFSIOC_MAP_CREATE, &filemap);
+	if (rc)
+		fprintf(stderr, "%s: failed MAP_CREATE for file (errno %d)\n",
+			__func__, errno);
+
+	return rc;
+}
+
+/**
+ * famfs_v2_set_file_map()
+ *
+ * This function attaches an allocated simple extent list to a file
+ *
+ * @path:
+ * @fd:           file descriptor for the file whose map will be created (already open)
+ * @size:
+ * @nextents:
+ * @extent_list:
+ */
+static int
+famfs_v2_set_file_map(
+	int                          fd,
+	size_t                       size,
+	const struct famfs_log_fmap *fm,
+	enum famfs_file_type         type)
+{
+	struct famfs_ioc_simple_extent kse[FAMFS_MAX_SIMPLE_EXTENTS] = { 0 };
+	struct famfs_ioc_fmap ioc_fmap = { 0 };
+	struct famfs_ioc_interleaved_ext kie[FAMFS_MAX_INTERLEAVED_EXTENTS] = { 0 };
+	int rc;
+	int i;
+
+	assert(fd > 0);
+
+	ioc_fmap.fioc_file_type  = type;
+	ioc_fmap.fioc_file_size  = size;
+	ioc_fmap.fioc_ext_type   = fm->fmap_ext_type;
+	ioc_fmap.fioc_nextents   = fm->fmap_nextents;
+
+	switch (fm->fmap_ext_type) {
+	case FAMFS_EXT_SIMPLE: {
+		if (fm->fmap_nextents > FAMFS_MAX_SIMPLE_EXTENTS) {
+			fprintf(stderr, "%s: extent list overflow (%d)\n",
+				__func__, fm->fmap_nextents);
+			return -EINVAL;
+		}
+
+		for (i = 0; i < fm->fmap_nextents; i++) {
+			kse[i].devindex = fm->se[i].se_devindex;
+			kse[i].offset   = fm->se[i].se_offset;
+			kse[i].len      = fm->se[i].se_len;
+
+			printf("%s: devindex=%lld offset=%lld len=%lld\n",
+			       __func__, kse[i].devindex, kse[i].offset, kse[i].len);
+		}
+		ioc_fmap.kse = kse;
+		break;
+	}
+	case FAMFS_EXT_INTERLEAVE: {
+		int j;
+
+		for (i = 0; i < fm->fmap_nextents; i++) {
+			const struct famfs_interleaved_ext *ie = &fm->ie[i];
+
+			kie[i].ie_nstrips = ie->ie_nstrips;
+			kie[i].ie_chunk_size = ie->ie_chunk_size;
+
+			if (ie->ie_nstrips > FAMFS_MAX_SIMPLE_EXTENTS) {
+				fprintf(stderr, "%s: strip list overflow (%lld) at ie %d\n",
+					__func__, ie->ie_nstrips, i);
+				return -EINVAL;
+			}
+
+			/* Strip extents use the simple extent structures */
+			for (j = 0; j < ie->ie_nstrips; j++) {
+				kse[j].devindex = ie->ie_strips[j].se_devindex;
+				kse[j].offset   = ie->ie_strips[j].se_offset;
+				kse[j].len      = ie->ie_strips[j].se_len;
+			}
+			kie[i].ie_strips = kse; /* strips are simple extents */
+		}
+		ioc_fmap.kie = kie;
+		break;
+	}
+	default:
+		fprintf(stderr, "%s: unrecognized extent list type (%d)\n",
+			__func__, fm->fmap_ext_type);
+		return -EINVAL;
+		break;
+	}
+
+	rc = ioctl(fd, FAMFSIOC_MAP_CREATE_V2, &ioc_fmap);
 	if (rc)
 		fprintf(stderr, "%s: failed MAP_CREATE for file (errno %d)\n",
 			__func__, errno);
@@ -864,7 +956,7 @@ __famfs_mkmeta(
 	int verbose)
 {
 	struct famfs_log_stats ls = {0};
-	struct famfs_simple_extent ext;
+	struct famfs_simple_extent ext = {0};
 	char dirpath[PATH_MAX]  = {0};
 	char sb_file[PATH_MAX]  = {0};
 	char log_file[PATH_MAX] = {0};
@@ -1756,7 +1848,8 @@ famfs_log_file_creation(
 	mode_t                       mode,
 	uid_t                        uid,
 	gid_t                        gid,
-	size_t                       size)
+	size_t                       size,
+	int                          dump_meta)
 {
 	struct famfs_log_entry le = {0};
 	struct famfs_file_meta *fm = &le.famfs_fm;
@@ -1788,9 +1881,13 @@ famfs_log_file_creation(
 
 	/* Copy extents into log entry */
 	for (i = 0; i < fmap->fmap_nextents; i++) {
-		fm->fm_fmap.se[i].se_offset = fmap->se[i].se_offset;
-		fm->fm_fmap.se[i].se_len    = fmap->se[i].se_len;
+		fm->fm_fmap.se[i].se_devindex = fmap->se[i].se_devindex;
+		fm->fm_fmap.se[i].se_offset   = fmap->se[i].se_offset;
+		fm->fm_fmap.se[i].se_len      = fmap->se[i].se_len;
 	}
+
+	if (dump_meta)
+		famfs_emit_file_yaml(fm, stdout);
 
 	return famfs_append_log(logp, &le);
 }
@@ -2696,27 +2793,28 @@ __famfs_mkfile(
 		goto out;
 	}
 	rc = famfs_log_file_creation(logp, fmap,
-				     relpath, mode, uid, gid, size);
+				     relpath, mode, uid, gid, size, 1 /* dump metadata */);
 	if (rc)
 		return rc;
 
 	/* Create the local file instance (either v1 or v2/shadow) */
 	if (!mock_kmod) {
 
-		/* V1: call the 
-		 *
-		 */
-		if (fmap->fmap_ext_type == FAMFS_EXT_SIMPLE) {
-			rc =  famfs_v1_set_file_map(fd, size, fmap->fmap_nextents, fmap->se,
-						    FAMFS_REG);
+		switch (fmap->fmap_ext_type) {
+		case FAMFS_EXT_SIMPLE: {
+			rc =  famfs_v2_set_file_map(fd, size, fmap, FAMFS_REG);
 			if (rc)
 				fprintf(stderr, "%s: failed to create destination file %s\n",
 					__func__, filename);
-		} else {
+			break;
+		}
+
+		default:
 			fprintf(stderr,
 				"%s: un-handled extent type %d; write some code and try again\n",
 				__func__, fmap->fmap_ext_type);
 			assert(0);
+			break;
 		}
 	}
 
@@ -3756,7 +3854,7 @@ famfs_clone(const char *srcfile,
 
 	rc = famfs_log_file_creation(logp, &fmap,
 				     relpath, src_stat.st_mode, src_stat.st_uid, src_stat.st_gid,
-				     filemap.file_size);
+				     filemap.file_size, 0);
 	if (rc) {
 		fprintf(stderr,
 			"%s: failed to log caller-specified allocation\n",
