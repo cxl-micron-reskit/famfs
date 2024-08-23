@@ -2765,7 +2765,7 @@ __famfs_mkfile(
 		return -1;
 	}
 	assert(fmap->fmap_nextents == 1);
-	assert(fmap->fmap_ext_type == FAMFS_EXT_SIMPLE);
+	//assert(fmap->fmap_ext_type == FAMFS_EXT_SIMPLE);
 
 	/* Create the file
 	 * V1: this creates an empty file in famfs via normal posix tools
@@ -2837,6 +2837,26 @@ __famfs_mkfile(
 					goto out;
 				}
 			}
+			break;
+		}
+		case FAMFS_EXT_INTERLEAVE: {
+#if (FAMFS_KABI_VERSION > 42)
+			rc =  famfs_v2_set_file_map(fd, size, fmap, FAMFS_REG);
+			if (rc) {
+				close(fd);
+				fd = rc;
+				fprintf(stderr,
+					"%s: failed to create destination file %s\n",
+					__func__, filename);
+			}
+#else
+			fprintf(stderr,
+			    "%s: Your famfs kernel modules does not support interleaved extents\n",
+				__func__);
+			close(fd);
+			rd = -EINVAL;
+			goto out;
+#endif
 		}
 
 		default:

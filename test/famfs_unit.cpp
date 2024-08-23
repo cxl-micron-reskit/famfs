@@ -563,6 +563,7 @@ TEST(famfs, famfs_alloc)
 	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 2097152, 1);
 	ASSERT_GT(fd, 0);
 
+#if (FAMFS_KABI_VERSION > 42)
 	/* Now set up for striped allocation */
 	ll.nbuckets = 8; /* each bucket is 32MiB */
 	ll.nstrips = 8;
@@ -608,6 +609,7 @@ TEST(famfs, famfs_alloc)
 			     FAMFS_MASTER,
 			     1 /* verbose */);
 	ASSERT_EQ(rc, 0);
+#endif
 
 	mock_kmod = 0;
 }
