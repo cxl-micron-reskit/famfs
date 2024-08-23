@@ -2854,7 +2854,7 @@ __famfs_mkfile(
 			    "%s: Your famfs kernel modules does not support interleaved extents\n",
 				__func__);
 			close(fd);
-			rd = -EINVAL;
+			fd = -EINVAL;
 			goto out;
 #endif
 		}
