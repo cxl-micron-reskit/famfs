@@ -855,6 +855,7 @@ famfs_v1_set_file_map(
 	return rc;
 }
 
+#if (FAMFS_KABI_VERSION > 42)
 /**
  * famfs_v2_set_file_map()
  *
@@ -945,6 +946,7 @@ famfs_v2_set_file_map(
 
 	return rc;
 }
+#endif
 
 static int
 __famfs_mkmeta(
@@ -2802,11 +2804,39 @@ __famfs_mkfile(
 
 		switch (fmap->fmap_ext_type) {
 		case FAMFS_EXT_SIMPLE: {
-			rc =  famfs_v2_set_file_map(fd, size, fmap, FAMFS_REG);
-			if (rc)
-				fprintf(stderr, "%s: failed to create destination file %s\n",
-					__func__, filename);
-			break;
+			if (FAMFS_KABI_VERSION > 42) {
+#if (FAMFS_KABI_VERSION > 42)
+				rc =  famfs_v2_set_file_map(fd, size, fmap, FAMFS_REG);
+				if (rc) {
+					close(fd);
+					fd = rc;
+					fprintf(stderr,
+						"%s: failed to create destination file %s\n",
+						__func__, filename);
+				}
+#endif
+				break;
+			} else {
+				struct famfs_simple_extent ext = {0};
+
+				if (fmap->fmap_nextents > 1) {
+					fprintf(stderr,
+						"%s: nextents %d (are you running a v2 test?)\n",
+						__func__, fmap->fmap_nextents);
+					close(fd);
+					fd = -EINVAL; /* XXX: gotta fix up return codes */
+					goto out;
+				}
+				ext.se_offset = fmap->se[0].se_offset;
+				ext.se_len    = fmap->se[0].se_len;
+
+				rc = famfs_v1_set_file_map(fd, size, 1, &ext, FAMFS_REG);
+				if (rc) {
+					close(fd);
+					fd = rc;
+					goto out;
+				}
+			}
 		}
 
 		default:
