@@ -13,6 +13,12 @@
 #include "famfs.h"
 #include "famfs_meta.h"
 
+struct famfs_stripe {
+	u64 nbuckets; /* Single backing daxdev will be split into this many allocation buckets */
+	u64 nstrips;
+	u64 chunk_size;
+};
+
 #define SB_FILE_RELPATH    ".meta/.superblock"
 #define LOG_FILE_RELPATH   ".meta/.log"
 
@@ -36,7 +42,8 @@ int famfs_mkmeta(const char *devname, int verbose);
 int famfs_logplay(const char *mpt, int use_mmap,
 		  int dry_run, int client_mode, int shadow, const char *daxdev, int verbose);
 
-int famfs_mkfile(const char *filename, mode_t mode, uid_t uid, gid_t gid, size_t size, int verbose);
+int famfs_mkfile(const char *filename, mode_t mode, uid_t uid, gid_t gid, size_t size,
+		 struct famfs_stripe *stripe, int verbose);
 
 int famfs_cp_multi(int argc, char *argv[],
 		   mode_t mode, uid_t uid, gid_t gid, int recursive, int verbose);

@@ -6,6 +6,7 @@
 #ifndef _H_FAMFS_LIB_INTERNAL
 #define _H_FAMFS_LIB_INTERNAL
 
+#include "famfs_lib.h"
 #include "famfs_meta.h"
 
 enum lock_opt {
@@ -43,9 +44,7 @@ struct famfs_locked_log {
 	 * if both are set thhe backing device is bucketized at bucket_size, and each
 	 * allocation is striped across nstrips buckets (though smaller allocations
 	 * will use fewer strips) */
-	u64               nbuckets;
-	u64               nstrips;
-	u64               chunk_size;
+	struct famfs_stripe stripe;
 	char              mpt[PATH_MAX];
 };
 

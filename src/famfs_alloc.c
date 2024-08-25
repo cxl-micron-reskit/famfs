@@ -449,15 +449,15 @@ famfs_file_strided_alloc(
 	u64 alloc_size_au, devsize_au, bucket_size_au, stripe_size_au, strip_size_au, chunk_size_au;
 	int i, j;
 
-	assert(lp->nbuckets && lp->nstrips);
-	assert(lp->nstrips <= lp->nbuckets);
+	assert(lp->stripe.nbuckets && lp->stripe.nstrips);
+	assert(lp->stripe.nstrips <= lp->stripe.nbuckets);
 
-	if (lp->chunk_size & (lp->chunk_size - 1)) {
+	if (lp->stripe.chunk_size & (lp->stripe.chunk_size - 1)) {
 		fprintf(stderr, "%s: chunk_size=0x%llx must be a power of 2\n",
-			__func__, lp->chunk_size);
+			__func__, lp->stripe.chunk_size);
 		return -EINVAL;
 	}
-	if (size < lp->chunk_size) {
+	if (size < lp->stripe.chunk_size) {
 		/* if the file size is less than a chunk, fall back to a contiguous allocation
 		 * from a random bucket
 		 */
@@ -465,9 +465,9 @@ famfs_file_strided_alloc(
 		lp->cur_pos = 0;
 		return famfs_file_alloc_contiguous(lp, size, fmap_out, verbose);
 	}
-	if (lp->chunk_size % FAMFS_ALLOC_UNIT) {
+	if (lp->stripe.chunk_size % FAMFS_ALLOC_UNIT) {
 		fprintf(stderr, "%s: chunk_size=0x%llx must be a multiple of FAMFS_ALLOC_UNIT\n",
-			__func__, lp->chunk_size);
+			__func__, lp->stripe.chunk_size);
 		return -EINVAL;
 	}
 
@@ -475,22 +475,22 @@ famfs_file_strided_alloc(
 	alloc_size_au = (size + FAMFS_ALLOC_UNIT - 1) / FAMFS_ALLOC_UNIT;
 
 	/* Authoritative device, bucket, stripe and strip sizes are in allocation units */
-	chunk_size_au  = lp->chunk_size / FAMFS_ALLOC_UNIT;
+	chunk_size_au  = lp->stripe.chunk_size / FAMFS_ALLOC_UNIT;
 	devsize_au     = lp->devsize / FAMFS_ALLOC_UNIT;    /* This may round down */
-	bucket_size_au = devsize_au / lp->nbuckets;             /* This may also round down */
-	stripe_size_au = lp->nstrips * chunk_size_au;
-	assert(!(stripe_size_au % lp->nstrips));
+	bucket_size_au = devsize_au / lp->stripe.nbuckets;         /* This may also round down */
+	stripe_size_au = lp->stripe.nstrips * chunk_size_au;
+	assert(!(stripe_size_au % lp->stripe.nstrips));
 
 	nstripes = (alloc_size_au + stripe_size_au - 1) / stripe_size_au;
 	strip_size_au  = nstripes * chunk_size_au;
 
 	/* Just for curiosity, let's check how much space at the end of devsize is leftover
 	 * after the last bucket */
-	tmp = bucket_size_au * FAMFS_ALLOC_UNIT * lp->nbuckets;
+	tmp = bucket_size_au * FAMFS_ALLOC_UNIT * lp->stripe.nbuckets;
 	assert(tmp <= lp->devsize);
 	if (verbose && tmp < lp->devsize)
 		printf("%s: nbuckets=%lld wastes %lld bytes of dev capacity\n",
-		       __func__, lp->nbuckets, lp->devsize - tmp);
+		       __func__, lp->stripe.nbuckets, lp->devsize - tmp);
 
 	if (verbose > 1)
 		printf("%s: size=0x%llx stripe_size=0x%llx strip_size=0x%llx\n",
@@ -499,7 +499,7 @@ famfs_file_strided_alloc(
 		       strip_size_au * FAMFS_ALLOC_UNIT);
 
 	/* Bucketize the stride regions in random order */
-	init_bucket_series(&bs, lp->nbuckets);
+	init_bucket_series(&bs, lp->stripe.nbuckets);
 
 	fmap = calloc(1, sizeof(*fmap));
 	if (!fmap)
@@ -508,13 +508,13 @@ famfs_file_strided_alloc(
 	fmap->fmap_ext_type = FAMFS_EXT_INTERLEAVE;
 
 	/* We currently only support one striped extent - hence index [0] */
-	fmap->ie[0].ie_nstrips = lp->nstrips;
-	fmap->ie[0].ie_chunk_size = lp->chunk_size;
-	fmap->ie[0].ie_nstrips = lp->nstrips;
+	fmap->ie[0].ie_nstrips = lp->stripe.nstrips;
+	fmap->ie[0].ie_chunk_size = lp->stripe.chunk_size;
+	fmap->ie[0].ie_nstrips = lp->stripe.nstrips;
 	strips = fmap->ie[0].ie_strips;
 
 	/* Allocate our strips. If nstrips is <  nbuckets, we can tolerate some failures */
-	for (i = 0; i < lp->nbuckets; i++) {
+	for (i = 0; i < lp->stripe.nbuckets; i++) {
 		int bucket_num = next_bucket(&bs);
 		s64 ofs;
 		u64 pos = bucket_num * bucket_size_au * FAMFS_ALLOC_UNIT;
@@ -538,10 +538,10 @@ famfs_file_strided_alloc(
 		}
 	}
 
-	if (nstrips_allocated < lp->nstrips) {
+	if (nstrips_allocated < lp->stripe.nstrips) {
 		/* Allocation failed; got fewer strips than needed */
 		fprintf(stderr, "%s: failed %lld strips @%lldb each; got %lld strips\n",
-			__func__, lp->nstrips, strip_size_au * FAMFS_ALLOC_UNIT,
+			__func__, lp->stripe.nstrips, strip_size_au * FAMFS_ALLOC_UNIT,
 			nstrips_allocated);
 
 		if (verbose > 1) {
@@ -576,7 +576,7 @@ famfs_file_alloc(
 	struct famfs_log_fmap      **fmap_out,
 	int                          verbose)
 {
-	if (!lp->nbuckets || !lp->nstrips)
+	if (!lp->stripe.nbuckets || !lp->stripe.nstrips)
 		return famfs_file_alloc_contiguous(lp, size, fmap_out, verbose);
 
 	return famfs_file_strided_alloc(lp, size, fmap_out, verbose);

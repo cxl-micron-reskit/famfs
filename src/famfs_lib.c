@@ -2891,6 +2891,7 @@ famfs_mkfile(
 	uid_t             uid,
 	gid_t             gid,
 	size_t            size,
+	struct famfs_stripe *stripe,
 	int               verbose)
 {
 	struct famfs_locked_log ll;
@@ -2907,6 +2908,15 @@ famfs_mkfile(
 	if (rc)
 		return rc;
 
+	if (stripe) {
+		if (verbose)
+			printf("%s: overriding stripe defaults (nbuckets/nstrips/chunk)="
+			       "(%lld/%lld/%lld) with (%lld/%lld/%lld)\n", __func__,
+			       ll.stripe.nbuckets, ll.stripe.nstrips, ll.stripe.chunk_size,
+			       stripe->nbuckets, stripe->nstrips, stripe->chunk_size);
+
+		ll.stripe = *stripe;
+	}
 	rc  = __famfs_mkfile(&ll, filename, mode, uid, gid, size, verbose);
 
 	famfs_release_locked_log(&ll);

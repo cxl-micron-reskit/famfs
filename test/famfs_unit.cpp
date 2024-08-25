@@ -484,16 +484,16 @@ TEST(famfs, famfs_alloc)
 #define MiB 0x100000
 
 	/* Now set up for striped allocation */
-	ll.nbuckets = 8; /* each bucket is 32MiB */
-	ll.nstrips = 8;
-	ll.chunk_size = 2 * MiB;
+	ll.stripe.nbuckets = 8; /* each bucket is 32MiB */
+	ll.stripe.nstrips = 8;
+	ll.stripe.chunk_size = 2 * MiB;
 	rc = famfs_file_alloc(&ll, 8 * 16 * MiB, &fmap, 2); /* This should fit */
 	ASSERT_EQ(rc, 0);
 	//ASSERT_NE(fmap, NULL);
 	ASSERT_EQ(fmap->fmap_ext_type, FAMFS_EXT_INTERLEAVE);
 	ASSERT_EQ(fmap->fmap_nextents, 1);
-	ASSERT_EQ(fmap->ie[0].ie_nstrips, ll.nstrips);
-	ASSERT_EQ(fmap->ie[0].ie_chunk_size, ll.chunk_size);
+	ASSERT_EQ(fmap->ie[0].ie_nstrips, ll.stripe.nstrips);
+	ASSERT_EQ(fmap->ie[0].ie_chunk_size, ll.stripe.chunk_size);
 	ASSERT_EQ(fmap->ie[0].ie_nstrips, 8);
 
 	/* A second allocation of the same size should fail on the first strip, because
@@ -506,15 +506,15 @@ TEST(famfs, famfs_alloc)
 	ASSERT_EQ(rc, 0);
 
 	/* Chunk size must be a multiple of FAMFS_ALLOC_UNIT, so this should fail */
-	ll.chunk_size += 1;
+	ll.stripe.chunk_size += 1;
 
 	/* But small alloc should still succeed because it won't be strided */
 	rc = famfs_file_alloc(&ll, 4 * MiB, &fmap, 1);
 	ASSERT_NE(rc, 0);
 
-	ll.chunk_size--; /* make it valid again */
-	ll.nstrips = 6;  /* Fewer strips; try an alloc that not all strips can handle,
-			  * but enough can */
+	ll.stripe.chunk_size--; /* make it valid again */
+	ll.stripe.nstrips = 6;  /* Fewer strips; try an alloc that not all strips can handle,
+`			  * but enough can */
 
 	printf("1:\n");
 	rc = famfs_file_alloc(&ll, 16 * MiB, &fmap, 2);
@@ -565,9 +565,9 @@ TEST(famfs, famfs_alloc)
 
 #if (FAMFS_KABI_VERSION > 42)
 	/* Now set up for striped allocation */
-	ll.nbuckets = 8; /* each bucket is 32MiB */
-	ll.nstrips = 8;
-	ll.chunk_size = 2 * MiB;
+	ll.stripe.nbuckets = 8; /* each bucket is 32MiB */
+	ll.stripe.nstrips = 8;
+	ll.stripe.chunk_size = 2 * MiB;
 
 	/* This allocation will fall back to non-interleaved because it's too small */
 	sprintf(bro_path, "%s/non-interleaved_file", fspath);
@@ -1022,7 +1022,7 @@ TEST(famfs, famfs_log_overflow_files)
 		ASSERT_EQ(rc, 0);
 
 		sprintf(filename, "%s/%04d", dirname, i);
-		fd = famfs_mkfile(filename, 0, 0, 0, 1048576, 0);
+		fd = famfs_mkfile(filename, 0, 0, 0, 1048576, NULL, 0);
 		ASSERT_GT(fd, 0);
 
 		close(fd);
@@ -1035,12 +1035,12 @@ TEST(famfs, famfs_log_overflow_files)
 	for (i = 0 ; ; i++) {
 		printf("xyi: %d\n", i);
 		sprintf(filename, "%s/%04d", dirname, i);
-		fd = famfs_mkfile(filename, 0, 0, 0, 1048576, 0);
+		fd = famfs_mkfile(filename, 0, 0, 0, 1048576, NULL, 0);
 		if (log_slots_available(logp) > 0) {
 			ASSERT_GT(fd, 0);
 			close(fd);
 		} else if (log_slots_available(logp) == 0) {
-			fd = famfs_mkfile(filename, 0, 0, 0, 1048576, 0);
+			fd = famfs_mkfile(filename, 0, 0, 0, 1048576, NULL, 0);
 			ASSERT_LT(fd, 0);
 			break;
 		}

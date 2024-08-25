@@ -987,6 +987,13 @@ famfs_creat_usage(int   argc,
 	       "    -g|--gid <int gid>       - Default is caller's gid\n"
 	       "    -v|--verbose             - Print debugging output while executing the command\n"
 	       "\n"
+	       "    -C|--chunksize <size>    - Size of chunks for interleaved allocation\n"
+	       "                               (default=0); non-zero causes striped allocation.\n"
+	       "    -N|--nstrips             - Number of strips to use in striped or strided\n"
+	       "                               allocations.\n"
+	       "    -B|--bucketsize <size>   - Size of back-end allocation nbuckets. Non-zero\n"
+	       "                               causes strided allocation within a single device.\n"
+	       "\n"
 	       "NOTE: the --randomize and --seed arguments are useful for testing; the file is\n"
 	       "      randomized based on the seed, making it possible to use the 'famfs verify'\n"
 	       "      command later to validate the contents of the file\n"
@@ -997,11 +1004,13 @@ famfs_creat_usage(int   argc,
 int
 do_famfs_cli_creat(int argc, char *argv[])
 {
+	struct famfs_stripe stripe = { 0 };
 	uid_t uid = geteuid();
 	gid_t gid = getegid();
 	char *filename = NULL;
 	mode_t current_umask;
 	mode_t mode = 0644;
+	int set_stripe = 0;
 	int randomize = 0;
 	int verbose = 0;
 	size_t fsize = 0;
@@ -1020,9 +1029,10 @@ do_famfs_cli_creat(int argc, char *argv[])
 		{"uid",         required_argument,             0,  'u'},
 		{"gid",         required_argument,             0,  'g'},
 		{"verbose",     no_argument,                   0,  'v'},
-		/* These options don't set a flag.
-		 * We distinguish them by their indices.
-		 */
+
+		{"chunksize",   required_argument,             0,  'C'},
+		{"mnstrips",    required_argument,             0,  'N'},
+		{"bucketsize",  required_argument,             0,  'B'},
 		{0, 0, 0, 0}
 	};
 
@@ -1030,7 +1040,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+s:S:m:u:g:rh?v",
+	while ((c = getopt_long(argc, argv, "+s:S:m:u:g:rC:N:B:h?v",
 				creat_options, &optind)) != EOF) {
 		char *endptr;
 
@@ -1062,6 +1072,31 @@ do_famfs_cli_creat(int argc, char *argv[])
 		case 'r':
 			randomize++;
 			break;
+
+		case 'C':
+			set_stripe++;
+			stripe.chunk_size = strtoull(optarg, &endptr, 0);
+			mult = get_multiplier(endptr);
+			if (mult > 0)
+				stripe.chunk_size *= mult;
+			break;
+
+		case 'N':
+			set_stripe++;
+			stripe.nstrips = strtoull(optarg, &endptr, 0);
+			mult = get_multiplier(endptr);
+			if (mult > 0)
+				stripe.nstrips *= mult;
+			break;
+
+		case 'B':
+			set_stripe++;
+			stripe.nbuckets = strtoull(optarg, &endptr, 0);
+			mult = get_multiplier(endptr);
+			if (mult > 0)
+				stripe.nbuckets *= mult;
+			break;
+
 		case 'v':
 			verbose++;
 			break;
@@ -1119,11 +1154,14 @@ do_famfs_cli_creat(int argc, char *argv[])
 			}
 		}
 	} else if (rc < 0) {
+		/* If we pass in stripe info, it overrides the famfs_lib defaults */
+		struct famfs_stripe *s = (set_stripe) ? &stripe : NULL;
+
 		/* This is horky, but OK for the cli */
 		current_umask = umask(0022);
 		umask(current_umask);
 		mode &= ~(current_umask);
-		fd = famfs_mkfile(filename, mode, uid, gid, fsize, verbose);
+		fd = famfs_mkfile(filename, mode, uid, gid, fsize, s, verbose);
 		if (fd < 0) {
 			fprintf(stderr, "%s: failed to create file %s\n", __func__, filename);
 			exit(-1);

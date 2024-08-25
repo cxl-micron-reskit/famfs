@@ -176,7 +176,7 @@ pcq_create(
 	/*
 	 * Create the consumer file
 	 */
-	fd = famfs_mkfile(consumer_fname, 0644, 0, 0, two_mb, 1);
+	fd = famfs_mkfile(consumer_fname, 0644, 0, 0, two_mb, NULL, 1);
 	if (fd < 0) {
 		fprintf(stderr, "%s: failed to create consumer file\n", __func__);
 		rc = -1;
@@ -203,7 +203,7 @@ pcq_create(
 	/*
 	 * Create the producer file
 	 */
-	fd = famfs_mkfile(fname, 0644, 0, 0, size, 1);
+	fd = famfs_mkfile(fname, 0644, 0, 0, size, NULL, 1);
 	if (fd < 0) {
 		fprintf(stderr, "%s: failed to create producer file\n", __func__);
 		rc = -1;
