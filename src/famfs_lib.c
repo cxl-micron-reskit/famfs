@@ -2802,44 +2802,7 @@ __famfs_mkfile(
 	/* Create the local file instance (either v1 or v2/shadow) */
 	if (!mock_kmod) {
 
-		switch (fmap->fmap_ext_type) {
-		case FAMFS_EXT_SIMPLE: {
-			if (FAMFS_KABI_VERSION > 42) {
-#if (FAMFS_KABI_VERSION > 42)
-				rc =  famfs_v2_set_file_map(fd, size, fmap, FAMFS_REG);
-				if (rc) {
-					close(fd);
-					fd = rc;
-					fprintf(stderr,
-						"%s: failed to create destination file %s\n",
-						__func__, filename);
-				}
-#endif
-				break;
-			} else {
-				struct famfs_simple_extent ext = {0};
-
-				if (fmap->fmap_nextents > 1) {
-					fprintf(stderr,
-						"%s: nextents %d (are you running a v2 test?)\n",
-						__func__, fmap->fmap_nextents);
-					close(fd);
-					fd = -EINVAL; /* XXX: gotta fix up return codes */
-					goto out;
-				}
-				ext.se_offset = fmap->se[0].se_offset;
-				ext.se_len    = fmap->se[0].se_len;
-
-				rc = famfs_v1_set_file_map(fd, size, 1, &ext, FAMFS_REG);
-				if (rc) {
-					close(fd);
-					fd = rc;
-					goto out;
-				}
-			}
-			break;
-		}
-		case FAMFS_EXT_INTERLEAVE: {
+		if (FAMFS_KABI_VERSION > 42) {
 #if (FAMFS_KABI_VERSION > 42)
 			rc =  famfs_v2_set_file_map(fd, size, fmap, FAMFS_REG);
 			if (rc) {
@@ -2849,22 +2812,29 @@ __famfs_mkfile(
 					"%s: failed to create destination file %s\n",
 					__func__, filename);
 			}
-#else
-			fprintf(stderr,
-			    "%s: Your famfs kernel modules does not support interleaved extents\n",
-				__func__);
-			close(fd);
-			fd = -EINVAL;
-			goto out;
 #endif
-		}
+		} else {
+			struct famfs_simple_extent ext = {0};
 
-		default:
-			fprintf(stderr,
-				"%s: un-handled extent type %d; write some code and try again\n",
-				__func__, fmap->fmap_ext_type);
-			assert(0);
-			break;
+			if (fmap->fmap_nextents > 1) {
+				fprintf(stderr,
+					"%s: nextents %d (are you running a v2 test?)\n",
+					__func__, fmap->fmap_nextents);
+				close(fd);
+				fd = -EINVAL; /* XXX: gotta fix up return codes */
+				goto out;
+			}
+			ext.se_offset = fmap->se[0].se_offset;
+			ext.se_len    = fmap->se[0].se_len;
+
+			/* This will do legacy allocatnoi regardless of whether striping
+			 * is configured in the ll */
+			rc = famfs_v1_set_file_map(fd, size, 1, &ext, FAMFS_REG);
+			if (rc) {
+				close(fd);
+				fd = rc;
+				goto out;
+			}
 		}
 	}
 

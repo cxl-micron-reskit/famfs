@@ -576,7 +576,7 @@ famfs_file_alloc(
 	struct famfs_log_fmap      **fmap_out,
 	int                          verbose)
 {
-	if (!lp->stripe.nbuckets || !lp->stripe.nstrips)
+	if ((FAMFS_KABI_VERSION <= 42) || (!lp->stripe.nbuckets || !lp->stripe.nstrips))
 		return famfs_file_alloc_contiguous(lp, size, fmap_out, verbose);
 
 	return famfs_file_strided_alloc(lp, size, fmap_out, verbose);
