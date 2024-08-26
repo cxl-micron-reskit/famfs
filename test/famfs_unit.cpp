@@ -454,11 +454,9 @@ TEST(famfs, famfs_alloc)
 	struct famfs_superblock *sb;
 	struct famfs_locked_log ll;
 	char *fspath = "/tmp/famfs";
-	char bro_path[PATH_MAX];
 	//extern int mock_failure;
 	struct famfs_log *logp;
 	extern int mock_kmod;
-	int fd;
 	int rc;
 
 	/* Prepare a fake famfs  */
@@ -480,6 +478,10 @@ TEST(famfs, famfs_alloc)
 	ASSERT_EQ(fmap->fmap_ext_type, FAMFS_EXT_SIMPLE);
 	ASSERT_EQ(fmap->fmap_nextents, 1);
 	ASSERT_NE(fmap->se[0].se_offset, 0);
+
+#if (FAMFS_KABI_VERSION > 42)
+	char bro_path[PATH_MAX];
+	int fd;
 
 #define MiB 0x100000
 
@@ -563,7 +565,6 @@ TEST(famfs, famfs_alloc)
 	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 2097152, 1);
 	ASSERT_GT(fd, 0);
 
-#if (FAMFS_KABI_VERSION > 42)
 	/* Now set up for striped allocation */
 	ll.stripe.nbuckets = 8; /* each bucket is 32MiB */
 	ll.stripe.nstrips = 8;
