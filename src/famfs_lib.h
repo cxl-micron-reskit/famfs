@@ -71,7 +71,8 @@ void famfs_print_uuid(const uuid_le *uuid);
 /* famfs_yaml.c */
 #include <yaml.h>
 int famfs_emit_file_yaml(const struct famfs_file_meta *fm, FILE *outp);
-int famfs_parse_yaml(FILE *fp, struct famfs_file_meta *fm, int max_extents, int verbose);
+int famfs_parse_shadow_yaml(FILE *fp, struct famfs_file_meta *fm, int max_extents,
+			    int max_strips, int verbose);
 const char *yaml_event_str(int event_type);
 
 #endif /* _H_FAMFS_LIB */

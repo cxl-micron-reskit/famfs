@@ -10,6 +10,7 @@
 #include <errno.h>
 
 #include "famfs_meta.h"
+#include "famfs_lib.h"
 
 #define ASSERT_NE_GOTO(rc, val, bad_target) {	\
 	if (rc == val) {			\
@@ -866,7 +867,7 @@ err_out:
 }
 
 int
-famfs_parse_yaml(
+famfs_parse_shadow_yaml(
 	FILE *fp,
 	struct famfs_file_meta *fm,
 	int max_extents,
@@ -902,6 +903,140 @@ famfs_parse_yaml(
 	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_SCALAR_EVENT, rc, err_out, verbose);
 	if (strcmp((char *)"file", (char *)event.data.scalar.value) == 0) {
 		rc = famfs_parse_file_yaml(&parser, fm, max_extents, max_strips, verbose);
+		if (rc) {
+			yaml_event_delete(&event);
+			goto err_out;
+		}
+	}
+	yaml_event_delete(&event);
+
+	/* Look for YAML_DOCUMENT_END_EVENT */
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_DOCUMENT_END_EVENT, rc, err_out, verbose);
+	yaml_event_delete(&event);
+
+	/* Look for YAML_STREAM_END_EVENT */
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_STREAM_END_EVENT, rc, err_out, verbose);
+	yaml_event_delete(&event);
+
+err_out:
+	yaml_parser_delete(&parser);
+	return rc;
+}
+
+
+/* Allocation yaml */
+int
+famfs_parse_stripe_alloc_yaml(
+	yaml_parser_t *parser,
+	struct famfs_stripe *stripe,
+	int verbose)
+{
+	yaml_event_t event;
+	int done = 0;
+	char *current_key = NULL;
+	int rc = 0;
+
+	/* "file" stanza starts wtiha  YAML_MAPPING_START_EVENT */
+	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_START_EVENT, rc, err_out, verbose);
+
+	while (!done) {
+		yaml_event_t val_event;
+
+		GET_YAML_EVENT(parser, &event, rc, err_out, verbose);
+
+		switch (event.type) {
+		case YAML_SCALAR_EVENT:
+			current_key = (char *)event.data.scalar.value;
+
+			if (strcmp(current_key, "nbuckets") == 0) {
+				/* nbuckets */
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+						       rc, err_out, verbose);
+				stripe->nbuckets = strtoull((char *)val_event.data.scalar.value,
+							    0, 0);
+				yaml_event_delete(&val_event);
+				if (verbose > 1) printf("%s: nbuckets: 0x%llx\n",
+							__func__, stripe->nbuckets);
+			} else if (strcmp(current_key, "nstrips") == 0) {
+				/* nstrips */
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+						       rc, err_out, verbose);
+				stripe->nbuckets = strtoull((char *)val_event.data.scalar.value,
+							    0, 0);
+				yaml_event_delete(&val_event);
+				if (verbose > 1) printf("%s: nbuckets: 0x%llx\n",
+							__func__, stripe->nbuckets);
+			} else if (strcmp(current_key, "chunk_size") == 0) {
+				/* chunk_size */
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+						       rc, err_out, verbose);
+				stripe->chunk_size = strtoull((char *)val_event.data.scalar.value,
+							      0, 0);
+				yaml_event_delete(&val_event);
+				if (verbose > 1) printf("%s: chunk_size: 0%llx\n", __func__,
+							stripe->chunk_size);
+			} else {
+				fprintf(stderr, "%s: Unrecognized scalar key %s\n",
+					__func__, current_key);
+				rc = -EINVAL;
+				goto err_out;
+			}
+			current_key = NULL;
+			break;
+
+		case YAML_MAPPING_END_EVENT:
+			if (verbose > 1)
+				printf("%s: Finished with file yaml\n", __func__);
+			done = 1;
+			break;
+		default:
+			fprintf(stderr, "%s: unexpected libyaml event %s\n",
+				__func__, yaml_event_str(event.type));
+			break;
+		}
+
+		yaml_event_delete(&event);
+	}
+
+err_out:
+	return rc;
+}
+
+int
+famfs_parse_alloc_yaml(
+	FILE *fp,
+	struct famfs_stripe *stripe,
+	int verbose)
+{
+	yaml_parser_t parser;
+	yaml_event_t event;
+	int rc = 0;
+
+	if (!yaml_parser_initialize(&parser)) {
+		fprintf(stderr, "Failed to initialize parser\n");
+		return -1;
+	}
+
+	yaml_parser_set_input_file(&parser, fp);
+
+	/* Look for YAML_STREAM_START_EVENT */
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_STREAM_START_EVENT, rc, err_out, verbose);
+	yaml_event_delete(&event);
+
+	/* Look for YAML_DOCUMENT_START_EVENT */
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_DOCUMENT_START_EVENT, rc, err_out, verbose);
+	yaml_event_delete(&event);
+
+	/* Look for YAML_MAPPING_START_EVENT */
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_MAPPING_START_EVENT, rc, err_out, verbose);
+	yaml_event_delete(&event);
+
+	/* Look for "file" stanza as scalar event
+	 * Theoretically there could be other stanzas later, but this is the only one now
+	 */
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_SCALAR_EVENT, rc, err_out, verbose);
+	if (strcmp((char *)"striped_alloc", (char *)event.data.scalar.value) == 0) {
+		rc = famfs_parse_stripe_alloc_yaml(&parser, stripe, verbose);
 		if (rc) {
 			yaml_event_delete(&event);
 			goto err_out;

@@ -2571,7 +2571,8 @@ famfs_test_shadow_yaml(FILE *fp, const struct famfs_file_meta *fc, int verbose)
 	int rc;
 
 	rewind(fp);
-	rc = famfs_parse_yaml(fp, &readback, FAMFS_MAX_SIMPLE_EXTENTS, verbose);
+	rc = famfs_parse_shadow_yaml(fp, &readback, FAMFS_MAX_SIMPLE_EXTENTS,
+				     FAMFS_MAX_INTERLEAVED_EXTENTS, verbose);
 	if (rc) {
 		fprintf(stderr, "%s: failed to parse shadow file yaml\n", __func__);
 		assert(0);
