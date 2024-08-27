@@ -84,6 +84,26 @@ struct famfs_ioc_fmap {
 	};
 };
 
+/**
+ * struct famfs_ioc_get_fmap
+ *
+ * This structure is a defined size, and can be used to copyout the file map, subject
+ * to the following constraints:
+ * * No more than FAMFS_MAX_EXTENTS simple extents
+ * * No moer than one striped extent
+ * * Striped extent contains no more tahn FAMFS_MAX_EXTENTS strip extents
+ */
+struct famfs_ioc_get_fmap {
+	struct famfs_ioc_fmap iocmap;
+	union {
+		struct famfs_ioc_simple_extent ikse[FAMFS_MAX_EXTENTS];
+		struct {
+			struct famfs_ioc_interleaved_ext ikie;
+			struct famfs_ioc_simple_extent kie_strips[FAMFS_MAX_EXTENTS];
+		} ks;
+	};
+};
+
 #define FAMFSIOC_MAGIC 'u'
 
 /* famfs file ioctl opcodes */
@@ -92,8 +112,5 @@ struct famfs_ioc_fmap {
 #define FAMFSIOC_MAP_GETEXT    _IOR(FAMFSIOC_MAGIC, 0x52, struct famfs_extent)
 #define FAMFSIOC_NOP           _IO(FAMFSIOC_MAGIC,  0x53)
 #define FAMFSIOC_MAP_CREATE_V2 _IOW(FAMFSIOC_MAGIC, 0x54, struct famfs_ioc_fmap)
-#if 0
-#define FAMFSIOC_MAP_GET_V2    _IOR(FAMFSIOC_MAGIC, 0x55, struct famfs_ioc_fmap_extent)
-#define FAMFSIOC_MAP_GETEXT_V2 _IOR(FAMFSIOC_MAGIC, 0x56, struct famfs_extent)
-#endif
+#define FAMFSIOC_MAP_GET_V2    _IOR(FAMFSIOC_MAGIC, 0x55, struct famfs_ioc_get_fmap)
 #endif /* FAMFS_IOCTL_H */

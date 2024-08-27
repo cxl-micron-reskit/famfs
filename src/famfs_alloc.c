@@ -566,6 +566,7 @@ famfs_file_strided_alloc(
 		s64 ofs;
 		u64 pos = bucket_num * bucket_size_au * FAMFS_ALLOC_UNIT;
 
+		/* Oops: bitmap might not be allocated yet */
 		ofs = bitmap_alloc_contiguous(lp->bitmap, lp->nbits,
 					      strip_size_au * FAMFS_ALLOC_UNIT,
 					      &pos,

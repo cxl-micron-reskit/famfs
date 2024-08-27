@@ -831,27 +831,83 @@ do_famfs_cli_getmap(int argc, char *argv[])
 			goto err_out;
 		}
 
-		rc = ioctl(fd, FAMFSIOC_MAP_GET, &filemap);
-		if (rc) {
-			rc = 2;
-			if (!quiet)
-				printf("famfs_getmap: file (%s) is famfs, but has no map\n",
-				       filename);
-			if (continue_on_err)
-				continue;
+		if (FAMFS_KABI_VERSION > 42) {
+#if (FAMFS_KABI_VERSION > 42)
+			struct famfs_ioc_get_fmap ifmap;
 
-			goto err_out;
-		}
+			/* In v2 we get the whole thing in one ioctl */
+			rc = ioctl(fd, FAMFSIOC_MAP_GET_V2, &ifmap);
+			if (rc) {
+				rc = 2;
+				if (!quiet)
+					printf("famfs_getmap: file (%s) is famfs, but has no map\n",
+					       filename);
+				if (continue_on_err)
+					continue;
 
-		if (!quiet) {
+				goto err_out;
+			}
+
+			if (quiet)
+				goto next_file;
+
+			printf("File:     %s\n",    filename);
+			printf("\tsize:    %lld\n", ifmap.iocmap.fioc_file_size);
+			printf("\textents: %d\n", ifmap.iocmap.fioc_nextents);
+
+			switch (ifmap.iocmap.fioc_ext_type) {
+			case FAMFS_IOC_EXT_SIMPLE:
+				/* XXX
+				 * Note currently not printing devindex because it's always 0 */
+				for (i = 0; i < ifmap.iocmap.fioc_nextents; i++)
+					printf("\t\t%llx\t%lld\n",
+					       ifmap.ikse[i].offset,
+					       ifmap.ikse[i].len);
+				break;
+
+			case FAMFS_IOC_EXT_INTERLEAVE: {
+				struct famfs_ioc_simple_extent *strips = ifmap.ks.kie_strips;
+				printf("Stripe chunk_size: %lld\n",
+				       ifmap.ks.ikie.ie_chunk_size);
+				printf("Striped extent has %lld strips:\n",
+				       ifmap.ks.ikie.ie_nstrips);
+
+				/* XXX
+				 * Note currently not printing devindex because it's always 0 */
+				for (i = 0; i < ifmap.ks.ikie.ie_nstrips; i++)
+					printf("\t\t%llx\t%lld\n",
+					       strips[i].offset, strips[i].len);
+
+				break;
+			}
+#endif
+			}
+		} else {
 			struct famfs_extent *ext_list = NULL;
 
+			rc = ioctl(fd, FAMFSIOC_MAP_GET, &filemap);
+			if (rc) {
+				rc = 2;
+				if (!quiet)
+					printf("famfs_getmap: file (%s) is famfs, but has no map\n",
+					       filename);
+				if (continue_on_err)
+					continue;
+
+				goto next_file;
+			}
+
+			if (quiet)
+				goto next_file;
+
 			/* Only bother to retrieve extents if we'll be printing them */
-			ext_list = calloc(filemap.ext_list_count, sizeof(struct famfs_extent));
+			ext_list = calloc(filemap.ext_list_count,
+					  sizeof(struct famfs_extent));
 			rc = ioctl(fd, FAMFSIOC_MAP_GETEXT, ext_list);
 			if (rc) {
 				/* If we got this far, this should not fail... */
-				fprintf(stderr, "getmap: failed to retrieve ext list for (%s)\n",
+				fprintf(stderr,
+					"getmap: failed to retrieve ext list for (%s)\n",
 					filename);
 				free(ext_list);
 				rc = 3;
@@ -866,10 +922,12 @@ do_famfs_cli_getmap(int argc, char *argv[])
 			printf("\textents: %lld\n", filemap.ext_list_count);
 
 			for (i = 0; i < filemap.ext_list_count; i++)
-				printf("\t\t%llx\t%lld\n", ext_list[i].offset, ext_list[i].len);
+				printf("\t\t%llx\t%lld\n",
+				       ext_list[i].offset, ext_list[i].len);
 
 			free(ext_list);
 		}
+next_file:
 		printf("famfs_getmap: good file %s\n", filename);
 		close(fd);
 		fd = 0;
@@ -989,9 +1047,9 @@ famfs_creat_usage(int   argc,
 	       "\n"
 	       "    -C|--chunksize <size>    - Size of chunks for interleaved allocation\n"
 	       "                               (default=0); non-zero causes striped allocation.\n"
-	       "    -N|--nstrips             - Number of strips to use in striped or strided\n"
+	       "    -N|--nstrips <n>         - Number of strips to use in striped or strided\n"
 	       "                               allocations.\n"
-	       "    -B|--bucketsize <size>   - Size of back-end allocation nbuckets. Non-zero\n"
+	       "    -B|--nbuckets <n>        - Number of buckets to divide the device into\n"
 	       "                               causes strided allocation within a single device.\n"
 	       "\n"
 	       "NOTE: the --randomize and --seed arguments are useful for testing; the file is\n"
@@ -1032,7 +1090,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 
 		{"chunksize",   required_argument,             0,  'C'},
 		{"mnstrips",    required_argument,             0,  'N'},
-		{"bucketsize",  required_argument,             0,  'B'},
+		{"nbuckets",    required_argument,             0,  'B'},
 		{0, 0, 0, 0}
 	};
 

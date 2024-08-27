@@ -1312,6 +1312,20 @@ TEST(famfs, famfs_file_yaml) {
 		"striped_alloc:\n"
 		"  nbuckets: 8\n"
 		"  nstrips: 6\n"
+		"  chunk_size: 2m\n"
+		"...\n";
+	fprintf(stderr, "\nmy_yaml:\n%s\n\n", my_yaml);
+	famfs_yaml_test_reset(&fm, fp, my_yaml);
+	rc = famfs_parse_alloc_yaml(fp, &stripe, 2);
+	ASSERT_EQ(rc, 0);
+
+	rc = famfs_validate_stripe(&stripe, 8ull * 1024ull * 1024ull * 1024ull, 2);
+	ASSERT_EQ(rc, 0);
+
+	my_yaml = "---\n"
+		"striped_alloc:\n"
+		"  nbuckets: 8\n"
+		"  nstrips: 6\n"
 		"  chunk_size: 2\n"
 		"...\n";
 	fprintf(stderr, "\nmy_yaml:\n%s\n\n", my_yaml);
@@ -1319,5 +1333,7 @@ TEST(famfs, famfs_file_yaml) {
 	rc = famfs_parse_alloc_yaml(fp, &stripe, 2);
 	ASSERT_EQ(rc, 0);
 
+	rc = famfs_validate_stripe(&stripe, 8ull * 1024ull * 1024ull * 1024ull, 2);
+	ASSERT_NE(rc, 0);
 	famfs_emit_stripe_yaml(&stripe, stdout_fp);
 }

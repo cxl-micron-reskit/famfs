@@ -2141,6 +2141,7 @@ static open_cfg_file_read_only(
 	return __open_cfg_file(path, 1, sizep);
 }
 
+#if 0
 static int
 open_cfg_file_writable(
 	const char *path,
@@ -2148,6 +2149,7 @@ open_cfg_file_writable(
 {
 	return __open_cfg_file(path, 0, sizep);
 }
+#endif
 #endif
 
 /*
