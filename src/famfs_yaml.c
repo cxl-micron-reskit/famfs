@@ -455,6 +455,171 @@ err_out:
 	return -1;
 }
 
+
+/**
+ * __famfs_emit_yaml_stripe_section()
+ *
+ * Dump the bulk of the file metadata. Calls a helper for the extent list
+ *
+ * @emitter:  libyaml emitter struct
+ * @event:    libyaml event structure
+ * @stripe:   famfs_stripe struct
+ */
+int
+__famfs_emit_yaml_stripe_section(
+	yaml_emitter_t               *emitter,
+	yaml_event_t                 *event,
+	const struct famfs_stripe    *stripe)
+{
+	char strbuf[160];
+	int rc;
+	int line;
+
+
+
+	/* nbuckets */
+	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"nbuckets",
+					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+	rc = yaml_emitter_emit(emitter, event);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+	sprintf(strbuf, "%lld", stripe->nbuckets);
+	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
+					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+	rc = yaml_emitter_emit(emitter, event);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+
+	/* nstrips */
+	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"nstrips",
+					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+	rc = yaml_emitter_emit(emitter, event);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+	sprintf(strbuf, "%lld", stripe->nstrips);
+	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
+					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+	rc = yaml_emitter_emit(emitter, event);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+
+	/* chunk_size */
+	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"chunk_size",
+					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+	rc = yaml_emitter_emit(emitter, event);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+	sprintf(strbuf, "%lld", stripe->chunk_size);
+	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
+					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+	rc = yaml_emitter_emit(emitter, event);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+
+	return 0;
+err_out:
+	fprintf(stderr, "%s: fail line %d rc %d errno %d problem (%s)\n",
+		__func__, line, rc, errno, emitter->problem);
+	perror("");
+	assert(0);
+
+	return -1;
+}
+
+
+/**
+ * famfs_emit_stripe_yaml()
+ *
+ * @fm:    famfs_file_meta structure
+ * @outp:  FILE stream structure for output
+ */
+int
+famfs_emit_stripe_yaml(
+	const struct famfs_stripe *stripe,
+	FILE *outp)
+{
+	yaml_emitter_t emitter;
+	yaml_event_t event;
+	int line;
+	int rc;
+
+	if (!yaml_emitter_initialize(&emitter)) {
+		fprintf(stderr, "Failed to initialize emitter\n");
+		return -1;
+	}
+
+	yaml_emitter_set_output_file(&emitter, outp);
+
+	/* Start stream */
+	if (!yaml_stream_start_event_initialize(&event, YAML_UTF8_ENCODING)) {
+		fprintf(stderr, "yaml_stream_start_event_initialize() failed\n");
+		goto err_out;
+	}
+	rc = yaml_emitter_emit(&emitter, &event);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+
+	/* Start Document */
+	rc = yaml_document_start_event_initialize(&event, NULL, NULL, NULL, 0);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+	rc = yaml_emitter_emit(&emitter, &event);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+
+	/* YAML_MAPPING_START_EVENT:  Start Mapping */
+	rc = yaml_mapping_start_event_initialize(&event, NULL, NULL, 1, YAML_BLOCK_MAPPING_STYLE);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+	rc = yaml_emitter_emit(&emitter, &event);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+
+	/* Key: striped_alloc */
+	rc = yaml_scalar_event_initialize(&event, NULL, NULL, (yaml_char_t *)"striped_alloc",
+				     -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+	rc = yaml_emitter_emit(&emitter, &event);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+
+	/* Start Mapping for file */
+	rc = yaml_mapping_start_event_initialize(&event, NULL, NULL, 1, YAML_BLOCK_MAPPING_STYLE);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+	rc = yaml_emitter_emit(&emitter, &event);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+
+	__famfs_emit_yaml_stripe_section(&emitter, &event, stripe);
+
+	/* End for section indented under "file:" */
+	rc = yaml_mapping_end_event_initialize(&event);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+	rc = yaml_emitter_emit(&emitter, &event);
+	ASSERT_NE_GOTO(rc, 0, err_out); /* boom */
+
+	/* End Mapping */
+	rc = yaml_mapping_end_event_initialize(&event);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+	rc = yaml_emitter_emit(&emitter, &event);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+
+	/* End Document */
+	rc = yaml_document_end_event_initialize(&event, 0);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+	rc = yaml_emitter_emit(&emitter, &event);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+
+	/* End Stream */
+	rc = yaml_stream_end_event_initialize(&event);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+	rc = yaml_emitter_emit(&emitter, &event);
+	ASSERT_NE_GOTO(rc, 0, err_out);
+
+	yaml_emitter_delete(&emitter);
+	return 0;
+err_out:
+	fprintf(stderr, "%s: fail line %d rc %d errno %d problem (%s)\n",
+		__func__, line, rc, errno, emitter.problem);
+	perror("");
+
+	yaml_emitter_delete(&emitter);
+	return -1;
+}
+
 /* Read back in */
 
 const char *
@@ -878,6 +1043,9 @@ famfs_parse_shadow_yaml(
 	yaml_event_t event;
 	int rc = 0;
 
+	if (verbose > 1)
+		printf("\n\n%s:\n", __func__);
+
 	if (!yaml_parser_initialize(&parser)) {
 		fprintf(stderr, "Failed to initialize parser\n");
 		return -1;
@@ -936,7 +1104,7 @@ famfs_parse_stripe_alloc_yaml(
 	char *current_key = NULL;
 	int rc = 0;
 
-	/* "file" stanza starts wtiha  YAML_MAPPING_START_EVENT */
+	/* striped_alloc stanza starts with a  YAML_MAPPING_START_EVENT */
 	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_START_EVENT, rc, err_out, verbose);
 
 	while (!done) {
@@ -947,6 +1115,8 @@ famfs_parse_stripe_alloc_yaml(
 		switch (event.type) {
 		case YAML_SCALAR_EVENT:
 			current_key = (char *)event.data.scalar.value;
+			if (verbose > 1)
+				printf("%s: current_key=%s\n", __func__, current_key);
 
 			if (strcmp(current_key, "nbuckets") == 0) {
 				/* nbuckets */
@@ -955,28 +1125,37 @@ famfs_parse_stripe_alloc_yaml(
 				stripe->nbuckets = strtoull((char *)val_event.data.scalar.value,
 							    0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose > 1) printf("%s: nbuckets: 0x%llx\n",
+				if (verbose > 1) printf("%s: nbuckets: %lld\n",
 							__func__, stripe->nbuckets);
 			} else if (strcmp(current_key, "nstrips") == 0) {
 				/* nstrips */
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
-				stripe->nbuckets = strtoull((char *)val_event.data.scalar.value,
+				stripe->nstrips = strtoull((char *)val_event.data.scalar.value,
 							    0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose > 1) printf("%s: nbuckets: 0x%llx\n",
-							__func__, stripe->nbuckets);
+				if (verbose > 1) printf("%s: nstrips: %lld\n",
+							__func__, stripe->nstrips);
 			} else if (strcmp(current_key, "chunk_size") == 0) {
+				char tmpstr[256];
+				char *endptr;
+				s64 mult;
+
 				/* chunk_size */
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
-				stripe->chunk_size = strtoull((char *)val_event.data.scalar.value,
-							      0, 0);
+				strncpy(tmpstr, (char *)val_event.data.scalar.value, 255);
+
+				stripe->chunk_size = strtoull(tmpstr, &endptr, 0);
+				mult = get_multiplier(endptr);
+				if (mult > 0)
+					stripe->chunk_size *= mult;
+
 				yaml_event_delete(&val_event);
-				if (verbose > 1) printf("%s: chunk_size: 0%llx\n", __func__,
+				if (verbose > 1) printf("%s: chunk_size: %lld\n", __func__,
 							stripe->chunk_size);
 			} else {
-				fprintf(stderr, "%s: Unrecognized scalar key %s\n",
+				fprintf(stderr, "%s: Unrecognized scalar key: %s\n",
 					__func__, current_key);
 				rc = -EINVAL;
 				goto err_out;
@@ -1012,6 +1191,9 @@ famfs_parse_alloc_yaml(
 	yaml_event_t event;
 	int rc = 0;
 
+	if (verbose > 1)
+		printf("\n\n%s: \n", __func__);
+
 	if (!yaml_parser_initialize(&parser)) {
 		fprintf(stderr, "Failed to initialize parser\n");
 		return -1;
@@ -1042,6 +1224,10 @@ famfs_parse_alloc_yaml(
 			goto err_out;
 		}
 	}
+	yaml_event_delete(&event);
+
+	/* Look for YAML_MAPPING_END_EVENT - end of the striped_alloc stanza */
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_MAPPING_END_EVENT, rc, err_out, verbose);
 	yaml_event_delete(&event);
 
 	/* Look for YAML_DOCUMENT_END_EVENT */

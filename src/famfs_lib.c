@@ -2120,6 +2120,39 @@ open_log_file_writable(
 	return __open_log_file(path, 0, sizep, mpt_out, lockopt);
 }
 
+/*
+ * Handlers for opening the meta config file
+ */
+#if (FAMFS_KABI_VERSION > 42)
+static int
+__open_cfg_file(
+	const char *path,
+	int         read_only,
+	size_t     *sizep)
+{
+	return __open_relpath(path, CFG_FILE_RELPATH, read_only, sizep, NULL, NO_LOCK, 0);
+}
+
+int
+static open_cfg_file_read_only(
+	const char *path,
+	size_t     *sizep)
+{
+	return __open_cfg_file(path, 1, sizep);
+}
+
+static int
+open_cfg_file_writable(
+	const char *path,
+	size_t     *sizep)
+{
+	return __open_cfg_file(path, 0, sizep);
+}
+#endif
+
+/*
+ * Handlers for opening the superblock file
+ */
 static int
 __open_superblock_file(
 	const char *path,
@@ -2468,6 +2501,39 @@ famfs_init_locked_log(
 	lp->logp = (struct famfs_log *)addr;
 	invalidate_processor_cache(lp->logp, log_size); /* Invalidate the processor cache for the log */
 	assert(lp->logp->famfs_log_len == log_size);
+
+#if (FAMFS_KABI_VERSION > 42)
+	if (FAMFS_KABI_VERSION > 42) {
+		struct famfs_stripe stripe;
+		size_t cfg_size;
+		FILE *fp;
+		int cfd;
+
+		cfd = open_cfg_file_read_only(fspath, &cfg_size);
+		if (cfd < 0) /* Missing cfg file is not an error */
+			goto out;
+
+		fp =  fdopen(cfd, "r");
+		if (!fp) {
+			close(cfd);
+			goto out;
+		}
+		rc = famfs_parse_alloc_yaml(fp, &stripe, 1);
+		fclose(fp);
+		close(cfd);
+		if (rc) {
+			fprintf(stderr, "%s: failed to parse alloc yaml\n", __func__);
+			goto out;
+		}
+		rc = famfs_validate_stripe(&stripe, lp->devsize, verbose);
+		if (rc == 0) {
+			if (verbose)
+				printf("%s: good stripe metadata!\n", __func__);
+			memcpy(&lp->stripe, &stripe, sizeof(stripe));
+		}
+	}
+out:
+#endif
 	return 0;
 
 err_out:

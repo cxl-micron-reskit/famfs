@@ -431,6 +431,53 @@ static int next_bucket(struct bucket_series *bs)
 	return(bs->buckets[bs->current++]);
 }
 
+int
+famfs_validate_stripe(
+	struct famfs_stripe *stripe,
+	u64 devsize,
+	int verbose)
+{
+	u64 bucket_size;
+	//int total_strips;
+	int errs = 0;
+
+	if (!stripe->nbuckets && !stripe->nstrips && !stripe->chunk_size)
+		return 0; /* All 0's is valid */
+
+	assert(devsize);
+	if (!stripe->chunk_size) {
+		errs++;
+		if (verbose)
+			fprintf(stderr, "%s: Error NULL chunk_size\n", __func__);
+	}
+	if (stripe->chunk_size % FAMFS_ALLOC_UNIT) {
+		errs++;
+		if (verbose)
+			fprintf(stderr,
+				"%s: Error chunk_size %lld no ta multiplle of alloc_unit (%d)\n",
+				__func__, stripe->chunk_size, FAMFS_ALLOC_UNIT);
+	}
+	if (!stripe->nbuckets) {
+		errs++;
+		if (verbose)
+			fprintf(stderr, "%s: Error NULL nbuckets\n", __func__);
+	}
+	if (stripe->nstrips > stripe->nbuckets) {
+		errs++;
+		if (verbose)
+			fprintf(stderr, "%s: Error nstrips (%lld) > nbuckets (%lld)\n",
+				__func__, stripe->nstrips, stripe->nbuckets);
+	}
+
+	bucket_size = (stripe->nbuckets) ? devsize / stripe->nbuckets : 0;
+	if (bucket_size < 1024 * 1024 * 1024) {
+		errs++;
+		if (verbose)
+			fprintf(stderr, "%s: Bucket_size (%lld) < 1G\n", __func__, bucket_size);
+	}
+
+	return errs;
+}
 
 static int
 famfs_file_strided_alloc(

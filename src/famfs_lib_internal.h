@@ -70,6 +70,7 @@ u8 *famfs_build_bitmap(const struct famfs_log *logp, u64 dev_size_in,
 int famfs_file_alloc(struct famfs_locked_log *lp, u64 size,
 		     struct famfs_log_fmap **fmap_out, int verbose);
 void mu_print_bitmap(u8 *bitmap, int num_bits);
+int famfs_validate_stripe(struct famfs_stripe *stripe, u64 devsize, int verbose);
 
 
 /* Only exported for unit tests */

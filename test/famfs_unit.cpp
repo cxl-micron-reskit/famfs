@@ -1136,6 +1136,7 @@ static void famfs_yaml_test_reset(struct famfs_file_meta *fm, FILE *fp, char *ya
 }
 
 TEST(famfs, famfs_file_yaml) {
+	struct famfs_stripe stripe;
 	struct famfs_file_meta fm;
 	FILE *fp = tmpfile();
 	char *my_yaml;
@@ -1156,7 +1157,7 @@ TEST(famfs, famfs_file_yaml) {
 		"    length: 0x200000\n"
 		"...";
 	famfs_yaml_test_reset(&fm, fp, my_yaml);
-	rc = famfs_parse_shadow_yaml(fp, &fm, 1, FAMFS_MAX_SIMPLE_EXTENTS, 1);
+	rc = famfs_parse_shadow_yaml(fp, &fm, 1, FAMFS_MAX_SIMPLE_EXTENTS, 2);
 	ASSERT_EQ(rc, 0);
 
 	/* Good yaml, single extent */
@@ -1175,7 +1176,7 @@ TEST(famfs, famfs_file_yaml) {
 		"    length: 0x200000\n"
 		"...";
 	famfs_yaml_test_reset(&fm, fp, my_yaml);
-	rc = famfs_parse_shadow_yaml(fp, &fm, 1, FAMFS_MAX_SIMPLE_EXTENTS,1);
+	rc = famfs_parse_shadow_yaml(fp, &fm, 1, FAMFS_MAX_SIMPLE_EXTENTS, 2);
 	ASSERT_EQ(rc, -EINVAL);
 
 	/* Good yaml, 3 extents */
@@ -1197,7 +1198,8 @@ TEST(famfs, famfs_file_yaml) {
 		"    length: 0x200000\n"
 		"...";
 	famfs_yaml_test_reset(&fm, fp, my_yaml);
-	rc = famfs_parse_shadow_yaml(fp, &fm, FAMFS_MAX_SIMPLE_EXTENTS, FAMFS_MAX_SIMPLE_EXTENTS,1); /* 3 extents is not an overflow */
+	rc = famfs_parse_shadow_yaml(fp, &fm, FAMFS_MAX_SIMPLE_EXTENTS,
+				     FAMFS_MAX_SIMPLE_EXTENTS,2); /* 3 extents is not an overflow */
 	ASSERT_EQ(rc, 0);
 	ASSERT_EQ(fm.fm_fmap.fmap_nextents, 3);
 	ASSERT_EQ(fm.fm_fmap.se[0].se_offset, 0x38600000);
@@ -1209,7 +1211,8 @@ TEST(famfs, famfs_file_yaml) {
 
 	/* Malformed extent list */
 	famfs_yaml_test_reset(&fm, fp, my_yaml);
-	rc = famfs_parse_shadow_yaml(fp, &fm, 2, FAMFS_MAX_SIMPLE_EXTENTS,1); /* 3 extents is an overflow this time */
+	rc = famfs_parse_shadow_yaml(fp, &fm, 2,
+				     FAMFS_MAX_SIMPLE_EXTENTS,2); /* 3 extents is an overflow this time */
 	ASSERT_EQ(rc, -EOVERFLOW);
 	my_yaml = "---\n" /* Good yaml */
 		"file:\n"
@@ -1225,7 +1228,7 @@ TEST(famfs, famfs_file_yaml) {
 		"    offset: 0x38600000\n"
 		"...";
 	famfs_yaml_test_reset(&fm, fp, my_yaml);
-	rc = famfs_parse_shadow_yaml(fp, &fm, 1, FAMFS_MAX_SIMPLE_EXTENTS, 1);
+	rc = famfs_parse_shadow_yaml(fp, &fm, 1, FAMFS_MAX_SIMPLE_EXTENTS, 2);
 	ASSERT_EQ(rc, -1);
 
 	/* Length missing on one extent */
@@ -1246,7 +1249,7 @@ TEST(famfs, famfs_file_yaml) {
 		"    length: 0x200000\n"
 		"...";
 	famfs_yaml_test_reset(&fm, fp, my_yaml);
-	rc = famfs_parse_shadow_yaml(fp, &fm, FAMFS_MAX_SIMPLE_EXTENTS, FAMFS_MAX_SIMPLE_EXTENTS, 1); /* 3 extents is not an overflow */
+	rc = famfs_parse_shadow_yaml(fp, &fm, FAMFS_MAX_SIMPLE_EXTENTS, FAMFS_MAX_SIMPLE_EXTENTS, 2); /* 3 extents is not an overflow */
 	ASSERT_EQ(rc, -1);
 
 	/* offset followed by something other than length on ext list */
@@ -1268,7 +1271,7 @@ TEST(famfs, famfs_file_yaml) {
 		"    length: 0x200000\n"
 		"...";
 	famfs_yaml_test_reset(&fm, fp, my_yaml);
-	rc = famfs_parse_shadow_yaml(fp, &fm, FAMFS_MAX_SIMPLE_EXTENTS, FAMFS_MAX_SIMPLE_EXTENTS, 1); /* 3 extents is not an overflow */
+	rc = famfs_parse_shadow_yaml(fp, &fm, FAMFS_MAX_SIMPLE_EXTENTS, FAMFS_MAX_SIMPLE_EXTENTS, 2); /* 3 extents is not an overflow */
 	ASSERT_EQ(rc, -1);
 
 	printf("%s", yaml_event_str(YAML_NO_EVENT));
@@ -1292,7 +1295,29 @@ TEST(famfs, famfs_file_yaml) {
 		"    length: 0x200000\n"
 		"...";
 	famfs_yaml_test_reset(&fm, fp, my_yaml);
-	rc = famfs_parse_shadow_yaml(fp, &fm, 1, FAMFS_MAX_SIMPLE_EXTENTS, 1);
+	rc = famfs_parse_shadow_yaml(fp, &fm, 1, FAMFS_MAX_SIMPLE_EXTENTS, 2);
 	ASSERT_EQ(rc, 0);
 
+	/******************* Stripe Yaml ***************************************/
+	FILE *stdout_fp = fdopen(0, "w");
+
+	/* Test emit */
+	stripe.nbuckets = 1000;
+	stripe.nstrips = 400;
+	stripe.chunk_size = 2 * 1024 * 1024;
+	famfs_emit_stripe_yaml(&stripe, stdout_fp);
+	ASSERT_EQ(rc, 0);
+
+	my_yaml = "---\n"
+		"striped_alloc:\n"
+		"  nbuckets: 8\n"
+		"  nstrips: 6\n"
+		"  chunk_size: 2\n"
+		"...\n";
+	fprintf(stderr, "\nmy_yaml:\n%s\n\n", my_yaml);
+	famfs_yaml_test_reset(&fm, fp, my_yaml);
+	rc = famfs_parse_alloc_yaml(fp, &stripe, 2);
+	ASSERT_EQ(rc, 0);
+
+	famfs_emit_stripe_yaml(&stripe, stdout_fp);
 }
