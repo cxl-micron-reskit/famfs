@@ -454,7 +454,6 @@ TEST(famfs, famfs_alloc)
 	struct famfs_superblock *sb;
 	struct famfs_locked_log ll;
 	char *fspath = "/tmp/famfs";
-	//extern int mock_failure;
 	struct famfs_log *logp;
 	extern int mock_kmod;
 	int rc;
@@ -485,10 +484,58 @@ TEST(famfs, famfs_alloc)
 
 #define MiB 0x100000
 
+	/*
+	 * Test stripe validation
+	 */
+	/* Bad chunk_size */
+	ll.stripe.nbuckets = 8;
+	ll.stripe.nstrips = 8;
+	ll.stripe.chunk_size = 0;
+	rc = famfs_file_alloc(&ll, 8 * 16 * MiB, &fmap, 2);
+	ASSERT_NE(rc, 0);
+
+	/* more strips than buckets */
+	ll.stripe.nbuckets = 8;
+	ll.stripe.nstrips = 6;
+	ll.stripe.chunk_size = 2 * MiB;
+	rc = famfs_file_alloc(&ll, 8 * 16 * MiB, &fmap, 2);
+	ASSERT_NE(rc, 0);
+
+	/* chunk_size not multiple of alloc unit */
+	ll.stripe.nbuckets = 8;
+	ll.stripe.nstrips = 6;
+	ll.stripe.chunk_size = 1 * MiB;
+	rc = famfs_file_alloc(&ll, 8 * 16 * MiB, &fmap, 2);
+	ASSERT_NE(rc, 0);
+
+	/* non-power-of-2 chunk */
+	ll.stripe.nbuckets = 8;
+	ll.stripe.nstrips = 8;
+	ll.stripe.chunk_size = 2 * MiB + 1;
+	rc = famfs_file_alloc(&ll, 8 * 16 * MiB, &fmap, 2);
+	ASSERT_NE(rc, 0);
+
+	/* Too many buckets */
+	ll.stripe.nbuckets = FAMFS_MAX_NBUCKETS + 2;
+	ll.stripe.nstrips = 6;
+	ll.stripe.chunk_size = 2 * MiB;
+	rc = famfs_file_alloc(&ll, 8 * 16 * MiB, &fmap, 2);
+	ASSERT_NE(rc, 0);
+
+	/*********************/
+
+	/*
+	 * Test actual stripe allocation
+	 */
 	/* Now set up for striped allocation */
 	ll.stripe.nbuckets = 8; /* each bucket is 32MiB */
 	ll.stripe.nstrips = 8;
 	ll.stripe.chunk_size = 2 * MiB;
+	rc = famfs_file_alloc(&ll, 8 * 16 * MiB, &fmap, 2); /* This should fit */
+	ASSERT_EQ(rc, 1);
+
+	extern int mock_stripe;
+	mock_stripe = 1;
 	rc = famfs_file_alloc(&ll, 8 * 16 * MiB, &fmap, 2); /* This should fit */
 	ASSERT_EQ(rc, 0);
 	//ASSERT_NE(fmap, NULL);
@@ -538,7 +585,23 @@ TEST(famfs, famfs_alloc)
 	rc = famfs_file_alloc(&ll, 16 * MiB, &fmap, 2);
 	ASSERT_NE(rc, 0);
 
-	/* There should only be 1 extent left. Do an alloc that should get it */
+	/* There should only be 9 extents left. Do an alloc that should get it */
+	rc = famfs_file_alloc(&ll, 1 * MiB, &fmap, 2);
+	ASSERT_EQ(rc, 0);
+	rc = famfs_file_alloc(&ll, 1 * MiB, &fmap, 2);
+	ASSERT_EQ(rc, 0);
+	rc = famfs_file_alloc(&ll, 1 * MiB, &fmap, 2);
+	ASSERT_EQ(rc, 0);
+	rc = famfs_file_alloc(&ll, 1 * MiB, &fmap, 2);
+	ASSERT_EQ(rc, 0);
+	rc = famfs_file_alloc(&ll, 1 * MiB, &fmap, 2);
+	ASSERT_EQ(rc, 0);
+	rc = famfs_file_alloc(&ll, 1 * MiB, &fmap, 2);
+	ASSERT_EQ(rc, 0);
+	rc = famfs_file_alloc(&ll, 1 * MiB, &fmap, 2);
+	ASSERT_EQ(rc, 0);
+	rc = famfs_file_alloc(&ll, 1 * MiB, &fmap, 2);
+	ASSERT_EQ(rc, 0);
 	rc = famfs_file_alloc(&ll, 1 * MiB, &fmap, 2);
 	ASSERT_EQ(rc, 0);
 

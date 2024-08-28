@@ -85,6 +85,7 @@ enum famfs_log_ext_type {
 /* Maximum number of extents in a FC extent list */
 #define FAMFS_MAX_SIMPLE_EXTENTS 8
 #define FAMFS_MAX_INTERLEAVED_EXTENTS 1
+#define FAMFS_MAX_NBUCKETS 32
 
 /* TODO: get rid of this extent type, and use the one from the kernel instead
  * (which will avoid silly translations...

@@ -313,16 +313,6 @@ famfs_alloc_contiguous(
 	u64 range_size,
 	int verbose)
 {
-	if (!lp->bitmap) {
-		/* Bitmap is needed and hasn't been built yet */
-		lp->bitmap = famfs_build_bitmap(lp->logp, lp->devsize, &lp->nbits,
-						NULL, NULL, NULL, NULL, verbose);
-		if (!lp->bitmap) {
-			fprintf(stderr, "%s: failed to allocate bitmap\n", __func__);
-			return -1;
-		}
-		lp->cur_pos = 0;
-	}
 	return bitmap_alloc_contiguous(lp->bitmap, lp->nbits, size, &lp->cur_pos, range_size);
 }
 
@@ -437,18 +427,36 @@ famfs_validate_stripe(
 	u64 devsize,
 	int verbose)
 {
+	extern int mock_stripe;
 	u64 bucket_size;
-	//int total_strips;
 	int errs = 0;
+
+	assert(stripe);
+	assert(devsize);
 
 	if (!stripe->nbuckets && !stripe->nstrips && !stripe->chunk_size)
 		return 0; /* All 0's is valid */
 
-	assert(devsize);
 	if (!stripe->chunk_size) {
 		errs++;
 		if (verbose)
 			fprintf(stderr, "%s: Error NULL chunk_size\n", __func__);
+	}
+	if (stripe->chunk_size & (stripe->chunk_size - 1)) {
+		fprintf(stderr, "%s: chunk_size=0x%llx must be a power of 2\n",
+			__func__, stripe->chunk_size);
+		return -EINVAL;
+	}
+	if (stripe->chunk_size % FAMFS_ALLOC_UNIT) {
+		fprintf(stderr, "%s: chunk_size=0x%llx must be a multiple of FAMFS_ALLOC_UNIT\n",
+			__func__, stripe->chunk_size);
+		return -EINVAL;
+	}
+	if (stripe->nstrips > stripe->nbuckets) {
+		errs++;
+		if (verbose)
+			fprintf(stderr, "%s: Error nstrips (%lld) > nbuckets (%lld)\n",
+				__func__, stripe->nstrips, stripe->nbuckets);
 	}
 	if (stripe->chunk_size % FAMFS_ALLOC_UNIT) {
 		errs++;
@@ -468,9 +476,15 @@ famfs_validate_stripe(
 			fprintf(stderr, "%s: Error nstrips (%lld) > nbuckets (%lld)\n",
 				__func__, stripe->nstrips, stripe->nbuckets);
 	}
+	if (stripe->nbuckets > FAMFS_MAX_NBUCKETS) {
+		errs++;
+		if (verbose)
+			fprintf(stderr, "%s: Error nbuckets %lld exceeds max %d\n",
+				__func__, stripe->nbuckets, FAMFS_MAX_NBUCKETS);
+	}
 
 	bucket_size = (stripe->nbuckets) ? devsize / stripe->nbuckets : 0;
-	if (bucket_size < 1024 * 1024 * 1024) {
+	if ((bucket_size < 1024 * 1024 * 1024) && !mock_stripe) {
 		errs++;
 		if (verbose)
 			fprintf(stderr, "%s: Bucket_size (%lld) < 1G\n", __func__, bucket_size);
@@ -492,18 +506,16 @@ famfs_file_strided_alloc(
 	u64 nstrips_allocated = 0;
 	int nstripes;
 	u64 tmp;
-	/* Quantities in allocation units (au) */
+	/* Quantities in unitss of FAMFS_ALLOC_UNIT (au) */
 	u64 alloc_size_au, devsize_au, bucket_size_au, stripe_size_au, strip_size_au, chunk_size_au;
 	int i, j;
+	int rc;
 
-	assert(lp->stripe.nbuckets && lp->stripe.nstrips);
+	rc = famfs_validate_stripe(&lp->stripe, lp->devsize, verbose);
+	if (rc)
+		return rc;
 	assert(lp->stripe.nstrips <= lp->stripe.nbuckets);
 
-	if (lp->stripe.chunk_size & (lp->stripe.chunk_size - 1)) {
-		fprintf(stderr, "%s: chunk_size=0x%llx must be a power of 2\n",
-			__func__, lp->stripe.chunk_size);
-		return -EINVAL;
-	}
 	if (size < lp->stripe.chunk_size) {
 		/* if the file size is less than a chunk, fall back to a contiguous allocation
 		 * from a random bucket
@@ -512,12 +524,6 @@ famfs_file_strided_alloc(
 		lp->cur_pos = 0;
 		return famfs_file_alloc_contiguous(lp, size, fmap_out, verbose);
 	}
-	if (lp->stripe.chunk_size % FAMFS_ALLOC_UNIT) {
-		fprintf(stderr, "%s: chunk_size=0x%llx must be a multiple of FAMFS_ALLOC_UNIT\n",
-			__func__, lp->stripe.chunk_size);
-		return -EINVAL;
-	}
-
 
 	alloc_size_au = (size + FAMFS_ALLOC_UNIT - 1) / FAMFS_ALLOC_UNIT;
 
@@ -582,7 +588,10 @@ famfs_file_strided_alloc(
 				printf("%s: strip %d bucket %d ofs 0x%llx len %lld\n",
 				       __func__, i, bucket_num, ofs,
 				       strip_size_au * FAMFS_ALLOC_UNIT);
+
 			nstrips_allocated++;
+			if (nstrips_allocated >= lp->stripe.nstrips)
+				break; /* Got all our strips */
 		}
 	}
 
@@ -624,6 +633,17 @@ famfs_file_alloc(
 	struct famfs_log_fmap      **fmap_out,
 	int                          verbose)
 {
+	if (!lp->bitmap) {
+		/* Bitmap is needed and hasn't been built yet */
+		lp->bitmap = famfs_build_bitmap(lp->logp, lp->devsize, &lp->nbits,
+						NULL, NULL, NULL, NULL, verbose);
+		if (!lp->bitmap) {
+			fprintf(stderr, "%s: failed to allocate bitmap\n", __func__);
+			return -1;
+		}
+		lp->cur_pos = 0;
+	}
+
 	if ((FAMFS_KABI_VERSION <= 42) || (!lp->stripe.nbuckets || !lp->stripe.nstrips))
 		return famfs_file_alloc_contiguous(lp, size, fmap_out, verbose);
 

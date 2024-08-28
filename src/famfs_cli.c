@@ -880,8 +880,8 @@ do_famfs_cli_getmap(int argc, char *argv[])
 
 				break;
 			}
-#endif
 			}
+#endif
 		} else {
 			struct famfs_extent *ext_list = NULL;
 

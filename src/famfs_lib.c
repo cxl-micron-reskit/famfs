@@ -42,6 +42,7 @@ int mock_role = 0; /* for unit tests to specify role rather than testing for it 
 int mock_uuid = 0; /* for unit tests to simulate uuid related errors */
 int mock_path = 0; /* for unit tests to simulate path related errors */
 int mock_failure = 0; /* for unit tests to simulate a failure case */
+int mock_stripe = 0; /* relaxes stripe rules for unit tests */
 
 static int
 famfs_dir_create(
@@ -2806,7 +2807,7 @@ __famfs_mkfile(
 		rc = stat(parent_path, &st);
 		free(tmp_path);
 		if (rc != 0) {
-			fprintf(stderr, "%s: Error %s parent dri does not exist\n",
+			fprintf(stderr, "%s: Error %s parent dir does not exist\n",
 				__func__, filename);
 			return -1;
 		}
