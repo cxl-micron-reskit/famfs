@@ -1856,7 +1856,7 @@ famfs_log_file_creation(
 {
 	struct famfs_log_entry le = {0};
 	struct famfs_file_meta *fm = &le.famfs_fm;
-	int i;
+	//int i;
 
 	assert(logp);
 	assert(fmap);
@@ -1879,15 +1879,10 @@ famfs_log_file_creation(
 	fm->fm_uid  = uid;
 	fm->fm_gid  = gid;
 
-	fm->fm_fmap.fmap_ext_type =  FAMFS_EXT_SIMPLE;
 	fm->fm_fmap.fmap_nextents = fmap->fmap_nextents;
+	fm->fm_fmap.fmap_ext_type = fmap->fmap_ext_type;
 
-	/* Copy extents into log entry */
-	for (i = 0; i < fmap->fmap_nextents; i++) {
-		fm->fm_fmap.se[i].se_devindex = fmap->se[i].se_devindex;
-		fm->fm_fmap.se[i].se_offset   = fmap->se[i].se_offset;
-		fm->fm_fmap.se[i].se_len      = fmap->se[i].se_len;
-	}
+	memcpy(&fm->fm_fmap, fmap, sizeof(*fmap));
 
 	if (dump_meta)
 		famfs_emit_file_yaml(fm, stdout);

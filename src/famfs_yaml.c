@@ -145,7 +145,6 @@ __famfs_emit_yaml_striped_ext_list(
 		rc = yaml_emitter_emit(emitter, event);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 
-#if 1
 		/* nstrips */
 		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"nstrips",
 						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
@@ -153,7 +152,7 @@ __famfs_emit_yaml_striped_ext_list(
 		rc = yaml_emitter_emit(emitter, event);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 
-		sprintf(strbuf, "0x%llx", fmap->ie[i].ie_nstrips);
+		sprintf(strbuf, "%lld", fmap->ie[i].ie_nstrips);
 		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
 						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 		ASSERT_NE_GOTO(rc, 0, err_out);
@@ -175,36 +174,8 @@ __famfs_emit_yaml_striped_ext_list(
 		ASSERT_NE_GOTO(rc, 0, err_out);
 
 		__famfs_emit_yaml_simple_ext_list(emitter, event, fmap->ie[i].ie_strips,
-						  fmap->fmap_nextents);
-#else
-		/* Offset */
-		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"offset",
-						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
-		ASSERT_NE_GOTO(rc, 0, err_out);
-		rc = yaml_emitter_emit(emitter, event);
-		ASSERT_NE_GOTO(rc, 0, err_out);
+						  fmap->ie[i].ie_nstrips);
 
-		sprintf(strbuf, "0x%llx", fm->fm_fmap.se[i].se_offset);
-		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
-						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
-		ASSERT_NE_GOTO(rc, 0, err_out);
-		rc = yaml_emitter_emit(emitter, event);
-		ASSERT_NE_GOTO(rc, 0, err_out);
-
-		/* Length */
-		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"length",
-						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
-		ASSERT_NE_GOTO(rc, 0, err_out);
-		rc = yaml_emitter_emit(emitter, event);
-		ASSERT_NE_GOTO(rc, 0, err_out);
-
-		sprintf(strbuf, "0x%llx", fm->fm_fmap.se[i].se_len);
-		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
-						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
-		ASSERT_NE_GOTO(rc, 0, err_out);
-		rc = yaml_emitter_emit(emitter, event);
-		ASSERT_NE_GOTO(rc, 0, err_out);
-#endif
 		/* YAML_MAPPING_END_EVENT: End of extent */
 		rc = yaml_mapping_end_event_initialize(event);
 		ASSERT_NE_GOTO(rc, 0, err_out);
