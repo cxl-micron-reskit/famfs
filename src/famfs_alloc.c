@@ -173,29 +173,51 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 		switch (le->famfs_log_entry_type) {
 		case FAMFS_LOG_FILE: {
 			const struct famfs_file_meta *fm = &le->famfs_fm;
+			const struct famfs_log_fmap *fmap = &fm->fm_fmap;
 			const struct famfs_log_fmap *ext = &fm->fm_fmap;
 
-			/* XXX: handle striped extents */
-			assert(fm->fm_fmap.fmap_ext_type == FAMFS_EXT_SIMPLE);
+			switch (fmap->fmap_ext_type) {
+			case FAMFS_EXT_SIMPLE:
+				ls.f_logged++;
+				fsize_sum += fm->fm_size;
+				if (verbose > 1)
+					printf("%s: file=%s size=%lld\n", __func__,
+					       fm->fm_relpath, fm->fm_size);
 
-			ls.f_logged++;
-			fsize_sum += fm->fm_size;
-			if (verbose > 1)
-				printf("%s: file=%s size=%lld\n", __func__,
-				       fm->fm_relpath, fm->fm_size);
+				/* For each extent in this log entry, mark the bitmap as allocated */
+				for (j = 0; j < fmap->fmap_nextents; j++) {
+					u64 ofs = ext->se[j].se_offset;
+					u64 len = ext->se[j].se_len;
+					int rc;
 
-			/* For each extent in this log entry, mark the bitmap as allocated */
-			for (j = 0; j < fm->fm_fmap.fmap_nextents; j++) {
-				u64 ofs = ext->se[j].se_offset;
-				u64 len = ext->se[j].se_len;
-				int rc;
+					assert(!(ofs % FAMFS_ALLOC_UNIT));
 
-				assert(!(ofs % FAMFS_ALLOC_UNIT));
+					rc = set_extent_in_bitmap(bitmap, ofs, len, &alloc_sum);
+					errors += rc;
+				}
+				break;
+			case FAMFS_EXT_INTERLEAVE: {
+				for (i = 0; i < fmap->fmap_nstripes; i++) {
+					const struct famfs_interleaved_ext *stripes = &fmap->ie[i];
 
-				rc = set_extent_in_bitmap(bitmap, ofs, len, &alloc_sum);
-				errors += rc;
+					for (j = 0; j < stripes[i].ie_nstrips; j++) {
+						const struct famfs_simple_extent *se =
+							&(stripes[i].ie_strips[j]);
+						u64 ofs = se->se_offset;
+						u64 len = se->se_len;
+						int rc;
+
+						rc = set_extent_in_bitmap(bitmap, ofs, len,
+									  &alloc_sum);
+						errors += rc;
+					}
+				}
+				break;
 			}
-			break;
+			default:
+				fprintf(stderr, "%s: unrecognized fmap_ext_type %d\n",
+					__func__, fmap->fmap_ext_type);
+			}
 		}
 		case FAMFS_LOG_MKDIR:
 			ls.d_logged++;

@@ -177,7 +177,7 @@ struct famfs_file_meta {
 
 struct famfs_log_entry {
 	u64     famfs_log_entry_seqnum;
-	u32     famfs_log_entry_type; /* FAMFS_LOG_FILE_CREATION or FAMFS_LOG_ACCESS */
+	u32     famfs_log_entry_type;
 	union {
 		struct famfs_file_meta     famfs_fm;
 		struct famfs_mkdir         famfs_md;
