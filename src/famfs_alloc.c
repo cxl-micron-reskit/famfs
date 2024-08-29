@@ -175,6 +175,9 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 			const struct famfs_file_meta *fm = &le->famfs_fm;
 			const struct famfs_log_fmap *ext = &fm->fm_fmap;
 
+			/* XXX: handle striped extents */
+			assert(fm->fm_fmap.fmap_ext_type == FAMFS_EXT_SIMPLE);
+
 			ls.f_logged++;
 			fsize_sum += fm->fm_size;
 			if (verbose > 1)
@@ -617,7 +620,7 @@ famfs_file_strided_alloc(
 
 		return -ENOMEM;
 	}
-	fmap->fmap_nextents = 1;
+	fmap->fmap_nstripes = 1; /* We only support single-stripe (but multi-strip) alloc */
 	*fmap_out = fmap;
 
 	if (verbose > 1)

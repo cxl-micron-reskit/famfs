@@ -886,7 +886,6 @@ famfs_v2_set_file_map(
 	ioc_fmap.fioc_file_type  = type;
 	ioc_fmap.fioc_file_size  = size;
 	ioc_fmap.fioc_ext_type   = fm->fmap_ext_type;
-	ioc_fmap.fioc_nextents   = fm->fmap_nextents;
 
 	switch (fm->fmap_ext_type) {
 	case FAMFS_EXT_SIMPLE: {
@@ -896,6 +895,7 @@ famfs_v2_set_file_map(
 			return -EINVAL;
 		}
 
+		ioc_fmap.fioc_nextents   = fm->fmap_nextents;
 		for (i = 0; i < fm->fmap_nextents; i++) {
 			kse[i].devindex = fm->se[i].se_devindex;
 			kse[i].offset   = fm->se[i].se_offset;
@@ -910,6 +910,7 @@ famfs_v2_set_file_map(
 	case FAMFS_EXT_INTERLEAVE: {
 		int j;
 
+		ioc_fmap.fioc_nstripes = fm->fmap_nextents;
 		for (i = 0; i < fm->fmap_nextents; i++) {
 			const struct famfs_interleaved_ext *ie = &fm->ie[i];
 

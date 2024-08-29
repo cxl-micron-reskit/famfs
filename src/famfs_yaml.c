@@ -137,7 +137,7 @@ __famfs_emit_yaml_striped_ext_list(
 	ASSERT_NE_GOTO(rc, 0, err_out);
 
 	/* The extents */
-	for (i = 0; i < fmap->fmap_nextents; i++) {
+	for (i = 0; i < fmap->fmap_nstripes; i++) {
 		/* YAML_MAPPING_START_EVENT: Start of extent */
 		rc = yaml_mapping_start_event_initialize(event, NULL, NULL, 1,
 							 YAML_BLOCK_MAPPING_STYLE);

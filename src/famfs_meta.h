@@ -125,7 +125,10 @@ struct famfs_interleaved_ext {
  */
 struct famfs_log_fmap {
 	u32 fmap_ext_type; /* enum famfs_log_ext_type */
-	u32 fmap_nextents;
+	union {
+		u32 fmap_nextents;
+		u32 fmap_nstripes;
+	};
 	union {
 		struct famfs_simple_extent se[FAMFS_MAX_SIMPLE_EXTENTS];
 		struct famfs_interleaved_ext ie[FAMFS_MAX_INTERLEAVED_EXTENTS];

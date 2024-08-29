@@ -103,6 +103,7 @@ famfs_dump_logentry(
 			break;
 
 		case FAMFS_EXT_INTERLEAVE:
+			/* XXX */
 			printf("%s: Error: Write some code to dump interleaved fmaps!\n", prefix);
 			break;
 		default:
