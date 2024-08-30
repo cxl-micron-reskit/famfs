@@ -473,7 +473,7 @@ TEST(famfs, famfs_alloc)
 	       ll.devsize, ll.devsize, ll.nbits);
 
 	mu_print_bitmap(ll.bitmap, ll.nbits);
-	//ASSERT_NE(fmap, NULL);
+	ASSERT_NE(fmap, nullptr);
 	ASSERT_EQ(fmap->fmap_ext_type, FAMFS_EXT_SIMPLE);
 	ASSERT_EQ(fmap->fmap_nextents, 1);
 	ASSERT_NE(fmap->se[0].se_offset, 0);
@@ -538,7 +538,7 @@ TEST(famfs, famfs_alloc)
 	mock_stripe = 1;
 	rc = famfs_file_alloc(&ll, 8 * 16 * MiB, &fmap, 2); /* This should fit */
 	ASSERT_EQ(rc, 0);
-	//ASSERT_NE(fmap, NULL);
+	ASSERT_NE(fmap, nullptr);
 	ASSERT_EQ(fmap->fmap_ext_type, FAMFS_EXT_INTERLEAVE);
 	ASSERT_EQ(fmap->fmap_nextents, 1);
 	ASSERT_EQ(fmap->ie[0].ie_nstrips, ll.stripe.nstrips);
@@ -657,7 +657,7 @@ TEST(famfs, famfs_alloc)
 	close(fd);
 
 	/* Do a dry_run shadow log play */
-	rc = __famfs_logplay(fspath, sb, logp,
+	rc = __famfs_logplay(fspath, sb, ll.logp,
 			     1 /* dry_run */,
 			     0 /* client_mode */,
 			     1 /* shadow */,
@@ -666,12 +666,28 @@ TEST(famfs, famfs_alloc)
 	ASSERT_EQ(rc, 0);
 
 	/* Do a full shadow log play */
-	rc = __famfs_logplay(fspath, sb, logp,
+	rc = __famfs_logplay(fspath, sb, ll.logp,
 			     1 /* dry_run */,
 			     0 /* client_mode */,
 			     1 /* shadow */,
 			     FAMFS_MASTER,
 			     1 /* verbose */);
+	ASSERT_EQ(rc, 0);
+
+	/* Build the bitmap from the log and compare to the bitmap from creating files
+	 * This tests the processing of log entries (inc. the currently-new striped entries
+	 */
+	u64 nbits, alloc_errs, fsize_total, alloc_sum;
+	struct famfs_log_stats logstats;
+	memset(&logstats, 0, sizeof(logstats));
+	u64 nbytes;
+	u8 *bitmap = famfs_build_bitmap(ll.logp, ll.devsize,
+				       &nbits, &alloc_errs, &fsize_total, &alloc_sum,
+				       &logstats, 1);
+	ASSERT_NE(bitmap, nullptr);
+	ASSERT_GT(nbits, 0);
+	nbytes = (nbits + 8 - 1) / 8;
+	rc = memcmp(bitmap, ll.bitmap, nbytes);
 	ASSERT_EQ(rc, 0);
 #endif
 
@@ -681,16 +697,16 @@ TEST(famfs, famfs_alloc)
 TEST(famfs, famfs_log)
 {
 	u64 device_size = 1024 * 1024 * 1024;
-	struct famfs_locked_log ll;
 	struct famfs_superblock *sb;
+	struct famfs_locked_log ll;
+	extern int mock_failure;
 	struct famfs_log *logp;
 	extern int mock_kmod;
 	extern int mock_role;
 	extern int mock_path;
-	extern int mock_failure;
+	u64 tmp;
 	int rc;
 	int i;
-	u64 tmp;
 
 	mock_kmod = 1;
 	/** can call famfs_file_alloc() and __famfs_mkdir() on our fake famfs in /tmp/famfs */

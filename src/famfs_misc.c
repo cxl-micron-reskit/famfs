@@ -102,10 +102,22 @@ famfs_dump_logentry(
 			}
 			break;
 
-		case FAMFS_EXT_INTERLEAVE:
-			/* XXX */
-			printf("%s: Error: Write some code to dump interleaved fmaps!\n", prefix);
+		case FAMFS_EXT_INTERLEAVE: {
+			u32 nstripes = fmap->fmap_nstripes;
+			int j;
+
+			printf("\tnstripes=%d\n", nstripes);
+			for (i = 0; i < nstripes; i++) {
+				const struct famfs_simple_extent *strips = fmap->ie[i].ie_strips;
+				u64 nstrips = fmap->ie[i].ie_nstrips;
+
+				for (j = 0; j < nstrips; j++)
+					printf("\t\tstrip: dev=%lld ofs=0x%llx len=0x%llx\n",
+					       strips[j].se_devindex, strips[j].se_offset,
+					       strips[j].se_len);
+			}
 			break;
+		}
 		default:
 			printf("\tError unrecognized extent type\n");
 		}

@@ -120,7 +120,6 @@ put_sb_log_into_bitmap(u8 *bitmap, u64 log_len, u64 *alloc_sum)
 /**
  * famfs_build_bitmap()
  *
- * XXX: this is only aware of the first daxdev in the superblock's list
  * @logp:
  * @size_in:          total size of allocation space in bytes
  * @bitmap_nbits_out: output: size of the bitmap
@@ -197,12 +196,14 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 				}
 				break;
 			case FAMFS_EXT_INTERLEAVE: {
-				for (i = 0; i < fmap->fmap_nstripes; i++) {
-					const struct famfs_interleaved_ext *stripes = &fmap->ie[i];
+				int nstripes = fmap->fmap_nstripes;
+				int j, k;
+				for (j = 0; j < nstripes; j++) {
+					const struct famfs_interleaved_ext *stripes = &fmap->ie[j];
 
-					for (j = 0; j < stripes[i].ie_nstrips; j++) {
+					for (k = 0; k < stripes[j].ie_nstrips; k++) {
 						const struct famfs_simple_extent *se =
-							&(stripes[i].ie_strips[j]);
+							&(stripes[j].ie_strips[k]);
 						u64 ofs = se->se_offset;
 						u64 len = se->se_len;
 						int rc;
