@@ -16,9 +16,11 @@
 
 #define FAMFS_KABI_VERSION 43
 #define FAMFS_MAX_EXTENTS 2
-#define FAMFS_MAX_INTERLEAVED_STRIPS 16
+#define FAMFS_MAX_STRIPS 16
 #define FAMFS_IOC_MAX_INTERLEAVED_EXTENTS 1
-#define FAMFS_IOC_MAX_INTERLEAVED_STRIPS 8
+/*#define FAMFS_IOC_MAX_INTERLEAVED_STRIPS 8*/
+
+/* KABI version 42 (aka v1) */
 
 /* We anticipate the possiblity of supporting additional types of extents */
 enum famfs_extent_type {
@@ -54,7 +56,7 @@ struct famfs_ioc_map {
 	struct famfs_extent       ext_list[FAMFS_MAX_EXTENTS];
 };
 
-/* V2 fmap structures */
+/* KABI version 43 (aka v2) fmap structures */
 enum famfs_ioc_ext_type {
 	FAMFS_IOC_EXT_SIMPLE,
 	FAMFS_IOC_EXT_INTERLEAVE,
@@ -76,7 +78,10 @@ struct famfs_ioc_fmap {
 	__u64 fioc_file_size;
 	enum famfs_file_type fioc_file_type;
 	__u32 fioc_ext_type; /* enum famfs_log_ext_type */
-	__u32 fioc_nextents;
+	union {  /* Make code a little more readable */
+		__u32 fioc_nextents;
+		__u32 fioc_nstripes;
+	};
 	union {
 		struct famfs_ioc_simple_extent *kse;     /* simple extent list */
 		struct famfs_ioc_interleaved_ext *kie; /* interleaved ext list */
@@ -89,7 +94,7 @@ struct famfs_ioc_fmap {
  *
  * This structure is a defined size, and can be used to copyout the file map, subject
  * to the following constraints:
- * * No more than FAMFS_MAX_EXTENTS simple extents
+ * * No more than FAMFS_MAX_STRIPS simple extents
  * * No moer than one striped extent
  * * Striped extent contains no more tahn FAMFS_MAX_EXTENTS strip extents
  */
@@ -99,7 +104,7 @@ struct famfs_ioc_get_fmap {
 		struct famfs_ioc_simple_extent ikse[FAMFS_MAX_EXTENTS];
 		struct {
 			struct famfs_ioc_interleaved_ext ikie;
-			struct famfs_ioc_simple_extent kie_strips[FAMFS_MAX_EXTENTS];
+			struct famfs_ioc_simple_extent kie_strips[FAMFS_MAX_STRIPS];
 		} ks;
 	};
 };
@@ -107,10 +112,14 @@ struct famfs_ioc_get_fmap {
 #define FAMFSIOC_MAGIC 'u'
 
 /* famfs file ioctl opcodes */
+/* ABI 42 / v1 */
 #define FAMFSIOC_MAP_CREATE    _IOW(FAMFSIOC_MAGIC, 0x50, struct famfs_ioc_map)
 #define FAMFSIOC_MAP_GET       _IOR(FAMFSIOC_MAGIC, 0x51, struct famfs_ioc_map)
 #define FAMFSIOC_MAP_GETEXT    _IOR(FAMFSIOC_MAGIC, 0x52, struct famfs_extent)
 #define FAMFSIOC_NOP           _IO(FAMFSIOC_MAGIC,  0x53)
+
+/* ABI 43 / v2 */
 #define FAMFSIOC_MAP_CREATE_V2 _IOW(FAMFSIOC_MAGIC, 0x54, struct famfs_ioc_fmap)
 #define FAMFSIOC_MAP_GET_V2    _IOR(FAMFSIOC_MAGIC, 0x55, struct famfs_ioc_get_fmap)
+
 #endif /* FAMFS_IOCTL_H */
