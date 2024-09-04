@@ -127,10 +127,10 @@ else
     exit -1
 fi
 
-if [[ "$BIN" =~ \s ]]; then
+if [[ "$BIN" == *[[:space:]]* ]]; then
     fail "ERROR: the BIN path ($BIN) contains spaces!"
 fi
-if [[ "$SCRIPTS" =~ \s ]]; then
+if [[ "$SCRIPTS" =~ *[[:space:]]* ]]; then
     fail "ERROR: the SCRIPTS path ($SCRIPTS) contains spaces!"
 fi
 
