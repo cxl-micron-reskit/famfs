@@ -1215,7 +1215,7 @@ static void famfs_yaml_test_reset(struct famfs_file_meta *fm, FILE *fp, char *ya
 }
 
 TEST(famfs, famfs_file_yaml) {
-	struct famfs_stripe stripe;
+	//struct famfs_stripe stripe;
 	struct famfs_file_meta fm;
 	FILE *fp = tmpfile();
 	char *my_yaml;
@@ -1377,42 +1377,46 @@ TEST(famfs, famfs_file_yaml) {
 	rc = famfs_parse_shadow_yaml(fp, &fm, 1, FAMFS_MAX_SIMPLE_EXTENTS, 2);
 	ASSERT_EQ(rc, 0);
 
-	/******************* Stripe Yaml ***************************************/
-	FILE *stdout_fp = fdopen(0, "w");
-
-	/* Test emit */
-	stripe.nbuckets = 1000;
-	stripe.nstrips = 400;
-	stripe.chunk_size = 2 * 1024 * 1024;
-	famfs_emit_stripe_yaml(&stripe, stdout_fp);
-	ASSERT_EQ(rc, 0);
-
 	my_yaml = "---\n"
-		"striped_alloc:\n"
-		"  nbuckets: 8\n"
-		"  nstrips: 6\n"
-		"  chunk_size: 2m\n"
-		"...\n";
-	fprintf(stderr, "\nmy_yaml:\n%s\n\n", my_yaml);
+		"file:\n"
+		"  path: interleaved-file0\n"
+		"  size: 3145728\n"
+		"  flags: 2\n"
+		"  mode: 00\n"
+		"  uid: 0\n"
+		"  gid: 0\n"
+		"  nextents: 1\n"
+		"  striped_ext_list:\n"
+		"  - nstrips: 8\n"
+		"    chunk_size: 0x200000\n"
+		"    simple_ext_list:\n"
+		"    - offset: 0x8600000\n"
+		"      length: 0x200000\n"
+		"    - offset: 0x2600000\n"
+		"      length: 0x200000\n"
+		"    - offset: 0xc600000\n"
+		"      length: 0x200000\n"
+		"    - offset: 0xe600000\n"
+		"      length: 0x200000\n"
+		"    - offset: 0x6600000\n"
+		"      length: 0x200000\n"
+		"    - offset: 0xa600000\n"
+		"      length: 0x200000\n"
+		"    - offset: 0x4600000\n"
+		"      length: 0x200000\n"
+		"    - offset: 0x1200000\n"
+		"      length: 0x200000\n"
+		"...";
 	famfs_yaml_test_reset(&fm, fp, my_yaml);
-	rc = famfs_parse_alloc_yaml(fp, &stripe, 2);
-	ASSERT_EQ(rc, 0);
-
-	rc = famfs_validate_stripe(&stripe, 8ull * 1024ull * 1024ull * 1024ull, 2);
-	ASSERT_EQ(rc, 0);
-
-	my_yaml = "---\n"
-		"striped_alloc:\n"
-		"  nbuckets: 8\n"
-		"  nstrips: 6\n"
-		"  chunk_size: 2\n"
-		"...\n";
-	fprintf(stderr, "\nmy_yaml:\n%s\n\n", my_yaml);
-	famfs_yaml_test_reset(&fm, fp, my_yaml);
-	rc = famfs_parse_alloc_yaml(fp, &stripe, 2);
-	ASSERT_EQ(rc, 0);
-
-	rc = famfs_validate_stripe(&stripe, 8ull * 1024ull * 1024ull * 1024ull, 2);
+	rc = famfs_parse_shadow_yaml(fp, &fm, 1, 3 /* max strips */, 2);
 	ASSERT_NE(rc, 0);
-	famfs_emit_stripe_yaml(&stripe, stdout_fp);
+
+	famfs_yaml_test_reset(&fm, fp, my_yaml);
+	rc = famfs_parse_shadow_yaml(fp, &fm, 1, 8 /* max strips */, 2);
+	ASSERT_EQ(rc, 0);
+
+	famfs_yaml_test_reset(&fm, fp, my_yaml);
+	rc = famfs_parse_shadow_yaml(fp, &fm, 1, 100 /* max strips */, 2);
+	ASSERT_EQ(rc, 0);
+
 }
