@@ -127,6 +127,13 @@ else
     exit -1
 fi
 
+if [[ "$BIN" =~ \s ]]; then
+    fail "ERROR: the BIN path ($BIN) contains spaces!"
+fi
+if [[ "$SCRIPTS" =~ \s ]]; then
+    fail "ERROR: the SCRIPTS path ($SCRIPTS) contains spaces!"
+fi
+
 ./smoke/prepare.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  || exit -1
 
 set -x
