@@ -1383,6 +1383,7 @@ do_famfs_cli_verify(int argc, char *argv[])
 {
 	char *filename = NULL;
 	size_t fsize = 0;
+	int quiet = 0;
 	s64 seed = 0;
 	void *addr;
 	s64 rc = 0;
@@ -1393,6 +1394,7 @@ do_famfs_cli_verify(int argc, char *argv[])
 		/* These options set a */
 		{"seed",        required_argument,             0,  'S'},
 		{"filename",    required_argument,             0,  'f'},
+		{"quiet",       no_argument,                   0,  'q'},
 		{0, 0, 0, 0}
 	};
 
@@ -1400,7 +1402,7 @@ do_famfs_cli_verify(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+f:S:h?",
+	while ((c = getopt_long(argc, argv, "+f:S:qh?",
 				verify_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -1413,6 +1415,10 @@ do_famfs_cli_verify(int argc, char *argv[])
 			filename = optarg;
 			break;
 		}
+		case 'q':
+			quiet = 1;
+			break;
+
 		case 'h':
 		case '?':
 			famfs_verify_usage(argc, argv);
@@ -1443,7 +1449,8 @@ do_famfs_cli_verify(int argc, char *argv[])
 	buf = (char *)addr;
 	rc = validate_random_buffer(buf, fsize, seed);
 	if (rc == -1) {
-		printf("Success: verified %ld bytes in file %s\n", fsize, filename);
+		if (!quiet)
+			printf("Success: verified %ld bytes in file %s\n", fsize, filename);
 	} else {
 		fprintf(stderr, "Verify fail at offset %lld of %ld bytes\n", rc, fsize);
 		exit(-1);

@@ -146,6 +146,7 @@ fi
 ./smoke/prepare.sh "$VGARG" -b "$BIN" -s "$SCRIPTS" -d "$DEV"  || exit -1
 
 set -x
+
 if [ -z "$SKIP_TEST0" ]; then
     ./smoke/test0.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  || exit -1
     sleep "${SLEEP_TIME}"
@@ -191,6 +192,11 @@ if [ -z "$SKIP_ERRS" ]; then
     ./smoke/test_errors.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV || exit -1
 else
     echo "skipping test_errors.sh because -n|--noerrors was specified"
+fi
+
+if [ -z "$SKIP_STRIPE_TEST" ]; then
+    ./smoke/stripe_test.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  || exit -1
+    sleep "${SLEEP_TIME}"
 fi
 
 sudo umount $MPT
