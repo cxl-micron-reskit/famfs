@@ -2849,7 +2849,8 @@ __famfs_mkfile(
 	 * getting this before we allocate is cleaner if the path is sombhow bogus
 	 */
 	rpath = strdup(filename);
-	printf("filename %s rpath %s\n", filename, rpath);
+	if (verbose)
+		printf("filename %s rpath %s\n", filename, rpath);
 
 	/* realpath should not fail because we just created the file */
 	assert((fullpath = realpath(rpath, NULL)));
@@ -2861,7 +2862,8 @@ __famfs_mkfile(
 		goto out;
 	}
 	rc = famfs_log_file_creation(logp, fmap,
-				     relpath, mode, uid, gid, size, 1 /* dump metadata */);
+				     relpath, mode, uid, gid, size,
+				     (verbose > 1) ? 1:0 /* dump metadata */);
 	if (rc)
 		return rc;
 
