@@ -136,7 +136,7 @@ sudo umount $MPT       || fail "umount $MPT should succeed"
 ${MKFS} -f -k $DEV     || fail "mkfs/kill should succeed wtih --force"
 ${CLI} mount $DEV $MPT && fail "famfs mount should fail with invalid superblock"
 ${MKFS} $DEV           || fail "clean mkfs should succeed"
-${CLI} mount $DEV $MPT || fial "mount of clean file system should succeed"
+${CLI} mount $DEV $MPT || fail "mount of clean file system should succeed"
 
 set +x
 echo "*************************************************************************"

@@ -66,14 +66,22 @@ verify_not_mounted () {
     DEV=$1
     MPT=$2
     MSG=$3
-    findmnt -t famfs $MPT && fail "verify_not_mounted: $MSG"
+
+    count=$(findmnt -t famfs $MPT | grep -c $DEV)
+    if (( count > 0 )); then
+	fail "verify_not_mounted: $MSG"
+    fi
 }
 
 verify_mounted () {
     DEV=$1
     MPT=$2
     MSG=$3
-    findmnt -t famfs $MPT || fail "verify_mounted: famfs not mounted at $MPT ($MSG)"
+
+    count=$(findmnt -t famfs $MPT | grep -c $DEV)
+    if (( count == 0 )); then
+	fail "verify_mounted: $MSG"
+    fi
 }
 
 get_device_size () {
