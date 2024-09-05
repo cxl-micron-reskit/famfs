@@ -101,6 +101,7 @@ sudo chown -R ${id}:${grp} $BIN
 
 
 # Test setperm
+# XXX review these tests to see if they make sense; setperm was broken until this commit
 # Consumer permission
 ${pcq} --setperm c $MPT/q0        || fail "setperm c should work"
 test -w $MPT/q0                   && fail "setperm c should remove write permission on q0"

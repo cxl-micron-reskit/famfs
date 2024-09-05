@@ -169,7 +169,7 @@ main(int argc, char **argv)
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+b:s:S:n:N:f:t:s:CdpcwDih?v",
+	while ((c = getopt_long(argc, argv, "+b:s:S:n:N:f:t:s:CdpcwDiPh?v",
 				pcq_options, &optind)) != EOF) {
 		char *endptr;
 
