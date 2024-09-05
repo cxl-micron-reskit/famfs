@@ -1166,6 +1166,11 @@ do_famfs_cli_creat(int argc, char *argv[])
 		}
 	}
 
+	if (seed && !randomize) {
+		fprintf(stderr,
+			"Error you provided a seed (-S) without the randomize (-r) argument\n");
+		return -1;
+	}
 	if (optind > (argc - 1)) {
 		fprintf(stderr, "Must specify filename\n");
 		return -1;

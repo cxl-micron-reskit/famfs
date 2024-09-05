@@ -71,6 +71,7 @@ sudo test -f $MPT/.meta/.log        || fail "no log file after mkmeta"
 ${CLI} creat -h                           || fail "creat -h should succeed"
 ${CLI} creat                              && fail "creat with no args should fail"
 ${CLI} creat -r -S 1 $MPT/test1           && fail "creat without size should fail"
+${CLI} creat -S -s 10 $MPT/badf           && fail "creat with -S but no -r should fail"
 ${CLI} creat -r -s 4096 -S 1 $MPT/test1   || fail "creat test1"
 ${CLI} create $MPT/.meta && fail "creat an existing directory should fail"
 
