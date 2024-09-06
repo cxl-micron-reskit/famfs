@@ -53,6 +53,8 @@ while (( $# > 0)); do
 done
 
 echo "DEVTYPE=$DEVTYPE"
+echo "SCRIPTS=$SCRIPTS $(realpath $SCRIPTS)"
+REALSCRIPTS=$(realpath $SCRIPTS)
 CLI="sudo $VG $BIN/famfs"
 TEST="test_fio"
 
@@ -61,6 +63,9 @@ source $SCRIPTS/test_funcs.sh
 
 set -x
 
+# Start with a clean, empty file systeem
+famfs_recreate -d "$DEV" -b "$BIN" -m "$MPT" -M "recreate in test_fio.sh"
+
 verify_mounted $DEV $MPT "test_fio.sh"
 
 TESTDIR="$MPT/fio_stress"
@@ -68,8 +73,9 @@ ${CLI} mkdir -p $TESTDIR
 
 SPACE_AVAIL=$(sudo $BIN/famfs fsck $TESTDIR | grep "Free space" | awk -e '{print $3}')
 
+pwd
 # Not a stress test, just a smoke test (4 jobs)
-$SCRIPTS/stress_fio.sh \
+$REALSCRIPTS/stress_fio.sh \
 		       -b $BIN \
 		       -r 30 \
 		       -s $SPACE_AVAIL \

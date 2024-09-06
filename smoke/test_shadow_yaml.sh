@@ -63,6 +63,9 @@ source $SCRIPTS/test_funcs.sh
 
 set -x
 
+# Start with a clean, empty file systeem
+famfs_recreate -d "$DEV" -b "$BIN" -m "$MPT" -M "recreate in test0.sh"
+
 verify_mounted $DEV $MPT $TEST
 
 verify_mounted $DEV $MPT "$TEST.sh mounted"

@@ -59,6 +59,9 @@ source $SCRIPTS/test_funcs.sh
 
 set -x
 
+# Start with a clean, empty file systeem
+famfs_recreate -d "$DEV" -b "$BIN" -m "$MPT" -M "recreate in test0.sh"
+
 grep famfs /proc/mounts             || fail "No famfs mounted"
 grep $DEV /proc/mounts              || fail "dev=$DEV not in /proc/mounts~"
 grep $MPT /proc/mounts              || fail "Mount pt $MPT not in /proc/mounts~"

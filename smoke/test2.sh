@@ -59,6 +59,9 @@ source $SCRIPTS/test_funcs.sh
 
 set -x
 
+# Start with a clean, empty file systeem
+famfs_recreate -d "$DEV" -b "$BIN" -m "$MPT" -M "recreate in test2.sh"
+
 verify_mounted $DEV $MPT "test2.sh"
 ${CLI} fsck $MPT || fail "fsck should succeed"
 
@@ -103,8 +106,10 @@ done
 
 sudo $UMOUNT $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
-full_mount $DEV $MPT "$MOUNT_OPTS" "test1.sh"
+${CLI} mount $DEV $MPT || fail "mount should succeed"
 verify_mounted $DEV $MPT "test1.sh"
+
+sudo cmp $MPT/bigtest10 $MPT/bigtest11        && fail "files should not match"
 
 set +x
 echo "*************************************************************************"

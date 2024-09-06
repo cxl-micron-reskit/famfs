@@ -140,6 +140,6 @@ ${CLI} mount $DEV $MPT || fail "mount of clean file system should succeed"
 
 set +x
 echo "*************************************************************************"
-echo "prepare.sh completed successfully"
+echo "prepare completed successfully"
 echo "*************************************************************************"
 exit 0

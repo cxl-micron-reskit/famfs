@@ -49,6 +49,15 @@ while (( $# > 0)); do
 	    SKIP_PCQ=1
 	    SKIP_FIO=1
 	    ;;
+	(-f|--justfio)
+	    SKIP_TEST0=1
+	    SKIP_TEST1=1
+	    SKIP_TEST2=1
+	    SKIP_TEST3=1
+	    SKIP_TEST4=1
+	    SKIP_PCQ=1
+#	    SKIP_FIO=0
+	    ;;
 	(--quick)
 	    SKIP_PCQ=1
 	    SKIP_FIO=1
@@ -134,36 +143,49 @@ if [[ "$SCRIPTS" =~ *[[:space:]]* ]]; then
     fail "ERROR: the SCRIPTS path ($SCRIPTS) contains spaces!"
 fi
 
-./smoke/prepare.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  || exit -1
+./smoke/prepare.sh "$VGARG" -b "$BIN" -s "$SCRIPTS" -d "$DEV"  || exit -1
 
 set -x
 if [ -z "$SKIP_TEST0" ]; then
     ./smoke/test0.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  || exit -1
     sleep "${SLEEP_TIME}"
 fi
+
 if [ -z "$SKIP_TEST1" ]; then
     ./smoke/test1.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  || exit -1
     sleep "${SLEEP_TIME}"
 fi
+
 if [ -z "$SKIP_TEST2" ]; then
     ./smoke/test2.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  || exit -1
     sleep "${SLEEP_TIME}"
 fi
+
 if [ -z "$SKIP_TEST3" ]; then
     ./smoke/test3.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  || exit -1
+    sleep "${SLEEP_TIME}"
 fi
+
 if [ -z "$SKIP_TEST4" ]; then
     ./smoke/test4.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  || exit -1
+    sleep "${SLEEP_TIME}"
 fi
+
 if [ -z "$SKIP_PCQ" ]; then
     ./smoke/test_pcq.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  || exit -1
+    sleep "${SLEEP_TIME}"
 fi
+
 if [ -z "$SKIP_FIO" ]; then
     ./smoke/test_fio.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  || exit -1
+    sleep "${SLEEP_TIME}"
 fi
+
 if [ -z "$SKIP_SHADOW_YAML" ]; then
     ./smoke/test_shadow_yaml.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  || exit -1
+    sleep "${SLEEP_TIME}"
 fi
+
 if [ -z "$SKIP_ERRS" ]; then
     sleep "${SLEEP_TIME}"
     ./smoke/test_errors.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV || exit -1

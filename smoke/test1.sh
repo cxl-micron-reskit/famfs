@@ -66,6 +66,9 @@ source $SCRIPTS/test_funcs.sh
 
 set -x
 
+# Start with a clean, empty file systeem
+famfs_recreate -d "$DEV" -b "$BIN" -m "$MPT" -M "recreate in test1.sh"
+
 verify_mounted $DEV $MPT "test1.sh"
 sudo $UMOUNT $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
@@ -73,7 +76,7 @@ verify_not_mounted $DEV $MPT "test1.sh"
 ${CLI} fsck $MPT && fail "fsck by path should fail when not mounted"
 ${CLI} fsck $DEV || fail "fsck by dev should succeed when not mounted"
 
-full_mount $DEV $MPT "${MOUNT_OPTS}" "test1.sh"
+${CLI} mount $DEV $MPT  || fail "mount should succeed test1 1"
 
 ${CLI} fsck $MPT || fail "fsck by path should succeed when mounted"
 
@@ -223,7 +226,7 @@ fi
 
 sudo $UMOUNT $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
-full_mount $DEV $MPT "${MOUNT_OPTS}" "test1.sh"
+${CLI} mount $DEV $MPT || fail "mount should succeed test1 2"
 verify_mounted $DEV $MPT "test1.sh"
 
 # re-check the custom cp mode/uid/gid on one of the files
@@ -353,6 +356,8 @@ ${CLI} fsck -m $MPT || fail "fsck -mh should succeed"
 ${CLI} fsck -vv $MPT || fail "fsck -vv should succeed"
 ${CLI} fsck -r $MPT  || fail "fsck -r $MPT should succeed"
 ${CLI} fsck -rm $MPT && fail "fsck -r -m $MPT should fail"
+
+sudo cmp $MPT/bigtest0 $MPT/bigtest0_cp       || fail "copies should match"
 
 set +x
 echo "*************************************************************************"

@@ -59,7 +59,8 @@ source $SCRIPTS/test_funcs.sh
 
 set -x
 
-#full_mount $DEV $MPT "${MOUNT_OPTS}" "test_errors full_mount"
+# Start with a clean, empty file system
+famfs_recreate -d "$DEV" -b "$BIN" -m "$MPT" -M "recreate in test0.sh"
 
 verify_mounted $DEV $MPT "test_errors.sh"
 
@@ -92,8 +93,9 @@ ${CLI} verify -S 10 -f $MPT/clone  || fail "re-verify clone"
 ${CLI} verify -S 10 -f $MPT/clone1 || fail "re-verify clone1"
 
 sudo $UMOUNT $MPT || fail "umount"
-verify_not_mounted $DEV $MPT "test1.sh"
-full_mount $DEV $MPT "${MOUNT_OPTS}" "test1.sh"
+verify_not_mounted $DEV $MPT "test_errors .sh"
+${CLI} mount $DEV $MPT || fail "mount in test_errors"
+#full_mount $DEV $MPT "${MOUNT_OPTS}" "test_errors.sh"
 verify_mounted $DEV $MPT "test1.sh"
 
 # Throw a curveball or two at logplay

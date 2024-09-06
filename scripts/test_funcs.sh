@@ -35,30 +35,17 @@ assert_lt() {
     fi
 }
 
-mount_only () {
-    DEV=$1
-    MPT=$2
-    sudo mount $MOUNT_OPTS $DEV $MPT
-    return $?
-}
+assert_file_size () {
+    file=$1
+    size=$2
+    MSG=$3
 
-mkmeta_only () {
-    DEV=$1
-    MSG=$2
-    ${CLI} mkmeta $DEV || fail "mkmeta_only: $MSG"
-}
+    actual_size=$(stat -c%s "$MPT/ddtest")
 
-#
-# Getting into the "fully mounted" state requires mount, mkmeta, logplay
-#
-full_mount () {
-    DEV=$1
-    MPT=$2
-    MO=$3
-    MSG=$4
-    sudo mount $MO $DEV $MPT  || fail "full_mount: mount err: $MSG"
-    ${CLI} mkmeta $DEV                || fail "full_mount: mkmeta err: $MSG"
-    ${CLI} logplay $MPT               || fail "full_mount: logplay err: $MSG"
+    # Compare the file size with the known size
+    if [ "$actual_size" -ne "$size" ]; then
+	fail "assert_file_size: expect/actual $size/$actual_size: $MSG"
+    fi
 
 }
 
@@ -99,4 +86,107 @@ get_device_size () {
 	exit -1
     fi
     echo "$DEV size: $raw_size"
+}
+
+get_famfs_abi_version() {
+    # Define the path to the header file
+    HEADER_FILE="/usr/include/linux/famfs_ioctl.h"
+
+    # Check if the file exists
+    if [[ ! -f "$HEADER_FILE" ]]; then
+	echo "Error: File $HEADER_FILE not found."
+	exit 1
+    fi
+
+    # Extract the value of the macro
+    FAMFS_KABI_VERSION=$(grep -E '^#define FAMFS_KABI_VERSION' "$HEADER_FILE" | awk '{print $3}')
+
+    # Check if the macro was found
+    if [[ -z "$FAMFS_KABI_VERSION" ]]; then
+	fail "Error: Macro FAMFS_KABI_VERSION not found in $HEADER_FILE."
+    fi
+
+    # Set the variable and output the result
+    echo "$FAMFS_KABI_VERSION"
+}
+
+famfs_get_capacity() {
+    MPT=$1
+    ${CLI} fsck  $MPT | grep "Device capacity" | awk  '{ print $3 }'    
+}
+
+famfs_recreate() {
+    cwd=$(pwd)
+
+    # Defaults
+    VG=""
+    SCRIPTS=../scripts
+    MOUNT_OPTS="-t famfs -o noatime -o dax=always "
+    BIN=../debug
+    VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
+
+    # Allow these variables to be set from the environment
+    if [ -z "$DEV" ]; then
+	DEV="/dev/dax0.0"
+    fi
+    if [ -z "$MPT" ]; then
+	MPT=/mnt/famfs
+    fi
+    if [ -z "$UMOUNT" ]; then
+	UMOUNT="umount"
+    fi
+
+    # Override defaults as needed
+    while (( $# > 0)); do
+	flag="$1"
+	shift
+	case "$flag" in
+	    (-d|--device)
+		DEV=$1
+		shift;
+		;;
+	    (-b|--bin)
+		BIN=$1
+		shift
+		;;
+	    (-s|--scripts)
+		SCRIPTS=$1
+		source_root=$1;
+		shift;
+		;;
+	    (-v|--valgrind)
+		# no argument to -v; just setup for Valgrind
+		VG=${VALGRIND_ARG}
+		;;
+	    *)
+		echo "Unrecognized command line arg: $flag"
+		;;
+
+	esac
+    done
+
+    MKFS="sudo $VG $BIN/mkfs.famfs"
+    CLI="sudo $VG $BIN/famfs"
+    CLI_NOSUDO="$VG $BIN/famfs"
+
+    # Above this line should be the same for all smoke tests
+
+    sudo mkdir -p $MPT || fail "mkdir -t MPT"
+
+    # Make sure famfs is not mounted
+    findmnt -t famfs $MPT
+    if (( $? == 0 )); then
+	sudo umount $MPT
+    fi
+
+    # destroy famfs file system, if any
+    ${MKFS} /tmp/nonexistent && fail "mkfs on nonexistent dev should fail"
+    ${MKFS} -f -k $DEV    || fail "mkfs/kill should succeed wtih --force"
+    ${MKFS}  $DEV         || fail "mkfs"
+    
+    sudo modprobe famfs       || fail "modprobe"
+
+    ${CLI} mount $DEV $MPT    || fail "famfs mount"
+
+    verify_mounted "$DEV" "$MPT" "famfs_recreate"
 }

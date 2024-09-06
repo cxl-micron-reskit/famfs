@@ -63,6 +63,9 @@ source $SCRIPTS/test_funcs.sh
 
 set -x
 
+# Start with a clean, empty file systeem
+famfs_recreate -d "$DEV" -b "$BIN" -m "$MPT" -M "recreate in test0.sh"
+
 verify_mounted $DEV $MPT "test4.sh"
 
 ${CLI} badarg                            && fail "create badarg should fail"
@@ -112,7 +115,8 @@ ${CLI} mount -vvv $DEV $MPT 2>/dev/null && fail "famfs mount should fail when al
 verify_mounted $DEV $MPT "test4.sh remount"
 
 # check that a removed file is restored on remount
-F="$MPT/test1"
+F="$MPT/test_xfile"
+${CLI} creat -s 16m -r -S 42 $F || fail "failed to create F ($F)"
 sudo rm $F
 sudo $UMOUNT $MPT            || fail "umount failed"
 
@@ -133,6 +137,7 @@ ${CLI} mount -r -vvv $DEV $MPT  || fail "famfs mount 2 should succeed when not m
 verify_mounted $DEV $MPT "test4.sh 2nd remount"
 
 sudo test -f $F             || fail "bogusly deleted file did not reappear on remount"
+${CLI} verify -S 42 -f $F
 sudo $UMOUNT $MPT            || fail "umount should succeed"
 
 if ((RMMOD > 0)); then
