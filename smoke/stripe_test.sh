@@ -45,6 +45,10 @@ while (( $# > 0)); do
 	    source_root=$1;
 	    shift;
 	    ;;
+	(-v|--valgrind)
+	    # no argument to -v; just setup for Valgrind
+	    VG=${VALGRIND_ARG}
+	    ;;
         *)
             echo "Unrecognized command line arg: $flag"
 	    exit -1
@@ -52,7 +56,7 @@ while (( $# > 0)); do
     esac
 done
 
-CLI="sudo $BIN/famfs"
+CLI="sudo $VG $BIN/famfs"
 
 echo "CWD:      $CWD"
 echo "BIN:      $BIN"
