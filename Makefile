@@ -50,7 +50,7 @@ coverage_test:	coverage
 	-scripts/teardown.sh
 	-scripts/install_kmod.sh
 	script -c "./run_smoke.sh --coverage" -O smoke_coverage.log
-	cd coverage; sudo script -c "make famfs_unit_coverage" -O ../unit_coverage.log
+	cd coverage; sudo script -e -c "make famfs_unit_coverage" -O ../unit_coverage.log
 
 release:	cmake-modules chk_include
 	mkdir -p release;
@@ -76,16 +76,16 @@ test:
 smoke:	debug
 	-scripts/install_kmod.sh
 	-scripts/teardown.sh
-	script -c ./run_smoke.sh -O smoke.log
+	script -e -c ./run_smoke.sh -O smoke.log
 
 smoke_valgrind: debug
 	-scripts/teardown.sh
 	valgrind --version
-	script -c "./run_smoke.sh --valgrind" -O smoke.log
+	script -e -c "./run_smoke.sh --valgrind" -O smoke.log
 	scripts/check_valgrind_output.sh smoke.log
 
 stress_tests:	release
-	 script -c "./run_stress_tests.sh" -O stress.log
+	 script -e -c "./run_stress_tests.sh" -O stress.log
 
 teardown:
 	pwd
