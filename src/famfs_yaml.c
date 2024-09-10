@@ -898,10 +898,16 @@ err_out:
 	return rc;
 }
 
-
-/* Allocation yaml */
+/*
+ * Allocation yaml
+ *
+ * This is not the file yaml! This is the .meta/.alloc.cfg file!!
+ *
+ * This file currently contains striped_alloc: (nbuckets, nstrips and chunk_size)
+ * and nothing else - but it may be expanded later.
+ */
 int
-famfs_parse_stripe_alloc_yaml(
+famfs_parse_stripe_config_yaml(
 	yaml_parser_t *parser,
 	struct famfs_stripe *stripe,
 	int verbose)
@@ -988,6 +994,11 @@ err_out:
 	return rc;
 }
 
+/**
+ * famfs_parse_alloc_yaml()
+ *
+ * Parse the yaml config file that contains the stripe configuration
+ */
 int
 famfs_parse_alloc_yaml(
 	FILE *fp,
@@ -1025,7 +1036,7 @@ famfs_parse_alloc_yaml(
 	 */
 	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_SCALAR_EVENT, rc, err_out, verbose);
 	if (strcmp((char *)"striped_alloc", (char *)event.data.scalar.value) == 0) {
-		rc = famfs_parse_stripe_alloc_yaml(&parser, stripe, verbose);
+		rc = famfs_parse_stripe_config_yaml(&parser, stripe, verbose);
 		if (rc) {
 			yaml_event_delete(&event);
 			goto err_out;
@@ -1049,4 +1060,3 @@ err_out:
 	yaml_parser_delete(&parser);
 	return rc;
 }
-

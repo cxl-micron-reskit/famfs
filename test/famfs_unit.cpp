@@ -1420,3 +1420,94 @@ TEST(famfs, famfs_file_yaml) {
 	ASSERT_EQ(rc, 0);
 
 }
+
+static void famfs_yaml_stripe_reset(struct famfs_stripe *stripe, FILE *fp, char *yaml_str)
+{
+	memset(stripe, 0, sizeof(*stripe));
+	rewind(fp);
+	truncate_stream(fp, 0);
+	fprintf(fp, "%s", yaml_str);
+	rewind(fp);
+}
+
+
+TEST(famfs, famfs_config_yaml) {
+	struct famfs_stripe stripe;
+	u64 devsize = 8 * 1024ULL * 1024ULL * 1024ULL;
+	//struct famfs_file_meta fm;
+	FILE *fp = tmpfile();
+	char *my_yaml;
+	int rc;
+
+	my_yaml = "---\n" /* Good yaml */
+		"striped_alloc:\n"
+		"  nbuckets: 8\n"
+		"  nstrips: 6\n"
+		"  chunk_size: 2m\n"
+		"...";
+	famfs_yaml_stripe_reset(&stripe, fp, my_yaml);
+
+	rc = famfs_parse_alloc_yaml(fp, &stripe, 1);
+	ASSERT_EQ(rc, 0);
+
+	rc = famfs_validate_stripe(&stripe, devsize, 1);
+	ASSERT_EQ(rc, 0);
+
+	/* Different order */
+	my_yaml = "---\n" /* Good yaml */
+		"striped_alloc:\n"
+		"  chunk_size: 2m\n"
+		"  nstrips: 6\n"
+		"  nbuckets: 8\n"
+		"...";
+	famfs_yaml_stripe_reset(&stripe, fp, my_yaml);
+
+	rc = famfs_parse_alloc_yaml(fp, &stripe, 1);
+	ASSERT_EQ(rc, 0);
+
+	rc = famfs_validate_stripe(&stripe, devsize, 1);
+	ASSERT_EQ(rc, 0);
+
+	/* Bad chunk_size */
+	my_yaml = "---\n" /* Good yaml */
+		"striped_alloc:\n"
+		"  chunk_size: 2\n"
+		"  nstrips: 6\n"
+		"  nbuckets: 8\n"
+		"...";
+
+	famfs_yaml_stripe_reset(&stripe, fp, my_yaml);
+	rc = famfs_parse_alloc_yaml(fp, &stripe, 1);
+	ASSERT_EQ(rc, 0);
+
+	rc = famfs_validate_stripe(&stripe, devsize, 1);
+	ASSERT_NE(rc, 0);
+
+	/* Another bad chunk_size */
+	my_yaml = "---\n" /* Good yaml */
+		"striped_alloc:\n"
+		"  chunk_size: 3000000\n"
+		"  nstrips: 6\n"
+		"  nbuckets: 8\n"
+		"...";
+
+	famfs_yaml_stripe_reset(&stripe, fp, my_yaml);
+	rc = famfs_parse_alloc_yaml(fp, &stripe, 1);
+	ASSERT_EQ(rc, 0);
+
+	rc = famfs_validate_stripe(&stripe, devsize, 1);
+	ASSERT_NE(rc, 0);
+
+	/* Null stripe is valid */
+	famfs_yaml_stripe_reset(&stripe, fp, my_yaml);
+	rc = famfs_validate_stripe(&stripe, devsize, 1);
+	ASSERT_EQ(rc, 0);
+
+	/* But null yaml is not */
+	my_yaml = "---\n" /* Good yaml */
+		"...";
+
+	famfs_yaml_stripe_reset(&stripe, fp, my_yaml);
+	rc = famfs_parse_alloc_yaml(fp, &stripe, 1);
+	ASSERT_NE(rc, 0);
+}
