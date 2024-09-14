@@ -67,7 +67,7 @@ famfs_logplay_usage(int   argc,
 	       "\n"
 	       "    %s logplay [args] <mount_point>\n"
 	       "\n"
-	       "    %s logplay --shadow /shadow/path --daxdevx <dadev> <shadowpath>\n"
+	       "    %s logplay --shadow --daxdev <dadev> <shadowpath>\n"
 	       "Arguments:\n"
 	       "    -r|--read   - Get the superblock and log via posix read\n"
 	       "    -m|--mmap   - Get the log via mmap\n"
