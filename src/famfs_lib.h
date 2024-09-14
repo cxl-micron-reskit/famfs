@@ -9,6 +9,7 @@
 #include <linux/uuid.h> /* Our preferred UUID format */
 #include <uuid/uuid.h>  /* for uuid_generate / libuuid */
 #include <linux/famfs_ioctl.h>
+#include <sys/stat.h>
 
 #include "famfs.h"
 #include "famfs_meta.h"
@@ -68,6 +69,7 @@ void famfs_dump_log(struct famfs_log *logp);
 void famfs_dump_super(struct famfs_superblock *sb);
 int famfs_get_system_uuid(uuid_le *uuid_out);
 void famfs_print_uuid(const uuid_le *uuid);
+int famfs_shadow_to_stat(int fd, struct stat *stat, int verbose);
 
 /* famfs_yaml.c */
 #include <yaml.h>

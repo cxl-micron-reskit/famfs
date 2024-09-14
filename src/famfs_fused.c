@@ -30,6 +30,7 @@
 #include <systemd/sd-journal.h>
 
 #include "../fuse/passthrough_helpers.h"
+#include "famfs_lib.h"
 
 /* We are re-using pointers to our `struct famfs_inode` and `struct
    famfs_dirp` elements as inodes. This means that we must be able to
@@ -320,14 +321,21 @@ famfs_do_lookup(
 	e->attr_timeout = lo->timeout;
 	e->entry_timeout = lo->timeout;
 
-	newfd = openat(famfs_fd(req, parent), name, O_PATH | O_NOFOLLOW);
+	printf("%s: name=%s\n", __func__, name);
+	newfd = openat(famfs_fd(req, parent), name, O_PATH | O_NOFOLLOW, O_RDONLY);
 	if (newfd == -1)
 		goto out_err;
 
+#if 0
 	res = fstatat(newfd, "", &e->attr, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
 	if (res == -1)
 		goto out_err;
-
+#else
+	/* Famfs populates the stat struct from the shadow yaml */
+	res = famfs_shadow_to_stat(newfd, &e->attr, 1);
+	if (res)
+		goto out_err;
+#endif
 	inode = famfs_find(famfs_data(req), &e->attr);
 	if (inode) {
 		close(newfd);
@@ -436,7 +444,7 @@ famfs_mknod(
 }
 
 static void
-famfs_mkdir(
+famfs_fuse_mkdir(
 	fuse_req_t req,
 	fuse_ino_t parent,
 	const char *name,
@@ -1318,7 +1326,7 @@ static const struct fuse_lowlevel_ops famfs_oper = {
 	.init		= famfs_init,
 	.destroy	= famfs_destroy,
 	.lookup		= famfs_lookup,
-	.mkdir		= famfs_mkdir,
+	.mkdir		= famfs_fuse_mkdir,
 	.mknod		= famfs_mknod,
 	.symlink	= famfs_symlink,
 	.link		= famfs_link,
