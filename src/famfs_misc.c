@@ -103,11 +103,10 @@ famfs_dump_logentry(
 			break;
 
 		case FAMFS_EXT_INTERLEAVE: {
-			u32 nstripes = fmap->fmap_nstripes;
 			int j;
 
-			printf("\tnstripes=%d\n", nstripes);
-			for (i = 0; i < nstripes; i++) {
+			printf("\tniext=%d\n", fmap->fmap_niext);
+			for (i = 0; i < fmap->fmap_niext; i++) {
 				const struct famfs_simple_extent *strips = fmap->ie[i].ie_strips;
 				u64 nstrips = fmap->ie[i].ie_nstrips;
 

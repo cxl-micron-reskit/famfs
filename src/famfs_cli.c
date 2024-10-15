@@ -867,9 +867,9 @@ do_famfs_cli_getmap(int argc, char *argv[])
 
 			case FAMFS_IOC_EXT_INTERLEAVE: {
 				struct famfs_ioc_simple_extent *strips = ifmap.ks.kie_strips;
-				printf("Stripe chunk_size: %lld\n",
+				printf("Interleave_Param chunk_size: %lld\n",
 				       ifmap.ks.ikie.ie_chunk_size);
-				printf("Striped extent has %lld strips:\n",
+				printf("Interleaved extent has %lld strips:\n",
 				       ifmap.ks.ikie.ie_nstrips);
 
 				/* XXX
@@ -1046,9 +1046,8 @@ famfs_creat_usage(int   argc,
 	       "    -v|--verbose             - Print debugging output while executing the command\n"
 	       "\n"
 	       "    -C|--chunksize <size>    - Size of chunks for interleaved allocation\n"
-	       "                               (default=0); non-zero causes striped allocation.\n"
-	       "    -N|--nstrips <n>         - Number of strips to use in striped or strided\n"
-	       "                               allocations.\n"
+	       "                               (default=0); non-zero causes interleaved allocation.\n"
+	       "    -N|--nstrips <n>         - Number of strips to use in interleaved allocations.\n"
 	       "    -B|--nbuckets <n>        - Number of buckets to divide the device into\n"
 	       "                               causes strided allocation within a single device.\n"
 	       "\n"
@@ -1062,7 +1061,7 @@ famfs_creat_usage(int   argc,
 int
 do_famfs_cli_creat(int argc, char *argv[])
 {
-	struct famfs_stripe stripe = { 0 };
+	struct famfs_interleave_param interleave_param = { 0 };
 	uid_t uid = geteuid();
 	gid_t gid = getegid();
 	char *filename = NULL;
@@ -1133,26 +1132,26 @@ do_famfs_cli_creat(int argc, char *argv[])
 
 		case 'C':
 			set_stripe++;
-			stripe.chunk_size = strtoull(optarg, &endptr, 0);
+			interleave_param.chunk_size = strtoull(optarg, &endptr, 0);
 			mult = get_multiplier(endptr);
 			if (mult > 0)
-				stripe.chunk_size *= mult;
+				interleave_param.chunk_size *= mult;
 			break;
 
 		case 'N':
 			set_stripe++;
-			stripe.nstrips = strtoull(optarg, &endptr, 0);
+			interleave_param.nstrips = strtoull(optarg, &endptr, 0);
 			mult = get_multiplier(endptr);
 			if (mult > 0)
-				stripe.nstrips *= mult;
+				interleave_param.nstrips *= mult;
 			break;
 
 		case 'B':
 			set_stripe++;
-			stripe.nbuckets = strtoull(optarg, &endptr, 0);
+			interleave_param.nbuckets = strtoull(optarg, &endptr, 0);
 			mult = get_multiplier(endptr);
 			if (mult > 0)
-				stripe.nbuckets *= mult;
+				interleave_param.nbuckets *= mult;
 			break;
 
 		case 'v':
@@ -1217,8 +1216,8 @@ do_famfs_cli_creat(int argc, char *argv[])
 			}
 		}
 	} else if (rc < 0) {
-		/* If we pass in stripe info, it overrides the famfs_lib defaults */
-		struct famfs_stripe *s = (set_stripe) ? &stripe : NULL;
+		/* If we pass in interleave_param info, it overrides the famfs_lib defaults */
+		struct famfs_interleave_param *s = (set_stripe) ? &interleave_param : NULL;
 
 		/* This is horky, but OK for the cli */
 		current_umask = umask(0022);

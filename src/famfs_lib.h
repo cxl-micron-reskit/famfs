@@ -14,7 +14,7 @@
 #include "famfs.h"
 #include "famfs_meta.h"
 
-struct famfs_stripe {
+struct famfs_interleave_param {
 	u64 nbuckets; /* Single backing daxdev will be split into this many allocation buckets */
 	u64 nstrips;
 	u64 chunk_size;
@@ -45,7 +45,7 @@ int famfs_logplay(const char *mpt, int use_mmap,
 		  int dry_run, int client_mode, int shadow, const char *daxdev, int verbose);
 
 int famfs_mkfile(const char *filename, mode_t mode, uid_t uid, gid_t gid, size_t size,
-		 struct famfs_stripe *stripe, int verbose);
+		 struct famfs_interleave_param *interleave_param, int verbose);
 
 int famfs_cp_multi(int argc, char *argv[],
 		   mode_t mode, uid_t uid, gid_t gid, int recursive, int verbose);
@@ -74,10 +74,10 @@ int famfs_shadow_to_stat(int fd, struct stat *stat, int verbose);
 /* famfs_yaml.c */
 #include <yaml.h>
 int famfs_emit_file_yaml(const struct famfs_file_meta *fm, FILE *outp);
-int famfs_emit_stripe_yaml(const struct famfs_stripe *stripe, FILE *outp);
+int famfs_emit_interleave_param_yaml(const struct famfs_interleave_param *interleave_param, FILE *outp);
 int famfs_parse_shadow_yaml(FILE *fp, struct famfs_file_meta *fm, int max_extents,
 			    int max_strips, int verbose);
-int famfs_parse_alloc_yaml(FILE *fp, struct famfs_stripe *stripe, int verbose);
+int famfs_parse_alloc_yaml(FILE *fp, struct famfs_interleave_param *interleave_param, int verbose);
 const char *yaml_event_str(int event_type);
 
 #endif /* _H_FAMFS_LIB */

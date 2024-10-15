@@ -111,6 +111,7 @@ struct famfs_simple_extent {
 struct famfs_interleaved_ext {
 	u64 ie_nstrips;
 	u64 ie_chunk_size;
+	u64 ie_nbytes;
 	struct famfs_simple_extent ie_strips[FAMFS_MAX_SIMPLE_EXTENTS];
 };
 
@@ -126,13 +127,14 @@ struct famfs_interleaved_ext {
 struct famfs_log_fmap {
 	u32 fmap_ext_type; /* enum famfs_log_ext_type */
 	union {
-		u32 fmap_nextents;
-		u32 fmap_nstripes;
-	};
-	union {
-		struct famfs_simple_extent se[FAMFS_MAX_SIMPLE_EXTENTS];
-		struct famfs_interleaved_ext ie[FAMFS_MAX_INTERLEAVED_EXTENTS];
-		/* will include the other extent types eventually */
+		struct {
+			u32 fmap_nextents;
+			struct famfs_simple_extent se[FAMFS_MAX_SIMPLE_EXTENTS];
+		};
+		struct {
+			u32 fmap_niext;
+			struct famfs_interleaved_ext ie[FAMFS_MAX_INTERLEAVED_EXTENTS];
+		};
 	};
 };
 

@@ -42,9 +42,9 @@ struct famfs_locked_log {
 	u64               cur_pos;
 	/* alloc is contiguous if nbuckets or nstrips are clear;
 	 * if both are set thhe backing device is bucketized at bucket_size, and each
-	 * allocation is striped across nstrips buckets (though smaller allocations
+	 * allocation is interleaved across nstrips buckets (though smaller allocations
 	 * will use fewer strips) */
-	struct famfs_stripe stripe;
+	struct famfs_interleave_param interleave_param;
 	char              mpt[PATH_MAX];
 };
 
@@ -70,7 +70,8 @@ u8 *famfs_build_bitmap(const struct famfs_log *logp, u64 dev_size_in,
 int famfs_file_alloc(struct famfs_locked_log *lp, u64 size,
 		     struct famfs_log_fmap **fmap_out, int verbose);
 void mu_print_bitmap(u8 *bitmap, int num_bits);
-int famfs_validate_stripe(struct famfs_stripe *stripe, u64 devsize, int verbose);
+int famfs_validate_interleave_param(struct famfs_interleave_param *interleave_param,
+				    u64 devsize, int verbose);
 
 
 /* Only exported for unit tests */

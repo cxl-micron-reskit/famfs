@@ -196,7 +196,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 				}
 				break;
 			case FAMFS_EXT_INTERLEAVE: {
-				int nstripes = fmap->fmap_nstripes;
+				int nstripes = fmap->fmap_niext;
 				int j, k;
 				for (j = 0; j < nstripes; j++) {
 					const struct famfs_interleaved_ext *stripes = &fmap->ie[j];
@@ -448,8 +448,8 @@ static int next_bucket(struct bucket_series *bs)
 }
 
 int
-famfs_validate_stripe(
-	struct famfs_stripe *stripe,
+famfs_validate_interleave_param(
+	struct famfs_interleave_param *interleave_param,
 	u64 devsize,
 	int verbose)
 {
@@ -457,59 +457,59 @@ famfs_validate_stripe(
 	u64 bucket_size;
 	int errs = 0;
 
-	assert(stripe);
+	assert(interleave_param);
 	assert(devsize);
 
-	if (!stripe->nbuckets && !stripe->nstrips && !stripe->chunk_size)
+	if (!interleave_param->nbuckets && !interleave_param->nstrips && !interleave_param->chunk_size)
 		return 0; /* All 0's is valid */
 
-	if (!stripe->chunk_size) {
+	if (!interleave_param->chunk_size) {
 		errs++;
 		if (verbose)
 			fprintf(stderr, "%s: Error NULL chunk_size\n", __func__);
 	}
-	if (stripe->chunk_size & (stripe->chunk_size - 1)) {
+	if (interleave_param->chunk_size & (interleave_param->chunk_size - 1)) {
 		fprintf(stderr, "%s: chunk_size=0x%llx must be a power of 2\n",
-			__func__, stripe->chunk_size);
+			__func__, interleave_param->chunk_size);
 		return -EINVAL;
 	}
-	if (stripe->chunk_size % FAMFS_ALLOC_UNIT) {
+	if (interleave_param->chunk_size % FAMFS_ALLOC_UNIT) {
 		fprintf(stderr, "%s: chunk_size=0x%llx must be a multiple of FAMFS_ALLOC_UNIT\n",
-			__func__, stripe->chunk_size);
+			__func__, interleave_param->chunk_size);
 		return -EINVAL;
 	}
-	if (stripe->nstrips > stripe->nbuckets) {
+	if (interleave_param->nstrips > interleave_param->nbuckets) {
 		errs++;
 		if (verbose)
 			fprintf(stderr, "%s: Error nstrips (%lld) > nbuckets (%lld)\n",
-				__func__, stripe->nstrips, stripe->nbuckets);
+				__func__, interleave_param->nstrips, interleave_param->nbuckets);
 	}
-	if (stripe->chunk_size % FAMFS_ALLOC_UNIT) {
+	if (interleave_param->chunk_size % FAMFS_ALLOC_UNIT) {
 		errs++;
 		if (verbose)
 			fprintf(stderr,
 				"%s: Error chunk_size %lld no ta multiplle of alloc_unit (%d)\n",
-				__func__, stripe->chunk_size, FAMFS_ALLOC_UNIT);
+				__func__, interleave_param->chunk_size, FAMFS_ALLOC_UNIT);
 	}
-	if (!stripe->nbuckets) {
+	if (!interleave_param->nbuckets) {
 		errs++;
 		if (verbose)
 			fprintf(stderr, "%s: Error NULL nbuckets\n", __func__);
 	}
-	if (stripe->nstrips > stripe->nbuckets) {
+	if (interleave_param->nstrips > interleave_param->nbuckets) {
 		errs++;
 		if (verbose)
 			fprintf(stderr, "%s: Error nstrips (%lld) > nbuckets (%lld)\n",
-				__func__, stripe->nstrips, stripe->nbuckets);
+				__func__, interleave_param->nstrips, interleave_param->nbuckets);
 	}
-	if (stripe->nbuckets > FAMFS_MAX_NBUCKETS) {
+	if (interleave_param->nbuckets > FAMFS_MAX_NBUCKETS) {
 		errs++;
 		if (verbose)
 			fprintf(stderr, "%s: Error nbuckets %lld exceeds max %d\n",
-				__func__, stripe->nbuckets, FAMFS_MAX_NBUCKETS);
+				__func__, interleave_param->nbuckets, FAMFS_MAX_NBUCKETS);
 	}
 
-	bucket_size = (stripe->nbuckets) ? devsize / stripe->nbuckets : 0;
+	bucket_size = (interleave_param->nbuckets) ? devsize / interleave_param->nbuckets : 0;
 	if ((bucket_size < 1024 * 1024 * 1024) && !mock_stripe) {
 		errs++;
 		if (verbose)
@@ -532,17 +532,17 @@ famfs_file_strided_alloc(
 	u64 nstrips_allocated = 0;
 	int nstripes;
 	u64 tmp;
-	/* Quantities in unitss of FAMFS_ALLOC_UNIT (au) */
+	/* Quantities in units of FAMFS_ALLOC_UNIT (au) */
 	u64 alloc_size_au, devsize_au, bucket_size_au, stripe_size_au, strip_size_au, chunk_size_au;
 	int i, j;
 	int rc;
 
-	rc = famfs_validate_stripe(&lp->stripe, lp->devsize, verbose);
+	rc = famfs_validate_interleave_param(&lp->interleave_param, lp->devsize, verbose);
 	if (rc)
 		return rc;
-	assert(lp->stripe.nstrips <= lp->stripe.nbuckets);
+	assert(lp->interleave_param.nstrips <= lp->interleave_param.nbuckets);
 
-	if (size < lp->stripe.chunk_size) {
+	if (size < lp->interleave_param.chunk_size) {
 		/* if the file size is less than a chunk, fall back to a contiguous allocation
 		 * from a random bucket
 		 */
@@ -554,22 +554,22 @@ famfs_file_strided_alloc(
 	alloc_size_au = (size + FAMFS_ALLOC_UNIT - 1) / FAMFS_ALLOC_UNIT;
 
 	/* Authoritative device, bucket, stripe and strip sizes are in allocation units */
-	chunk_size_au  = lp->stripe.chunk_size / FAMFS_ALLOC_UNIT;
+	chunk_size_au  = lp->interleave_param.chunk_size / FAMFS_ALLOC_UNIT;
 	devsize_au     = lp->devsize / FAMFS_ALLOC_UNIT;    /* This may round down */
-	bucket_size_au = devsize_au / lp->stripe.nbuckets;         /* This may also round down */
-	stripe_size_au = lp->stripe.nstrips * chunk_size_au;
-	assert(!(stripe_size_au % lp->stripe.nstrips));
+	bucket_size_au = devsize_au / lp->interleave_param.nbuckets;         /* This may also round down */
+	stripe_size_au = lp->interleave_param.nstrips * chunk_size_au;
+	assert(!(stripe_size_au % lp->interleave_param.nstrips));
 
 	nstripes = (alloc_size_au + stripe_size_au - 1) / stripe_size_au;
 	strip_size_au  = nstripes * chunk_size_au;
 
 	/* Just for curiosity, let's check how much space at the end of devsize is leftover
 	 * after the last bucket */
-	tmp = bucket_size_au * FAMFS_ALLOC_UNIT * lp->stripe.nbuckets;
+	tmp = bucket_size_au * FAMFS_ALLOC_UNIT * lp->interleave_param.nbuckets;
 	assert(tmp <= lp->devsize);
 	if (verbose && tmp < lp->devsize)
 		printf("%s: nbuckets=%lld wastes %lld bytes of dev capacity\n",
-		       __func__, lp->stripe.nbuckets, lp->devsize - tmp);
+		       __func__, lp->interleave_param.nbuckets, lp->devsize - tmp);
 
 	if (verbose > 1)
 		printf("%s: size=0x%llx stripe_size=0x%llx strip_size=0x%llx\n",
@@ -578,7 +578,7 @@ famfs_file_strided_alloc(
 		       strip_size_au * FAMFS_ALLOC_UNIT);
 
 	/* Bucketize the stride regions in random order */
-	init_bucket_series(&bs, lp->stripe.nbuckets);
+	init_bucket_series(&bs, lp->interleave_param.nbuckets);
 
 	fmap = calloc(1, sizeof(*fmap));
 	if (!fmap)
@@ -586,14 +586,14 @@ famfs_file_strided_alloc(
 
 	fmap->fmap_ext_type = FAMFS_EXT_INTERLEAVE;
 
-	/* We currently only support one striped extent - hence index [0] */
-	fmap->ie[0].ie_nstrips = lp->stripe.nstrips;
-	fmap->ie[0].ie_chunk_size = lp->stripe.chunk_size;
-	fmap->ie[0].ie_nstrips = lp->stripe.nstrips;
+	/* We currently only support one interleaved extent - hence index [0] */
+	fmap->ie[0].ie_nstrips = lp->interleave_param.nstrips;
+	fmap->ie[0].ie_chunk_size = lp->interleave_param.chunk_size;
+	//fmap->ie[0].ie_nbytes = size; /* make sure kernel checks this */
 	strips = fmap->ie[0].ie_strips;
 
 	/* Allocate our strips. If nstrips is <  nbuckets, we can tolerate some failures */
-	for (i = 0; i < lp->stripe.nbuckets; i++) {
+	for (i = 0; i < lp->interleave_param.nbuckets; i++) {
 		int bucket_num = next_bucket(&bs);
 		s64 ofs;
 		u64 pos = bucket_num * bucket_size_au * FAMFS_ALLOC_UNIT;
@@ -616,15 +616,15 @@ famfs_file_strided_alloc(
 				       strip_size_au * FAMFS_ALLOC_UNIT);
 
 			nstrips_allocated++;
-			if (nstrips_allocated >= lp->stripe.nstrips)
+			if (nstrips_allocated >= lp->interleave_param.nstrips)
 				break; /* Got all our strips */
 		}
 	}
 
-	if (nstrips_allocated < lp->stripe.nstrips) {
+	if (nstrips_allocated < lp->interleave_param.nstrips) {
 		/* Allocation failed; got fewer strips than needed */
 		fprintf(stderr, "%s: failed %lld strips @%lldb each; got %lld strips\n",
-			__func__, lp->stripe.nstrips, strip_size_au * FAMFS_ALLOC_UNIT,
+			__func__, lp->interleave_param.nstrips, strip_size_au * FAMFS_ALLOC_UNIT,
 			nstrips_allocated);
 
 		if (verbose > 1) {
@@ -643,7 +643,7 @@ famfs_file_strided_alloc(
 
 		return -ENOMEM;
 	}
-	fmap->fmap_nstripes = 1; /* We only support single-stripe (but multi-strip) alloc */
+	fmap->fmap_niext = 1; /* We only support single-interleaved-extent (but multi-strip) alloc */
 	*fmap_out = fmap;
 
 	if (verbose > 1)
@@ -670,7 +670,7 @@ famfs_file_alloc(
 		lp->cur_pos = 0;
 	}
 
-	if ((FAMFS_KABI_VERSION <= 42) || (!lp->stripe.nbuckets || !lp->stripe.nstrips))
+	if ((FAMFS_KABI_VERSION <= 42) || (!lp->interleave_param.nbuckets || !lp->interleave_param.nstrips))
 		return famfs_file_alloc_contiguous(lp, size, fmap_out, verbose);
 
 	return famfs_file_strided_alloc(lp, size, fmap_out, verbose);

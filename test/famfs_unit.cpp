@@ -488,37 +488,37 @@ TEST(famfs, famfs_alloc)
 	 * Test stripe validation
 	 */
 	/* Bad chunk_size */
-	ll.stripe.nbuckets = 8;
-	ll.stripe.nstrips = 8;
-	ll.stripe.chunk_size = 0;
+	ll.interleave_param.nbuckets = 8;
+	ll.interleave_param.nstrips = 8;
+	ll.interleave_param.chunk_size = 0;
 	rc = famfs_file_alloc(&ll, 8 * 16 * MiB, &fmap, 2);
 	ASSERT_NE(rc, 0);
 
 	/* more strips than buckets */
-	ll.stripe.nbuckets = 8;
-	ll.stripe.nstrips = 6;
-	ll.stripe.chunk_size = 2 * MiB;
+	ll.interleave_param.nbuckets = 8;
+	ll.interleave_param.nstrips = 6;
+	ll.interleave_param.chunk_size = 2 * MiB;
 	rc = famfs_file_alloc(&ll, 8 * 16 * MiB, &fmap, 2);
 	ASSERT_NE(rc, 0);
 
 	/* chunk_size not multiple of alloc unit */
-	ll.stripe.nbuckets = 8;
-	ll.stripe.nstrips = 6;
-	ll.stripe.chunk_size = 1 * MiB;
+	ll.interleave_param.nbuckets = 8;
+	ll.interleave_param.nstrips = 6;
+	ll.interleave_param.chunk_size = 1 * MiB;
 	rc = famfs_file_alloc(&ll, 8 * 16 * MiB, &fmap, 2);
 	ASSERT_NE(rc, 0);
 
 	/* non-power-of-2 chunk */
-	ll.stripe.nbuckets = 8;
-	ll.stripe.nstrips = 8;
-	ll.stripe.chunk_size = 2 * MiB + 1;
+	ll.interleave_param.nbuckets = 8;
+	ll.interleave_param.nstrips = 8;
+	ll.interleave_param.chunk_size = 2 * MiB + 1;
 	rc = famfs_file_alloc(&ll, 8 * 16 * MiB, &fmap, 2);
 	ASSERT_NE(rc, 0);
 
 	/* Too many buckets */
-	ll.stripe.nbuckets = FAMFS_MAX_NBUCKETS + 2;
-	ll.stripe.nstrips = 6;
-	ll.stripe.chunk_size = 2 * MiB;
+	ll.interleave_param.nbuckets = FAMFS_MAX_NBUCKETS + 2;
+	ll.interleave_param.nstrips = 6;
+	ll.interleave_param.chunk_size = 2 * MiB;
 	rc = famfs_file_alloc(&ll, 8 * 16 * MiB, &fmap, 2);
 	ASSERT_NE(rc, 0);
 
@@ -528,9 +528,9 @@ TEST(famfs, famfs_alloc)
 	 * Test actual stripe allocation
 	 */
 	/* Now set up for striped allocation */
-	ll.stripe.nbuckets = 8; /* each bucket is 32MiB */
-	ll.stripe.nstrips = 8;
-	ll.stripe.chunk_size = 2 * MiB;
+	ll.interleave_param.nbuckets = 8; /* each bucket is 32MiB */
+	ll.interleave_param.nstrips = 8;
+	ll.interleave_param.chunk_size = 2 * MiB;
 	rc = famfs_file_alloc(&ll, 8 * 16 * MiB, &fmap, 2); /* This should fit */
 	ASSERT_EQ(rc, 1);
 
@@ -541,8 +541,8 @@ TEST(famfs, famfs_alloc)
 	ASSERT_NE(fmap, nullptr);
 	ASSERT_EQ(fmap->fmap_ext_type, FAMFS_EXT_INTERLEAVE);
 	ASSERT_EQ(fmap->fmap_nextents, 1);
-	ASSERT_EQ(fmap->ie[0].ie_nstrips, ll.stripe.nstrips);
-	ASSERT_EQ(fmap->ie[0].ie_chunk_size, ll.stripe.chunk_size);
+	ASSERT_EQ(fmap->ie[0].ie_nstrips, ll.interleave_param.nstrips);
+	ASSERT_EQ(fmap->ie[0].ie_chunk_size, ll.interleave_param.chunk_size);
 	ASSERT_EQ(fmap->ie[0].ie_nstrips, 8);
 
 	/* A second allocation of the same size should fail on the first strip, because
@@ -555,14 +555,14 @@ TEST(famfs, famfs_alloc)
 	ASSERT_EQ(rc, 0);
 
 	/* Chunk size must be a multiple of FAMFS_ALLOC_UNIT, so this should fail */
-	ll.stripe.chunk_size += 1;
+	ll.interleave_param.chunk_size += 1;
 
 	/* But small alloc should still succeed because it won't be strided */
 	rc = famfs_file_alloc(&ll, 4 * MiB, &fmap, 1);
 	ASSERT_NE(rc, 0);
 
-	ll.stripe.chunk_size--; /* make it valid again */
-	ll.stripe.nstrips = 6;  /* Fewer strips; try an alloc that not all strips can handle,
+	ll.interleave_param.chunk_size--; /* make it valid again */
+	ll.interleave_param.nstrips = 6;  /* Fewer strips; try an alloc that not all strips can handle,
 `			  * but enough can */
 
 	printf("1:\n");
@@ -629,9 +629,9 @@ TEST(famfs, famfs_alloc)
 	ASSERT_GT(fd, 0);
 
 	/* Now set up for striped allocation */
-	ll.stripe.nbuckets = 8; /* each bucket is 32MiB */
-	ll.stripe.nstrips = 8;
-	ll.stripe.chunk_size = 2 * MiB;
+	ll.interleave_param.nbuckets = 8; /* each bucket is 32MiB */
+	ll.interleave_param.nstrips = 8;
+	ll.interleave_param.chunk_size = 2 * MiB;
 
 	/* This allocation will fall back to non-interleaved because it's too small */
 	sprintf(bro_path, "%s/non-interleaved_file", fspath);
@@ -1421,9 +1421,9 @@ TEST(famfs, famfs_file_yaml) {
 
 }
 
-static void famfs_yaml_stripe_reset(struct famfs_stripe *stripe, FILE *fp, char *yaml_str)
+static void famfs_yaml_stripe_reset(struct famfs_interleave_param *interleave_param, FILE *fp, char *yaml_str)
 {
-	memset(stripe, 0, sizeof(*stripe));
+	memset(interleave_param, 0, sizeof(*interleave_param));
 	rewind(fp);
 	truncate_stream(fp, 0);
 	fprintf(fp, "%s", yaml_str);
@@ -1432,7 +1432,7 @@ static void famfs_yaml_stripe_reset(struct famfs_stripe *stripe, FILE *fp, char 
 
 
 TEST(famfs, famfs_config_yaml) {
-	struct famfs_stripe stripe;
+	struct famfs_interleave_param interleave_param;
 	u64 devsize = 8 * 1024ULL * 1024ULL * 1024ULL;
 	//struct famfs_file_meta fm;
 	FILE *fp = tmpfile();
@@ -1440,74 +1440,74 @@ TEST(famfs, famfs_config_yaml) {
 	int rc;
 
 	my_yaml = "---\n" /* Good yaml */
-		"striped_alloc:\n"
+		"interleaved_alloc:\n"
 		"  nbuckets: 8\n"
 		"  nstrips: 6\n"
 		"  chunk_size: 2m\n"
 		"...";
-	famfs_yaml_stripe_reset(&stripe, fp, my_yaml);
+	famfs_yaml_stripe_reset(&interleave_param, fp, my_yaml);
 
-	rc = famfs_parse_alloc_yaml(fp, &stripe, 1);
+	rc = famfs_parse_alloc_yaml(fp, &interleave_param, 1);
 	ASSERT_EQ(rc, 0);
 
-	rc = famfs_validate_stripe(&stripe, devsize, 1);
+	rc = famfs_validate_interleave_param(&interleave_param, devsize, 1);
 	ASSERT_EQ(rc, 0);
 
 	/* Different order */
 	my_yaml = "---\n" /* Good yaml */
-		"striped_alloc:\n"
+		"interleaved_alloc:\n"
 		"  chunk_size: 2m\n"
 		"  nstrips: 6\n"
 		"  nbuckets: 8\n"
 		"...";
-	famfs_yaml_stripe_reset(&stripe, fp, my_yaml);
+	famfs_yaml_stripe_reset(&interleave_param, fp, my_yaml);
 
-	rc = famfs_parse_alloc_yaml(fp, &stripe, 1);
+	rc = famfs_parse_alloc_yaml(fp, &interleave_param, 1);
 	ASSERT_EQ(rc, 0);
 
-	rc = famfs_validate_stripe(&stripe, devsize, 1);
+	rc = famfs_validate_interleave_param(&interleave_param, devsize, 1);
 	ASSERT_EQ(rc, 0);
 
 	/* Bad chunk_size */
 	my_yaml = "---\n" /* Good yaml */
-		"striped_alloc:\n"
+		"interleaved_alloc:\n"
 		"  chunk_size: 2\n"
 		"  nstrips: 6\n"
 		"  nbuckets: 8\n"
 		"...";
 
-	famfs_yaml_stripe_reset(&stripe, fp, my_yaml);
-	rc = famfs_parse_alloc_yaml(fp, &stripe, 1);
+	famfs_yaml_stripe_reset(&interleave_param, fp, my_yaml);
+	rc = famfs_parse_alloc_yaml(fp, &interleave_param, 1);
 	ASSERT_EQ(rc, 0);
 
-	rc = famfs_validate_stripe(&stripe, devsize, 1);
+	rc = famfs_validate_interleave_param(&interleave_param, devsize, 1);
 	ASSERT_NE(rc, 0);
 
 	/* Another bad chunk_size */
 	my_yaml = "---\n" /* Good yaml */
-		"striped_alloc:\n"
+		"interleaved_alloc:\n"
 		"  chunk_size: 3000000\n"
 		"  nstrips: 6\n"
 		"  nbuckets: 8\n"
 		"...";
 
-	famfs_yaml_stripe_reset(&stripe, fp, my_yaml);
-	rc = famfs_parse_alloc_yaml(fp, &stripe, 1);
+	famfs_yaml_stripe_reset(&interleave_param, fp, my_yaml);
+	rc = famfs_parse_alloc_yaml(fp, &interleave_param, 1);
 	ASSERT_EQ(rc, 0);
 
-	rc = famfs_validate_stripe(&stripe, devsize, 1);
+	rc = famfs_validate_interleave_param(&interleave_param, devsize, 1);
 	ASSERT_NE(rc, 0);
 
 	/* Null stripe is valid */
-	famfs_yaml_stripe_reset(&stripe, fp, my_yaml);
-	rc = famfs_validate_stripe(&stripe, devsize, 1);
+	famfs_yaml_stripe_reset(&interleave_param, fp, my_yaml);
+	rc = famfs_validate_interleave_param(&interleave_param, devsize, 1);
 	ASSERT_EQ(rc, 0);
 
 	/* But null yaml is not */
 	my_yaml = "---\n" /* Good yaml */
 		"...";
 
-	famfs_yaml_stripe_reset(&stripe, fp, my_yaml);
-	rc = famfs_parse_alloc_yaml(fp, &stripe, 1);
+	famfs_yaml_stripe_reset(&interleave_param, fp, my_yaml);
+	rc = famfs_parse_alloc_yaml(fp, &interleave_param, 1);
 	ASSERT_NE(rc, 0);
 }

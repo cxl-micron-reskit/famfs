@@ -910,7 +910,7 @@ famfs_v2_set_file_map(
 	case FAMFS_EXT_INTERLEAVE: {
 		int j;
 
-		ioc_fmap.fioc_nstripes = fm->fmap_nextents;
+		ioc_fmap.fioc_niext = fm->fmap_nextents;
 		for (i = 0; i < fm->fmap_nextents; i++) {
 			const struct famfs_interleaved_ext *ie = &fm->ie[i];
 
@@ -2503,7 +2503,7 @@ famfs_init_locked_log(
 
 #if (FAMFS_KABI_VERSION > 42)
 	if (FAMFS_KABI_VERSION > 42) {
-		struct famfs_stripe stripe;
+		struct famfs_interleave_param interleave_param;
 		size_t cfg_size;
 		FILE *fp;
 		int cfd;
@@ -2517,18 +2517,18 @@ famfs_init_locked_log(
 			close(cfd);
 			goto out;
 		}
-		rc = famfs_parse_alloc_yaml(fp, &stripe, 1);
+		rc = famfs_parse_alloc_yaml(fp, &interleave_param, 1);
 		fclose(fp);
 		close(cfd);
 		if (rc) {
 			fprintf(stderr, "%s: failed to parse alloc yaml\n", __func__);
 			goto out;
 		}
-		rc = famfs_validate_stripe(&stripe, lp->devsize, verbose);
+		rc = famfs_validate_interleave_param(&interleave_param, lp->devsize, verbose);
 		if (rc == 0) {
 			if (verbose)
-				printf("%s: good stripe metadata!\n", __func__);
-			memcpy(&lp->stripe, &stripe, sizeof(stripe));
+				printf("%s: good interleave_param metadata!\n", __func__);
+			memcpy(&lp->interleave_param, &interleave_param, sizeof(interleave_param));
 		}
 	}
 out:
@@ -2929,7 +2929,7 @@ famfs_mkfile(
 	uid_t             uid,
 	gid_t             gid,
 	size_t            size,
-	struct famfs_stripe *stripe,
+	struct famfs_interleave_param *interleave_param,
 	int               verbose)
 {
 	struct famfs_locked_log ll;
@@ -2946,14 +2946,14 @@ famfs_mkfile(
 	if (rc)
 		return rc;
 
-	if (stripe) {
+	if (interleave_param) {
 		if (verbose)
-			printf("%s: overriding stripe defaults (nbuckets/nstrips/chunk)="
+			printf("%s: overriding interleave_param defaults (nbuckets/nstrips/chunk)="
 			       "(%lld/%lld/%lld) with (%lld/%lld/%lld)\n", __func__,
-			       ll.stripe.nbuckets, ll.stripe.nstrips, ll.stripe.chunk_size,
-			       stripe->nbuckets, stripe->nstrips, stripe->chunk_size);
+			       ll.interleave_param.nbuckets, ll.interleave_param.nstrips, ll.interleave_param.chunk_size,
+			       interleave_param->nbuckets, interleave_param->nstrips, interleave_param->chunk_size);
 
-		ll.stripe = *stripe;
+		ll.interleave_param = *interleave_param;
 	}
 	rc  = __famfs_mkfile(&ll, filename, mode, uid, gid, size, verbose);
 

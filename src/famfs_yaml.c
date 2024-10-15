@@ -137,7 +137,7 @@ __famfs_emit_yaml_striped_ext_list(
 	ASSERT_NE_GOTO(rc, 0, err_out);
 
 	/* The extents */
-	for (i = 0; i < fmap->fmap_nstripes; i++) {
+	for (i = 0; i < fmap->fmap_niext; i++) {
 		/* YAML_MAPPING_START_EVENT: Start of extent */
 		rc = yaml_mapping_start_event_initialize(event, NULL, NULL, 1,
 							 YAML_BLOCK_MAPPING_STYLE);
@@ -903,13 +903,13 @@ err_out:
  *
  * This is not the file yaml! This is the .meta/.alloc.cfg file!!
  *
- * This file currently contains striped_alloc: (nbuckets, nstrips and chunk_size)
+ * This file currently contains interleaved_alloc: (nbuckets, nstrips and chunk_size)
  * and nothing else - but it may be expanded later.
  */
 int
 famfs_parse_stripe_config_yaml(
 	yaml_parser_t *parser,
-	struct famfs_stripe *stripe,
+	struct famfs_interleave_param *interleave_param,
 	int verbose)
 {
 	yaml_event_t event;
@@ -917,7 +917,7 @@ famfs_parse_stripe_config_yaml(
 	char *current_key = NULL;
 	int rc = 0;
 
-	/* striped_alloc stanza starts with a  YAML_MAPPING_START_EVENT */
+	/* interleaved_alloc stanza starts with a  YAML_MAPPING_START_EVENT */
 	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_START_EVENT, rc, err_out, verbose);
 
 	while (!done) {
@@ -935,20 +935,20 @@ famfs_parse_stripe_config_yaml(
 				/* nbuckets */
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
-				stripe->nbuckets = strtoull((char *)val_event.data.scalar.value,
+				interleave_param->nbuckets = strtoull((char *)val_event.data.scalar.value,
 							    0, 0);
 				yaml_event_delete(&val_event);
 				if (verbose > 1) printf("%s: nbuckets: %lld\n",
-							__func__, stripe->nbuckets);
+							__func__, interleave_param->nbuckets);
 			} else if (strcmp(current_key, "nstrips") == 0) {
 				/* nstrips */
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
-				stripe->nstrips = strtoull((char *)val_event.data.scalar.value,
+				interleave_param->nstrips = strtoull((char *)val_event.data.scalar.value,
 							    0, 0);
 				yaml_event_delete(&val_event);
 				if (verbose > 1) printf("%s: nstrips: %lld\n",
-							__func__, stripe->nstrips);
+							__func__, interleave_param->nstrips);
 			} else if (strcmp(current_key, "chunk_size") == 0) {
 				char tmpstr[256];
 				char *endptr;
@@ -959,14 +959,14 @@ famfs_parse_stripe_config_yaml(
 						       rc, err_out, verbose);
 				strncpy(tmpstr, (char *)val_event.data.scalar.value, 255);
 
-				stripe->chunk_size = strtoull(tmpstr, &endptr, 0);
+				interleave_param->chunk_size = strtoull(tmpstr, &endptr, 0);
 				mult = get_multiplier(endptr);
 				if (mult > 0)
-					stripe->chunk_size *= mult;
+					interleave_param->chunk_size *= mult;
 
 				yaml_event_delete(&val_event);
 				if (verbose > 1) printf("%s: chunk_size: %lld\n", __func__,
-							stripe->chunk_size);
+							interleave_param->chunk_size);
 			} else {
 				fprintf(stderr, "%s: Unrecognized scalar key: %s\n",
 					__func__, current_key);
@@ -1002,7 +1002,7 @@ err_out:
 int
 famfs_parse_alloc_yaml(
 	FILE *fp,
-	struct famfs_stripe *stripe,
+	struct famfs_interleave_param *stripe,
 	int verbose)
 {
 	yaml_parser_t parser;
@@ -1035,7 +1035,7 @@ famfs_parse_alloc_yaml(
 	 * Theoretically there could be other stanzas later, but this is the only one now
 	 */
 	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_SCALAR_EVENT, rc, err_out, verbose);
-	if (strcmp((char *)"striped_alloc", (char *)event.data.scalar.value) == 0) {
+	if (strcmp((char *)"interleaved_alloc", (char *)event.data.scalar.value) == 0) {
 		rc = famfs_parse_stripe_config_yaml(&parser, stripe, verbose);
 		if (rc) {
 			yaml_event_delete(&event);
@@ -1044,7 +1044,7 @@ famfs_parse_alloc_yaml(
 	}
 	yaml_event_delete(&event);
 
-	/* Look for YAML_MAPPING_END_EVENT - end of the striped_alloc stanza */
+	/* Look for YAML_MAPPING_END_EVENT - end of the interleaved_alloc stanza */
 	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_MAPPING_END_EVENT, rc, err_out, verbose);
 	yaml_event_delete(&event);
 
