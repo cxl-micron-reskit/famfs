@@ -74,6 +74,74 @@ fi
 
 source $TEST_FUNCS
 
+stripe_test_cp () {
+    SIZE=$1
+    CHUNKSIZE=$2
+    NSTRIPS=$3
+    NBUCKETS=$4
+    BASE_SEED=$5
+    counter=0;
+    NFILES=$6
+
+    files=()
+
+    # Create files in a loop
+    while [ $counter -lt $NFILES ]; do
+	# Generate a file name
+	file_name=$(printf "${BASENAME}_%05d" "$counter")
+
+	echo "Creating file $counter:$file_name"
+	# Try to create the file
+	${CLI} creat  -C "$CHUNKSIZE" -N "$NSTRIPS" -B "$NBUCKETS" -s "$SIZE" "$file_name"
+	# Assert if file creation failed
+	assert_equal $? 0 "Failed to create interleaved file $file_name"
+
+	dst_name="$file_name""_copy"
+	echo "Copying $file_name into $dst_name"
+	${CLI} cp  -C "$CHUNKSIZE" -N "$NSTRIPS" -B "$NBUCKETS" "$file_name" "$dst_name" || fail "striped file cp of $dst_name failed"
+
+	# Add the file name to the array
+	files+=("$dst_name")
+	# Increment the counter
+	((counter++))
+    done
+
+    loopct=0
+    for file in "${files[@]}"; do
+	(( seed = BASE_SEED + loopct ))
+	echo -n "Randomizing file: $file seed=$seed"
+	${CLI} creat  -r -S "$seed" -s "$SIZE" "$file"
+	if [[ $? -eq 0 ]]; then
+	    echo "...done"
+	else
+	    fail "Failed to initialize $file (seed=$seed)"
+	fi
+	(( loopct++ ))
+    done
+
+    # TODO: if the the FAMFS_KABI_VERSION >= 43, verify that the files are striped
+
+    #
+    # Check the files with the "remembered" seeds
+    #
+    echo "Verifying files"
+    loopct=0
+    for file in "${files[@]}"; do
+	(( seed = BASE_SEED + loopct ))
+	echo -n "Verifying file: $file seed=$seed"
+	${CLI} verify -q -S "$seed" -f "$file"
+	if [[ $? -eq 0 ]]; then
+	    echo "...good"
+	else
+	    fail "Failed to verify $file (seed=$seed)"
+	fi
+	(( loopct++ ))
+    done
+
+    echo "Created and copied $counter files"
+    echo "Processed all successfully copied files."
+}
+
 stripe_test () {
     SIZE=$1
     CHUNKSIZE=$2
@@ -166,6 +234,10 @@ echo "NSTRIPS: $NSTRIPS"
 (( CHUNKSIZE= 2 * 1048576 ))
 
 stripe_test "$SIZE" "$CHUNKSIZE" "$NSTRIPS" "$NBUCKETS" 42
+
+famfs_recreate -d "$DEV" -b "$BIN"
+(( NFILES = 8 ))
+stripe_test_cp "$SIZE" "$CHUNKSIZE" "$NSTRIPS" "$NBUCKETS" 42 "$NFILES"
 
 # TODO: print some stats on how much stranded space remained
 
