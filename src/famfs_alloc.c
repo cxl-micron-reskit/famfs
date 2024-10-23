@@ -589,7 +589,7 @@ famfs_file_strided_alloc(
 	/* We currently only support one interleaved extent - hence index [0] */
 	fmap->ie[0].ie_nstrips = lp->interleave_param.nstrips;
 	fmap->ie[0].ie_chunk_size = lp->interleave_param.chunk_size;
-	//fmap->ie[0].ie_nbytes = size; /* make sure kernel checks this */
+	fmap->ie[0].ie_nbytes = size; /* make sure kernel checks this */
 	strips = fmap->ie[0].ie_strips;
 
 	/* Allocate our strips. If nstrips is <  nbuckets, we can tolerate some failures */
