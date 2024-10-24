@@ -3621,6 +3621,7 @@ famfs_cp_multi(
 	mode_t mode,
 	uid_t uid,
 	gid_t gid,
+	struct famfs_interleave_param *s,
 	int recursive,
 	int verbose)
 {
@@ -3708,6 +3709,16 @@ famfs_cp_multi(
 		free(dest_parent_path);
 		free(dirdupe);
 		return rc;
+	}
+
+	if (s) {
+		if (verbose)
+			printf("%s: overriding interleave_param defaults (nbuckets/nstrips/chunk)="
+			       "(%lld/%lld/%lld) with (%lld/%lld/%lld)\n", __func__,
+			       ll.interleave_param.nbuckets, ll.interleave_param.nstrips, ll.interleave_param.chunk_size,
+			       s->nbuckets, s->nstrips, s->chunk_size);
+
+		ll.interleave_param = *s;
 	}
 
 	for (i = 0; i < src_argc; i++) {
