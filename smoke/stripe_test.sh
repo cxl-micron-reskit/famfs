@@ -95,6 +95,8 @@ stripe_test () {
 	${CLI} creat  -C "$CHUNKSIZE" -N "$NSTRIPS" -B "$NBUCKETS" -s "$SIZE" "$file_name"
 	if [[ $? -ne 0 ]]; then
 	    echo "File creation failed on $file_name"
+	    # Assert if counter is 0 i.e. first interleaved file creation failed
+	    assert_ne $counter 0 "Failed to create any interleaved files"
 	    break
 	fi
 

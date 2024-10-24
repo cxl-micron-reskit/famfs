@@ -23,6 +23,19 @@ assert_equal() {
     fi
 }
 
+
+# Expects the values to be not equal, asserts if equal
+assert_ne() {
+    local a="$1"
+    local b="$2"
+    local msg="$3"
+
+    if (( a == b )); then
+        echo "assertion ($a == $b) failed: $msg"
+        exit 1
+    fi
+}
+
 assert_lt() {
     local a="$1"
     local b="$2"
