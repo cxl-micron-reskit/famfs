@@ -530,11 +530,16 @@ famfs_cp_usage(int   argc,
 	       "    %s cp [args]/path/to/* <dirpath>\n"
 	       "\n"
 	       "Arguments\n"
-	       "    -h|-?            - Print this message\n"
-	       "    -m|--mode=<mode> - Set mode (as in chmod) to octal value\n"
-	       "    -u|--uid=<uid>   - Specify uid (default is current user's uid)\n"
-	       "    -g|--gid=<gid>   - Specify uid (default is current user's gid)\n"
-	       "    -v|verbose       - print debugging output while executing the command\n"
+	       "    -h|-?           		- Print this message\n"
+	       "    -m|--mode <mode> 		- Set mode (as in chmod) to octal value\n"
+	       "    -u|--uid <uid>   		- Specify uid (default is current user's uid)\n"
+	       "    -g|--gid <gid>   		- Specify uid (default is current user's gid)\n"
+	       "    -v|--verbose       		- print debugging output while executing the command\n"
+	       "    -C|--chunksize <size>    	- Size of chunks for interleaved allocation\n"
+	       "                               	  (default=0); non-zero causes interleaved allocation.\n"
+	       "    -N|--nstrips <n>         	- Number of strips to use in interleaved allocations.\n"
+	       "    -B|--nbuckets <n>        	- Number of buckets to divide the device into\n"
+	       "                                  causes strided allocation within a single device.\n"
 	       "\n"
 	       "NOTE 1: 'famfs cp' will never overwrite an existing file, which is a side-effect\n"
 	       "        of the facts that famfs never does delete, truncate or allocate-on-write\n"
@@ -550,6 +555,7 @@ famfs_cp_usage(int   argc,
 int
 do_famfs_cli_cp(int argc, char *argv[])
 {
+	struct famfs_interleave_param interleave_param = { 0 };
 	uid_t uid = getuid();
 	gid_t gid = getgid();
 	mode_t current_umask;
@@ -559,6 +565,8 @@ do_famfs_cli_cp(int argc, char *argv[])
 	mode_t mode = 0; /* null mode inherits mode form source file */
 	int rc;
 	int c;
+	int set_stripe = 0;
+	s64 mult;
 
 	struct option cp_options[] = {
 		/* These options set a */
@@ -566,6 +574,10 @@ do_famfs_cli_cp(int argc, char *argv[])
 		{"uid",         required_argument,             0,  'u'},
 		{"gid",         required_argument,             0,  'g'},
 		{"verbose",     no_argument,          0,  'v'},
+
+		{"chunksize",   required_argument,             0,  'C'},
+		{"mnstrips",    required_argument,             0,  'N'},
+		{"nbuckets",    required_argument,             0,  'B'},
 		{0, 0, 0, 0}
 	};
 
@@ -573,9 +585,10 @@ do_famfs_cli_cp(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+rm:u:g:vh?",
+	while ((c = getopt_long(argc, argv, "+rm:u:g:C:N:B:vh?",
 				cp_options, &optind)) != EOF) {
 
+		char *endptr;
 		switch (c) {
 		case 'v':
 			verbose++;
@@ -598,6 +611,30 @@ do_famfs_cli_cp(int argc, char *argv[])
 		case 'g':
 			gid = strtol(optarg, 0, 0);
 			break;
+
+		case 'C':
+			set_stripe++;
+			interleave_param.chunk_size = strtoull(optarg, &endptr, 0);
+			mult = get_multiplier(endptr);
+			if (mult > 0)
+				interleave_param.chunk_size *= mult;
+			break;
+
+		case 'N':
+			set_stripe++;
+			interleave_param.nstrips = strtoull(optarg, &endptr, 0);
+			mult = get_multiplier(endptr);
+			if (mult > 0)
+				interleave_param.nstrips *= mult;
+			break;
+
+		case 'B':
+			set_stripe++;
+			interleave_param.nbuckets = strtoull(optarg, &endptr, 0);
+			mult = get_multiplier(endptr);
+			if (mult > 0)
+				interleave_param.nbuckets *= mult;
+			break;
 		}
 	}
 
@@ -609,12 +646,15 @@ do_famfs_cli_cp(int argc, char *argv[])
 		return -1;
 	}
 
+	struct famfs_interleave_param *s = (set_stripe) ? &interleave_param : NULL;
+
 	/* This is horky, but OK for the cli */
 	current_umask = umask(0022);
 	umask(current_umask);
 	mode &= ~(current_umask);
 
-	rc = famfs_cp_multi(argc - optind, &argv[optind], mode, uid, gid, recursive, verbose);
+	rc = famfs_cp_multi(argc - optind, &argv[optind], mode, uid, gid,
+			s, recursive, verbose);
 	return rc;
 }
 
