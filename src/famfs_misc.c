@@ -86,7 +86,7 @@ famfs_dump_logentry(
 
 	switch (le->famfs_log_entry_type) {
 	case FAMFS_LOG_FILE: {
-		const struct famfs_file_meta *fm = &le->famfs_fm;
+		const struct famfs_log_file_meta *fm = &le->famfs_fm;
 		const struct famfs_log_fmap *fmap = &fm->fm_fmap;
 
 		printf("%s: %d file=%s size=%lld\n", prefix, index,
@@ -124,7 +124,7 @@ famfs_dump_logentry(
 	}
 
 	case FAMFS_LOG_MKDIR: {
-		const struct famfs_mkdir *md = &le->famfs_md;
+		const struct famfs_log_mkdir *md = &le->famfs_md;
 		printf("%s: mkdir: %o %d:%d: %s \n", prefix,
 		       md->md_mode, md->md_uid, md->md_gid, md->md_relpath);
 		break;

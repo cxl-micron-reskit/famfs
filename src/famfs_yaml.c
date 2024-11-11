@@ -26,7 +26,7 @@
  *
  * @emitter:  libyaml emitter struct
  * @event:    libyaml event structure
- * @fm:       famfs_file_meta struct
+ * @fm:       famfs_log_file_meta struct
  */
 int
 __famfs_emit_yaml_simple_ext_list(
@@ -212,7 +212,7 @@ int
 __famfs_emit_yaml_file_section(
 	yaml_emitter_t               *emitter,
 	yaml_event_t                 *event,
-	const struct famfs_file_meta *fm)
+	const struct famfs_log_file_meta *fm)
 {
 	char strbuf[160];
 	int rc;
@@ -336,12 +336,12 @@ err_out:
 /**
  * famfs_emit_file_yaml()
  *
- * @fm:    famfs_file_meta structure
+ * @fm:    famfs_log_file_meta structure
  * @outp:  FILE stream structure for output
  */
 int
 famfs_emit_file_yaml(
-	const struct famfs_file_meta *fm,
+	const struct famfs_log_file_meta *fm,
 	FILE *outp)
 {
 	yaml_emitter_t emitter;
@@ -492,7 +492,7 @@ yaml_event_str(int event_type)
 static int
 famfs_parse_file_simple_ext_list(
 	yaml_parser_t *parser,
-	//struct famfs_file_meta *fm,
+	//struct famfs_log_file_meta *fm,
 	struct famfs_log_fmap *fmap,
 	int max_extents,
 	int verbose)
@@ -603,7 +603,7 @@ err_out:
 static int
 famfs_parse_file_striped_ext_list(
 	yaml_parser_t *parser,
-	struct famfs_file_meta *fm,
+	struct famfs_log_file_meta *fm,
 	int max_extents,
 	int max_strips,
 	int verbose)
@@ -716,7 +716,7 @@ err_out:
 int
 famfs_parse_file_yaml(
 	yaml_parser_t *parser,
-	struct famfs_file_meta *fm,
+	struct famfs_log_file_meta *fm,
 	int max_extents,
 	int max_strips,
 	int verbose)
@@ -841,7 +841,7 @@ err_out:
 int
 famfs_parse_shadow_yaml(
 	FILE *fp,
-	struct famfs_file_meta *fm,
+	struct famfs_log_file_meta *fm,
 	int max_extents,
 	int max_strips,
 	int verbose)

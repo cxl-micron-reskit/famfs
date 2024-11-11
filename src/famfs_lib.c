@@ -56,7 +56,7 @@ static struct famfs_superblock *famfs_map_superblock_by_path(const char *path, i
 static int famfs_file_create_stub(const char *path, mode_t mode, uid_t uid, gid_t gid,
 			     int disable_write);
 static int famfs_shadow_file_create(const char *path,
-				    const struct famfs_file_meta *fc,
+				    const struct famfs_log_file_meta *fc,
 				    struct famfs_log_stats *ls, int disable_write, int dry_run,
 				    int testmode, int verbose);
 static int open_log_file_read_only(const char *path, size_t *sizep,
@@ -481,8 +481,8 @@ famfs_fsck_scan(
 		printf("  log_entry components:\n");
 		printf("      sizeof(log header) %ld\n", sizeof(struct famfs_log));
 		printf("      sizeof(log_entry)  %ld\n", sizeof(struct famfs_log_entry));
-		printf("          sizeof(mkdir)     %ld\n", sizeof(struct famfs_mkdir));
-		printf("          sizeof(file_meta) %ld\n", sizeof(struct famfs_file_meta));
+		printf("          sizeof(mkdir)     %ld\n", sizeof(struct famfs_log_mkdir));
+		printf("          sizeof(file_meta) %ld\n", sizeof(struct famfs_log_file_meta));
 		printf("              sizeof(fmap)    %ld\n", sizeof(struct famfs_log_fmap));
 
 		printf("                  sizeof(interleaved_ext[%d]): %ld\n",
@@ -496,8 +496,8 @@ famfs_fsck_scan(
 		total_log_size = sizeof(struct famfs_log)
 			+ (sizeof(struct famfs_log_entry) * logp->famfs_log_last_index);
 		printf("  usable log size:   %ld\n", total_log_size);
-		printf("  sizeof(struct famfs_file_meta): %ld\n",
-		       sizeof(struct famfs_file_meta));
+		printf("  sizeof(struct famfs_log_file_meta): %ld\n",
+		       sizeof(struct famfs_log_file_meta));
 		printf("\n");
 	}
 	return errors;
@@ -1011,7 +1011,7 @@ __famfs_mkmeta(
 
 	if (shadow) {
 		/* Create shadow superblock file */
-		struct famfs_file_meta fm = {0};
+		struct famfs_log_file_meta fm = {0};
 
 		fm.fm_size = FAMFS_SUPERBLOCK_SIZE;
 		fm.fm_flags = 0;
@@ -1075,7 +1075,7 @@ __famfs_mkmeta(
 
 	if (shadow) {
 		/* Create shadow logk file */
-		struct famfs_file_meta fm = {0};
+		struct famfs_log_file_meta fm = {0};
 
 		fm.fm_size = FAMFS_SUPERBLOCK_SIZE;
 		fm.fm_flags = 0;
@@ -1250,14 +1250,14 @@ famfs_log_full(const struct famfs_log *logp)
 }
 
 static inline int
-famfs_log_entry_fc_path_is_relative(const struct famfs_file_meta *fc)
+famfs_log_entry_fc_path_is_relative(const struct famfs_log_file_meta *fc)
 {
 	return ((strlen((char *)fc->fm_relpath) >= 1)
 		&& (fc->fm_relpath[0] != '/'));
 }
 
 static inline int
-famfs_log_entry_md_path_is_relative(const struct famfs_mkdir *md)
+famfs_log_entry_md_path_is_relative(const struct famfs_log_mkdir *md)
 {
 	return ((strlen((char *)md->md_relpath) >= 1)
 		&& (md->md_relpath[0] != '/'));
@@ -1396,7 +1396,7 @@ __famfs_logplay(
 
 		switch (le.famfs_log_entry_type) {
 		case FAMFS_LOG_FILE: {
-			const struct famfs_file_meta *fm = &le.famfs_fm;
+			const struct famfs_log_file_meta *fm = &le.famfs_fm;
 			struct famfs_simple_extent *el;
 			char fullpath[PATH_MAX];
 			char rpath[PATH_MAX];
@@ -1496,7 +1496,7 @@ __famfs_logplay(
 			break;
 		}
 		case FAMFS_LOG_MKDIR: {
-			const struct famfs_mkdir *md = &le.famfs_md;
+			const struct famfs_log_mkdir *md = &le.famfs_md;
 			char fullpath[PATH_MAX];
 			char rpath[PATH_MAX];
 			int skip_dir = 0;
@@ -1857,8 +1857,7 @@ famfs_log_file_creation(
 	int                          dump_meta)
 {
 	struct famfs_log_entry le = {0};
-	struct famfs_file_meta *fm = &le.famfs_fm;
-	//int i;
+	struct famfs_log_file_meta *fm = &le.famfs_fm;
 
 	assert(logp);
 	assert(fmap);
@@ -1908,7 +1907,7 @@ famfs_log_dir_creation(
 	gid_t                       gid)
 {
 	struct famfs_log_entry le = {0};
-	struct famfs_mkdir *md = &le.famfs_md;
+	struct famfs_log_mkdir *md = &le.famfs_md;
 
 	assert(logp);
 	assert(relpath[0] != '/');
@@ -2626,14 +2625,14 @@ famfs_file_create_stub(
 /**
  * test_shadow_yaml()
  *
- * This function parses-back yaml file yaml, into a temporary struct famfs_file_meta,
+ * This function parses-back yaml file yaml, into a temporary struct famfs_log_file_meta,
  * and verifies that it exactly matches the original. This is only intended for testing
  * yaml generation and parsing.
  */
 static int
-famfs_test_shadow_yaml(FILE *fp, const struct famfs_file_meta *fc, int verbose)
+famfs_test_shadow_yaml(FILE *fp, const struct famfs_log_file_meta *fc, int verbose)
 {
-	struct famfs_file_meta readback = { 0 };
+	struct famfs_log_file_meta readback = { 0 };
 	int rc;
 
 	rewind(fp);
@@ -2644,9 +2643,10 @@ famfs_test_shadow_yaml(FILE *fp, const struct famfs_file_meta *fc, int verbose)
 		assert(0);
 		return -1;
 	}
-	/* Make sure the read-back of the yaml results in an identical struct famfs_file_meta */
+	/* Make sure the read-back of the yaml results in an identical
+	 * struct famfs_log_file_meta */
 	if (memcmp(fc, &readback, sizeof(readback))) {
-		fprintf(stderr, "%s: famfs_file_meta miscompare\n", __func__);
+		fprintf(stderr, "%s: famfs_log_file_meta miscompare\n", __func__);
 		famfs_emit_file_yaml(&readback, stderr);
 		return -1;
 	}
@@ -2656,9 +2656,9 @@ famfs_test_shadow_yaml(FILE *fp, const struct famfs_file_meta *fc, int verbose)
 
 static int
 famfs_shadow_file_create(
-	const char                        *shadow_fullpath,
-	const struct famfs_file_meta      *fc,
-	struct famfs_log_stats            *ls,
+	const char                       *shadow_fullpath,
+	const struct famfs_log_file_meta *fc,
+	struct famfs_log_stats           *ls,
 	int 	                          disable_write,
 	int                               dry_run,
 	int                               testmode,
@@ -2832,7 +2832,6 @@ __famfs_mkfile(
 		return -1;
 	}
 	assert(fmap->fmap_nextents == 1);
-	//assert(fmap->fmap_ext_type == FAMFS_EXT_SIMPLE);
 
 	/* Create the file
 	 * V1: this creates an empty file in famfs via normal posix tools

@@ -171,7 +171,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 
 		switch (le->famfs_log_entry_type) {
 		case FAMFS_LOG_FILE: {
-			const struct famfs_file_meta *fm = &le->famfs_fm;
+			const struct famfs_log_file_meta *fm = &le->famfs_fm;
 			const struct famfs_log_fmap *fmap = &fm->fm_fmap;
 			const struct famfs_log_fmap *ext = &fm->fm_fmap;
 
@@ -679,7 +679,7 @@ famfs_file_alloc(
 int
 famfs_shadow_to_stat(int fd, struct stat *stat, int verbose)
 {
-	struct famfs_file_meta fmeta = {0};
+	struct famfs_log_file_meta fmeta = {0};
 	char yaml_buf[4096];
 	struct stat st;
 	FILE *fp;

@@ -1205,7 +1205,7 @@ static int truncate_stream(FILE *stream, off_t length) {
     return 0;
 }
 
-static void famfs_yaml_test_reset(struct famfs_file_meta *fm, FILE *fp, char *yaml_str)
+static void famfs_yaml_test_reset(struct famfs_log_file_meta *fm, FILE *fp, char *yaml_str)
 {
 	memset(fm, 0, sizeof(*fm));
 	rewind(fp);
@@ -1216,7 +1216,7 @@ static void famfs_yaml_test_reset(struct famfs_file_meta *fm, FILE *fp, char *ya
 
 TEST(famfs, famfs_file_yaml) {
 	//struct famfs_stripe stripe;
-	struct famfs_file_meta fm;
+	struct famfs_log_file_meta fm;
 	FILE *fp = tmpfile();
 	char *my_yaml;
 	int rc;
@@ -1434,7 +1434,6 @@ static void famfs_yaml_stripe_reset(struct famfs_interleave_param *interleave_pa
 TEST(famfs, famfs_config_yaml) {
 	struct famfs_interleave_param interleave_param;
 	u64 devsize = 8 * 1024ULL * 1024ULL * 1024ULL;
-	//struct famfs_file_meta fm;
 	FILE *fp = tmpfile();
 	char *my_yaml;
 	int rc;

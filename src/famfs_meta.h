@@ -155,7 +155,7 @@ enum famfs_log_entry_type {
 
 
 /* This log entry creates a directory */
-struct famfs_mkdir {
+struct famfs_log_mkdir {
 	uid_t   md_uid;
 	gid_t   md_gid;
 	mode_t  md_mode;
@@ -164,7 +164,7 @@ struct famfs_mkdir {
 };
 
 /* This log entry creates a file */
-struct famfs_file_meta {
+struct famfs_log_file_meta {
 	u64     fm_size;
 	u32     fm_flags;
 
@@ -181,8 +181,8 @@ struct famfs_log_entry {
 	u64     famfs_log_entry_seqnum;
 	u32     famfs_log_entry_type;
 	union {
-		struct famfs_file_meta     famfs_fm;
-		struct famfs_mkdir         famfs_md;
+		struct famfs_log_file_meta     famfs_fm;
+		struct famfs_log_mkdir         famfs_md;
 	};
 	unsigned long famfs_log_entry_crc;
 };

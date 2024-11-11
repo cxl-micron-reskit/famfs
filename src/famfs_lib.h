@@ -73,9 +73,9 @@ int famfs_shadow_to_stat(int fd, struct stat *stat, int verbose);
 
 /* famfs_yaml.c */
 #include <yaml.h>
-int famfs_emit_file_yaml(const struct famfs_file_meta *fm, FILE *outp);
+int famfs_emit_file_yaml(const struct famfs_log_file_meta *fm, FILE *outp);
 int famfs_emit_interleave_param_yaml(const struct famfs_interleave_param *interleave_param, FILE *outp);
-int famfs_parse_shadow_yaml(FILE *fp, struct famfs_file_meta *fm, int max_extents,
+int famfs_parse_shadow_yaml(FILE *fp, struct famfs_log_file_meta *fm, int max_extents,
 			    int max_strips, int verbose);
 int famfs_parse_alloc_yaml(FILE *fp, struct famfs_interleave_param *interleave_param, int verbose);
 const char *yaml_event_str(int event_type);
