@@ -1397,7 +1397,6 @@ __famfs_logplay(
 		switch (le.famfs_log_entry_type) {
 		case FAMFS_LOG_FILE: {
 			const struct famfs_log_file_meta *fm = &le.famfs_fm;
-			struct famfs_simple_extent *el;
 			char fullpath[PATH_MAX];
 			char rpath[PATH_MAX];
 			struct stat st;
@@ -1477,21 +1476,49 @@ __famfs_logplay(
 			/* Build extent list of famfs_simple_extent; the log entry has a
 			 * different kind of extent list...
 			 */
-			el = calloc(fm->fm_fmap.fmap_nextents, sizeof(*el));
-			for (j = 0; j < fm->fm_fmap.fmap_nextents; j++) {
-				const struct famfs_log_fmap *tle = &fm->fm_fmap;
-
-				el[j].se_offset = tle->se[j].se_offset;
-				el[j].se_len    = tle->se[j].se_len;
+			if (FAMFS_KABI_VERSION > 42) {
+#if (FAMFS_KABI_VERSION > 42)
+				rc =  famfs_v2_set_file_map(fd, fm->fm_size,
+							    &fm->fm_fmap, FAMFS_REG);
+				if (rc) {
+					fprintf(stderr,
+						"%s: v2 setmap failed to create file %s\n",
+						__func__, rpath);
+				}
+#endif
 			}
-			rc = famfs_v1_set_file_map(fd, fm->fm_size,
-						   fm->fm_fmap.fmap_nextents, el, FAMFS_REG);
-			if (rc)
-				fprintf(stderr, "%s: failed to create file %s\n",
-					__func__, rpath);
+			else {
+				struct famfs_simple_extent *el;
+
+				if (fm->fm_fmap.fmap_ext_type != FAMFS_EXT_SIMPLE) {
+					fprintf(stderr,
+						"%s: error: non-simple extents in abi 42\n",
+						__func__);
+					rc = -1;
+					goto bad_log_fmap;
+				}
+
+				el = calloc(fm->fm_fmap.fmap_nextents, sizeof(*el));
+				assert(el);
+
+				for (j = 0; j < fm->fm_fmap.fmap_nextents; j++) {
+					const struct famfs_log_fmap *tle = &fm->fm_fmap;
+
+					el[j].se_offset = tle->se[j].se_offset;
+					el[j].se_len    = tle->se[j].se_len;
+				}
+				rc = famfs_v1_set_file_map(fd, fm->fm_size,
+							   fm->fm_fmap.fmap_nextents,
+							   el, FAMFS_REG);
+bad_log_fmap:
+				if (rc)
+					fprintf(stderr, "%s: v1 setmap failed for file %s\n",
+						__func__, rpath);
+				free(el);
+			}
+
 
 			close(fd);
-			free(el);
 			ls.f_created++;
 			break;
 		}
