@@ -214,6 +214,33 @@ stripe_test () {
 	(( loopct++ ))
     done
 
+    echo
+    echo "Unmount and remount to test logplay for interleaved files"
+    echo
+    sudo umount $MPT || fail "umount should work"
+    verify_not_mounted $DEV $MPT "stripe_test umount should have succeeded"
+    ${CLI} mount $DEV $MPT  || fail "remount should work"
+    verify_mounted $DEV $MPT "stripe_test remount should have succeeded"
+
+    #
+    # Re-check the files after unmount/remount to verify metadata log handling of
+    # interleaved files
+    #
+    echo "Verifying files post unmount/remount"
+    # Cat each file to /dev/null
+    loopct=0
+    for file in "${files[@]}"; do
+	(( seed = BASE_SEED + loopct ))
+	echo -n "re-verifying file: $file seed=$seed"
+	${CLI} verify -q -S "$seed" -f "$file"
+	if [[ $? -eq 0 ]]; then
+	    echo "...good"
+	else
+	    fail "Failed to verify $file after unmount/remount (seed=$seed)"
+	fi
+	(( loopct++ ))
+    done
+
     echo "Processed all successfully created files."
 }
 
