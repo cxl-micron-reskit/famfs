@@ -342,7 +342,15 @@ famfs_gen_superblock_crc(const struct famfs_superblock *sb)
 	crc = crc32(crc, (const unsigned char *)&sb->ts_magic,       sizeof(sb->ts_magic));
 	crc = crc32(crc, (const unsigned char *)&sb->ts_version,     sizeof(sb->ts_version));
 	crc = crc32(crc, (const unsigned char *)&sb->ts_log_offset,  sizeof(sb->ts_log_offset));
+
 	crc = crc32(crc, (const unsigned char *)&sb->ts_log_len,     sizeof(sb->ts_log_len));
+
+	crc = crc32(crc, (const unsigned char *)&sb->ts_alloc_unit, sizeof(sb->ts_alloc_unit));
+	crc = crc32(crc, (const unsigned char *)&sb->ts_omf_ver_major,
+		    sizeof(sb->ts_omf_ver_major));
+	crc = crc32(crc, (const unsigned char *)&sb->ts_omf_ver_minor,
+		    sizeof(sb->ts_omf_ver_minor));
+
 	crc = crc32(crc, (const unsigned char *)&sb->ts_uuid,        sizeof(sb->ts_uuid));
 	crc = crc32(crc, (const unsigned char *)&sb->ts_dev_uuid,    sizeof(sb->ts_uuid));
 	crc = crc32(crc, (const unsigned char *)&sb->ts_system_uuid, sizeof(sb->ts_system_uuid));
@@ -419,6 +427,9 @@ famfs_fsck_scan(
 	printf("  role of this node: ");
 	role = famfs_get_role(sb);
 	famfs_print_role_string(role);
+	printf("  alloc_unit:        0x%llx\n", sb->ts_alloc_unit);
+	printf("  OMF major version: %d\n", sb->ts_omf_ver_major);
+	printf("  OMF minor version: %d\n", sb->ts_omf_ver_minor);
 
 	printf("  sizeof superblock: %ld\n", sizeof(struct famfs_superblock));
 	printf("  primary: %s   %ld\n",
@@ -4071,6 +4082,9 @@ __famfs_mkfs(const char              *daxdev,
 	sb->ts_version    = FAMFS_CURRENT_VERSION;
 	sb->ts_log_offset = FAMFS_LOG_OFFSET;
 	sb->ts_log_len    = log_len;
+	sb->ts_alloc_unit = FAMFS_ALLOC_UNIT; /* Future: make this configurable */
+	sb->ts_omf_ver_major = FAMFS_OMF_VER_MAJOR;
+	sb->ts_omf_ver_minor = FAMFS_OMF_VER_MINOR;
 	famfs_uuidgen(&sb->ts_uuid);
 
 	/* Note: generated UUIDs are ok now, but we will need to use tagged-capaciyt

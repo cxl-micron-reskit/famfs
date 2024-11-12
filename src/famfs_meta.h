@@ -44,6 +44,9 @@ static inline size_t round_size_to_alloc_unit(u64 size)
 
 #define FAMFS_DEVNAME_LEN 64
 
+#define FAMFS_OMF_VER_MAJOR 1
+#define FAMFS_OMF_VER_MINOR 1
+
 struct famfs_daxdev {
 	size_t              dd_size;
 	uuid_le             dd_uuid;
@@ -52,7 +55,8 @@ struct famfs_daxdev {
 };
 
 /* ts_sb_flags */
-#define	FAMFS_PRIMARY_SB  (1 << 0) /* This device is the primary superblock of this famfs instance */
+#define	FAMFS_PRIMARY_SB    (1 << 0)   /* Primary device for this file system */
+#define	FAMFS_SECONDARY_SB  (1 << 1)   /* Secondary device in a file system */
 
 
 /* Lives at the base of a tagged tax device: */
@@ -60,7 +64,10 @@ struct famfs_superblock {
 	u64                 ts_magic;
 	u64                 ts_version;
 	u64                 ts_log_offset;  /* offset to the start of the log file */
-	u64                 ts_log_len;
+	u64                 ts_log_len;     /* Primary log length in bytes */
+	u64                 ts_alloc_unit;
+	u32                 ts_omf_ver_major;
+	u32                 ts_omf_ver_minor;
 	uuid_le             ts_uuid;        /* UUID of this file system */
 	uuid_le             ts_dev_uuid;    /* uuid of this device */
 	uuid_le             ts_system_uuid; /* system uuid */
@@ -85,7 +92,7 @@ enum famfs_log_ext_type {
 /* Maximum number of extents in a FC extent list */
 #define FAMFS_MAX_SIMPLE_EXTENTS 8
 #define FAMFS_MAX_INTERLEAVED_EXTENTS 1
-#define FAMFS_MAX_NBUCKETS 32
+#define FAMFS_MAX_NBUCKETS 1024
 
 /* TODO: get rid of this extent type, and use the one from the kernel instead
  * (which will avoid silly translations...
