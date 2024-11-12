@@ -65,7 +65,6 @@ struct famfs_superblock {
 	u64                 ts_version;
 	u64                 ts_log_offset;  /* offset to the start of the log file */
 	u64                 ts_log_len;     /* Primary log length in bytes */
-	u64                 ts_alloc_unit;
 	u32                 ts_omf_ver_major;
 	u32                 ts_omf_ver_minor;
 	uuid_le             ts_uuid;        /* UUID of this file system */
