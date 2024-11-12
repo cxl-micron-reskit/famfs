@@ -345,6 +345,7 @@ famfs_gen_superblock_crc(const struct famfs_superblock *sb)
 
 	crc = crc32(crc, (const unsigned char *)&sb->ts_log_len,     sizeof(sb->ts_log_len));
 
+	crc = crc32(crc, (const unsigned char *)&sb->ts_alloc_unit, sizeof(sb->ts_alloc_unit));
 	crc = crc32(crc, (const unsigned char *)&sb->ts_omf_ver_major,
 		    sizeof(sb->ts_omf_ver_major));
 	crc = crc32(crc, (const unsigned char *)&sb->ts_omf_ver_minor,
@@ -401,6 +402,7 @@ famfs_fsck_scan(
 	u64 alloc_sum, fsize_sum;
 	size_t total_log_size;
 	u64 dev_capacity;
+	u64 alloc_unit;
 	u64 errors = 0;
 	u8 *bitmap;
 	u64 nbits;
@@ -409,6 +411,8 @@ famfs_fsck_scan(
 	assert(sb);
 	assert(logp);
 
+	alloc_unit = sb->ts_alloc_unit;
+	assert(alloc_unit == 4096 || alloc_unit == 0x200000);
 	dev_capacity = sb->ts_daxdev.dd_size;
 	effective_log_size = sizeof(*logp) +
 		(logp->famfs_log_next_index * sizeof(struct famfs_log_entry));
@@ -426,6 +430,7 @@ famfs_fsck_scan(
 	printf("  role of this node: ");
 	role = famfs_get_role(sb);
 	famfs_print_role_string(role);
+	printf("  alloc_unit:        0x%llx\n", sb->ts_alloc_unit);
 	printf("  OMF major version: %d\n", sb->ts_omf_ver_major);
 	printf("  OMF minor version: %d\n", sb->ts_omf_ver_minor);
 
@@ -444,12 +449,12 @@ famfs_fsck_scan(
 	/*
 	 * Build the log bitmap to scan for errors
 	 */
-	bitmap = famfs_build_bitmap(logp,  dev_capacity, &nbits, &errors,
+	bitmap = famfs_build_bitmap(logp, alloc_unit, dev_capacity, &nbits, &errors,
 				    &fsize_sum, &alloc_sum, &ls, verbose);
 	if (errors)
 		printf("ERROR: %lld ALLOCATION COLLISIONS FOUND\n", errors);
 	else {
-		u64 bitmap_capacity = nbits * FAMFS_ALLOC_UNIT;
+		u64 bitmap_capacity = nbits * alloc_unit;
 		float space_amp = (float)alloc_sum / (float)fsize_sum;
 		float percent_used = 100.0 * (float)alloc_sum /  (float)bitmap_capacity;
 		float agig = 1024 * 1024 * 1024;
@@ -651,6 +656,11 @@ famfs_check_super(const struct famfs_superblock *sb)
 		return -1;
 	}
 
+	if (sb->ts_alloc_unit != 4096 && sb->ts_alloc_unit != 0x200000) {
+		fprintf(stderr, "%s: invalid alloc unit in superblock: %lld\n",
+			__func__, sb->ts_alloc_unit);
+		return -1;
+	}
 	return 0;
 }
 
@@ -2448,7 +2458,7 @@ err_out:
  * Validate the superblock and return the dax device size, or -1 if sb or size invalid
  */
 static ssize_t
-famfs_validate_superblock_by_path(const char *path)
+famfs_validate_superblock_by_path(const char *path, u64 *alloc_unit)
 {
 	int sfd;
 	void *addr;
@@ -2475,6 +2485,10 @@ famfs_validate_superblock_by_path(const char *path)
 		fprintf(stderr, "%s: invalid superblock\n", __func__);
 		return -1;
 	}
+
+	if (alloc_unit)
+		*alloc_unit = sb->ts_alloc_unit;
+
 	daxdevsize = sb->ts_daxdev.dd_size;
 	munmap(sb, FAMFS_SUPERBLOCK_SIZE);
 	close(sfd);
@@ -2505,7 +2519,7 @@ famfs_init_locked_log(
 
 	memset(lp, 0, sizeof(*lp));
 
-	lp->devsize = famfs_validate_superblock_by_path(fspath);
+	lp->devsize = famfs_validate_superblock_by_path(fspath, &(lp->alloc_unit));
 	if (lp->devsize < 0)
 		return -1;
 
@@ -2560,7 +2574,8 @@ famfs_init_locked_log(
 			fprintf(stderr, "%s: failed to parse alloc yaml\n", __func__);
 			goto out;
 		}
-		rc = famfs_validate_interleave_param(&interleave_param, lp->devsize, verbose);
+		rc = famfs_validate_interleave_param(&interleave_param,
+						     lp->alloc_unit, lp->devsize, verbose);
 		if (rc == 0) {
 			if (verbose)
 				printf("%s: good interleave_param metadata!\n", __func__);
@@ -4080,6 +4095,7 @@ __famfs_mkfs(const char              *daxdev,
 	sb->ts_version    = FAMFS_CURRENT_VERSION;
 	sb->ts_log_offset = FAMFS_LOG_OFFSET;
 	sb->ts_log_len    = log_len;
+	sb->ts_alloc_unit = FAMFS_ALLOC_UNIT; /* Future: make this configurable */
 	sb->ts_omf_ver_major = FAMFS_OMF_VER_MAJOR;
 	sb->ts_omf_ver_minor = FAMFS_OMF_VER_MINOR;
 	famfs_uuidgen(&sb->ts_uuid);

@@ -681,7 +681,7 @@ TEST(famfs, famfs_alloc)
 	struct famfs_log_stats logstats;
 	memset(&logstats, 0, sizeof(logstats));
 	u64 nbytes;
-	u8 *bitmap = famfs_build_bitmap(ll.logp, ll.devsize,
+	u8 *bitmap = famfs_build_bitmap(ll.logp, ll.alloc_unit, ll.devsize,
 				       &nbits, &alloc_errs, &fsize_total, &alloc_sum,
 				       &logstats, 1);
 	ASSERT_NE(bitmap, nullptr);
@@ -1449,7 +1449,7 @@ TEST(famfs, famfs_config_yaml) {
 	rc = famfs_parse_alloc_yaml(fp, &interleave_param, 1);
 	ASSERT_EQ(rc, 0);
 
-	rc = famfs_validate_interleave_param(&interleave_param, devsize, 1);
+	rc = famfs_validate_interleave_param(&interleave_param, 0x200000, devsize, 1);
 	ASSERT_EQ(rc, 0);
 
 	/* Different order */
@@ -1464,7 +1464,7 @@ TEST(famfs, famfs_config_yaml) {
 	rc = famfs_parse_alloc_yaml(fp, &interleave_param, 1);
 	ASSERT_EQ(rc, 0);
 
-	rc = famfs_validate_interleave_param(&interleave_param, devsize, 1);
+	rc = famfs_validate_interleave_param(&interleave_param, 0x200000, devsize, 1);
 	ASSERT_EQ(rc, 0);
 
 	/* Bad chunk_size */
@@ -1479,7 +1479,7 @@ TEST(famfs, famfs_config_yaml) {
 	rc = famfs_parse_alloc_yaml(fp, &interleave_param, 1);
 	ASSERT_EQ(rc, 0);
 
-	rc = famfs_validate_interleave_param(&interleave_param, devsize, 1);
+	rc = famfs_validate_interleave_param(&interleave_param, 0x200000, devsize, 1);
 	ASSERT_NE(rc, 0);
 
 	/* Another bad chunk_size */
@@ -1494,12 +1494,12 @@ TEST(famfs, famfs_config_yaml) {
 	rc = famfs_parse_alloc_yaml(fp, &interleave_param, 1);
 	ASSERT_EQ(rc, 0);
 
-	rc = famfs_validate_interleave_param(&interleave_param, devsize, 1);
+	rc = famfs_validate_interleave_param(&interleave_param, 0x200000, devsize, 1);
 	ASSERT_NE(rc, 0);
 
 	/* Null stripe is valid */
 	famfs_yaml_stripe_reset(&interleave_param, fp, my_yaml);
-	rc = famfs_validate_interleave_param(&interleave_param, devsize, 1);
+	rc = famfs_validate_interleave_param(&interleave_param, 0x200000, devsize, 1);
 	ASSERT_EQ(rc, 0);
 
 	/* But null yaml is not */

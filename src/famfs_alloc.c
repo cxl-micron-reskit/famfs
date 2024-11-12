@@ -73,6 +73,7 @@ mu_print_bitmap(u8 *bitmap, int num_bits)
 static inline u64
 set_extent_in_bitmap(
 	u8 *bitmap,
+	const u64 alloc_unit,
 	u64 offset,
 	u64 len,
 	u64 *alloc_sum)
@@ -83,10 +84,10 @@ set_extent_in_bitmap(
 	int rc;
 	u64 k;
 
-	assert(!(offset & (FAMFS_ALLOC_UNIT  - 1)));
+	assert(!(offset & (alloc_unit  - 1)));
 
-	page_num = offset / FAMFS_ALLOC_UNIT;
-	np = (len + FAMFS_ALLOC_UNIT - 1) / FAMFS_ALLOC_UNIT;
+	page_num = offset / alloc_unit;
+	np = (len + alloc_unit - 1) / alloc_unit;
 
 	for (k = page_num; k < (page_num + np); k++) {
 		rc = mu_bitmap_test_and_set(bitmap, k);
@@ -95,7 +96,7 @@ set_extent_in_bitmap(
 		} else {
 			/* Don't count double allocations */
 			if (alloc_sum)
-				*alloc_sum += FAMFS_ALLOC_UNIT;
+				*alloc_sum += alloc_unit;
 		}
 	}
 	return errors;
@@ -112,9 +113,13 @@ set_extent_in_bitmap(
  * @alloc_sum: Amount of space marked as allocated for  the superblock and log
  */
 static inline void
-put_sb_log_into_bitmap(u8 *bitmap, u64 log_len, u64 *alloc_sum)
+put_sb_log_into_bitmap(
+	u8 *bitmap,
+	const u64 alloc_unit,
+	u64 log_len,
+	u64 *alloc_sum)
 {
-	set_extent_in_bitmap(bitmap, 0, FAMFS_SUPERBLOCK_SIZE + log_len, alloc_sum);
+	set_extent_in_bitmap(bitmap, alloc_unit, 0, FAMFS_SUPERBLOCK_SIZE + log_len, alloc_sum);
 }
 
 /**
@@ -134,6 +139,7 @@ put_sb_log_into_bitmap(u8 *bitmap, u64 log_len, u64 *alloc_sum)
  */
 u8 *
 famfs_build_bitmap(const struct famfs_log   *logp,
+		   const u64                 alloc_unit,
 		   u64                       dev_size_in,
 		   u64                      *bitmap_nbits_out,
 		   u64                      *alloc_errors_out,
@@ -142,7 +148,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 		   struct famfs_log_stats   *log_stats_out,
 		   int                       verbose)
 {
-	u64 nbits = (dev_size_in + FAMFS_ALLOC_UNIT - 1) / FAMFS_ALLOC_UNIT;
+	u64 nbits = (dev_size_in + alloc_unit - 1) / alloc_unit;
 	u64 bitmap_nbytes = mu_bitmap_size(nbits);
 	u8 *bitmap = calloc(1, bitmap_nbytes + 1); /* Note: mu_bitmap_foreach accesses
 						    * 1 bit past the end */
@@ -159,7 +165,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 	if (!bitmap)
 		return NULL;
 
-	put_sb_log_into_bitmap(bitmap, logp->famfs_log_len, &alloc_sum);
+	put_sb_log_into_bitmap(bitmap, alloc_unit, logp->famfs_log_len, &alloc_sum);
 
 	/* This loop is over all log entries */
 	for (i = 0; i < logp->famfs_log_next_index; i++) {
@@ -189,9 +195,10 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 					u64 len = ext->se[j].se_len;
 					int rc;
 
-					assert(!(ofs % FAMFS_ALLOC_UNIT));
+					assert(!(ofs % alloc_unit));
 
-					rc = set_extent_in_bitmap(bitmap, ofs, len, &alloc_sum);
+					rc = set_extent_in_bitmap(bitmap, alloc_unit,
+								  ofs, len, &alloc_sum);
 					errors += rc;
 				}
 				break;
@@ -208,8 +215,8 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 						u64 len = se->se_len;
 						int rc;
 
-						rc = set_extent_in_bitmap(bitmap, ofs, len,
-									  &alloc_sum);
+						rc = set_extent_in_bitmap(bitmap, alloc_unit,
+									  ofs, len, &alloc_sum);
 						errors += rc;
 					}
 				}
@@ -263,21 +270,22 @@ static s64
 bitmap_alloc_contiguous(
 	u8 *bitmap,
 	u64 nbits,
+	const u64 alloc_unit,
 	u64 alloc_size,
 	u64 *cur_pos,
 	u64 range_size)
 {
 	u64 i, j;
-	u64 alloc_bits = (alloc_size + FAMFS_ALLOC_UNIT - 1) /  FAMFS_ALLOC_UNIT;
+	u64 alloc_bits = (alloc_size + alloc_unit - 1) /  alloc_unit;
 	u64 bitmap_remainder;
 	u64 start_idx;
 	u64 range_size_nbits;
 
 	assert(cur_pos);
 
-	start_idx = *cur_pos / FAMFS_ALLOC_UNIT;
+	start_idx = *cur_pos / alloc_unit;
 	range_size_nbits = (range_size) ?
-		((range_size + FAMFS_ALLOC_UNIT - 1) / FAMFS_ALLOC_UNIT) : nbits;
+		((range_size + alloc_unit - 1) / alloc_unit) : nbits;
 
 	for (i = start_idx; i < nbits; i++) {
 		/* Skip bits that are set... */
@@ -297,8 +305,8 @@ bitmap_alloc_contiguous(
 		 */
 		for (j = i; j < (i+alloc_bits); j++)
 			mse_bitmap_set32(bitmap, j);
-		*cur_pos = j * FAMFS_ALLOC_UNIT;
-		return i * FAMFS_ALLOC_UNIT;
+		*cur_pos = j * alloc_unit;
+		return i * alloc_unit;
 next:
 		continue;
 	}
@@ -310,15 +318,16 @@ static void
 bitmap_free_contiguous(
 	u8 *bitmap,
 	u64 nbits,
+	const u64 alloc_unit,
 	u64 offset,
 	u64 len)
 {
-	u64 start_bitnum = (offset / FAMFS_ALLOC_UNIT);
-	u64 nbits_free = (len + FAMFS_ALLOC_UNIT - 1) / FAMFS_ALLOC_UNIT;
+	u64 start_bitnum = (offset / alloc_unit);
+	u64 nbits_free = (len + alloc_unit - 1) / alloc_unit;
 	u64 i;
 
 	assert((start_bitnum + nbits_free) <= nbits);
-	assert(!(offset % FAMFS_ALLOC_UNIT));
+	assert(!(offset % alloc_unit));
 
 	for (i = start_bitnum; i < (start_bitnum + nbits_free); i++)
 		assert(mu_bitmap_test_and_clear(bitmap, i)); /* Stop if any bits are aleady clear */
@@ -339,7 +348,8 @@ famfs_alloc_contiguous(
 	u64 range_size,
 	int verbose)
 {
-	return bitmap_alloc_contiguous(lp->bitmap, lp->nbits, size, &lp->cur_pos, range_size);
+	return bitmap_alloc_contiguous(lp->bitmap, lp->nbits, lp->alloc_unit,
+				       size, &lp->cur_pos, range_size);
 }
 
 /**
@@ -450,6 +460,7 @@ static int next_bucket(struct bucket_series *bs)
 int
 famfs_validate_interleave_param(
 	struct famfs_interleave_param *interleave_param,
+	const u64 alloc_unit,
 	u64 devsize,
 	int verbose)
 {
@@ -473,8 +484,8 @@ famfs_validate_interleave_param(
 			__func__, interleave_param->chunk_size);
 		return -EINVAL;
 	}
-	if (interleave_param->chunk_size % FAMFS_ALLOC_UNIT) {
-		fprintf(stderr, "%s: chunk_size=0x%llx must be a multiple of FAMFS_ALLOC_UNIT\n",
+	if (interleave_param->chunk_size % alloc_unit) {
+		fprintf(stderr, "%s: chunk_size=0x%llx must be a multiple of alloc_unit\n",
 			__func__, interleave_param->chunk_size);
 		return -EINVAL;
 	}
@@ -484,12 +495,12 @@ famfs_validate_interleave_param(
 			fprintf(stderr, "%s: Error nstrips (%lld) > nbuckets (%lld)\n",
 				__func__, interleave_param->nstrips, interleave_param->nbuckets);
 	}
-	if (interleave_param->chunk_size % FAMFS_ALLOC_UNIT) {
+	if (interleave_param->chunk_size % alloc_unit) {
 		errs++;
 		if (verbose)
 			fprintf(stderr,
-				"%s: Error chunk_size %lld no ta multiplle of alloc_unit (%d)\n",
-				__func__, interleave_param->chunk_size, FAMFS_ALLOC_UNIT);
+				"%s: Error chunk_size %lld not multiplle of alloc_unit (%lld)\n",
+				__func__, interleave_param->chunk_size, alloc_unit);
 	}
 	if (!interleave_param->nbuckets) {
 		errs++;
@@ -532,12 +543,13 @@ famfs_file_strided_alloc(
 	u64 nstrips_allocated = 0;
 	int nstripes;
 	u64 tmp;
-	/* Quantities in units of FAMFS_ALLOC_UNIT (au) */
+	/* Quantities in units of alloc_unit (au) */
 	u64 alloc_size_au, devsize_au, bucket_size_au, stripe_size_au, strip_size_au, chunk_size_au;
 	int i, j;
 	int rc;
 
-	rc = famfs_validate_interleave_param(&lp->interleave_param, lp->devsize, verbose);
+	rc = famfs_validate_interleave_param(&lp->interleave_param, lp->alloc_unit,
+					     lp->devsize, verbose);
 	if (rc)
 		return rc;
 	assert(lp->interleave_param.nstrips <= lp->interleave_param.nbuckets);
@@ -551,11 +563,11 @@ famfs_file_strided_alloc(
 		return famfs_file_alloc_contiguous(lp, size, fmap_out, verbose);
 	}
 
-	alloc_size_au = (size + FAMFS_ALLOC_UNIT - 1) / FAMFS_ALLOC_UNIT;
+	alloc_size_au = (size + lp->alloc_unit - 1) / lp->alloc_unit;
 
 	/* Authoritative device, bucket, stripe and strip sizes are in allocation units */
-	chunk_size_au  = lp->interleave_param.chunk_size / FAMFS_ALLOC_UNIT;
-	devsize_au     = lp->devsize / FAMFS_ALLOC_UNIT;    /* This may round down */
+	chunk_size_au  = lp->interleave_param.chunk_size / lp->alloc_unit;
+	devsize_au     = lp->devsize / lp->alloc_unit;    /* This may round down */
 	bucket_size_au = devsize_au / lp->interleave_param.nbuckets;         /* This may also round down */
 	stripe_size_au = lp->interleave_param.nstrips * chunk_size_au;
 	assert(!(stripe_size_au % lp->interleave_param.nstrips));
@@ -565,7 +577,7 @@ famfs_file_strided_alloc(
 
 	/* Just for curiosity, let's check how much space at the end of devsize is leftover
 	 * after the last bucket */
-	tmp = bucket_size_au * FAMFS_ALLOC_UNIT * lp->interleave_param.nbuckets;
+	tmp = bucket_size_au * lp->alloc_unit * lp->interleave_param.nbuckets;
 	assert(tmp <= lp->devsize);
 	if (verbose && tmp < lp->devsize)
 		printf("%s: nbuckets=%lld wastes %lld bytes of dev capacity\n",
@@ -574,8 +586,8 @@ famfs_file_strided_alloc(
 	if (verbose > 1)
 		printf("%s: size=0x%llx stripe_size=0x%llx strip_size=0x%llx\n",
 		       __func__, size,
-		       stripe_size_au * FAMFS_ALLOC_UNIT,
-		       strip_size_au * FAMFS_ALLOC_UNIT);
+		       stripe_size_au * lp->alloc_unit,
+		       strip_size_au * lp->alloc_unit);
 
 	/* Bucketize the stride regions in random order */
 	init_bucket_series(&bs, lp->interleave_param.nbuckets);
@@ -596,24 +608,24 @@ famfs_file_strided_alloc(
 	for (i = 0; i < lp->interleave_param.nbuckets; i++) {
 		int bucket_num = next_bucket(&bs);
 		s64 ofs;
-		u64 pos = bucket_num * bucket_size_au * FAMFS_ALLOC_UNIT;
+		u64 pos = bucket_num * bucket_size_au * lp->alloc_unit;
 
 		/* Oops: bitmap might not be allocated yet */
-		ofs = bitmap_alloc_contiguous(lp->bitmap, lp->nbits,
-					      strip_size_au * FAMFS_ALLOC_UNIT,
+		ofs = bitmap_alloc_contiguous(lp->bitmap, lp->nbits, lp->alloc_unit,
+					      strip_size_au * lp->alloc_unit,
 					      &pos,
-					      bucket_size_au * FAMFS_ALLOC_UNIT);
+					      bucket_size_au * lp->alloc_unit);
 
 		if (ofs > 0) {
 
 			strips[nstrips_allocated].se_devindex = 0;
 			strips[nstrips_allocated].se_offset = ofs;
-			strips[nstrips_allocated].se_len = strip_size_au * FAMFS_ALLOC_UNIT;
+			strips[nstrips_allocated].se_len = strip_size_au * lp->alloc_unit;
 
 			if (verbose)
 				printf("%s: strip %d bucket %d ofs 0x%llx len %lld\n",
 				       __func__, i, bucket_num, ofs,
-				       strip_size_au * FAMFS_ALLOC_UNIT);
+				       strip_size_au * lp->alloc_unit);
 
 			nstrips_allocated++;
 			if (nstrips_allocated >= lp->interleave_param.nstrips)
@@ -624,7 +636,7 @@ famfs_file_strided_alloc(
 	if (nstrips_allocated < lp->interleave_param.nstrips) {
 		/* Allocation failed; got fewer strips than needed */
 		fprintf(stderr, "%s: failed %lld strips @%lldb each; got %lld strips\n",
-			__func__, lp->interleave_param.nstrips, strip_size_au * FAMFS_ALLOC_UNIT,
+			__func__, lp->interleave_param.nstrips, strip_size_au * lp->alloc_unit,
 			nstrips_allocated);
 
 		if (verbose > 1) {
@@ -633,7 +645,7 @@ famfs_file_strided_alloc(
 		}
 
 		for (j = 0; j < i; j++)
-			bitmap_free_contiguous(lp->bitmap, lp->nbits,
+			bitmap_free_contiguous(lp->bitmap, lp->nbits, lp->alloc_unit,
 					       strips[j].se_offset, strips[j].se_len);
 		free(fmap);
 		if (verbose > 1) {
@@ -661,7 +673,8 @@ famfs_file_alloc(
 {
 	if (!lp->bitmap) {
 		/* Bitmap is needed and hasn't been built yet */
-		lp->bitmap = famfs_build_bitmap(lp->logp, lp->devsize, &lp->nbits,
+		lp->bitmap = famfs_build_bitmap(lp->logp, lp->alloc_unit,
+						lp->devsize, &lp->nbits,
 						NULL, NULL, NULL, NULL, verbose);
 		if (!lp->bitmap) {
 			fprintf(stderr, "%s: failed to allocate bitmap\n", __func__);
