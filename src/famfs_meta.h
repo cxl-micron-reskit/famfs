@@ -57,7 +57,7 @@ static inline size_t round_size_to_alloc_unit(u64 size)
 
 #define FAMFS_DEVNAME_LEN 64
 
-#define FAMFS_OMF_VER_MAJOR 1
+#define FAMFS_OMF_VER_MAJOR 2
 #define FAMFS_OMF_VER_MINOR 1
 
 struct famfs_daxdev {
@@ -103,7 +103,7 @@ enum famfs_log_ext_type {
 };
 
 /* Maximum number of extents in a FC extent list */
-#define FAMFS_MAX_SIMPLE_EXTENTS 8
+#define FAMFS_MAX_SIMPLE_EXTENTS 16
 #define FAMFS_MAX_INTERLEAVED_EXTENTS 1
 #define FAMFS_MAX_NBUCKETS 1024
 
