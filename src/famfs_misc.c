@@ -181,7 +181,7 @@ famfs_get_system_uuid(uuid_le *uuid_out)
 	char sys_uuid_file_path[PATH_MAX] = {0};
 
 	if (mock_uuid)
-	  sys_uuid_dir = "/tmp";
+		sys_uuid_dir = "/tmp";
 
 	snprintf(sys_uuid_file_path, PATH_MAX - 1, "%s/%s",
 			sys_uuid_dir, SYS_UUID_FILE);
