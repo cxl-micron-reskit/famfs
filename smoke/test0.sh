@@ -258,6 +258,6 @@ ${CLI} fsck --human $MPT || fail "fsck --human should succeed"
 
 set +x
 echo "*************************************************************************"
-echo "Test0 completed successfully"
+echo "test0 completed successfully"
 echo "*************************************************************************"
 exit 0

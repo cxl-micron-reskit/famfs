@@ -155,6 +155,6 @@ sudo $UMOUNT $MPT # run_smoke.sh expects the file system unmounted after this te
 ${CLI} mount $DEV $MPT || fail "last famfs mount should succeed"
 set +x
 echo "*************************************************************************"
-echo "Test4 (multichase) completed successfully"
+echo "test4 (multichase) completed successfully"
 echo "*************************************************************************"
 exit 0

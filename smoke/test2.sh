@@ -113,6 +113,6 @@ sudo cmp $MPT/bigtest10 $MPT/bigtest11        && fail "files should not match"
 
 set +x
 echo "*************************************************************************"
-echo "Test2 completed successfully"
+echo "test2 completed successfully"
 echo "*************************************************************************"
 exit 0

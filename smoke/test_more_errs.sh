@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
 
+#
+# NOTE: this is a copy of test_errs.sh that has some additional tests that
+# aren't stabilized. Commiting as a separate file to preserve that work so
+# it can be easily revisited.
+#
+# See XXX comments below
+#
+
 cwd=$(pwd)
 
 # Defaults
@@ -59,8 +67,7 @@ source $SCRIPTS/test_funcs.sh
 
 set -x
 
-# Start with a clean, empty file system
-famfs_recreate -d "$DEV" -b "$BIN" -m "$MPT" -M "recreate in test0.sh"
+#full_mount $DEV $MPT "${MOUNT_OPTS}" "test_errors full_mount"
 
 verify_mounted $DEV $MPT "test_errors.sh"
 
@@ -88,29 +95,23 @@ ${CLI} clone -v $MPT/bogusfile $MPT/bogusfile.cllone && fail "clone bogusfile sh
 ${CLI} clone -v /etc/passwd $MPT/passwd              && fail "clone from outside famfs should fail"
 
 
-${CLI} fsck $MPT && fail "fsck should fail after cloning "
+${CLI} fsck $MPT && fail "fsck should fail after any successful cloning "
 ${CLI} verify -S 10 -f $MPT/clone  || fail "re-verify clone"
 ${CLI} verify -S 10 -f $MPT/clone1 || fail "re-verify clone1"
 
 sudo $UMOUNT $MPT || fail "umount"
-verify_not_mounted $DEV $MPT "test_errors .sh"
-${CLI} mount $DEV $MPT || fail "mount in test_errors"
-#full_mount $DEV $MPT "${MOUNT_OPTS}" "test_errors.sh"
+verify_not_mounted $DEV $MPT "test1.sh"
+full_mount $DEV $MPT "${MOUNT_OPTS}" "test1.sh"
 verify_mounted $DEV $MPT "test1.sh"
 
 # Throw a curveball or two at logplay
-${CLI} mkdir $MPT/adir         || fail "should be able to mkdir adir"
-${CLI} mkdir $MPT/adir2        || fail "should be able to mkdir adir2"
-sudo rm -rf $MPT/adir
-if (( $? == 0 )); then
-    sudo touch $MPT/adir           || fail "should be able to create rogue file"
-    sudo rm -rf $MPT/adir2         \
-	|| fail "should be able to rogue remove a dir2"
-    sudo touch $MPT/adir2          || fail "should be able to touch a file"
-    ${CLI} logplay -vvv $MPT       \
-	&& fail "logplay should complain when a file is where a dir should be"
-fi
+${CLI} mkdir $MPT/adir         || fail "should be able to create adir"
+sudo rm -rf $MPT/adir          || fail "should be able to rogue remove a dir"
+sudo touch $MPT/adir           || fail "should be able to create rogue file"
+sudo rm -rf $MPT/adir2         || fail "should be able to rogue remove a dir2"
 sudo ln -s /tmp $MPT/adir2     && fail "symlink should fail with famfs kmod v2"
+sudo touch $MPT/adir2          || fail "should be able to touch a file"
+${CLI} logplay $MPT && fail "logplay should complain when a file is where a dir should be"
 
 ${CLI} fsck -v $MPT && fail "fsck -v if a clone has ever happened should fail"
 ${CLI} fsck $MPT && fail "fsck if a clone has ever happened should fail"
@@ -130,15 +131,62 @@ verify_not_mounted $DEV $MPT "umount should have worked after redundant mounts"
 
 ${CLI} mount $DEV $MPT       || fail "basic mount should succeed"
 
+#*************************************************************************
+# XXX Reconfigure dax device while mounted (!!!)
+sudo daxctl reconfigure-device --human --mode=system-ram --force $DEV
+
+# Verify should now fail
+${CLI} verify -S 10 -f $MPT/original  && fail "verify clone after dax reconfigure should fail"
+${CLI} verify -S 10 -f $MPT/clone     && fail "verify clone1 after dax reconfigure should fail"
+${CLI} logplay $MPT                   && fail "logplay should fail after dax recconfig"
+${CLI} fsck $MPT                      && fail "fsck should fail after dax reconfig"
+
+sudo $UMOUNT $MPT                     || fail "umount should still work after dax reconfig"
+verify_not_mounted $DEV $MPT "umount should have worked after dax reconfig"
+${CLI} mount $DEV $MPT                && fail "mount should fail after dax reconfig"
+verify_not_mounted $DEV $MPT "should not be mounted after failed mount"
+
+# Convert DEV back to devdax mode
+sudo daxctl reconfigure-device --human --mode=devdax --force $DEV
+echo "now try to mount"
+
+# XXX
+# This mount segfaults rather than failing:
+${CLI} mount $DEV $MPT       && fail "mount should still fail after dax reconfig back to devdax"
+verify_not_mounted $DEV $MPT "should not be mounted after failed mount"
+
+# Blow away the superblock and start over
+${MKFS} -fk $DEV             || fail "kill superblock should work"
+${CLI} mount $DEV $MPT       && fail "mount after superblock kill should fail"
+verify_not_mounted $DEV $MPT "mount should have failed with killed superblock"
+
+${MKFS}  $DEV                || fail "mkfs should succeed after superblock kill"
+${CLI} mount $DEV $MPT       || fail "mount should work after fresh mkfs"
+verify_mounted $DEV $MPT     "mounted after fresh mkfs"
+
+# New file system; create a file or two
+${CLI} creat -r -S 10 -s 0x400000 $MPT/original || fail "create original should succeed"
+${CLI} verify -S 10 -f $MPT/original            || fail "verify original should succeed"
+
+
+
+
+
+
+
+
+
+
+
 #sudo $UMOUNT $MPT || fail "umount"
 
 set +x
-echo "*************************************************************************"
+echo "*************************************************************************************"
 echo " Important note: This test (at least the first run) will generate a stack dump"
 echo " in the kernel log (a WARN_ONCE) due to cross-linked pages (specifically DAX noticing"
 echo " that a page was mapped to more than one file. This is normal, as this test intentionally"
 echo " does bogus cross-linked mappings"
-echo "*************************************************************************"
-echo "test_errors completed successfully"
-echo "*************************************************************************"
+echo "*************************************************************************************"
+echo "Test_errors completed successfully"
+echo "*************************************************************************************"
 exit 0

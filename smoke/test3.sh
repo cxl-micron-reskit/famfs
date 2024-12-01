@@ -75,12 +75,22 @@ sudo dd of=/dev/null if=$MPT/ddtest bs=4096 || fail "dd out of ddfile"
 # Test some cases where the kmod should throw errors because the famfs file is
 # not in a valid state
 #
-sudo truncate $MPT/ddtest -s 2048           || fail "truncate is hinky but should succeed"
-assert_file_size "$MPT/ddtest" 2048 "bad size after rogue truncate"
-sudo dd of=/dev/null if=$MPT/ddtest bs=2048 && fail "Any read from a truncated file should fail"
-sudo truncate $MPT/ddtest -s 4096           || fail "truncate extra-hinky - back to original size"
-assert_file_size "$MPT/ddtest"  4096 "bad size after second rogue truncate"
-sudo dd of=/dev/null if=$MPT/ddtest bs=2048 && fail "Read from previously horked file should fail"
+sudo truncate $MPT/ddtest -s 2048
+if (( $? == 0 )); then
+    # This should be reconsidered when we no longer support kmods that
+    # allow truncate XXX
+    echo "--------------------------------------------"
+    echo "This kernel allows truncate"
+    echo "--------------------------------------------"
+    assert_file_size "$MPT/ddtest" 2048 "bad size after rogue truncate"
+    sudo dd of=/dev/null if=$MPT/ddtest bs=2048 \
+	&& fail "Any read from a truncated file should fail"
+    sudo truncate $MPT/ddtest -s 4096           \
+	|| fail "truncate extra-hinky - back to original size"
+    assert_file_size "$MPT/ddtest"  4096 "bad size after second rogue truncate"
+    sudo dd of=/dev/null if=$MPT/ddtest bs=2048 \
+	&& fail "Read from previously horked file should fail"
+fi
 
 # Test behavior of standard "cp" into famfs
 # The create should succeed, but the write should fail, leaving an empty, invalid file
@@ -91,9 +101,16 @@ test -s $MPT/pwd && fail "file from cp should be empty"
 # Create an invalid file via "touch" and test behavior
 sudo touch $MPT/touchfile || fail "touch should succeed at creating an invalid file"
 sudo dd if=$MPT/touchfile && fail "dd from invalid file should fail"
-sudo truncate $MPT/touchfile -s 8192 || fail "truncate failed"
-sudo dd if=$MPT/touchfile of=/dev/null bs=8192 count=1  && fail "dd from touchfile should fail"
-sudo dd if=/dev/zero of=$MPT/touchfile bs=8192 count=1  && fail "dd to touchfile should fail"
+
+sudo truncate $MPT/touchfile -s 8192
+if (( $? == 0 )); then
+    # This should be reconsidered when we no longer support kmods that
+    # allow truncate XXX
+    sudo dd if=$MPT/touchfile of=/dev/null bs=8192 count=1  \
+	&& fail "dd from touchfile should fail"
+    sudo dd if=/dev/zero of=$MPT/touchfile bs=8192 count=1  \
+	&& fail "dd to touchfile should fail"
+fi
 
 stat $MPT/ddtest
 
@@ -126,6 +143,6 @@ ${CLI} fsck $MPT || fail "fsck should succeed - no cross links yet"
 
 set +x
 echo "*************************************************************************"
-echo "Test3 completed successfully"
+echo "test3 completed successfully"
 echo "*************************************************************************"
 exit 0

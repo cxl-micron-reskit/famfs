@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+
+cwd=$(pwd)
+
+# Defaults
+VG=""
+SCRIPTS=../scripts/
+BIN=../debug
+VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
+RMMOD=0
+
+# Allow these variables to be set from the environment
+if [ -z "$DEV" ]; then
+    DEV="/dev/dax0.0"
+fi
+if [ -z "$MPT" ]; then
+    MPT=/mnt/famfs
+fi
+if [ -z "$UMOUNT" ]; then
+    UMOUNT="umount"
+fi
+
+# Override defaults as needed
+while (( $# > 0)); do
+    flag="$1"
+    shift
+    case "$flag" in
+	(-d|--device)
+	    DEV=$1
+	    shift;
+	    ;;
+	(-b|--bin)
+	    BIN=$1
+	    shift
+	    ;;
+	(-s|--scripts)
+	    SCRIPTS=$1
+	    source_root=$1;
+	    shift;
+	    ;;
+	(-v|--valgrind)
+	    # no argument to -v; just setup for Valgrind
+	    VG=${VALGRIND_ARG}
+	    ;;
+	(-n|--no-rmmod)
+	    RMMOD=0
+	    ;;
+	*)
+	    echo "Unrecognized command line arg: $flag"
+	    ;;
+
+    esac
+done
+
+echo "DEVTYPE=$DEVTYPE"
+MKFS="sudo $VG $BIN/mkfs.famfs"
+CLI="sudo $VG $BIN/famfs"
+MULTICHASE="sudo $BIN/src/multichase/multichase"
+TEST="test4"
+
+source $SCRIPTS/test_funcs.sh
+# Above this line should be the same for all smoke tests
+
+set -x
+
+
+set +x
+echo "*************************************************************************"
+echo "stripe_test completed successfully"
+echo "*************************************************************************"
+exit 0

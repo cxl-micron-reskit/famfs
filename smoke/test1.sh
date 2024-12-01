@@ -361,6 +361,6 @@ sudo cmp $MPT/bigtest0 $MPT/bigtest0_cp       || fail "copies should match"
 
 set +x
 echo "*************************************************************************"
-echo "Test1 completed successfully"
+echo "test1 completed successfully"
 echo "*************************************************************************"
 exit 0
