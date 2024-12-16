@@ -177,11 +177,16 @@ famfs_get_system_uuid(uuid_le *uuid_out)
 	FILE *f;
 	char uuid_str[48];  /* UUIDs are 36 characters long, plus null terminator */
 	uuid_t uuid;
+	char *sys_uuid_dir = SYS_UUID_DIR;
 	char sys_uuid_file_path[PATH_MAX] = {0};
 
-	snprintf(sys_uuid_file_path, PATH_MAX - 1, "%s/%s",
-			SYS_UUID_DIR, SYS_UUID_FILE);
+	if (mock_uuid)
+	  sys_uuid_dir = "/tmp";
 
+	snprintf(sys_uuid_file_path, PATH_MAX - 1, "%s/%s",
+			sys_uuid_dir, SYS_UUID_FILE);
+
+	/* Create system uuid file if it's missing */
 	if (famfs_create_sys_uuid_file(sys_uuid_file_path) < 0) {
 		fprintf(stderr, "Failed to create system-uuid file\n");
 		return -1;
@@ -198,6 +203,7 @@ famfs_get_system_uuid(uuid_le *uuid_out)
 		fprintf(stderr, "%s: unable to read system uuid at %s, errno: %d\n",
 				__func__, sys_uuid_file_path, errno);
 		fclose(f);
+		/* Remove system uuid file if it's not a valid uuid */
 		unlink(sys_uuid_file_path);
 		return -1;
 	}

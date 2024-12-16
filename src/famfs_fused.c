@@ -515,11 +515,16 @@ famfs_rmdir(
 	fuse_ino_t parent,
 	const char *name)
 {
-	int res;
+	/* If files become bi-modal, unlink will be allowed on
+	 * uncommitted files & dirs */
+	if (famfs_debug(req)) {
+		fuse_log(FUSE_LOG_DEBUG,
+			 "  Rejecting rmdir for forget %lli %s\n",
+			(unsigned long long) parent ,
+			 (unsigned long long) name);
+	}
 
-	res = unlinkat(famfs_fd(req, parent), name, AT_REMOVEDIR);
-
-	fuse_reply_err(req, res == -1 ? errno : 0);
+	fuse_reply_err(req, EINVAL);
 }
 
 static void
@@ -550,11 +555,16 @@ famfs_unlink(
 	fuse_ino_t parent,
 	const char *name)
 {
-	int res;
+	/* If files become bi-modal, unlink will be allowed on
+	 * uncommitted files & dirs */
+	if (famfs_debug(req)) {
+		fuse_log(FUSE_LOG_DEBUG,
+			 "  Rejecting rmdir for forget %lli %s\n",
+			(unsigned long long) parent ,
+			 (unsigned long long) name);
+	}
 
-	res = unlinkat(famfs_fd(req, parent), name, 0);
-
-	fuse_reply_err(req, res == -1 ? errno : 0);
+	fuse_reply_err(req, EINVAL);
 }
 
 static void
