@@ -178,9 +178,13 @@ famfs_get_system_uuid(uuid_le *uuid_out)
 	char uuid_str[48];  /* UUIDs are 36 characters long, plus null terminator */
 	uuid_t uuid;
 	char sys_uuid_file_path[PATH_MAX] = {0};
+	char *sys_uuid_dir = SYS_UUID_DIR;
+
+	if (mock_uuid)
+		sys_uuid_dir = "/tmp";
 
 	snprintf(sys_uuid_file_path, PATH_MAX - 1, "%s/%s",
-			SYS_UUID_DIR, SYS_UUID_FILE);
+			sys_uuid_dir, SYS_UUID_FILE);
 
 	if (famfs_create_sys_uuid_file(sys_uuid_file_path) < 0) {
 		fprintf(stderr, "Failed to create system-uuid file\n");

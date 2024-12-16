@@ -645,6 +645,12 @@ do_famfs_cli_cp(int argc, char *argv[])
 		famfs_cp_usage(argc, argv);
 		return -1;
 	}
+	if (interleave_param.nstrips > FAMFS_MAX_SIMPLE_EXTENTS) {
+		fprintf(stderr, "famfs cp error: Number of strips(%lld) should not be"
+				" more than maximum allowed strips(%d) \n",
+				interleave_param.nstrips, FAMFS_MAX_SIMPLE_EXTENTS);
+		return -1;
+	}
 
 	struct famfs_interleave_param *s = (set_stripe) ? &interleave_param : NULL;
 
@@ -1214,6 +1220,13 @@ do_famfs_cli_creat(int argc, char *argv[])
 		fprintf(stderr, "Must specify filename\n");
 		return -1;
 	}
+	if (interleave_param.nstrips > FAMFS_MAX_SIMPLE_EXTENTS) {
+		fprintf(stderr, "famfs creat error: Number of strips(%lld) should not be "
+				"more than maximum allowed strips(%d) \n",
+			       interleave_param.nstrips, FAMFS_MAX_SIMPLE_EXTENTS);
+		return -1;
+	}
+
 	filename = argv[optind++];
 
 	if (!fsize) {
