@@ -3,6 +3,7 @@
  * Copyright (C) 2024 Micron Technology, Inc.  All rights reserved.
  */
 #include <stdio.h>
+#include <stdarg.h>
 #include <unistd.h>
 #include <getopt.h>
 #include <sys/types.h>
@@ -28,6 +29,172 @@
 
 #include "famfs_meta.h"
 #include "famfs_fmap.h"
+
+void pr_verbose(int verbose, const char *format, ...) {
+	if (!verbose) {
+		return; // Do nothing if the flag is zero
+	}
+
+	// If flag is non-zero, proceed to call printf
+	va_list args;
+	va_start(args, format);
+	vprintf(format, args);
+	va_end(args);
+}
+
+static struct fmap_mem_header *
+get_mem_fmap(void)
+{
+	struct fmap_mem_header *fm = calloc(1, sizeof(*fm));
+
+	if (!fm)
+		return NULL;
+
+	fm->flh.struct_tag = LOG_HEADER_TAG;
+
+	return fm;
+}
+
+void
+free_mem_fmap(struct fmap_mem_header *fm)
+{
+	int i;
+
+	if (!fm)
+		return;
+
+	assert(fm->flh.struct_tag == LOG_HEADER_TAG);
+
+	switch (fm->flh.fmap_ext_type) {
+	case FAMFS_EXT_SIMPLE:
+		if (fm->se)
+			free(fm->se);
+		break;
+	case FAMFS_EXT_INTERLEAVE:
+		if (!fm->ie)
+			break;
+		for (i = 0; i < fm->flh.niext; i++) {
+			assert(fm->ie[i].iext.struct_tag == LOG_IEXT_TAG);
+			if (fm->ie[i].se)
+				free(fm->ie[i].se);
+		}
+		free(fm);
+		break;
+	}
+}
+
+static struct fmap_simple_ext *
+get_simple_extlist(int next)
+{
+	struct fmap_simple_ext *se;
+	int i;
+
+	se = calloc(next, sizeof(*se));
+	if (!se)
+		return NULL;
+
+	for (i = 0; i < next; i++)
+		se[i].struct_tag = LOG_SIMPLE_EXT_TAG;
+
+	return se;
+}
+
+/**
+ * get_interleaved_fmap(): This allocates an interleaved fmap
+ *
+ * @ninterleave - number of interleaved extents
+ * @nstrips_per_interleave - number of strips per interleaved extent
+ *
+ * struct_tags are initialized, but extents and strips are not initialized
+ * (other than their struct tags)
+ *
+ * The following are left uninitialized:
+ * * ie_chunk_size
+ * * ie_nbytes
+ * * simple extents for strips (except the struct_tag, which is initialized)
+ */
+struct fmap_mem_header *
+get_interleaved_fmap(
+	int ninterleave,
+	int nstrips_per_interleave,
+	int verbose)
+{
+	struct fmap_mem_header *fm = get_mem_fmap();
+	int i;
+
+	if (!fm)
+		return NULL;
+	if (ninterleave > FAMFS_MAX_SIMPLE_EXT)
+		goto out_free;
+	if (nstrips_per_interleave == 0)
+		goto out_free;
+	if (nstrips_per_interleave > FAMFS_MAX_SIMPLE_EXT)
+		goto out_free;
+
+	fm->flh.fmap_ext_type = FAMFS_EXT_INTERLEAVE;
+	fm->flh.niext = ninterleave;
+
+	pr_verbose(verbose, "%s: ninterleave=%d sizeof(ie)=%ld\n",
+		   __func__, ninterleave, sizeof(*(fm->ie)));
+	fm->ie = calloc(ninterleave, sizeof(*(fm->ie)));
+
+	if (!fm->ie)
+		goto out_free;
+
+	for (i = 0; i < ninterleave; i++) {
+		pr_verbose(verbose, "%s(%d): %p set LOG_IEXT_TAG\n",
+			   __func__, i, &(fm->ie[i]));
+		fm->ie[i].iext.struct_tag = LOG_IEXT_TAG;
+		fm->ie[i].iext.ie_nstrips = nstrips_per_interleave;
+		fm->ie[i].se = get_simple_extlist(nstrips_per_interleave);
+	}
+
+	pr_verbose(verbose, "%s: success(%d, %d)\n", __func__,
+		   ninterleave, nstrips_per_interleave);
+	pr_verbose(verbose, "%s: dumping:\n", __func__);
+	validate_mem_fmap(fm, 0, 1);
+	return fm;
+
+out_free:
+	pr_verbose(verbose, "%s: error\n", __func__);
+	free(fm);
+	return NULL;
+}
+
+/**
+ * get_simple_fmap()
+ *
+ * This allocates a simple fmap, which is valid except that the extents
+ * are not filled in.
+ */
+struct fmap_mem_header *
+get_simple_fmap(int next)
+{
+	struct fmap_mem_header *fm = get_mem_fmap();
+
+	if (!fm)
+		return NULL;
+	if (next == 0)
+		goto out_free;
+	if (next > FAMFS_MAX_SIMPLE_EXT)
+		goto out_free;
+
+	fm->flh.fmap_ext_type = FAMFS_EXT_SIMPLE;
+	fm->flh.next = next;
+	fm->se = get_simple_extlist(next);
+
+	if (!fm->se)
+		goto out_free;
+
+	return fm;
+
+out_free:
+	free(fm);
+	return NULL;
+		
+}
+
+
 
 #if 0
 int
@@ -70,7 +237,7 @@ get_simple_ext_list(
 	size_t next,
 	struct fmap_simple_ext **se_out)
 {
-	ssize_t se_size = next * sizeof(*se_out);
+	ssize_t se_size = next * sizeof(**se_out);
 	struct fmap_simple_ext *se;
 
 	if (next > FAMFS_MAX_SIMPLE_EXT)
@@ -236,4 +403,126 @@ err_out:
 if (lfmap)
 		free(lfmap);
 	return rc;
+}
+
+static int
+validate_simple_extlist(
+	struct fmap_simple_ext *se,
+	int next, int exnum, int enforce, int verbose)
+{
+	int i;
+
+	for (i = 0; i < next; i++) {
+		pr_verbose(verbose,
+			   "        %s(%d, %d) tag=%x ofs=%ld len=%ld dev=%d\n",
+			   __func__, exnum, i, se[i].struct_tag, se[i].se_offset,
+			   se[i].se_len, se[i].se_devindex);
+
+		if (enforce && se->struct_tag != LOG_SIMPLE_EXT_TAG) {
+			pr_verbose(verbose, "%s(%d, %d): LOG_SIMPLE_EXT_TAG\n",
+				   __func__, exnum, i);
+			return -1;
+		}
+		if (enforce && se->se_devindex != 0) {
+			pr_verbose(verbose,
+				   "%s(%d, %d): non-zero se_devindex\n",
+				   __func__, exnum, i);
+			return -1;
+		}
+
+		/* we don't check offsets and lengths; fsck does that */
+	}
+	pr_verbose(verbose, "%s(%d): found %d valid simple extents\n",
+		   __func__, exnum, next);
+	return 0;
+}
+
+static int
+validate_interleaved_extlist(
+	struct fmap_mem_iext *ie,
+	int next, int extnum, int enforce, int verbose)
+{
+	int rc;
+	int i;
+
+	for (i = 0; i < next; i++) {
+		pr_verbose(verbose,
+			   "    %s(%d, %d) tag=%x nstrips=%ld chunk=%ld nbytes=%d\n",
+			   __func__, extnum, i, ie[i].iext.struct_tag,
+			   ie[i].iext.ie_nstrips, ie[i].iext.ie_chunk_size,
+			   ie[i].iext.ie_nbytes);
+
+		if (enforce && ie[i].iext.struct_tag != LOG_IEXT_TAG) {
+			pr_verbose(verbose, "%s(%d, %d): %p bad LOG_IEXT_TAG\n",
+				   __func__, extnum, i, &ie[i]);
+			return -1;
+		}
+
+		rc = validate_simple_extlist(ie[i].se, ie[i].iext.ie_nstrips,
+					     i, enforce, verbose);
+		if (rc)
+			return rc;
+	}
+	pr_verbose(verbose, "%s(%d): found %d valid strip extents\n",
+		   __func__, extnum, next);
+	return 0;
+}
+
+int
+validate_mem_fmap(
+	struct fmap_mem_header *fm,
+	int enforce,
+	int verbose)
+{
+	int rc;
+	int i;
+
+	pr_verbose(verbose, "%s:\n", __func__);
+	if (!fm)
+		return -1;
+
+	if (fm->flh.struct_tag != LOG_HEADER_TAG) {
+		pr_verbose(verbose, "%s: bad LOG_HEADER_TAG\n", __func__);
+		return -1;
+	}
+
+	switch (fm->flh.fmap_ext_type) {
+	case FAMFS_EXT_SIMPLE:	
+		pr_verbose(verbose, "%s(0): FAMFS_EXT_SIMPLE\n",
+			   __func__);
+		if (!fm->se) {
+			pr_verbose(verbose,
+				   "%s(%d): missing simple ext list\n",
+				   __func__, 0);
+			return -1;
+		}
+		rc = validate_simple_extlist(fm->se, fm->flh.next, 0,
+					     enforce, verbose);
+
+		if (rc)
+			return rc;
+		break;
+	case FAMFS_EXT_INTERLEAVE:
+		pr_verbose(verbose,
+			   "%s: fmap INTERLEAVE %p: tag=%x ver=%d next=%d se=%p\n",
+			   __func__, fm, fm->flh.struct_tag, fm->flh.fmap_log_version,
+			   fm->flh.niext, fm->ie);
+		for (i = 0; i < fm->flh.niext; i++) {
+			pr_verbose(verbose, "%s(%d): FAMFS_EXT_INTERLEAVE\n",
+				   __func__, i);
+			if (!fm->ie) {
+				pr_verbose(verbose,
+				   "%s(%d): missing interleaved ext list\n",
+					   __func__, i);
+				return -1;
+			}
+			rc = validate_interleaved_extlist(fm->ie, fm->flh.niext,
+							  i, enforce, verbose);
+			if (rc)
+				return rc;
+		}
+		break;
+	}
+	pr_verbose(verbose, "%s: good fmap\n", __func__);
+	return 0;
 }

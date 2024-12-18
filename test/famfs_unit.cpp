@@ -20,6 +20,7 @@ extern "C" {
 #include "famfs_lib.h"
 #include "famfs_lib_internal.h"
 #include "famfs_meta.h"
+#include "famfs_fmap.h"
 #include "xrand.h"
 #include "random_buffer.h"
 #include "famfs_unit.h"
@@ -1509,4 +1510,54 @@ TEST(famfs, famfs_config_yaml) {
 	famfs_yaml_stripe_reset(&interleave_param, fp, my_yaml);
 	rc = famfs_parse_alloc_yaml(fp, &interleave_param, 1);
 	ASSERT_NE(rc, 0);
+}
+
+TEST(famfs, famfs_fmap_alloc_verify) {
+	struct fmap_mem_header *fm;
+	int rc;
+
+	fm = get_simple_fmap(0);
+	ASSERT_EQ((u64)fm, NULL);
+
+	fm = get_simple_fmap(10);
+	ASSERT_NE((u64)fm, NULL);
+	rc = validate_mem_fmap(fm, 1, 1);
+	ASSERT_EQ(rc, 0);
+	free_mem_fmap(fm);
+
+	fm = get_simple_fmap(16);
+	ASSERT_NE((u64)fm, NULL);
+	rc = validate_mem_fmap(fm, 1, 1);
+	ASSERT_EQ(rc, 0);
+	free_mem_fmap(fm);
+
+	fm = get_simple_fmap(17);
+	ASSERT_EQ((u64)fm, NULL);
+	rc = validate_mem_fmap(fm, 1, 1);
+	ASSERT_EQ(rc, -1);
+	free_mem_fmap(fm);
+
+	fm = get_interleaved_fmap(1, 0, 1);
+	ASSERT_EQ((u64)fm, NULL);
+	rc = validate_mem_fmap(fm, 1, 1);
+	ASSERT_EQ(rc, -1);
+	free_mem_fmap(fm);
+
+	fm = get_interleaved_fmap(1, 16, 1);
+	ASSERT_NE((u64)fm, NULL);
+	rc = validate_mem_fmap(fm, 1, 1);
+	ASSERT_EQ(rc, 0);
+	free_mem_fmap(fm);
+
+	fm = get_interleaved_fmap(16, 16, 1);
+	ASSERT_NE((u64)fm, NULL);
+	rc = validate_mem_fmap(fm, 1, 1);
+	ASSERT_EQ(rc, 0);
+	free_mem_fmap(fm);
+
+	fm = get_interleaved_fmap(17, 16, 1);
+	ASSERT_EQ((u64)fm, NULL);
+	rc = validate_mem_fmap(fm, 1, 1);
+	ASSERT_EQ(rc, -1);
+	free_mem_fmap(fm);
 }
