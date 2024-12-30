@@ -73,8 +73,8 @@ struct fmap_mem_header {
 };
 
 
-struct fmap_mem_header *get_simple_fmap(int next);
-struct fmap_mem_header *get_interleaved_fmap(int ninterleave,
+struct fmap_mem_header *alloc_simple_fmap(int next);
+struct fmap_mem_header *alloc_interleaved_fmap(int ninterleave,
 		int nstrips_per_interleave, int verbose);
 void free_mem_fmap(struct fmap_mem_header *fm);
 int validate_mem_fmap(struct fmap_mem_header *fm, int enforce, int verbose);

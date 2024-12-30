@@ -32,27 +32,13 @@
 
 void pr_verbose(int verbose, const char *format, ...) {
 	if (!verbose) {
-		return; // Do nothing if the flag is zero
+		return;
 	}
 
-	// If flag is non-zero, proceed to call printf
 	va_list args;
 	va_start(args, format);
 	vprintf(format, args);
 	va_end(args);
-}
-
-static struct fmap_mem_header *
-get_mem_fmap(void)
-{
-	struct fmap_mem_header *fm = calloc(1, sizeof(*fm));
-
-	if (!fm)
-		return NULL;
-
-	fm->flh.struct_tag = LOG_HEADER_TAG;
-
-	return fm;
 }
 
 void
@@ -83,8 +69,21 @@ free_mem_fmap(struct fmap_mem_header *fm)
 	}
 }
 
+static struct fmap_mem_header *
+alloc_mem_fmap(void)
+{
+	struct fmap_mem_header *fm = calloc(1, sizeof(*fm));
+
+	if (!fm)
+		return NULL;
+
+	fm->flh.struct_tag = LOG_HEADER_TAG;
+
+	return fm;
+}
+
 static struct fmap_simple_ext *
-get_simple_extlist(int next)
+alloc_simple_extlist(int next)
 {
 	struct fmap_simple_ext *se;
 	int i;
@@ -100,7 +99,7 @@ get_simple_extlist(int next)
 }
 
 /**
- * get_interleaved_fmap(): This allocates an interleaved fmap
+ * alloc_interleaved_fmap(): This allocates an interleaved fmap
  *
  * @ninterleave - number of interleaved extents
  * @nstrips_per_interleave - number of strips per interleaved extent
@@ -114,12 +113,12 @@ get_simple_extlist(int next)
  * * simple extents for strips (except the struct_tag, which is initialized)
  */
 struct fmap_mem_header *
-get_interleaved_fmap(
+alloc_interleaved_fmap(
 	int ninterleave,
 	int nstrips_per_interleave,
 	int verbose)
 {
-	struct fmap_mem_header *fm = get_mem_fmap();
+	struct fmap_mem_header *fm = alloc_mem_fmap();
 	int i;
 
 	if (!fm)
@@ -146,7 +145,7 @@ get_interleaved_fmap(
 			   __func__, i, &(fm->ie[i]));
 		fm->ie[i].iext.struct_tag = LOG_IEXT_TAG;
 		fm->ie[i].iext.ie_nstrips = nstrips_per_interleave;
-		fm->ie[i].se = get_simple_extlist(nstrips_per_interleave);
+		fm->ie[i].se = alloc_simple_extlist(nstrips_per_interleave);
 	}
 
 	pr_verbose(verbose, "%s: success(%d, %d)\n", __func__,
@@ -162,15 +161,15 @@ out_free:
 }
 
 /**
- * get_simple_fmap()
+ * alloc_simple_fmap()
  *
  * This allocates a simple fmap, which is valid except that the extents
  * are not filled in.
  */
 struct fmap_mem_header *
-get_simple_fmap(int next)
+alloc_simple_fmap(int next)
 {
-	struct fmap_mem_header *fm = get_mem_fmap();
+	struct fmap_mem_header *fm = alloc_mem_fmap();
 
 	if (!fm)
 		return NULL;
@@ -181,7 +180,7 @@ get_simple_fmap(int next)
 
 	fm->flh.fmap_ext_type = FAMFS_EXT_SIMPLE;
 	fm->flh.next = next;
-	fm->se = get_simple_extlist(next);
+	fm->se = alloc_simple_extlist(next);
 
 	if (!fm->se)
 		goto out_free;
@@ -193,8 +192,6 @@ out_free:
 	return NULL;
 		
 }
-
-
 
 #if 0
 int
@@ -228,7 +225,6 @@ write_fmap_to_buf(
 	fmh->fmap_log_version = FAMFS_LOG_VERSION;
 	fmh->fmap_ext_type = fmap->fmap_ext_type;
 }
-#endif
 
 static ssize_t
 get_simple_ext_list(
@@ -255,7 +251,6 @@ get_simple_ext_list(
 
 	return se_size;
 }
-
 
 static ssize_t
 get_interleaved_ext_list(
@@ -404,7 +399,10 @@ if (lfmap)
 		free(lfmap);
 	return rc;
 }
-
+#endif
+/*
+ * Validate fmaps
+ */
 static int
 validate_simple_extlist(
 	struct fmap_simple_ext *se,

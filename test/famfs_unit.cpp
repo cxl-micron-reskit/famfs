@@ -1516,46 +1516,46 @@ TEST(famfs, famfs_fmap_alloc_verify) {
 	struct fmap_mem_header *fm;
 	int rc;
 
-	fm = get_simple_fmap(0);
+	fm = alloc_simple_fmap(0);
 	ASSERT_EQ((u64)fm, NULL);
 
-	fm = get_simple_fmap(10);
+	fm = alloc_simple_fmap(10);
 	ASSERT_NE((u64)fm, NULL);
 	rc = validate_mem_fmap(fm, 1, 1);
 	ASSERT_EQ(rc, 0);
 	free_mem_fmap(fm);
 
-	fm = get_simple_fmap(16);
+	fm = alloc_simple_fmap(16);
 	ASSERT_NE((u64)fm, NULL);
 	rc = validate_mem_fmap(fm, 1, 1);
 	ASSERT_EQ(rc, 0);
 	free_mem_fmap(fm);
 
-	fm = get_simple_fmap(17);
-	ASSERT_EQ((u64)fm, NULL);
-	rc = validate_mem_fmap(fm, 1, 1);
-	ASSERT_EQ(rc, -1);
-	free_mem_fmap(fm);
-
-	fm = get_interleaved_fmap(1, 0, 1);
+	fm = alloc_simple_fmap(17);
 	ASSERT_EQ((u64)fm, NULL);
 	rc = validate_mem_fmap(fm, 1, 1);
 	ASSERT_EQ(rc, -1);
 	free_mem_fmap(fm);
 
-	fm = get_interleaved_fmap(1, 16, 1);
+	fm = alloc_interleaved_fmap(1, 0, 1);
+	ASSERT_EQ((u64)fm, NULL);
+	rc = validate_mem_fmap(fm, 1, 1);
+	ASSERT_EQ(rc, -1);
+	free_mem_fmap(fm);
+
+	fm = alloc_interleaved_fmap(1, 16, 1);
 	ASSERT_NE((u64)fm, NULL);
 	rc = validate_mem_fmap(fm, 1, 1);
 	ASSERT_EQ(rc, 0);
 	free_mem_fmap(fm);
 
-	fm = get_interleaved_fmap(16, 16, 1);
+	fm = alloc_interleaved_fmap(16, 16, 1);
 	ASSERT_NE((u64)fm, NULL);
 	rc = validate_mem_fmap(fm, 1, 1);
 	ASSERT_EQ(rc, 0);
 	free_mem_fmap(fm);
 
-	fm = get_interleaved_fmap(17, 16, 1);
+	fm = alloc_interleaved_fmap(17, 16, 1);
 	ASSERT_EQ((u64)fm, NULL);
 	rc = validate_mem_fmap(fm, 1, 1);
 	ASSERT_EQ(rc, -1);
