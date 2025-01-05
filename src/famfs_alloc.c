@@ -690,85 +690,60 @@ famfs_file_alloc(
 }
 
 int
-famfs_shadow_to_stat(int fd, struct stat *stat, int verbose)
+famfs_shadow_to_stat(
+	void *yaml_buf,
+	ssize_t bufsize,
+	const struct stat *shadow_stat,
+	struct stat *stat_out,
+	int verbose)
 {
 	struct famfs_log_file_meta fmeta = {0};
-	char yaml_buf[4096];
-	struct stat st;
-	FILE *fp;
+	FILE *yaml_stream;
 	int rc;
-	//int flags;
+	//off_t fpos;
 
-	assert(fd > 0);
+	if (bufsize < 200)
+		printf("File size=%ld: too small  to contain valid yaml\n",
+		       bufsize);
+	
+	if (verbose)
+		printf("file yaml:\n%s\n", (char *)yaml_buf);
 
-	/* We stat the shadow file for certain things */
-	rc = fstatat(fd, "", &st, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
-
-	assert(rc == 0); /* The file was already open, so stat should succeed */
-
-#if 0
-	fp = fdopen(fd, "r"); /* Get a stream for the yaml parser */
-#else
-	fp = fopen("/home/jmg/w/famfs/shadow/stripe_file_00000", "r");
-#endif
-	assert(fp);
-#if 0
-	// Use fcntl to get the file descriptor flags
-	flags = fcntl(fd, F_GETFL);
-	if (flags == -1) {
-		perror("fcntl");
-		close(fd);
-		return 1;
+	/* Make a stream for the yaml parser to use */
+	yaml_stream = fmemopen((void *)yaml_buf, bufsize, "r");
+	if (!yaml_stream) {
+		perror("fmemopen");
+		printf("failed to convert yaml_buf to stream\n");
+		return -1;
 	}
 
-	// Check if the file descriptor is opened for reading
-	if ((flags & O_ACCMODE) == O_RDONLY || (flags & O_ACCMODE) == O_RDWR) {
-		printf("File descriptor is opened for reading.\n");
-	} else {
-		printf("File descriptor is not opened for reading.\n");
-	}
-#endif
-	if (verbose) {
-		size_t n;
-#if 0
-		n = pread(fd, yaml_buf, sizeof(yaml_buf) - 1, 0);
-#else
-		rewind(fp);
-		n = fread(yaml_buf, 1, sizeof(yaml_buf) - 1, fp);
-#endif
-		printf("Read %ld bytes\n", n);
-		yaml_buf[n] = '\0';
-		printf("%s\n", yaml_buf);
-	}
-	rewind(fp);
-
-	rc = famfs_parse_shadow_yaml(fp, &fmeta,
+	rc = famfs_parse_shadow_yaml(yaml_stream, &fmeta,
 				     FAMFS_MAX_SIMPLE_EXTENTS,
 				     FAMFS_MAX_SIMPLE_EXTENTS, verbose);
 	if (rc) {
 		fprintf(stderr, "%s: err from yaml parser\n", __func__);
-		fclose(fp);
+		fclose(yaml_stream);
 		return rc;
 	}
 
 	/* Fields we don't provide */
-	stat->st_dev     = 0;
-	stat->st_rdev    = 0; /* dev id if special file */
-	stat->st_blksize = 0;
-	stat->st_blocks  = 0;
+	stat_out->st_dev     = shadow_stat->st_dev;
+	stat_out->st_rdev    = shadow_stat->st_rdev;
+	stat_out->st_blksize = shadow_stat->st_blksize;
+	stat_out->st_blocks  = shadow_stat->st_blocks;
 
 	/* Fields that come from the meta file stat */
-	stat->st_atime = st.st_atime;
-	stat->st_mtime = st.st_mtime;
-	stat->st_ctime = st.st_ctime;
-	stat->st_ino   = st.st_ino; /* Need a unique inode #; this is as good as any */
+	stat_out->st_atime = shadow_stat->st_atime;
+	stat_out->st_mtime = shadow_stat->st_mtime;
+	stat_out->st_ctime = shadow_stat->st_ctime;
+	stat_out->st_ino   = shadow_stat->st_ino; /* Need a unique inode #; this is as good as any */
 
 	/* Fields that come from the shadow yaml */
-	stat->st_mode = fmeta.fm_mode;
-	stat->st_uid  = fmeta.fm_uid;
-	stat->st_gid  = fmeta.fm_gid;
-	stat->st_size = fmeta.fm_size;
+	stat_out->st_mode = fmeta.fm_mode | 0100000; /* octal; mark as regular file */
+	stat_out->st_uid  = fmeta.fm_uid;
+	stat_out->st_gid  = fmeta.fm_gid;
+	stat_out->st_size = fmeta.fm_size;
 
-	fclose(fp);
+	fclose(yaml_stream);
 	return 0;
 }

@@ -262,7 +262,7 @@ __famfs_emit_yaml_file_section(
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(emitter, event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
-	sprintf(strbuf, "0%o", fm->fm_mode);
+	sprintf(strbuf, "0%o", (fm->fm_mode /* | 0100000 */));
 	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
 					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
