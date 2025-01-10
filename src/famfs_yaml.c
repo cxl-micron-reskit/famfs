@@ -62,6 +62,21 @@ __famfs_emit_yaml_simple_ext_list(
 		rc = yaml_emitter_emit(emitter, event);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 
+		/* Devindex */
+		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"devindex",
+						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+		ASSERT_NE_GOTO(rc, 0, err_out);
+		rc = yaml_emitter_emit(emitter, event);
+		ASSERT_NE_GOTO(rc, 0, err_out);
+
+		sprintf(strbuf, "%lld", se[i].se_devindex);
+		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
+						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+		ASSERT_NE_GOTO(rc, 0, err_out);
+		rc = yaml_emitter_emit(emitter, event);
+		ASSERT_NE_GOTO(rc, 0, err_out);
+
+
 		/* Offset */
 		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"offset",
 						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
@@ -502,6 +517,8 @@ famfs_parse_file_simple_ext_list(
 	int done = 0;
 	int rc = 0;
 	int type;
+	int got_ofs = 0; /* track whether we got ofs and len for each extent */
+	int got_len = 0;
 
 	/* "simple_ext_list" stanza starts wtiha  YAML_SEQUENCE_START_EVENT */
 	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_SEQUENCE_START_EVENT, rc, err_out, verbose);
@@ -529,32 +546,31 @@ famfs_parse_file_simple_ext_list(
 
 			/* Note: this assumes that the offset always comes before the
 			 * length in an extent list entry */
-
-			/* TODO: add devindex */
 			if (strcmp(current_key, "offset") == 0) {
 				/* offset */
+				got_ofs = 1;
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				fmap->se[ext_index].se_offset =
 					strtoull((char *)val_event.data.scalar.value, 0, 0);
 				yaml_event_delete(&val_event);
-
+			} else if (strcmp(current_key, "length") == 0) {
 				/* length */
-				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
-						       rc, err_out, verbose);
-				if (strcmp("length", (char *)val_event.data.scalar.value)) {
-					fprintf(stderr, "%s: Error length didn't follow offset\n",
-						__func__);
-					rc = -1;
-					goto err_out;
-				}
-				yaml_event_delete(&val_event);
-
-				/* Get the length value */
+				got_len = 1;
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				fmap->se[ext_index].se_len =
 					strtoull((char *)val_event.data.scalar.value, 0, 0);
+				yaml_event_delete(&val_event);
+			} else if (strcmp(current_key, "devindex") == 0) {
+				/* devindex */
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+						       rc, err_out, verbose);
+				fmap->se[ext_index].se_devindex =
+					strtoull((char *)val_event.data.scalar.value, 0, 0);
+				printf("%s: parsing devindex=%lld\n", __func__,
+					fmap->se[ext_index].se_devindex);
+				yaml_event_delete(&val_event);
 
 			} else {
 				fprintf(stderr, "%s: Bad scalar key %s\n",
@@ -575,6 +591,14 @@ famfs_parse_file_simple_ext_list(
 			}
 			break;
 		case YAML_MAPPING_END_EVENT:
+			if (!got_len || !got_ofs) {
+				fprintf(stderr,
+					"%s: offset or length missing from extent\n",
+					__func__);
+				rc = -EINVAL;
+				goto err_out;
+			}
+			got_ofs = got_len = 0;
 			if (verbose > 1)
 				printf("%s: end of extent %d\n", __func__, ext_index);
 			ext_index++;

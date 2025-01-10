@@ -1304,12 +1304,12 @@ TEST(famfs, famfs_file_yaml) {
 		"  gid: 42\n"
 		"  nextents: 1\n"
 		"  simple_ext_list:\n"
-		"  - length: 0x200000\n"   /* offset should be first */
+		"  - length: 0x200000\n"   /* offset  and len should work any order */
 		"    offset: 0x38600000\n"
 		"...";
 	famfs_yaml_test_reset(&fm, fp, my_yaml);
 	rc = famfs_parse_shadow_yaml(fp, &fm, 1, FAMFS_MAX_SIMPLE_EXTENTS, 2);
-	ASSERT_EQ(rc, -1);
+	ASSERT_EQ(rc, 0);
 
 	/* Length missing on one extent */
 	my_yaml = "---\n" /* Good yaml */
@@ -1330,7 +1330,7 @@ TEST(famfs, famfs_file_yaml) {
 		"...";
 	famfs_yaml_test_reset(&fm, fp, my_yaml);
 	rc = famfs_parse_shadow_yaml(fp, &fm, FAMFS_MAX_SIMPLE_EXTENTS, FAMFS_MAX_SIMPLE_EXTENTS, 2); /* 3 extents is not an overflow */
-	ASSERT_EQ(rc, -1);
+	ASSERT_EQ(rc, -EINVAL);
 
 	/* offset followed by something other than length on ext list */
 	my_yaml = "---\n" /* Good yaml */
@@ -1352,7 +1352,7 @@ TEST(famfs, famfs_file_yaml) {
 		"...";
 	famfs_yaml_test_reset(&fm, fp, my_yaml);
 	rc = famfs_parse_shadow_yaml(fp, &fm, FAMFS_MAX_SIMPLE_EXTENTS, FAMFS_MAX_SIMPLE_EXTENTS, 2); /* 3 extents is not an overflow */
-	ASSERT_EQ(rc, -1);
+	ASSERT_EQ(rc, -EINVAL);
 
 	printf("%s", yaml_event_str(YAML_NO_EVENT));
 	printf("%s", yaml_event_str(YAML_ALIAS_EVENT));
