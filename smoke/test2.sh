@@ -50,7 +50,6 @@ while (( $# > 0)); do
 done
 
 echo "DEVTYPE=$DEVTYPE"
-MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI="sudo $VG $BIN/famfs"
 TEST="test2"
 

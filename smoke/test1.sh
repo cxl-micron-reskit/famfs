@@ -50,7 +50,6 @@ while (( $# > 0)); do
 done
 
 echo "DEVTYPE=$DEVTYPE"
-MKFS="sudo $VG $BIN/mkfs.famfs"
 
 # Reference famfs cli by its full path
 CLI_FULLPATH=$(realpath "$BIN/famfs")

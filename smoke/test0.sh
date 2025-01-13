@@ -49,7 +49,6 @@ while (( $# > 0)); do
     esac
 done
 
-MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI="sudo $VG $BIN/famfs"
 CLI_NOSUDO="$VG $BIN/famfs"
 TEST="test0"

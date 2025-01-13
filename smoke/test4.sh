@@ -53,7 +53,6 @@ while (( $# > 0)); do
 done
 
 echo "DEVTYPE=$DEVTYPE"
-MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI="sudo $VG $BIN/famfs"
 MULTICHASE="sudo $BIN/src/multichase/multichase"
 TEST="test4"
