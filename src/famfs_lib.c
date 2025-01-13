@@ -1096,7 +1096,7 @@ __famfs_mkmeta(
 		/* Create shadow logk file */
 		struct famfs_log_file_meta fm = {0};
 
-		fm.fm_size = FAMFS_SUPERBLOCK_SIZE;
+		fm.fm_size = sb->ts_log_len;
 		fm.fm_flags = 0;
 		fm.fm_uid = 0;
 		fm.fm_gid = 0;
