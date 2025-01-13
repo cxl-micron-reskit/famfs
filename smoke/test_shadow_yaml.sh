@@ -98,14 +98,14 @@ ${CLI} logplay --shadow --shadow --daxdev $DEV  -vv  $SHADOWPATH || \
 sudo rm -rf /tmp/famfs2
 sudo mkdir /tmp/famfs2
 ${CLI_NOSUDO} logplay --shadow --daxdev $DEV -vv /tmp/famfs2 && \
-    fail "shadow logplay to non-writable  shadow dir should succeed"
+    fail "shadow logplay to non-writable shadow dir should fail"
 sudo rm -rf /tmp/famfs2
 
-SHADOWPATH=/tmp/famfs_shadow3
-sudo rm -rf $SHADOWPATH
-sudo mkdir $SHADOWPATH
+SHADOWPATH2=/tmp/famfs_shadowpath2
+sudo rm -rf $SHADOWPATH2
+sudo mkdir $SHADOWPATH2
 
-sudo cat <<EOF > $SHADOWPATH/0505
+sudo cat <<EOF > $SHADOWPATH2/0505
 ---
 file:
   path: 0505
@@ -123,6 +123,73 @@ EOF
 
 ${CLI} mount $DEV $MPT || fail "remount after shadow yaml test should work"
 verify_mounted $DEV $MPT "$TEST.sh mounted 2"
+
+# TODO: move this to new smoke/test_fused.sh
+FAMFS_FUSED="$BIN/famfs_fused"
+
+${CLI} creat -s 3g  ${MPT}/memfile       || fail "can't create memfile"
+${CLI} creat -s 100m ${MPT}/memfile1     || fail "creat should succeed with -s 100m"
+${CLI} creat -s 10000k ${MPT}/memfile2   || fail "creat with -s 10000k should succeed"
+${CLI} mkdir ${MPT}/tmpdir || fail "mkdir should succeed"
+FUSE_SHADOW="/tmp/s"
+FUSE_MPT="/tmp/famfs_fuse"
+sudo rm -rf $FUSE_SHADOW
+mkdir $FUSE_SHADOW $FUSE_MPT
+
+${CLI} logplay --shadow --daxdev $DEV  -vv  $FUSE_SHADOW || \
+    fail "shadow logplay to ${FUSE_SHADOW} should succeed"
+
+${FAMFS_FUSED} --help || fail "famfs_fused --help should succeed"
+${FAMFS_FUSED} --version || fail "famfs_fused --version should succeed"
+
+# Test some bad args
+${FAMFS_FUSED} -df -o source=${FUSE_SHADOW} && fail "fused should fail w/missing MPT"
+${FAMFS_FUSED} -df  $FUSE_MPT && fail "fused should fail w/missing source"
+${FAMFS_FUSED} -o source=/bad/mpt $FUSE_MPT && fail "fused should fail w/bad MPT"
+${FAMFS_FUSED} -o source=/etc/passwd $FUSE_MPT && fail "fused should fail w/file as mpt"
+${FAMFS_FUSED} -o source=${FUSE_SHADOW} -o foo=bar $FUSE_MPT && \
+    fail "fused should fail with bad -o opt (-o foo=bar)"
+
+# Mount / start famfs_fused
+${FAMFS_FUSED} -o source=${FUSE_SHADOW} $FUSE_MPT || fail "Fuse mount failed 0"
+
+cp -r $MPT $FUSE_SHADOW
+
+# Verify that the files *look* right (no data movement yet)
+# Ignore modification time, which famfs does not track
+# (the second un-escaped '.')
+
+# Fail if there are no files
+rsync -a -n --itemize-changes --ignore-times  $MPT/ $FUSE_MPT/ | \
+    grep ^.f || fail "no files found in legacy mount"
+
+# The second grep is counting (-c), and there should be no matches as it is
+# looking for mismatched metadata between the legacy and fuse mounts of famfs.
+# so success is &&, not ||
+rsync -a -n --itemize-changes --ignore-times $MPT $FUSE_MPT | \
+    grep ^.f | \
+    grep --invert-match -c ^.f\.\..\.\.\.\.\.\. && \
+    fail "Shadow-to-fuse translation error - metadata mismatch"
+
+find $FUSE_MPT -type f -print -exec stat {} \; || echo "failed to stat famfs-fuse files"
+find $FUSE_MPT -type f -print -exec cat {} \;  || echo "failed to cat famfs-fuse files"
+
+sudo truncate --size 0 $FUSE_MPT/memfile && fail "truncate fuse file should fail"
+sudo mkdir $FUSE_MPT/mydir && fail "mkdir should fail in fuse"
+sudo ln $FUSE_MPT/newlink $FUSE_MPT/memfile && fail "ln hard link in fuse should fail"
+sudo ln -s $FUSE_MPT/slink $FUSE_MPT/memfile && fail "ln soft link in fuse should fail"
+sudo mknod $FUSE_MPT/myblk b 100 100 && fail "mknod special file should fail in fuse"
+sudo rmdir $FUSE_MPT/tmpdir && fail "rmdir should fail in fuse"
+sudo rm $FUSE_MPT/memfile && fail "rm file in fuse should fail"
+sudo touch $FUSE_MPT/touchfile && fail "touch new file in fuse should fail"
+
+
+echo 3 | sudo tee /proc/sys/vm/drop_caches
+
+# work thorugh permissions of different mount types here
+#find $FUSE_MPT || fail "Find to recursively list fuse should succeed"
+
+umount $FUSE_MPT
 
 set +x
 echo "*************************************************************************"

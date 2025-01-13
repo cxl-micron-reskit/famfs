@@ -64,6 +64,7 @@ while (( $# > 0)); do
 	    ;;
 	(--yaml)
 	    # Just test0 and test_shadow_yaml
+	    SKIP_TEST0=1
 	    SKIP_TEST1=1
 	    SKIP_TEST2=1
 	    SKIP_TEST3=1
@@ -71,6 +72,7 @@ while (( $# > 0)); do
 	    SKIP_PCQ=1
 	    SKIP_FIO=1
 	    SKIP_ERRS=1
+	    SKIP_STRIPE_TEST=1
 	    ;;
 	(-4)
 	    TEST_ALL=0
