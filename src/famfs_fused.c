@@ -29,7 +29,7 @@
 #include <sys/xattr.h>
 #include <systemd/sd-journal.h>
 
-#include "../fuse/passthrough_helpers.h"
+//#include "../fuse/passthrough_helpers.h"
 #include "famfs_lib.h"
 
 /* We are re-using pointers to our `struct famfs_inode` and `struct
@@ -111,10 +111,6 @@ static const struct fuse_opt famfs_opts[] = {
 	  offsetof(struct famfs_data, flock), 1 },
 	{ "no_flock",
 	  offsetof(struct famfs_data, flock), 0 },
-	{ "xattr",
-	  offsetof(struct famfs_data, xattr), 1 },
-	{ "no_xattr",
-	  offsetof(struct famfs_data, xattr), 0 },
 	{ "timeout=%lf",
 	  offsetof(struct famfs_data, timeout), 0 },
 	{ "timeout=",
@@ -145,10 +141,8 @@ static void famfs_fused_help(void)
 "    -o writeback           Enable writeback\n"
 "    -o no_writeback        Disable write back\n"
 "    -o source=/home/dir    Source directory to be mounted\n"
-"    -o flock               Enable flock\n"
+"    -o flock               Enable flock\n" //XXX always enable?
 "    -o no_flock            Disable flock\n"
-"    -o xattr               Enable xattr\n"
-"    -o no_xattr            Disable xattr\n"
 "    -o timeout=1.0         Caching timeout\n"
 "    -o timeout=0/1         Timeout is set\n"
 "    -o cache=never         Disable cache\n"
@@ -368,38 +362,21 @@ famfs_read_fd_to_buf(int fd, ssize_t max_size, ssize_t *size_out, int verbose)
 	char *buf;
 	ssize_t n;
 
-	assert(max_size > 0);
-	if (1) {
-		int flags;
-
-		// Use fcntl to get the file descriptor flags
-		flags = fcntl(fd, F_GETFL);
-		if (flags == -1) {
-			perror("fcntl");
-			close(fd);
-			return NULL;
-		}
-
-		// Check if the file descriptor is opened for reading
-		if ((flags & O_ACCMODE) == O_RDONLY || (flags & O_ACCMODE) == O_RDWR) {
-			printf("File descriptor is opened for reading. flags=%x\n", flags);
-		} else {
-			printf("File descriptor is not opened for reading. flags=%x\n",
-				flags);
-		}
-	}
+	if (max_size > 0)
+		fuse_log(FUSE_LOG_ERR, "%s: max_size=%lld > limit=%d\n",
+			 __func__, FAMFS_YAML_MAX);
 
 	buf = calloc(1, max_size + 8);
 	if (!buf) {
-		printf("%s: failed to malloc(%ld)\n", __func__, max_size);
+		fuse_log(FUSE_LOG_ERR, "%s: failed to malloc(%ld)\n", __func__, max_size);
 		return NULL;
 	}
 
 	n = pread(fd, buf, max_size, 0);
 	if (n < 0) {
-		printf("%s: failed to read max_size=%ld from fd(%d) errno %d\n",
-		       __func__, max_size, fd, errno);
-		perror("pread");
+		fuse_log(FUSE_LOG_ERR,
+			 "%s: failed to read max_size=%ld from fd(%d) errno %d\n",
+			 __func__, max_size, fd, errno);
 		free(buf);
 		*size_out = 0;
 		return NULL;
@@ -407,6 +384,63 @@ famfs_read_fd_to_buf(int fd, ssize_t max_size, ssize_t *size_out, int verbose)
 	*size_out = n;
 
 	return buf;
+}
+
+int
+famfs_shadow_to_stat(
+	void *yaml_buf,
+	ssize_t bufsize,
+	const struct stat *shadow_stat,
+	struct stat *stat_out,
+	int verbose)
+{
+	struct famfs_log_file_meta fmeta = {0};
+	FILE *yaml_stream;
+	int rc;
+
+	if (bufsize < 200)
+		fuse_log(FUSE_LOG_ERR, "File size=%ld: too small  to contain valid yaml\n",
+		       bufsize);
+
+	if (verbose)
+		fuse_log(FUSE_LOG_DEBUG, "file yaml:\n%s\n", (char *)yaml_buf);
+
+	/* Make a stream for the yaml parser to use */
+	yaml_stream = fmemopen((void *)yaml_buf, bufsize, "r");
+	if (!yaml_stream) {
+		fuse_log(FUSE_LOG_ERR, "failed to convert yaml_buf to stream (errno=%d\n",
+			 __func__, errno);
+		return -1;
+	}
+
+	rc = famfs_parse_shadow_yaml(yaml_stream, &fmeta,
+				     FAMFS_MAX_SIMPLE_EXTENTS,
+				     FAMFS_MAX_SIMPLE_EXTENTS, verbose);
+	if (rc) {
+		fuse_log(FUSE_LOG_ERR, "%s: err from yaml parser rc=%d\n", __func__, rc);
+		return rc;
+	}
+
+	/* Fields we don't provide */
+	stat_out->st_dev     = shadow_stat->st_dev;
+	stat_out->st_rdev    = shadow_stat->st_rdev;
+	stat_out->st_blksize = shadow_stat->st_blksize;
+	stat_out->st_blocks  = shadow_stat->st_blocks;
+
+	/* Fields that come from the meta file stat */
+	stat_out->st_atime = shadow_stat->st_atime;
+	stat_out->st_mtime = shadow_stat->st_mtime;
+	stat_out->st_ctime = shadow_stat->st_ctime;
+	stat_out->st_ino   = shadow_stat->st_ino; /* Need a unique inode #; this is as good as any */
+
+	/* Fields that come from the shadow yaml */
+	stat_out->st_mode = fmeta.fm_mode | 0100000; /* octal; mark as regular file */
+	stat_out->st_uid  = fmeta.fm_uid;
+	stat_out->st_gid  = fmeta.fm_gid;
+	stat_out->st_size = fmeta.fm_size;
+
+	fclose(yaml_stream);
+	return 0;
 }
 
 static int
@@ -433,12 +467,11 @@ famfs_do_lookup(
 
 	parentfd = famfs_fd(req, parent);
 
-	printf("%s: name=%s (%s)\n", __func__, name,
+	fuse_log(FUSE_LOG_DEBUG, "%s: name=%s (%s)\n", __func__, name,
 	       (parentfd < 0) ? "ERROR bad parentfd" : "good parentfd");
 	newfd = openat(parentfd, name, O_PATH | O_NOFOLLOW, O_RDONLY);
 	if (newfd == -1) {
-		perror("Open failed\n");
-		printf("errno=%d\n", errno);
+		fuse_log(FUSE_LOG_ERR, "%s: open failed errno=%d\n", __func__, errno);
 		goto out_err;
 	}
 
@@ -462,14 +495,12 @@ famfs_do_lookup(
 		/* famfs: drop O_PATH so we can read the shadow yaml contents */
 		newfd = openat(parentfd, name, O_NOFOLLOW, O_RDONLY);
 		if (newfd == -1) {
-			perror("Open failed\n");
-			printf("errno=%d\n", errno);
 			goto out_err;
 		}
 		
 		yaml_buf = famfs_read_fd_to_buf(newfd, FAMFS_YAML_MAX, &yaml_size, 1);
 		if (!yaml_buf) {
-			printf("failed to read to yaml_buf\n");
+			fuse_log(FUSE_LOG_ERR, "failed to read to yaml_buf\n");
 			goto out_err;
 		}
 
@@ -482,9 +513,7 @@ famfs_do_lookup(
 		e->attr = st;
 #endif
 	}
-#if 0
-	dump_stat(&e->attr);
-#endif
+
 	inode = famfs_find(famfs_data(req), &e->attr);
 	if (inode) {
 		fuse_log(FUSE_LOG_DEBUG, "               : Inode already cached\n");
@@ -548,6 +577,7 @@ famfs_lookup(
 		fuse_reply_entry(req, &e);
 }
 
+#if 0
 static void
 famfs_mknod_symlink(
 	fuse_req_t req,
@@ -584,6 +614,7 @@ famfs_mknod_symlink(
 out:
 	fuse_reply_err(req, saverr);
 }
+#endif
 
 static void
 famfs_mknod(
@@ -593,8 +624,12 @@ famfs_mknod(
 	mode_t mode,
 	dev_t rdev)
 {
+#if 1
+	fuse_reply_err(req, ENOTSUP);
+#else
 	fuse_log(FUSE_LOG_DEBUG, "%s: parent=%lx name=%s\n", __func__, parent, name);
 	famfs_mknod_symlink(req, parent, name, mode, rdev, NULL);
+#endif
 }
 
 static void
@@ -604,8 +639,12 @@ famfs_fuse_mkdir(
 	const char *name,
 	mode_t mode)
 {
+#if 1
+	fuse_reply_err(req, ENOTSUP);
+#else
 	fuse_log(FUSE_LOG_DEBUG, "%s: parent=%lx name=%s\n", __func__, parent, name);
 	famfs_mknod_symlink(req, parent, name, S_IFDIR | mode, 0, NULL);
+#endif
 }
 
 static void
@@ -615,8 +654,12 @@ famfs_symlink(
 	fuse_ino_t parent,
 	const char *name)
 {
+#if 1
+	fuse_reply_err(req, ENOTSUP);
+#else
 	fuse_log(FUSE_LOG_DEBUG, "%s: parent=%lx name=%s\n", __func__, parent, name);
 	famfs_mknod_symlink(req, parent, name, S_IFLNK, 0, link);
+#endif
 }
 
 static void
@@ -626,6 +669,9 @@ famfs_link(
 	fuse_ino_t parent,
 	const char *name)
 {
+#if 1
+	fuse_reply_err(req, ENOTSUP);
+#else
 	int res;
 	struct famfs_data *lo = famfs_data(req);
 	struct famfs_inode *inode = famfs_inode(req, ino);
@@ -664,6 +710,7 @@ famfs_link(
 out_err:
 	saverr = errno;
 	fuse_reply_err(req, saverr);
+#endif
 }
 
 static void
@@ -672,6 +719,9 @@ famfs_rmdir(
 	fuse_ino_t parent,
 	const char *name)
 {
+#if 1
+	fuse_reply_err(req, ENOTSUP);
+#else
 	fuse_log(FUSE_LOG_DEBUG, "%s: parent=%lx name=%s\n", __func__, parent, name);
 
 	/* If files become bi-modal, unlink will be allowed on
@@ -684,6 +734,7 @@ famfs_rmdir(
 	}
 
 	fuse_reply_err(req, EINVAL);
+#endif
 }
 
 static void
@@ -695,6 +746,9 @@ famfs_rename(
 	const char *newname,
 	unsigned int flags)
 {
+#if 1
+	fuse_reply_err(req, ENOTSUP);
+#else
 	int res;
 
 	fuse_log(FUSE_LOG_DEBUG, "%s: parent=%lx name=%s newpar=%lx newname=%s\n",
@@ -709,6 +763,7 @@ famfs_rename(
 			famfs_fd(req, newparent), newname);
 
 	fuse_reply_err(req, res == -1 ? errno : 0);
+#endif
 }
 
 static void
@@ -717,6 +772,9 @@ famfs_unlink(
 	fuse_ino_t parent,
 	const char *name)
 {
+#if 1
+	fuse_reply_err(req, ENOTSUP);
+#else
 	/* If files become bi-modal, unlink will be allowed on
 	 * uncommitted files & dirs */
 	fuse_log(FUSE_LOG_DEBUG, "%s: parent=%lx name=%s\n", __func__, parent, name);
@@ -729,6 +787,7 @@ famfs_unlink(
 	}
 
 	fuse_reply_err(req, EINVAL);
+#endif
 }
 
 static void
@@ -809,6 +868,9 @@ famfs_readlink(
 	fuse_req_t req,
 	fuse_ino_t ino)
 {
+#if 1
+	fuse_reply_err(req, ENOTSUP);
+#else
 	char buf[PATH_MAX + 1];
 	int res;
 
@@ -824,6 +886,7 @@ famfs_readlink(
 	buf[res] = '\0';
 
 	fuse_reply_readlink(req, buf);
+#endif
 }
 
 struct famfs_dirp {
@@ -1039,6 +1102,9 @@ famfs_create(
 	mode_t mode,
 	struct fuse_file_info *fi)
 {
+#if 1
+	fuse_reply_err(req, ENOTSUP);
+#else
 	int fd;
 	struct famfs_data *lo = famfs_data(req);
 	struct fuse_entry_param e;
@@ -1069,6 +1135,7 @@ famfs_create(
 		fuse_reply_err(req, err);
 	else
 		fuse_reply_create(req, &e, fi);
+#endif
 }
 
 static void
@@ -1316,6 +1383,9 @@ famfs_getxattr(
 	const char *name,
 	size_t size)
 {
+#if 1
+	fuse_reply_err(req, ENOTSUP);
+#else
 	char *value = NULL;
 	char procname[64];
 	struct famfs_inode *inode = famfs_inode(req, ino);
@@ -1364,6 +1434,7 @@ out_err:
 out:
 	fuse_reply_err(req, saverr);
 	goto out_free;
+#endif
 }
 
 static void
@@ -1372,6 +1443,9 @@ famfs_listxattr(
 	fuse_ino_t ino,
 	size_t size)
 {
+#if 1
+	fuse_reply_err(req, ENOTSUP);
+#else
 	char *value = NULL;
 	char procname[64];
 	struct famfs_inode *inode = famfs_inode(req, ino);
@@ -1420,6 +1494,7 @@ out_err:
 out:
 	fuse_reply_err(req, saverr);
 	goto out_free;
+#endif
 }
 
 static void
@@ -1431,6 +1506,9 @@ famfs_setxattr(
 	size_t size,
 	int flags)
 {
+#if 1
+	fuse_reply_err(req, ENOTSUP);
+#else
 	char procname[64];
 	struct famfs_inode *inode = famfs_inode(req, ino);
 	ssize_t ret;
@@ -1454,6 +1532,7 @@ famfs_setxattr(
 
 out:
 	fuse_reply_err(req, saverr);
+#endif
 }
 
 static void
@@ -1462,6 +1541,9 @@ famfs_removexattr(
 	fuse_ino_t ino,
 	const char *name)
 {
+#if 1
+	fuse_reply_err(req, ENOTSUP);
+#else
 	char procname[64];
 	struct famfs_inode *inode = famfs_inode(req, ino);
 	ssize_t ret;
@@ -1483,6 +1565,7 @@ famfs_removexattr(
 
 out:
 	fuse_reply_err(req, saverr);
+#endif
 }
 
 #ifdef HAVE_COPY_FILE_RANGE
