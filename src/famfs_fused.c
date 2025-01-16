@@ -194,6 +194,14 @@ static void famfs_init(
 			fuse_log(FUSE_LOG_DEBUG, "famfs_init: activating flock locks\n");
 		conn->want |= FUSE_CAP_FLOCK_LOCKS;
 	}
+
+	if (conn->capable & FUSE_CAP_PASSTHROUGH)
+		fuse_log(FUSE_LOG_NOTICE, "%s: Kernel is passthrough-capable\n", __func__);
+
+	if (conn->capable & FUSE_CAP_DAX_IOMAP) {
+		fuse_log(FUSE_LOG_NOTICE,  "%s: Kernel is DAX_IOMAP-capable\n", __func__);
+		conn->want |= FUSE_CAP_DAX_IOMAP;
+	}
 }
 
 static void famfs_destroy(void *userdata)
@@ -235,6 +243,18 @@ famfs_setattr(
 	int valid,
 	struct fuse_file_info *fi)
 {
+#if 1
+	/*
+	 * Setattr makes ephemeral changes to famfs. The authority is the metadata log.
+	 * Still, we allow certain changes:
+	 * * mode
+	 * * uid, gid
+	 * XXX how can we cache ephemeral changes without changing the yaml (which must
+	 * reflect the log authority)?...
+	 */
+	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
+	fuse_reply_err(req, ENOTSUP);
+#else
 	int saverr;
 	char procname[64];
 	struct famfs_inode *inode = famfs_inode(req, ino);
@@ -305,6 +325,7 @@ famfs_setattr(
 out_err:
 	saverr = errno;
 	fuse_reply_err(req, saverr);
+#endif
 }
 
 static struct famfs_inode *famfs_find(struct famfs_data *lo, struct stat *st)
@@ -326,6 +347,8 @@ static struct famfs_inode *famfs_find(struct famfs_data *lo, struct stat *st)
 	return ret;
 }
 
+#if 0
+/* XXX TODO: go to statx, expose birth time */
 void dump_stat(const struct stat *fileStat)
 {
 	char timeStr[100];
@@ -355,6 +378,7 @@ void dump_stat(const struct stat *fileStat)
 	strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", tm_info);
 	printf("Last Status Change: %s\n", timeStr);
 }
+#endif
 
 void *
 famfs_read_fd_to_buf(int fd, ssize_t max_size, ssize_t *size_out, int verbose)
@@ -364,7 +388,7 @@ famfs_read_fd_to_buf(int fd, ssize_t max_size, ssize_t *size_out, int verbose)
 
 	if (max_size > 0)
 		fuse_log(FUSE_LOG_ERR, "%s: max_size=%lld > limit=%d\n",
-			 __func__, FAMFS_YAML_MAX);
+			 __func__, max_size, FAMFS_YAML_MAX);
 
 	buf = calloc(1, max_size + 8);
 	if (!buf) {
@@ -577,45 +601,6 @@ famfs_lookup(
 		fuse_reply_entry(req, &e);
 }
 
-#if 0
-static void
-famfs_mknod_symlink(
-	fuse_req_t req,
-	fuse_ino_t parent,
-	const char *name,
-	mode_t mode,
-	dev_t rdev,
-	const char *link)
-{
-	int res;
-	int saverr;
-	struct famfs_inode *dir = famfs_inode(req, parent);
-	struct fuse_entry_param e;
-
-	fuse_log(FUSE_LOG_DEBUG, "    %s: parent=%lx name=%s link=%s\n",
-		 __func__, parent, name, link);
-	res = mknod_wrapper(dir->fd, name, link, mode, rdev);
-
-	saverr = errno;
-	if (res == -1)
-		goto out;
-
-	saverr = famfs_do_lookup(req, parent, name, &e);
-	if (saverr)
-		goto out;
-
-	if (famfs_debug(req))
-		fuse_log(FUSE_LOG_DEBUG, "  %lli/%s -> %lli\n",
-			(unsigned long long) parent, name, (unsigned long long) e.ino);
-
-	fuse_reply_entry(req, &e);
-	return;
-
-out:
-	fuse_reply_err(req, saverr);
-}
-#endif
-
 static void
 famfs_mknod(
 	fuse_req_t req,
@@ -624,12 +609,8 @@ famfs_mknod(
 	mode_t mode,
 	dev_t rdev)
 {
-#if 1
+	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
-#else
-	fuse_log(FUSE_LOG_DEBUG, "%s: parent=%lx name=%s\n", __func__, parent, name);
-	famfs_mknod_symlink(req, parent, name, mode, rdev, NULL);
-#endif
 }
 
 static void
@@ -639,12 +620,8 @@ famfs_fuse_mkdir(
 	const char *name,
 	mode_t mode)
 {
-#if 1
+	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
-#else
-	fuse_log(FUSE_LOG_DEBUG, "%s: parent=%lx name=%s\n", __func__, parent, name);
-	famfs_mknod_symlink(req, parent, name, S_IFDIR | mode, 0, NULL);
-#endif
 }
 
 static void
@@ -654,12 +631,8 @@ famfs_symlink(
 	fuse_ino_t parent,
 	const char *name)
 {
-#if 1
+	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
-#else
-	fuse_log(FUSE_LOG_DEBUG, "%s: parent=%lx name=%s\n", __func__, parent, name);
-	famfs_mknod_symlink(req, parent, name, S_IFLNK, 0, link);
-#endif
 }
 
 static void
@@ -669,48 +642,8 @@ famfs_link(
 	fuse_ino_t parent,
 	const char *name)
 {
-#if 1
+	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
-#else
-	int res;
-	struct famfs_data *lo = famfs_data(req);
-	struct famfs_inode *inode = famfs_inode(req, ino);
-	struct fuse_entry_param e;
-	char procname[64];
-	int saverr;
-
-	fuse_log(FUSE_LOG_DEBUG, "%s: parent=%lx name=%s\n", __func__, parent, name);
-	memset(&e, 0, sizeof(struct fuse_entry_param));
-	e.attr_timeout = lo->timeout;
-	e.entry_timeout = lo->timeout;
-
-	sprintf(procname, "/proc/self/fd/%i", inode->fd);
-	res = linkat(AT_FDCWD, procname, famfs_fd(req, parent), name,
-		     AT_SYMLINK_FOLLOW);
-	if (res == -1)
-		goto out_err;
-
-	res = fstatat(inode->fd, "", &e.attr, AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
-	if (res == -1)
-		goto out_err;
-
-	pthread_mutex_lock(&lo->mutex);
-	inode->refcount++;
-	pthread_mutex_unlock(&lo->mutex);
-	e.ino = (uintptr_t) inode;
-
-	if (famfs_debug(req))
-		fuse_log(FUSE_LOG_DEBUG, "  %lli/%s -> %lli\n",
-			(unsigned long long) parent, name,
-			(unsigned long long) e.ino);
-
-	fuse_reply_entry(req, &e);
-	return;
-
-out_err:
-	saverr = errno;
-	fuse_reply_err(req, saverr);
-#endif
 }
 
 static void
@@ -719,22 +652,8 @@ famfs_rmdir(
 	fuse_ino_t parent,
 	const char *name)
 {
-#if 1
+	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
-#else
-	fuse_log(FUSE_LOG_DEBUG, "%s: parent=%lx name=%s\n", __func__, parent, name);
-
-	/* If files become bi-modal, unlink will be allowed on
-	 * uncommitted files & dirs */
-	if (famfs_debug(req)) {
-		fuse_log(FUSE_LOG_DEBUG,
-			 "  Rejecting rmdir for forget %lli %s\n",
-			(unsigned long long) parent ,
-			 (unsigned long long) name);
-	}
-
-	fuse_reply_err(req, EINVAL);
-#endif
 }
 
 static void
@@ -746,24 +665,8 @@ famfs_rename(
 	const char *newname,
 	unsigned int flags)
 {
-#if 1
+	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
-#else
-	int res;
-
-	fuse_log(FUSE_LOG_DEBUG, "%s: parent=%lx name=%s newpar=%lx newname=%s\n",
-		  __func__, parent, name, newparent, newname);
-
-	if (flags) {
-		fuse_reply_err(req, EINVAL);
-		return;
-	}
-
-	res = renameat(famfs_fd(req, parent), name,
-			famfs_fd(req, newparent), newname);
-
-	fuse_reply_err(req, res == -1 ? errno : 0);
-#endif
 }
 
 static void
@@ -772,22 +675,8 @@ famfs_unlink(
 	fuse_ino_t parent,
 	const char *name)
 {
-#if 1
+	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
-#else
-	/* If files become bi-modal, unlink will be allowed on
-	 * uncommitted files & dirs */
-	fuse_log(FUSE_LOG_DEBUG, "%s: parent=%lx name=%s\n", __func__, parent, name);
-
-	if (famfs_debug(req)) {
-		fuse_log(FUSE_LOG_DEBUG,
-			 "  Rejecting rmdir for forget %lli %s\n",
-			(unsigned long long) parent ,
-			 (unsigned long long) name);
-	}
-
-	fuse_reply_err(req, EINVAL);
-#endif
 }
 
 static void
@@ -868,25 +757,8 @@ famfs_readlink(
 	fuse_req_t req,
 	fuse_ino_t ino)
 {
-#if 1
+	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
-#else
-	char buf[PATH_MAX + 1];
-	int res;
-
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%lx\n", __func__, ino);
-
-	res = readlinkat(famfs_fd(req, ino), "", buf, sizeof(buf));
-	if (res == -1)
-		return (void) fuse_reply_err(req, errno);
-
-	if (res == sizeof(buf))
-		return (void) fuse_reply_err(req, ENAMETOOLONG);
-
-	buf[res] = '\0';
-
-	fuse_reply_readlink(req, buf);
-#endif
 }
 
 struct famfs_dirp {
@@ -1102,40 +974,8 @@ famfs_create(
 	mode_t mode,
 	struct fuse_file_info *fi)
 {
-#if 1
+	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
-#else
-	int fd;
-	struct famfs_data *lo = famfs_data(req);
-	struct fuse_entry_param e;
-	int err;
-
-	if (famfs_debug(req))
-		fuse_log(FUSE_LOG_DEBUG, "%s(parent=%" PRIu64 ", name=%s)\n",
-			parent, name);
-
-	fd = openat(famfs_fd(req, parent), name,
-		    (fi->flags | O_CREAT) & ~O_NOFOLLOW, mode);
-	if (fd == -1)
-		return (void) fuse_reply_err(req, errno);
-
-	fi->fh = fd;
-	if (lo->cache == CACHE_NEVER)
-		fi->direct_io = 1;
-	else if (lo->cache == CACHE_ALWAYS)
-		fi->keep_cache = 1;
-
-	/* parallel_direct_writes feature depends on direct_io features.
-	   To make parallel_direct_writes valid, need set fi->direct_io
-	   in current function. */
-	fi->parallel_direct_writes = 1;
-
-	err = famfs_do_lookup(req, parent, name, &e);
-	if (err)
-		fuse_reply_err(req, err);
-	else
-		fuse_reply_create(req, &e, fi);
-#endif
 }
 
 static void
@@ -1336,6 +1176,10 @@ famfs_fallocate(
 	off_t length,
 	struct fuse_file_info *fi)
 {
+#if 1
+	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
+	fuse_reply_err(req, ENOTSUP);
+#else
 	int err = EOPNOTSUPP;
 	(void) ino;
 
@@ -1357,6 +1201,7 @@ famfs_fallocate(
 #endif
 
 	fuse_reply_err(req, err);
+#endif
 }
 
 static void
@@ -1383,58 +1228,8 @@ famfs_getxattr(
 	const char *name,
 	size_t size)
 {
-#if 1
+	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
-#else
-	char *value = NULL;
-	char procname[64];
-	struct famfs_inode *inode = famfs_inode(req, ino);
-	ssize_t ret;
-	int saverr;
-
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%lx\n", __func__, ino);
-
-	saverr = ENOSYS;
-	if (!famfs_data(req)->xattr)
-		goto out;
-
-	if (famfs_debug(req)) {
-		fuse_log(FUSE_LOG_DEBUG, "famfs_getxattr(ino=%" PRIu64 ", name=%s size=%zd)\n",
-			ino, name, size);
-	}
-
-	sprintf(procname, "/proc/self/fd/%i", inode->fd);
-
-	if (size) {
-		value = malloc(size);
-		if (!value)
-			goto out_err;
-
-		ret = getxattr(procname, name, value, size);
-		if (ret == -1)
-			goto out_err;
-		saverr = 0;
-		if (ret == 0)
-			goto out;
-
-		fuse_reply_buf(req, value, ret);
-	} else {
-		ret = getxattr(procname, name, NULL, 0);
-		if (ret == -1)
-			goto out_err;
-
-		fuse_reply_xattr(req, ret);
-	}
-out_free:
-	free(value);
-	return;
-
-out_err:
-	saverr = errno;
-out:
-	fuse_reply_err(req, saverr);
-	goto out_free;
-#endif
 }
 
 static void
@@ -1443,58 +1238,8 @@ famfs_listxattr(
 	fuse_ino_t ino,
 	size_t size)
 {
-#if 1
+	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
-#else
-	char *value = NULL;
-	char procname[64];
-	struct famfs_inode *inode = famfs_inode(req, ino);
-	ssize_t ret;
-	int saverr;
-
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%lx\n", __func__, ino);
-
-	saverr = ENOSYS;
-	if (!famfs_data(req)->xattr)
-		goto out;
-
-	if (famfs_debug(req)) {
-		fuse_log(FUSE_LOG_DEBUG, "famfs_listxattr(ino=%" PRIu64 ", size=%zd)\n",
-			ino, size);
-	}
-
-	sprintf(procname, "/proc/self/fd/%i", inode->fd);
-
-	if (size) {
-		value = malloc(size);
-		if (!value)
-			goto out_err;
-
-		ret = listxattr(procname, value, size);
-		if (ret == -1)
-			goto out_err;
-		saverr = 0;
-		if (ret == 0)
-			goto out;
-
-		fuse_reply_buf(req, value, ret);
-	} else {
-		ret = listxattr(procname, NULL, 0);
-		if (ret == -1)
-			goto out_err;
-
-		fuse_reply_xattr(req, ret);
-	}
-out_free:
-	free(value);
-	return;
-
-out_err:
-	saverr = errno;
-out:
-	fuse_reply_err(req, saverr);
-	goto out_free;
-#endif
 }
 
 static void
@@ -1506,33 +1251,8 @@ famfs_setxattr(
 	size_t size,
 	int flags)
 {
-#if 1
+	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
-#else
-	char procname[64];
-	struct famfs_inode *inode = famfs_inode(req, ino);
-	ssize_t ret;
-	int saverr;
-
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%lx\n", __func__, ino);
-
-	saverr = ENOSYS;
-	if (!famfs_data(req)->xattr)
-		goto out;
-
-	if (famfs_debug(req)) {
-		fuse_log(FUSE_LOG_DEBUG, "famfs_setxattr(ino=%" PRIu64 ", name=%s value=%s size=%zd)\n",
-			ino, name, value, size);
-	}
-
-	sprintf(procname, "/proc/self/fd/%i", inode->fd);
-
-	ret = setxattr(procname, name, value, size, flags);
-	saverr = ret == -1 ? errno : 0;
-
-out:
-	fuse_reply_err(req, saverr);
-#endif
 }
 
 static void
@@ -1541,31 +1261,8 @@ famfs_removexattr(
 	fuse_ino_t ino,
 	const char *name)
 {
-#if 1
+	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
-#else
-	char procname[64];
-	struct famfs_inode *inode = famfs_inode(req, ino);
-	ssize_t ret;
-	int saverr;
-
-	saverr = ENOSYS;
-	if (!famfs_data(req)->xattr)
-		goto out;
-
-	if (famfs_debug(req)) {
-		fuse_log(FUSE_LOG_DEBUG, "famfs_removexattr(ino=%" PRIu64 ", name=%s)\n",
-			ino, name);
-	}
-
-	sprintf(procname, "/proc/self/fd/%i", inode->fd);
-
-	ret = removexattr(procname, name);
-	saverr = ret == -1 ? errno : 0;
-
-out:
-	fuse_reply_err(req, saverr);
-#endif
 }
 
 #ifdef HAVE_COPY_FILE_RANGE
@@ -1672,6 +1369,19 @@ void jg_print_fuse_opts(struct fuse_cmdline_opts *opts)
 	       opts->singlethread, opts->foreground, opts->debug,
 	       opts->nodefault_subtype, opts->mountpoint,
 	       opts->clone_fd, opts->max_idle_threads, opts->max_threads);
+	fuse_log(FUSE_LOG_DEBUG,
+		 "Cmdline opts:\n"
+		 "  singlethread:      %d\n"
+		 "  foreground:        %d\n"
+		 "  debug:             %d\n"
+		 "  nodefault_subtype: %d\n"
+		 "  mount point:       %s\n"
+		 "  clone_fd:          %d\n"
+		 "  max_idle_threads;  %d\n"
+		 "  max_threads:       %d\n",
+		 opts->singlethread, opts->foreground, opts->debug,
+		 opts->nodefault_subtype, opts->mountpoint,
+		 opts->clone_fd, opts->max_idle_threads, opts->max_threads);
 }
 
 void
@@ -1712,9 +1422,9 @@ int main(int argc, char *argv[])
 	/*fuse_set_log_func(fused_syslog); */
 	fuse_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
 
-	fuse_log(FUSE_LOG_DEBUG,  "%s: this is debug\n", PROGNAME);
+	fuse_log(FUSE_LOG_DEBUG,  "%s: this is debug(=%d)\n", PROGNAME, FUSE_LOG_DEBUG);
 	fuse_log(FUSE_LOG_NOTICE, "%s: this is a NOTICE\n", PROGNAME);
-	fuse_log(FUSE_LOG_ERR,    "%s: this is a warning\n", PROGNAME);
+	fuse_log(FUSE_LOG_ERR,    "%s: this is an err(=%d)\n", PROGNAME, FUSE_LOG_ERR);
 
 	/*
 	 * This gets opts (fuse_cmdline_opts)
@@ -1765,12 +1475,19 @@ int main(int argc, char *argv[])
 
 		res = lstat(famfs_data.source, &stat);
 		if (res == -1) {
-			fuse_log(FUSE_LOG_ERR, "failed to stat source (\"%s\"): %m\n",
-				 famfs_data.source);
+			fprintf(stderr,
+				"%s: failed to stat source (\"%s\"): %m\n",
+				PROGNAME, famfs_data.source);
+			fuse_log(FUSE_LOG_ERR,
+				 "%s: failed to stat source (\"%s\"): %m\n",
+				 PROGNAME, famfs_data.source);
 			exit(1);
 		}
 		if (!S_ISDIR(stat.st_mode)) {
-			fuse_log(FUSE_LOG_ERR, "source is not a directory\n");
+			fprintf(stderr, "%s: source (%s) is not a directory\n",
+				PROGNAME, famfs_data.source);
+			fuse_log(FUSE_LOG_ERR, "%s: source (%s) is not a directory\n",
+				 PROGNAME, famfs_data.source);
 			exit(1);
 		}
 
