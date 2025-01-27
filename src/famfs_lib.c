@@ -920,7 +920,7 @@ famfs_v2_set_file_map(
 			kse[i].offset   = fm->se[i].se_offset;
 			kse[i].len      = fm->se[i].se_len;
 
-			printf("%s: devindex=%lld offset=%lld len=%lld\n",
+			printf("%s: devindex=%lld offset=0x%llx len=0x%llx\n",
 			       __func__, kse[i].devindex, kse[i].offset, kse[i].len);
 		}
 		ioc_fmap.kse = kse;
