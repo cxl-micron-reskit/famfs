@@ -28,7 +28,7 @@
  * @event:    libyaml event structure
  * @fm:       famfs_log_file_meta struct
  */
-int
+static int
 __famfs_emit_yaml_simple_ext_list(
 	yaml_emitter_t               *emitter,
 	yaml_event_t                 *event,
@@ -127,7 +127,7 @@ err_out:
 	return -1;
 }
 
-int
+static int
 __famfs_emit_yaml_striped_ext_list(
 	yaml_emitter_t               *emitter,
 	yaml_event_t                 *event,
@@ -223,7 +223,7 @@ err_out:
  * @event:    libyaml event structure
  * @fm:       famfs_file_meta struct
  */
-int
+static int
 __famfs_emit_yaml_file_section(
 	yaml_emitter_t               *emitter,
 	yaml_event_t                 *event,
@@ -737,7 +737,7 @@ err_out:
 	return rc;
 }
 
-int
+static int
 famfs_parse_file_yaml(
 	yaml_parser_t *parser,
 	struct famfs_log_file_meta *fm,
@@ -930,7 +930,7 @@ err_out:
  * This file currently contains interleaved_alloc: (nbuckets, nstrips and chunk_size)
  * and nothing else - but it may be expanded later.
  */
-int
+static int
 famfs_parse_stripe_config_yaml(
 	yaml_parser_t *parser,
 	struct famfs_interleave_param *interleave_param,
