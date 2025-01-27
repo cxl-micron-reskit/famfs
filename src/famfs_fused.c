@@ -328,7 +328,7 @@ out_err:
 #endif
 }
 
-static struct famfs_inode *famfs_find(struct famfs_data *lo, struct stat *st)
+static struct famfs_inode *famfs_find(struct famfs_data *lo, fuse_ino_t ino)
 {
 	/* TODO: replace this lookup mechanism with Bernd's wbtree lookup code */
 	struct famfs_inode *p;
@@ -336,7 +336,7 @@ static struct famfs_inode *famfs_find(struct famfs_data *lo, struct stat *st)
 
 	pthread_mutex_lock(&lo->mutex);
 	for (p = lo->root.next; p != &lo->root; p = p->next) {
-		if (p->ino == st->st_ino && p->dev == st->st_dev) {
+		if (p->ino == ino) {
 			assert(p->refcount > 0);
 			ret = p;
 			ret->refcount++;
@@ -386,7 +386,7 @@ famfs_read_fd_to_buf(int fd, ssize_t max_size, ssize_t *size_out, int verbose)
 	char *buf;
 	ssize_t n;
 
-	if (max_size > 0)
+	if (max_size > FAMFS_YAML_MAX)
 		fuse_log(FUSE_LOG_ERR, "%s: max_size=%lld > limit=%d\n",
 			 __func__, max_size, FAMFS_YAML_MAX);
 
@@ -422,9 +422,10 @@ famfs_shadow_to_stat(
 	FILE *yaml_stream;
 	int rc;
 
-	if (bufsize < 200)
-		fuse_log(FUSE_LOG_ERR, "File size=%ld: too small  to contain valid yaml\n",
-		       bufsize);
+	if (bufsize < 100) /* This is imprecise... */
+		fuse_log(FUSE_LOG_ERR,
+			 "File size=%ld: too small  to contain valid yaml\n",
+			 bufsize);
 
 	if (verbose)
 		fuse_log(FUSE_LOG_DEBUG, "file yaml:\n%s\n", (char *)yaml_buf);
@@ -432,7 +433,8 @@ famfs_shadow_to_stat(
 	/* Make a stream for the yaml parser to use */
 	yaml_stream = fmemopen((void *)yaml_buf, bufsize, "r");
 	if (!yaml_stream) {
-		fuse_log(FUSE_LOG_ERR, "failed to convert yaml_buf to stream (errno=%d\n",
+		fuse_log(FUSE_LOG_ERR,
+			 "failed to convert yaml_buf to stream (errno=%d\n",
 			 __func__, errno);
 		return -1;
 	}
@@ -538,7 +540,7 @@ famfs_do_lookup(
 #endif
 	}
 
-	inode = famfs_find(famfs_data(req), &e->attr);
+	inode = famfs_find(famfs_data(req), e->attr.st_ino);
 	if (inode) {
 		fuse_log(FUSE_LOG_DEBUG, "               : Inode already cached\n");
 		close(newfd);
@@ -599,6 +601,23 @@ famfs_lookup(
 		fuse_reply_err(req, err);
 	else
 		fuse_reply_entry(req, &e);
+}
+
+static void
+famfs_get_fmap(
+	fuse_req_t req,
+	fuse_ino_t ino)
+{
+	struct famfs_inode *inode;
+
+	inode = famfs_find(famfs_data(req), ino);
+	if (!inode) {
+		fuse_log(FUSE_LOG_ERR, "%s: inode 0x%lx not found\n", __func__, ino);
+		fuse_reply_err(req, EINVAL);
+	}
+
+	fuse_log(FUSE_LOG_ERR, "%s: write some code and try again\n", __func__);
+	fuse_reply_err(req, EOPNOTSUPP);
 }
 
 static void
@@ -1353,11 +1372,15 @@ static const struct fuse_lowlevel_ops famfs_oper = {
 	.copy_file_range = famfs_copy_file_range,
 #endif
 	.lseek		= famfs_lseek,
+	.get_fmap       = famfs_get_fmap,
+#if 0
+	.get_daxdev     = famfs_get_daxdev,
+#endif
 };
 
 void jg_print_fuse_opts(struct fuse_cmdline_opts *opts)
 {
-	printf("Cmdline opts:\n"
+	char *format_str = "Cmdline opts:\n"
 	       "  singlethread:      %d\n"
 	       "  foreground:        %d\n"
 	       "  debug:             %d\n"
@@ -1365,20 +1388,12 @@ void jg_print_fuse_opts(struct fuse_cmdline_opts *opts)
 	       "  mount point:       %s\n"
 	       "  clone_fd:          %d\n"
 	       "  max_idle_threads;  %d\n"
-	       "  max_threads:       %d\n",
+		"  max_threads:       %d\n";
+	printf(format_str,
 	       opts->singlethread, opts->foreground, opts->debug,
 	       opts->nodefault_subtype, opts->mountpoint,
 	       opts->clone_fd, opts->max_idle_threads, opts->max_threads);
-	fuse_log(FUSE_LOG_DEBUG,
-		 "Cmdline opts:\n"
-		 "  singlethread:      %d\n"
-		 "  foreground:        %d\n"
-		 "  debug:             %d\n"
-		 "  nodefault_subtype: %d\n"
-		 "  mount point:       %s\n"
-		 "  clone_fd:          %d\n"
-		 "  max_idle_threads;  %d\n"
-		 "  max_threads:       %d\n",
+	fuse_log(FUSE_LOG_DEBUG, format_str,
 		 opts->singlethread, opts->foreground, opts->debug,
 		 opts->nodefault_subtype, opts->mountpoint,
 		 opts->clone_fd, opts->max_idle_threads, opts->max_threads);
