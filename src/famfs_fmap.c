@@ -193,6 +193,101 @@ out_free:
 		
 }
 
+ssize_t
+famfs_log_file_meta_to_msg(
+	char *msg,
+	int msg_size,
+	const struct famfs_log_fmap *log_fmap)
+{
+	struct fmap_log_header *flh = (struct fmap_log_header *)msg;
+	int cursor = 0;
+	int i, j;
+
+	if (msg_size < sizeof(*flh))
+		return -EINVAL;
+
+	flh->struct_tag = LOG_HEADER_TAG;
+	flh->fmap_log_version = FAMFS_LOG_VERSION;
+	flh->fmap_ext_type = log_fmap->fmap_ext_type;
+
+	cursor += sizeof(*flh);
+
+	switch (log_fmap->fmap_ext_type) {
+	case FAMFS_EXT_SIMPLE: {
+		struct fmap_simple_ext *se = (struct fmap_simple_ext *)&msg[cursor];
+		size_t ext_list_size = log_fmap->fmap_nextents * sizeof(*se);
+
+		cursor += ext_list_size;
+		if (cursor > msg_size)
+			goto overflow_out;
+
+		flh->next = log_fmap->fmap_nextents;
+
+		memset(se, 0, ext_list_size);
+		for (i = 0; i < flh->next; i++) {
+			se[i].struct_tag = LOG_SIMPLE_EXT_TAG;
+			se[i].se_devindex = log_fmap->se[i].se_devindex;
+			se[i].se_offset = log_fmap->se[i].se_offset;
+			se[i].se_len = log_fmap->se[i].se_len;
+		}
+
+	}
+	case FAMFS_EXT_INTERLEAVE: {
+		struct fmap_log_iext *ie = (struct fmap_log_iext *)&msg[cursor];
+		struct fmap_simple_ext *se;
+
+		/* There can be more than one interleaved extent */
+		for (i = 0; i < log_fmap->fmap_niext; i++) {
+			cursor += sizeof(*ie);
+			if (cursor > msg_size)
+				goto overflow_out;
+
+			/* Interleaved extent header into msg */
+			memset(ie, 0, sizeof(*ie));
+
+			ie[i].struct_tag = LOG_IEXT_TAG;
+			ie[i].ie_nstrips = log_fmap->ie[i].ie_nstrips;
+			ie[i].ie_chunk_size = log_fmap->ie[i].ie_chunk_size;
+			ie[i].ie_nbytes = log_fmap->ie[i].ie_nbytes;
+
+			se = (struct fmap_simple_ext *)&msg[cursor];
+
+			cursor += ie[i].ie_nstrips * sizeof(*se);
+			if (cursor > msg_size)
+				goto overflow_out;
+
+			memset(se, 0, ie[i].ie_nstrips * sizeof(*se));
+
+			/* Strip extents into msg */
+			for (j = 0; j < ie[i].ie_nstrips; j++) {
+				const struct famfs_simple_extent *strips =
+					log_fmap->ie[i].ie_strips;
+
+				se[j].struct_tag = LOG_SIMPLE_EXT_TAG;
+				se[j].se_devindex = strips[j].se_devindex;
+				se[j].se_offset   = strips[j].se_offset;
+				se[j].se_len      = strips[j].se_len;
+			}
+		}
+	}
+	default:
+#if 0
+		fuse_log(FUSE_LOG_ERR, "%s: invalid ext type %d\n",
+			 __func__, log_fmap->fmap_ext_type);
+#endif
+		return -EINVAL;
+	}
+
+	return cursor;
+
+overflow_out:
+#if 0
+	fuse_log(FUSE_LOG_ERR, "%s: buffer overflow\n",
+		 __func__);
+#endif
+	return -EINVAL;
+}
+
 #if 0
 int
 copy_to_cursor(
