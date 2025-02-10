@@ -29,6 +29,7 @@
 
 #include "famfs_meta.h"
 #include "famfs_fmap.h"
+#include "fuse_kernel.h"
 
 void pr_verbose(int verbose, const char *format, ...) {
 	if (!verbose) {
@@ -130,7 +131,7 @@ alloc_interleaved_fmap(
 	if (nstrips_per_interleave > FAMFS_MAX_SIMPLE_EXT)
 		goto out_free;
 
-	fm->flh.fmap_ext_type = FAMFS_EXT_INTERLEAVE;
+	fm->flh.fmap_ext_type = FUSE_FAMFS_EXT_INTERLEAVE;
 	fm->flh.niext = ninterleave;
 
 	pr_verbose(verbose, "%s: ninterleave=%d sizeof(ie)=%ld\n",
@@ -197,35 +198,36 @@ ssize_t
 famfs_log_file_meta_to_msg(
 	char *msg,
 	int msg_size,
+	int file_type,
 	const struct famfs_log_fmap *log_fmap)
 {
-	struct fmap_log_header *flh = (struct fmap_log_header *)msg;
+	struct fuse_famfs_fmap_header *flh = (struct fuse_famfs_fmap_header *)msg;
 	int cursor = 0;
 	int i, j;
 
 	if (msg_size < sizeof(*flh))
 		return -EINVAL;
 
-	flh->struct_tag = LOG_HEADER_TAG;
-	flh->fmap_log_version = FAMFS_LOG_VERSION;
-	flh->fmap_ext_type = log_fmap->fmap_ext_type;
+	flh->fmap_version = FAMFS_FMAP_VERSION;
+	flh->file_type = file_type;
+	flh->ext_type = log_fmap->fmap_ext_type;
 
 	cursor += sizeof(*flh);
 
 	switch (log_fmap->fmap_ext_type) {
-	case FAMFS_EXT_SIMPLE: {
-		struct fmap_simple_ext *se = (struct fmap_simple_ext *)&msg[cursor];
+	case FUSE_FAMFS_EXT_SIMPLE: {
+		struct fuse_famfs_simple_ext *se = (struct fuse_famfs_simple_ext *)&msg[cursor];
 		size_t ext_list_size = log_fmap->fmap_nextents * sizeof(*se);
 
 		cursor += ext_list_size;
 		if (cursor > msg_size)
 			goto overflow_out;
 
-		flh->next = log_fmap->fmap_nextents;
+		flh->nextents = log_fmap->fmap_nextents;
 
 		memset(se, 0, ext_list_size);
-		for (i = 0; i < flh->next; i++) {
-			se[i].struct_tag = LOG_SIMPLE_EXT_TAG;
+		for (i = 0; i < flh->nextents; i++) {
+			memset(&se[i], 0, sizeof(se[i]));
 			se[i].se_devindex = log_fmap->se[i].se_devindex;
 			se[i].se_offset = log_fmap->se[i].se_offset;
 			se[i].se_len = log_fmap->se[i].se_len;
@@ -233,7 +235,7 @@ famfs_log_file_meta_to_msg(
 
 	}
 	case FAMFS_EXT_INTERLEAVE: {
-		struct fmap_log_iext *ie = (struct fmap_log_iext *)&msg[cursor];
+		struct fuse_famfs_iext *ie = (struct fuse_famfs_iext *)&msg[cursor];
 		struct fmap_simple_ext *se;
 
 		/* There can be more than one interleaved extent */
@@ -245,7 +247,6 @@ famfs_log_file_meta_to_msg(
 			/* Interleaved extent header into msg */
 			memset(ie, 0, sizeof(*ie));
 
-			ie[i].struct_tag = LOG_IEXT_TAG;
 			ie[i].ie_nstrips = log_fmap->ie[i].ie_nstrips;
 			ie[i].ie_chunk_size = log_fmap->ie[i].ie_chunk_size;
 			ie[i].ie_nbytes = log_fmap->ie[i].ie_nbytes;
@@ -263,7 +264,6 @@ famfs_log_file_meta_to_msg(
 				const struct famfs_simple_extent *strips =
 					log_fmap->ie[i].ie_strips;
 
-				se[j].struct_tag = LOG_SIMPLE_EXT_TAG;
 				se[j].se_devindex = strips[j].se_devindex;
 				se[j].se_offset   = strips[j].se_offset;
 				se[j].se_len      = strips[j].se_len;

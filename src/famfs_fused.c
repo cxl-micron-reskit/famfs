@@ -31,6 +31,8 @@
 
 //#include "../fuse/passthrough_helpers.h"
 #include "famfs_lib.h"
+#include "famfs_fmap.h"
+#include "fuse_kernel.h"
 
 /* We are re-using pointers to our `struct famfs_inode` and `struct
    famfs_dirp` elements as inodes. This means that we must be able to
@@ -52,6 +54,7 @@ struct famfs_inode {
 	ino_t ino;
 	dev_t dev;
 	uint64_t refcount; /* protected by lo->mutex */
+	struct famfs_log_file_meta *fmeta;
 };
 
 enum {
@@ -410,18 +413,20 @@ famfs_read_fd_to_buf(int fd, ssize_t max_size, ssize_t *size_out, int verbose)
 	return buf;
 }
 
-int
+static int
 famfs_shadow_to_stat(
 	void *yaml_buf,
 	ssize_t bufsize,
 	const struct stat *shadow_stat,
 	struct stat *stat_out,
+	struct famfs_log_file_meta *fmeta_out,
 	int verbose)
 {
 	struct famfs_log_file_meta fmeta = {0};
 	FILE *yaml_stream;
 	int rc;
 
+	assert(fmeta_out);
 	if (bufsize < 100) /* This is imprecise... */
 		fuse_log(FUSE_LOG_ERR,
 			 "File size=%ld: too small  to contain valid yaml\n",
@@ -465,24 +470,57 @@ famfs_shadow_to_stat(
 	stat_out->st_gid  = fmeta.fm_gid;
 	stat_out->st_size = fmeta.fm_size;
 
+	*fmeta_out = fmeta;
+
 	fclose(yaml_stream);
+
 	return 0;
 }
+
+#define FMAP_MSG_MAX 4096
+
+int fuse_reply_famfs_entry(
+	fuse_req_t req,
+	const struct fuse_entry_param *e,
+	const struct famfs_log_fmap *fmeta)
+{
+	char fmap_message[FMAP_MSG_MAX];
+	ssize_t fmap_size;
+
+	/* Dir lookup reply has no fmap */
+	if (S_ISDIR(e->attr.st_mode))
+		return fuse_reply_entry(req, e);
+
+	/* XXX: correctly mark the log and superblock files (not as regular) */
+	fmap_size = famfs_log_file_meta_to_msg(fmap_message, FMAP_MSG_MAX,
+					       FUSE_FAMFS_FILE_REG, fmeta);
+	if (fmap_size < 0) {
+		/* Send reply without fmap */
+		fuse_log(FUSE_LOG_ERR, "%s: %ld error putting fmap in message\n",
+			 __func__, fmap_size);
+		return fuse_reply_entry(req, e);
+	}
+
+	return fuse_reply_entry_plus(req, e, fmap_message, fmap_size);
+}
+
 
 static int
 famfs_do_lookup(
 	fuse_req_t req,
 	fuse_ino_t parent,
 	const char *name,
-	struct fuse_entry_param *e)
+	struct fuse_entry_param *e,
+	struct famfs_log_file_meta **fmeta_out)
 {
-	int newfd;
-	int res;
-	int saverr;
-	int parentfd;
+	struct famfs_log_file_meta *fmeta = NULL;
 	struct famfs_data *lo = famfs_data(req);
 	struct famfs_inode *inode;
 	struct stat st;
+	int parentfd;
+	int saverr;
+	int newfd;
+	int res;
 
 	fuse_log(FUSE_LOG_DEBUG, "%s: parent_inode=%lx name=%s\n",
 		 __func__, parent, name);
@@ -530,8 +568,12 @@ famfs_do_lookup(
 			goto out_err;
 		}
 
+		fmeta = calloc(1, sizeof(*fmeta));
+		if (!fmeta)
+			goto out_err;
+
 		/* Famfs populates the stat struct from the shadow yaml */
-		res = famfs_shadow_to_stat(yaml_buf, yaml_size, &st, &e->attr, 1);
+		res = famfs_shadow_to_stat(yaml_buf, yaml_size, &st, &e->attr, fmeta, 1);
 		if (res)
 			goto out_err;
 #else
@@ -545,6 +587,14 @@ famfs_do_lookup(
 		fuse_log(FUSE_LOG_DEBUG, "               : Inode already cached\n");
 		close(newfd);
 		newfd = -1;
+		if (!inode->fmeta) {
+			fuse_log(FUSE_LOG_ERR, "%s: null fmeta for ino=%ld; populating\n",
+				 __func__, e->attr.st_ino);
+			inode->fmeta = fmeta;
+		} else {
+			free(fmeta);
+			fmeta = NULL;
+		}
 	} else {
 		struct famfs_inode *prev, *next;
 
@@ -558,6 +608,7 @@ famfs_do_lookup(
 		inode->fd = newfd;
 		inode->ino = e->attr.st_ino;
 		inode->dev = e->attr.st_dev;
+		inode->fmeta = fmeta;
 
 		pthread_mutex_lock(&lo->mutex);
 		prev = &lo->root;
@@ -569,6 +620,8 @@ famfs_do_lookup(
 		pthread_mutex_unlock(&lo->mutex);
 	}
 	e->ino = (uintptr_t) inode;
+	if (fmeta_out)
+		*fmeta_out = fmeta;
 
 	if (famfs_debug(req))
 		fuse_log(FUSE_LOG_DEBUG, "  %lli/%s -> %lli\n",
@@ -580,6 +633,8 @@ out_err:
 	saverr = errno;
 	if (newfd != -1)
 		close(newfd);
+	if (fmeta)
+		free(fmeta);
 	return saverr;
 }
 
@@ -589,6 +644,7 @@ famfs_lookup(
 	fuse_ino_t parent,
 	const char *name)
 {
+	struct famfs_log_file_meta *fmeta = NULL;
 	struct fuse_entry_param e;
 	int err;
 
@@ -596,11 +652,11 @@ famfs_lookup(
 		fuse_log(FUSE_LOG_DEBUG, "famfs_lookup(parent=%" PRIu64 ", name=%s)\n",
 			parent, name);
 
-	err = famfs_do_lookup(req, parent, name, &e);
+	err = famfs_do_lookup(req, parent, name, &e, &fmeta);
 	if (err)
 		fuse_reply_err(req, err);
 	else
-		fuse_reply_entry(req, &e);
+		fuse_reply_famfs_entry(req, &e, &fmeta->fm_fmap);
 }
 
 static void
@@ -608,7 +664,11 @@ famfs_get_fmap(
 	fuse_req_t req,
 	fuse_ino_t ino)
 {
+	char fmap_message[FMAP_MSG_MAX];
 	struct famfs_inode *inode;
+	struct iovec iov[1];
+	ssize_t fmap_size;
+	int err = 0;
 
 	inode = famfs_find(famfs_data(req), ino);
 	if (!inode) {
@@ -616,8 +676,30 @@ famfs_get_fmap(
 		fuse_reply_err(req, EINVAL);
 	}
 
-	fuse_log(FUSE_LOG_ERR, "%s: write some code and try again\n", __func__);
-	fuse_reply_err(req, EOPNOTSUPP);
+	if (!inode->fmeta) {
+		fuse_log(FUSE_LOG_ERR, "%s: no fmap on inode\n", __func__);
+		err = ENOENT;
+		goto out_err;
+	}
+
+	/* XXX: FUSE_FAMFS_FILE_REG - mark sb and log correctly */
+	fmap_size = famfs_log_file_meta_to_msg(fmap_message, FMAP_MSG_MAX,
+					       FUSE_FAMFS_FILE_REG,
+					       &(inode->fmeta->fm_fmap));
+	if (fmap_size < 0) {
+		/* Send reply without fmap */
+		fuse_log(FUSE_LOG_ERR, "%s: %ld error putting fmap in message\n",
+			 __func__, fmap_size);
+		err = EINVAL;
+		goto out_err;
+	}
+	iov[0].iov_base = fmap_message;
+	iov[0].iov_len = fmap_size;
+	fuse_reply_iov(req, iov, 1);
+	return;
+
+out_err:
+	fuse_reply_err(req, err);
 }
 
 static void
@@ -722,6 +804,8 @@ unref_inode(
 
 		pthread_mutex_unlock(&lo->mutex);
 		close(inode->fd);
+		if (inode->fmeta)
+			free(inode->fmeta);
 		free(inode);
 
 	} else {
@@ -904,7 +988,7 @@ famfs_do_readdir(
 					.attr.st_mode = d->entry->d_type << 12,
 				};
 			} else {
-				err = famfs_do_lookup(req, ino, name, &e);
+				err = famfs_do_lookup(req, ino, name, &e, NULL);
 				if (err)
 					goto error;
 				entry_ino = e.ino;

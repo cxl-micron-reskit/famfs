@@ -79,7 +79,7 @@ struct fmap_mem_header *alloc_interleaved_fmap(int ninterleave,
 void free_mem_fmap(struct fmap_mem_header *fm);
 int validate_mem_fmap(struct fmap_mem_header *fm, int enforce, int verbose);
 
-ssize_t famfs_log_file_meta_to_msg(char *msg, int msg_size,
+ssize_t famfs_log_file_meta_to_msg(char *msg, int msg_size, int file_type,
 		const struct famfs_log_fmap *log_fmap);
 
 #endif /* FAMFS_FMAP_H */

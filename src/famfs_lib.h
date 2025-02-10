@@ -71,8 +71,6 @@ void famfs_dump_log(struct famfs_log *logp);
 void famfs_dump_super(struct famfs_superblock *sb);
 int famfs_get_system_uuid(uuid_le *uuid_out);
 void famfs_print_uuid(const uuid_le *uuid);
-int famfs_shadow_to_stat(void *yaml_buf, ssize_t bufsize,
-	const struct stat *shadow_stat, struct stat *stat, int verbose);
 
 /* famfs_yaml.c */
 #include <yaml.h>
