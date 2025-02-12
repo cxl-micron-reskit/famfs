@@ -568,8 +568,6 @@ famfs_parse_file_simple_ext_list(
 						       rc, err_out, verbose);
 				fmap->se[ext_index].se_devindex =
 					strtoull((char *)val_event.data.scalar.value, 0, 0);
-				printf("%s: parsing devindex=%lld\n", __func__,
-					fmap->se[ext_index].se_devindex);
 				yaml_event_delete(&val_event);
 
 			} else {

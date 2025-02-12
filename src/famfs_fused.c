@@ -331,6 +331,21 @@ out_err:
 #endif
 }
 
+void dump_inode_cache(struct famfs_data *lo)
+{
+	struct famfs_inode *p;
+	size_t nino = 0;
+
+	fuse_log(FUSE_LOG_DEBUG, "%s:\n", __func__);
+	pthread_mutex_lock(&lo->mutex);
+	for (p = lo->root.next; p != &lo->root; p = p->next) {
+		fuse_log(FUSE_LOG_DEBUG, "\tinode=%lx\n", p->ino);
+		nino++;
+	}
+	pthread_mutex_unlock(&lo->mutex);
+	fuse_log(FUSE_LOG_DEBUG, "   %ld inodes cached\n", nino);
+}
+
 static struct famfs_inode *famfs_find(struct famfs_data *lo, fuse_ino_t ino)
 {
 	/* TODO: replace this lookup mechanism with Bernd's wbtree lookup code */
@@ -482,19 +497,23 @@ famfs_shadow_to_stat(
 int fuse_reply_famfs_entry(
 	fuse_req_t req,
 	const struct fuse_entry_param *e,
-	const struct famfs_log_fmap *fmeta)
+	const struct famfs_log_file_meta *fmeta)
 {
 	char fmap_message[FMAP_MSG_MAX];
-	ssize_t fmap_size;
+	ssize_t fmap_size = 0;
+	const struct famfs_log_fmap *fmap = &fmeta->fm_fmap;
 
 	/* Dir lookup reply has no fmap */
 	if (S_ISDIR(e->attr.st_mode))
 		return fuse_reply_entry(req, e);
 
-	/* XXX: correctly mark the log and superblock files (not as regular) */
-	fmap_size = famfs_log_file_meta_to_msg(fmap_message, FMAP_MSG_MAX,
-					       FUSE_FAMFS_FILE_REG, fmeta);
-	if (fmap_size < 0) {
+	if (fmeta) {
+		/* XXX: Should mark the log and superblock files (not as regular) */
+		fmap_size = famfs_log_file_meta_to_msg(fmap_message, FMAP_MSG_MAX,
+						       FUSE_FAMFS_FILE_REG, fmap);
+	}
+
+	if (fmap_size <= 0) {
 		/* Send reply without fmap */
 		fuse_log(FUSE_LOG_ERR, "%s: %ld error putting fmap in message\n",
 			 __func__, fmap_size);
@@ -544,15 +563,15 @@ famfs_do_lookup(
 	if (res == -1)
 		goto out_err;
 
+	e->attr = st;
 	if (S_ISDIR(st.st_mode)) {
-		fuse_log(FUSE_LOG_DEBUG, "               : this is a directory\n");
-		e->attr = st;
+		fuse_log(FUSE_LOG_DEBUG, "               : inode=%x is a directory\n",
+			 e->attr.st_ino);
 	} else if (S_ISREG(st.st_mode)) {
 #if 1
 		void *yaml_buf;
 		ssize_t yaml_size;
-
-		fuse_log(FUSE_LOG_DEBUG, "               : this is a directory\n");
+		ino_t ino = st.st_ino; /* Inode number from file, not yaml */
 
 		/* XXX: close and reopen now that we know it's a regular file */
 		close(newfd);
@@ -576,15 +595,23 @@ famfs_do_lookup(
 		res = famfs_shadow_to_stat(yaml_buf, yaml_size, &st, &e->attr, fmeta, 1);
 		if (res)
 			goto out_err;
-#else
+		st.st_ino = ino;
+#endif
 		/* This exposes the yaml files directly */
 		e->attr = st;
-#endif
+
+		fuse_log(FUSE_LOG_DEBUG, "               : inode=%x is a file\n",
+			e->attr.st_ino);
+	} else {
+		fuse_log(FUSE_LOG_DEBUG,
+			 "               : inode=%x is neither file nor dir\n",
+			 e->attr.st_ino);
 	}
 
 	inode = famfs_find(famfs_data(req), e->attr.st_ino);
 	if (inode) {
-		fuse_log(FUSE_LOG_DEBUG, "               : Inode already cached\n");
+		fuse_log(FUSE_LOG_DEBUG, "               : inode=%x already cached\n",
+			e->attr.st_ino);
 		close(newfd);
 		newfd = -1;
 		if (!inode->fmeta) {
@@ -592,13 +619,15 @@ famfs_do_lookup(
 				 __func__, e->attr.st_ino);
 			inode->fmeta = fmeta;
 		} else {
+			/* XXX: should we verify that fmeta matches inode? */
 			free(fmeta);
 			fmeta = NULL;
 		}
 	} else {
 		struct famfs_inode *prev, *next;
 
-		fuse_log(FUSE_LOG_DEBUG, "               : Caching inode\n");
+		fuse_log(FUSE_LOG_DEBUG, "               : Caching inode %x\n",
+			e->attr.st_ino);
 		saverr = ENOMEM;
 		inode = calloc(1, sizeof(struct famfs_inode));
 		if (!inode)
@@ -621,7 +650,7 @@ famfs_do_lookup(
 	}
 	e->ino = (uintptr_t) inode;
 	if (fmeta_out)
-		*fmeta_out = fmeta;
+		*fmeta_out = inode->fmeta;
 
 	if (famfs_debug(req))
 		fuse_log(FUSE_LOG_DEBUG, "  %lli/%s -> %lli\n",
@@ -656,7 +685,7 @@ famfs_lookup(
 	if (err)
 		fuse_reply_err(req, err);
 	else
-		fuse_reply_famfs_entry(req, &e, &fmeta->fm_fmap);
+		fuse_reply_famfs_entry(req, &e, fmeta);
 }
 
 static void
@@ -887,7 +916,7 @@ famfs_opendir(
 	struct famfs_dirp *d;
 	int fd;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%lx\n", __func__, ino);
+	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%lx (%ju)\n", __func__, ino, ino);
 
 	d = calloc(1, sizeof(struct famfs_dirp));
 	if (d == NULL)
@@ -1421,37 +1450,44 @@ static const struct fuse_lowlevel_ops famfs_oper = {
 	.init		= famfs_init,
 	.destroy	= famfs_destroy,
 	.lookup		= famfs_lookup,
-	.mkdir		= famfs_fuse_mkdir,
-	.mknod		= famfs_mknod,
-	.symlink	= famfs_symlink,
-	.link		= famfs_link,
-	.unlink		= famfs_unlink,
-	.rmdir		= famfs_rmdir,
-	.rename		= famfs_rename,
 	.forget		= famfs_forget,
-	.forget_multi	= famfs_forget_multi,
 	.getattr	= famfs_getattr,
 	.setattr	= famfs_setattr,
 	.readlink	= famfs_readlink,
+	.mknod		= famfs_mknod,
+	.mkdir		= famfs_fuse_mkdir,
+	.unlink		= famfs_unlink,
+	.rmdir		= famfs_rmdir,
+	.symlink	= famfs_symlink,
+	.rename		= famfs_rename,
+	.link		= famfs_link,
+	.open		= famfs_open,
+	.read		= famfs_read,
+	/* .write */
+	.flush		= famfs_flush,
+	.release	= famfs_release,
+	.fsync		= famfs_fsync,
 	.opendir	= famfs_opendir,
 	.readdir	= famfs_readdir,
-	.readdirplus	= famfs_readdirplus,
 	.releasedir	= famfs_releasedir,
 	.fsyncdir	= famfs_fsyncdir,
-	.create		= famfs_create,
-	.open		= famfs_open,
-	.release	= famfs_release,
-	.flush		= famfs_flush,
-	.fsync		= famfs_fsync,
-	.read		= famfs_read,
-	.write_buf      = famfs_write_buf,
 	.statfs		= famfs_statfs,
-	.fallocate	= famfs_fallocate,
-	.flock		= famfs_flock,
+	.setxattr	= famfs_setxattr,
 	.getxattr	= famfs_getxattr,
 	.listxattr	= famfs_listxattr,
-	.setxattr	= famfs_setxattr,
 	.removexattr	= famfs_removexattr,
+	/* .access */
+	.create		= famfs_create,
+	/* .getlk */
+	/* .setlk */
+	/* .ioctl */
+	/* .poll */
+	.write_buf      = famfs_write_buf,
+	/* .retrieve_reply */
+	.forget_multi	= famfs_forget_multi,
+	.flock		= famfs_flock,
+	.fallocate	= famfs_fallocate,
+	.readdirplus	= famfs_readdirplus,
 #ifdef HAVE_COPY_FILE_RANGE
 	.copy_file_range = famfs_copy_file_range,
 #endif
@@ -1522,7 +1558,6 @@ int main(int argc, char *argv[])
 	fuse_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
 
 	fuse_log(FUSE_LOG_DEBUG,  "%s: this is debug(=%d)\n", PROGNAME, FUSE_LOG_DEBUG);
-	fuse_log(FUSE_LOG_NOTICE, "%s: this is a NOTICE\n", PROGNAME);
 	fuse_log(FUSE_LOG_ERR,    "%s: this is an err(=%d)\n", PROGNAME, FUSE_LOG_ERR);
 
 	/*
@@ -1565,6 +1600,9 @@ int main(int argc, char *argv[])
 
 	famfs_data.debug = opts.debug;
 	famfs_data.root.refcount = 2;
+
+	fuse_log(FUSE_LOG_NOTICE, "famfs mount shadow=%s mpt=%s\n",
+		 famfs_data.source, opts.mountpoint);
 
 	famfs_dump_opts(&famfs_data);
 
