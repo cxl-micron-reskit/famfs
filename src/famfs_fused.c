@@ -494,6 +494,7 @@ famfs_shadow_to_stat(
 
 #define FMAP_MSG_MAX 4096
 
+#if 0
 int fuse_reply_famfs_entry(
 	fuse_req_t req,
 	const struct fuse_entry_param *e,
@@ -522,7 +523,7 @@ int fuse_reply_famfs_entry(
 
 	return fuse_reply_entry_plus(req, e, fmap_message, fmap_size);
 }
-
+#endif
 
 static int
 famfs_do_lookup(
@@ -614,7 +615,7 @@ famfs_do_lookup(
 			e->attr.st_ino);
 		close(newfd);
 		newfd = -1;
-		if (!inode->fmeta) {
+		if (!inode->fmeta && S_ISREG(st.st_mode)) {
 			fuse_log(FUSE_LOG_ERR, "%s: null fmeta for ino=%ld; populating\n",
 				 __func__, e->attr.st_ino);
 			inode->fmeta = fmeta;
@@ -695,9 +696,10 @@ famfs_get_fmap(
 {
 	char fmap_message[FMAP_MSG_MAX];
 	struct famfs_inode *inode;
-	struct iovec iov[1];
 	ssize_t fmap_size;
 	int err = 0;
+
+	memset(fmap_message, 0, FMAP_MSG_MAX);
 
 	fuse_log(FUSE_LOG_NOTICE, "%s: inode=%ld\n", __func__, ino);
 	inode = famfs_find(famfs_data(req), ino);
@@ -726,10 +728,16 @@ famfs_get_fmap(
 	}
 	fuse_log(FUSE_LOG_NOTICE, "%s: sending fmap message len=%ld\n",
 		 __func__, fmap_size);
+#if 1
+	err = fuse_reply_buf(req, fmap_message, /* fmap_size */ FMAP_MSG_MAX);
+	if (err)
+		fuse_log(FUSE_LOG_ERR, "%s: fuse_reply_buf returned err %d\n",
+			 __func__, err);
+#else
 	iov[0].iov_base = fmap_message;
 	iov[0].iov_len = fmap_size;
 	fuse_reply_iov(req, iov, 1);
-
+#endif
 	return;
 
 out_err:
