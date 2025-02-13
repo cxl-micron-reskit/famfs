@@ -233,6 +233,7 @@ famfs_log_file_meta_to_msg(
 			se[i].se_len = log_fmap->se[i].se_len;
 		}
 
+		break;
 	}
 	case FAMFS_EXT_INTERLEAVE: {
 		struct fuse_famfs_iext *ie = (struct fuse_famfs_iext *)&msg[cursor];
@@ -269,6 +270,7 @@ famfs_log_file_meta_to_msg(
 				se[j].se_len      = strips[j].se_len;
 			}
 		}
+		break;
 	}
 	default:
 #if 0

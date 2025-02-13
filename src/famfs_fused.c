@@ -339,7 +339,7 @@ void dump_inode_cache(struct famfs_data *lo)
 	fuse_log(FUSE_LOG_DEBUG, "%s:\n", __func__);
 	pthread_mutex_lock(&lo->mutex);
 	for (p = lo->root.next; p != &lo->root; p = p->next) {
-		fuse_log(FUSE_LOG_DEBUG, "\tinode=%lx\n", p->ino);
+		fuse_log(FUSE_LOG_DEBUG, "\tinode=%ld\n", p->ino);
 		nino++;
 	}
 	pthread_mutex_unlock(&lo->mutex);
@@ -541,7 +541,7 @@ famfs_do_lookup(
 	int newfd;
 	int res;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: parent_inode=%lx name=%s\n",
+	fuse_log(FUSE_LOG_DEBUG, "%s: parent_inode=%ld name=%s\n",
 		 __func__, parent, name);
 
 	memset(e, 0, sizeof(*e));
@@ -565,7 +565,7 @@ famfs_do_lookup(
 
 	e->attr = st;
 	if (S_ISDIR(st.st_mode)) {
-		fuse_log(FUSE_LOG_DEBUG, "               : inode=%x is a directory\n",
+		fuse_log(FUSE_LOG_DEBUG, "               : inode=%d is a directory\n",
 			 e->attr.st_ino);
 	} else if (S_ISREG(st.st_mode)) {
 #if 1
@@ -600,17 +600,17 @@ famfs_do_lookup(
 		/* This exposes the yaml files directly */
 		e->attr = st;
 
-		fuse_log(FUSE_LOG_DEBUG, "               : inode=%x is a file\n",
+		fuse_log(FUSE_LOG_DEBUG, "               : inode=%d is a file\n",
 			e->attr.st_ino);
 	} else {
 		fuse_log(FUSE_LOG_DEBUG,
-			 "               : inode=%x is neither file nor dir\n",
+			 "               : inode=%d is neither file nor dir\n",
 			 e->attr.st_ino);
 	}
 
 	inode = famfs_find(famfs_data(req), e->attr.st_ino);
 	if (inode) {
-		fuse_log(FUSE_LOG_DEBUG, "               : inode=%x already cached\n",
+		fuse_log(FUSE_LOG_DEBUG, "               : inode=%d already cached\n",
 			e->attr.st_ino);
 		close(newfd);
 		newfd = -1;
@@ -626,7 +626,7 @@ famfs_do_lookup(
 	} else {
 		struct famfs_inode *prev, *next;
 
-		fuse_log(FUSE_LOG_DEBUG, "               : Caching inode %x\n",
+		fuse_log(FUSE_LOG_DEBUG, "               : Caching inode %d\n",
 			e->attr.st_ino);
 		saverr = ENOMEM;
 		inode = calloc(1, sizeof(struct famfs_inode));
@@ -685,7 +685,7 @@ famfs_lookup(
 	if (err)
 		fuse_reply_err(req, err);
 	else
-		fuse_reply_famfs_entry(req, &e, fmeta);
+		fuse_reply_entry(req, &e);
 }
 
 static void
@@ -699,10 +699,12 @@ famfs_get_fmap(
 	ssize_t fmap_size;
 	int err = 0;
 
+	fuse_log(FUSE_LOG_NOTICE, "%s: inode=%ld\n", __func__, ino);
 	inode = famfs_find(famfs_data(req), ino);
 	if (!inode) {
 		fuse_log(FUSE_LOG_ERR, "%s: inode 0x%lx not found\n", __func__, ino);
-		fuse_reply_err(req, EINVAL);
+		err = -EINVAL;
+		goto out_err;
 	}
 
 	if (!inode->fmeta) {
@@ -715,16 +717,19 @@ famfs_get_fmap(
 	fmap_size = famfs_log_file_meta_to_msg(fmap_message, FMAP_MSG_MAX,
 					       FUSE_FAMFS_FILE_REG,
 					       &(inode->fmeta->fm_fmap));
-	if (fmap_size < 0) {
+	if (fmap_size <= 0) {
 		/* Send reply without fmap */
 		fuse_log(FUSE_LOG_ERR, "%s: %ld error putting fmap in message\n",
 			 __func__, fmap_size);
 		err = EINVAL;
 		goto out_err;
 	}
+	fuse_log(FUSE_LOG_NOTICE, "%s: sending fmap message len=%ld\n",
+		 __func__, fmap_size);
 	iov[0].iov_base = fmap_message;
 	iov[0].iov_len = fmap_size;
 	fuse_reply_iov(req, iov, 1);
+
 	return;
 
 out_err:
@@ -916,7 +921,7 @@ famfs_opendir(
 	struct famfs_dirp *d;
 	int fd;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%lx (%ju)\n", __func__, ino, ino);
+	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%ld (%ju)\n", __func__, ino, ino);
 
 	d = calloc(1, sizeof(struct famfs_dirp));
 	if (d == NULL)
@@ -974,7 +979,7 @@ famfs_do_readdir(
 
 	(void) ino;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%lx size=%ld ofs=%ld\n",
+	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%ld size=%ld ofs=%ld\n",
 		  __func__, ino, size, offset);
 
 	buf = calloc(1, size);
@@ -1067,7 +1072,7 @@ famfs_readdir(
 	off_t offset,
 	struct fuse_file_info *fi)
 {
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%lx size=%ld offset=%ld\n",
+	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%ld size=%ld offset=%ld\n",
 		  __func__, ino, size, offset);
 	famfs_do_readdir(req, ino, size, offset, fi, 0);
 }
@@ -1080,7 +1085,7 @@ famfs_readdirplus(
 	off_t offset,
 	struct fuse_file_info *fi)
 {
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%lx size=%ld offset=%ld\n",
+	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%ld size=%ld offset=%ld\n",
 		  __func__, ino, size, offset);
 	famfs_do_readdir(req, ino, size, offset, fi, 1);
 }
@@ -1137,7 +1142,7 @@ famfs_open(
 	char buf[64];
 	struct famfs_data *lo = famfs_data(req);
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%lx\n", __func__, ino);
+	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%ld\n", __func__, ino);
 
 	if (famfs_debug(req))
 		fuse_log(FUSE_LOG_DEBUG, "famfs_open(ino=%" PRIu64 ", flags=%d)\n",
@@ -1192,7 +1197,7 @@ famfs_release(
 {
 	(void) ino;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%lx\n", __func__, ino);
+	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%ld\n", __func__, ino);
 
 	close(fi->fh);
 	fuse_reply_err(req, 0);
@@ -1207,7 +1212,7 @@ famfs_flush(
 	int res;
 	(void) ino;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%lx\n", __func__, ino);
+	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%ld\n", __func__, ino);
 
 	res = close(dup(fi->fh));
 	fuse_reply_err(req, res == -1 ? errno : 0);
@@ -1223,7 +1228,7 @@ famfs_fsync(
 	int res;
 	(void) ino;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%lx\n", __func__, ino);
+	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%ld\n", __func__, ino);
 
 	if (datasync)
 		res = fdatasync(fi->fh);
@@ -1265,7 +1270,7 @@ famfs_write_buf(
 	ssize_t res;
 	struct fuse_bufvec out_buf = FUSE_BUFVEC_INIT(fuse_buf_size(in_buf));
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%lx\n", __func__, ino);
+	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%ld\n", __func__, ino);
 
 	out_buf.buf[0].flags = FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK;
 	out_buf.buf[0].fd = fi->fh;
@@ -1290,7 +1295,7 @@ famfs_statfs(
 	int res;
 	struct statvfs stbuf;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%lx\n", __func__, ino);
+	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%ld\n", __func__, ino);
 
 	res = fstatvfs(famfs_fd(req, ino), &stbuf);
 	if (res == -1)
@@ -1315,7 +1320,7 @@ famfs_fallocate(
 	int err = EOPNOTSUPP;
 	(void) ino;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%lx ofs=%lx len=%ld\n",
+	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%ld ofs=%lx len=%ld\n",
 		  __func__, ino, offset, length);
 
 #ifdef HAVE_FALLOCATE
@@ -1346,7 +1351,7 @@ famfs_flock(
 	int res;
 	(void) ino;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%lx op=%d\n", __func__, ino, op);
+	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%ld op=%d\n", __func__, ino, op);
 
 	res = flock(fi->fh, op);
 
