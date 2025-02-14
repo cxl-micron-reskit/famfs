@@ -70,6 +70,10 @@ struct famfs_data {
 	int flock;
 	int xattr;
 	char *source;
+	int dax_enabled;
+	char *daxdev;
+	int max_daxdevs;
+	struct famfs_daxdev *daxdev_table;
 	double timeout;
 	int cache;
 	int timeout_set;
@@ -108,8 +112,12 @@ static const struct fuse_opt famfs_opts[] = {
 	  offsetof(struct famfs_data, writeback), 1 },
 	{ "no_writeback",
 	  offsetof(struct famfs_data, writeback), 0 },
-	{ "source=%s",
+	{ "shadow=%s",
 	  offsetof(struct famfs_data, source), 0 },
+	{ "source=%s",
+	  offsetof(struct famfs_data, source), 0 }, /* opts source & shadow are same */
+	{ "daxdev=%s",
+	  offsetof(struct famfs_data, daxdev), 0 },
 	{ "flock",
 	  offsetof(struct famfs_data, flock), 1 },
 	{ "no_flock",
@@ -143,7 +151,8 @@ static void famfs_fused_help(void)
 	printf(
 "    -o writeback           Enable writeback\n"
 "    -o no_writeback        Disable write back\n"
-"    -o source=/home/dir    Source directory to be mounted\n"
+"    -o shadow=/home/dir    Source directory to be mounted (required)\n"
+"    -o daxdev=/dev/dax0.0  Devdax backing device\n"
 "    -o flock               Enable flock\n" //XXX always enable?
 "    -o no_flock            Disable flock\n"
 "    -o timeout=1.0         Caching timeout\n"
@@ -199,11 +208,20 @@ static void famfs_init(
 	}
 
 	if (conn->capable & FUSE_CAP_PASSTHROUGH)
-		fuse_log(FUSE_LOG_NOTICE, "%s: Kernel is passthrough-capable\n", __func__);
+		fuse_log(FUSE_LOG_NOTICE, "%s: Kernel is passthrough-capable\n",
+			 __func__);
 
 	if (conn->capable & FUSE_CAP_DAX_IOMAP) {
-		fuse_log(FUSE_LOG_NOTICE,  "%s: Kernel is DAX_IOMAP-capable\n", __func__);
-		conn->want |= FUSE_CAP_DAX_IOMAP;
+		fuse_log(FUSE_LOG_NOTICE,  "%s: Kernel is DAX_IOMAP-capable\n",
+			 __func__);
+		if (lo->daxdev) {
+			fuse_log(FUSE_LOG_NOTICE,
+				 "%s: ENABLING DAX_IOMAP (no daxdev)\n", __func__);
+			conn->want |= FUSE_CAP_DAX_IOMAP;
+		} else {
+			fuse_log(FUSE_LOG_NOTICE,
+				 "%s: disabling DAX_IOMAP (no daxdev)\n", __func__);
+		}
 	}
 }
 
@@ -213,6 +231,7 @@ static void famfs_destroy(void *userdata)
 
 	while (lo->root.next != &lo->root) {
 		struct famfs_inode* next = lo->root.next;
+
 		lo->root.next = next->next;
 		close(next->fd);
 		free(next);
@@ -728,16 +747,47 @@ famfs_get_fmap(
 	}
 	fuse_log(FUSE_LOG_NOTICE, "%s: sending fmap message len=%ld\n",
 		 __func__, fmap_size);
-#if 1
+
 	err = fuse_reply_buf(req, fmap_message, /* fmap_size */ FMAP_MSG_MAX);
 	if (err)
 		fuse_log(FUSE_LOG_ERR, "%s: fuse_reply_buf returned err %d\n",
 			 __func__, err);
-#else
-	iov[0].iov_base = fmap_message;
-	iov[0].iov_len = fmap_size;
-	fuse_reply_iov(req, iov, 1);
-#endif
+	return;
+
+out_err:
+	fuse_reply_err(req, err);
+}
+
+static void
+famfs_get_daxdev(
+	fuse_req_t req,
+	int daxdev_index)
+{
+	struct famfs_data *fd = famfs_data(req);
+	struct fuse_daxdev daxdev;
+	int err = 0;
+
+	memset(&daxdev, 0, sizeof(daxdev));
+
+	/* Fill in daxdev struct */
+	if (daxdev_index != 0) {
+		fuse_log(FUSE_LOG_ERR, "%s: non-zero daxdev index\n", __func__);
+		err = -EINVAL;
+		goto out_err;
+	}
+	if (!fd->dax_enabled) {
+		fuse_log(FUSE_LOG_ERR, "%s: dax not enabled\n", __func__);
+		goto out_err;
+	}
+
+	daxdev.dev_index = 0;
+	strncpy(daxdev.devname, fd->daxdev_table[daxdev_index].dd_daxdev,
+		FAMFS_DEVNAME_LEN - 1);
+
+	err = fuse_reply_buf(req, (void *)&daxdev, sizeof(daxdev));
+	if (err)
+		fuse_log(FUSE_LOG_ERR, "%s: fuse_reply_buf returned err %d\n",
+			 __func__, err);
 	return;
 
 out_err:
@@ -1506,9 +1556,7 @@ static const struct fuse_lowlevel_ops famfs_oper = {
 #endif
 	.lseek		= famfs_lseek,
 	.get_fmap       = famfs_get_fmap,
-#if 0
 	.get_daxdev     = famfs_get_daxdev,
-#endif
 };
 
 void jg_print_fuse_opts(struct fuse_cmdline_opts *opts)
@@ -1541,6 +1589,9 @@ fused_syslog(
 }
 
 #define PROGNAME "famfs_fused"
+
+//struct famfs_daxdev daxdev_table[1] = {0};
+#define MAX_DAXDEVS 1
 
 int main(int argc, char *argv[])
 {
@@ -1597,6 +1648,8 @@ int main(int argc, char *argv[])
 		goto err_out1;
 	}
 
+	dump_fuse_args(&args);
+
 	if (opts.mountpoint == NULL) {
 		printf("usage: %s [options] <mountpoint>\n", argv[0]);
 		printf("       %s --help\n", argv[0]);
@@ -1604,7 +1657,13 @@ int main(int argc, char *argv[])
 		goto err_out1;
 	}
 
-	dump_fuse_args(&args);
+	if (famfs_data.daxdev) {
+		famfs_data.daxdev_table = calloc(MAX_DAXDEVS,
+						 sizeof(*famfs_data.daxdev_table));
+		strncpy(famfs_data.daxdev_table[0].dd_daxdev,
+			famfs_data.daxdev, FAMFS_DEVNAME_LEN - 1);
+	}
+
 	/*
 	 * This parses famfs_data from the -o opts
 	 */

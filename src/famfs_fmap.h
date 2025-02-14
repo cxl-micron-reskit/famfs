@@ -72,7 +72,6 @@ struct fmap_mem_header {
 	};
 };
 
-
 struct fmap_mem_header *alloc_simple_fmap(int next);
 struct fmap_mem_header *alloc_interleaved_fmap(int ninterleave,
 		int nstrips_per_interleave, int verbose);
