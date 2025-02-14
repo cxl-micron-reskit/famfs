@@ -132,9 +132,10 @@ ${CLI} creat -s 100m ${MPT}/memfile1     || fail "creat should succeed with -s 1
 ${CLI} creat -s 10000k ${MPT}/memfile2   || fail "creat with -s 10000k should succeed"
 ${CLI} mkdir ${MPT}/tmpdir || fail "mkdir should succeed"
 FUSE_SHADOW="/tmp/s"
+
 FUSE_MPT="/tmp/famfs_fuse"
 sudo rm -rf $FUSE_SHADOW
-mkdir $FUSE_SHADOW $FUSE_MPT
+mkdir -p $FUSE_SHADOW $FUSE_MPT
 
 ${CLI} logplay --shadow --daxdev $DEV  -vv  $FUSE_SHADOW || \
     fail "shadow logplay to ${FUSE_SHADOW} should succeed"
@@ -153,7 +154,9 @@ ${FAMFS_FUSED} -o source=${FUSE_SHADOW} -o foo=bar $FUSE_MPT && \
 # Mount / start famfs_fused
 ${FAMFS_FUSED} -o source=${FUSE_SHADOW} $FUSE_MPT || fail "Fuse mount failed 0"
 
-cp -r $MPT $FUSE_SHADOW
+cat ${FUSE_MPT}/memfile2 > /dev/null || fail "cat memfile via fuse"
+
+#cp -r $MPT $FUSE_SHADOW
 
 # Verify that the files *look* right (no data movement yet)
 # Ignore modification time, which famfs does not track
@@ -163,6 +166,11 @@ cp -r $MPT $FUSE_SHADOW
 rsync -a -n --itemize-changes --ignore-times  $MPT/ $FUSE_MPT/ | \
     grep ^.f || fail "no files found in legacy mount"
 
+ls -al $FAMFS_SHADOW
+ls -al $FUSE_MPT
+
+#fail "stop here"
+
 # The second grep is counting (-c), and there should be no matches as it is
 # looking for mismatched metadata between the legacy and fuse mounts of famfs.
 # so success is &&, not ||
@@ -171,17 +179,20 @@ rsync -a -n --itemize-changes --ignore-times $MPT $FUSE_MPT | \
     grep --invert-match -c ^.f\.\..\.\.\.\.\.\. && \
     fail "Shadow-to-fuse translation error - metadata mismatch"
 
-find $FUSE_MPT -type f -print -exec stat {} \; || echo "failed to stat famfs-fuse files"
-find $FUSE_MPT -type f -print -exec cat {} \;  || echo "failed to cat famfs-fuse files"
+find $FUSE_MPT -type f -print -exec stat {} \; || fail "failed to stat famfs-fuse files"
+find $FUSE_MPT -type f -print -exec cat {} \;  || fail "failed to cat famfs-fuse files"
 
-sudo truncate --size 0 $FUSE_MPT/memfile && fail "truncate fuse file should fail"
-sudo mkdir $FUSE_MPT/mydir && fail "mkdir should fail in fuse"
-sudo ln $FUSE_MPT/newlink $FUSE_MPT/memfile && fail "ln hard link in fuse should fail"
+#sudo cat $FUSE_MPT/memfile2 >/dev/null || fail "cat file"
+
+# Stuff that should fail
+sudo truncate --size 0 $FUSE_MPT/memfile     && fail "truncate fuse file should fail"
+sudo mkdir $FUSE_MPT/mydir                   && fail "mkdir should fail in fuse"
+sudo ln $FUSE_MPT/newlink $FUSE_MPT/memfile  && fail "ln hard link in fuse should fail"
 sudo ln -s $FUSE_MPT/slink $FUSE_MPT/memfile && fail "ln soft link in fuse should fail"
-sudo mknod $FUSE_MPT/myblk b 100 100 && fail "mknod special file should fail in fuse"
-sudo rmdir $FUSE_MPT/tmpdir && fail "rmdir should fail in fuse"
-sudo rm $FUSE_MPT/memfile && fail "rm file in fuse should fail"
-sudo touch $FUSE_MPT/touchfile && fail "touch new file in fuse should fail"
+sudo mknod $FUSE_MPT/myblk b 100 100     && fail "mknod special file should fail in fuse"
+sudo rmdir $FUSE_MPT/tmpdir              && fail "rmdir should fail in fuse"
+sudo rm $FUSE_MPT/memfile                && fail "rm file in fuse should fail"
+sudo touch $FUSE_MPT/touchfile           && fail "touch new file in fuse should fail"
 
 
 echo 3 | sudo tee /proc/sys/vm/drop_caches
