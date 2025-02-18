@@ -764,7 +764,7 @@ famfs_get_daxdev(
 	int daxdev_index)
 {
 	struct famfs_data *fd = famfs_data(req);
-	struct fuse_daxdev daxdev;
+	struct fuse_daxdev_out daxdev;
 	int err = 0;
 
 	memset(&daxdev, 0, sizeof(daxdev));
@@ -780,8 +780,10 @@ famfs_get_daxdev(
 		goto out_err;
 	}
 
-	daxdev.dev_index = 0;
-	strncpy(daxdev.devname, fd->daxdev_table[daxdev_index].dd_daxdev,
+	/* Right now we can only retrieve index 0... */
+	daxdev.index = 0;
+	//daxdev.valid = 1;
+	strncpy(daxdev.name, fd->daxdev_table[daxdev_index].dd_daxdev,
 		FAMFS_DEVNAME_LEN - 1);
 
 	err = fuse_reply_buf(req, (void *)&daxdev, sizeof(daxdev));
