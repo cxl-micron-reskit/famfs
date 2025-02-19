@@ -162,7 +162,7 @@ ${CLI} chkread                           && fail "chkread with no args should fa
 ${CLI} logplay -rc $MPT            || fail "logplay -rc should succeed"
 ${CLI} logplay -rm $MPT            && fail "logplay with -m and -r should fail"
 ${CLI} logplay                     && fail "logplay without MPT arg should fail"
-${CLI} logplay --shadow            && fail "shadow logplay with no daxdev should fail"
+#${CLI} logplay --shadow            && fail "shadow logplay with no daxdev should fail"
 
 # Unmount and remount
 sudo $UMOUNT $MPT || fail "umount should succeed"

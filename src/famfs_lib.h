@@ -43,8 +43,9 @@ int famfs_check_super(const struct famfs_superblock *sb);
 int famfs_fsck(const char *devname, int use_mmap, int human, int force, int verbose);
 
 int famfs_mkmeta(const char *devname, int verbose);
-int famfs_logplay(const char *mpt, int use_mmap,
-		  int dry_run, int client_mode, int shadow, const char *daxdev, int verbose);
+int famfs_logplay(
+	const char *mpt, int use_mmap, int dry_run, int client_mode,
+	const char *shadowpath, int shadowtest, const char *daxdev, int verbose);
 
 int famfs_mkfile(const char *filename, mode_t mode, uid_t uid, gid_t gid, size_t size,
 		 struct famfs_interleave_param *interleave_param, int verbose);

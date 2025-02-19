@@ -76,28 +76,30 @@ verify_not_mounted $DEV $MPT "$TEST.sh"
 SHADOWPATH=/tmp/shadowpath
 ${CLI} logplay --shadow -d /dev/bogodax && fail "shadow logplay should fail with bogus daxdev"
 sudo rm -rf $SHADOWPATH
-${CLI} logplay --shadow --daxdev $DEV -vv  $SHADOWPATH/frob && \
+${CLI} logplay --shadow $SHADOWPATH/frob --daxdev $DEV -vv   && \
     fail "shadow logplay to nonexistent shadow dir should fail if parent doesn't exist"
-${CLI} logplay --shadow --daxdev $DEV -vv  $SHADOWPATH || \
+${CLI} logplay --shadow $SHADOWPATH --daxdev $DEV -vv  || \
     fail "shadow logplay to nonexistent shadow dir should succeed if parent exists"
-${CLI} logplay --daxdev $DEV -vv  $SHADOWPATH && \
+${CLI} logplay --daxdev $DEV $SHADOWPATH -vv && \
     fail "logplay should fail if --daxdev is set without --shadow"
+${CLI} logplay --shadow /etc/passwd --daxdev $DEV -vv  && \
+    fail "shadow logplay to regular file should fail"
 
 sudo rm -rf $SHADOWPATH
 sudo mkdir -p $SHADOWPATH
-${CLI} logplay --shadow --daxdev $DEV -vv  $SHADOWPATH || \
+${CLI} logplay --shadow $SHADOWPATH --daxdev $DEV -vv  || \
     fail "shadow logplay to existing shadow dir should succeed"
-${CLI} logplay --shadow --daxdev $DEV -vv  $SHADOWPATH || \
+${CLI} logplay --shadow $SHADOWPATH --daxdev $DEV -vv || \
     fail "redo shadow logplay to existing shadow dir should succeed"
 
 # Double shadow arg means re-parse yaml to test (if the shadow files are not already present)
 sudo rm -rf $SHADOWPATH
-${CLI} logplay --shadow --shadow --daxdev $DEV  -vv  $SHADOWPATH || \
+${CLI} logplay --shadow $SHADOWPATH --shadowtest --daxdev $DEV  -vv  || \
     fail "shadow logplay with yaml test to existing shadow dir should succeed"
 
 sudo rm -rf /tmp/famfs2
 sudo mkdir /tmp/famfs2
-${CLI_NOSUDO} logplay --shadow --daxdev $DEV -vv /tmp/famfs2 && \
+${CLI_NOSUDO} logplay --shadow /tmp/famfs2 --daxdev $DEV -vv && \
     fail "shadow logplay to non-writable shadow dir should fail"
 sudo rm -rf /tmp/famfs2
 
@@ -137,7 +139,7 @@ FUSE_MPT="/tmp/famfs_fuse"
 sudo rm -rf $FUSE_SHADOW
 mkdir -p $FUSE_SHADOW $FUSE_MPT
 
-${CLI} logplay --shadow --daxdev $DEV  -vv  $FUSE_SHADOW || \
+${CLI} logplay --shadow $FUSE_SHADOW --daxdev $DEV  -vv || \
     fail "shadow logplay to ${FUSE_SHADOW} should succeed"
 
 ${FAMFS_FUSED} --help || fail "famfs_fused --help should succeed"

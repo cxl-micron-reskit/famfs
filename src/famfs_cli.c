@@ -67,18 +67,22 @@ famfs_logplay_usage(int   argc,
 	       "\n"
 	       "    %s logplay [args] <mount_point>\n"
 	       "\n"
-	       "    %s logplay --shadow --daxdev <daxdev> <shadowpath>\n"
+	       "    %s logplay --shadow <shadowpath> --daxdev <daxdev>\n"
+	       "\n"
+	       "    %s logplay --shadow <shadowpath> <mount_point>\n"
+	       "\n"
 	       "Arguments:\n"
 	       "    -r|--read   - Get the superblock and log via posix read\n"
 	       "    -m|--mmap   - Get the log via mmap\n"
 	       "    -c|--client - force \"client mode\" (all files read-only)\n"
 	       "    -n|--dryrun - Process the log but don't instantiate the files & directories\n"
-	       "    -S|--shadow - create a Yaml based shadow filesystem at mount_point path\n"
+	       "    -S|--shadow <path> - create a Yaml based shadow filesystem at mount_point path\n"
+	       "    -s|--shadowtest - test mode for shadow logplay\n"
 	       "    -d|--daxdev <daxdev> - dax device for shadow logplay\n"
 	       "    -v|--verbose - Verbose output\n"
 	       "\n"
 	       "\n",
-	       progname, progname);
+	       progname, progname, progname);
 }
 
 int
@@ -86,13 +90,14 @@ do_famfs_cli_logplay(int argc, char *argv[])
 {
 	int c;
 	char *fspath;
-	int shadow = 0;
 	int verbose = 0;
 	int dry_run = 0;
 	int use_mmap = 0;
 	int use_read = 0;
+	int shadowtest = 0;
 	int client_mode = 0;
 	char *daxdev = NULL;
+	char *shadowpath = NULL;
 
 	struct option logplay_options[] = {
 		/* These options set a */
@@ -101,7 +106,8 @@ do_famfs_cli_logplay(int argc, char *argv[])
 		{"read",      no_argument,             0,  'r'},
 		{"client",    no_argument,             0,  'c'},
 		{"verbose",   no_argument,             0,  'v'},
-		{"shadow",    no_argument,             0,  'S'},
+		{"shadowtest", no_argument,            0,  's'},
+		{"shadow",    required_argument,       0,  'S'},
 		{"daxdev",    required_argument,       0,  'd'},
 		{0, 0, 0, 0}
 	};
@@ -138,7 +144,16 @@ do_famfs_cli_logplay(int argc, char *argv[])
 			verbose++;
 			break;
 		case 'S':
-			shadow++;
+			if (shadowpath) {
+				fprintf(stderr,
+					"%s: don't specify more than one chadowpath\n",
+					__func__);
+				return -EINVAL;
+			}
+			shadowpath = optarg;
+			break;
+		case 's':
+			shadowtest = 1;
 			break;
 		case 'd':
 			daxdev = optarg;
@@ -157,14 +172,15 @@ do_famfs_cli_logplay(int argc, char *argv[])
 		use_mmap = 1;
 	}
 
-	if (daxdev && !shadow) {
+	if (daxdev && !shadowpath) {
 		fprintf(stderr, "Error: daxdev only used with shadow logplay\n");
 		return -1;
 	}
-	if (shadow > 1)
+	if (shadowpath)
 		printf("Logplay: running in shadow test mode\n");
 
-	if (optind > (argc - 1)) {
+	/* If there is no --daxdev, the mount point is required */
+	if (!daxdev && optind > (argc - 1)) {
 		fprintf(stderr, "Must specify mount_point "
 			"(actually any path within a famfs file system will work)\n");
 		famfs_logplay_usage(argc, argv);
@@ -173,7 +189,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	fspath = argv[optind++];
 
 	return famfs_logplay(fspath, use_mmap, dry_run, client_mode,
-			     shadow, daxdev, verbose);
+			     shadowpath, shadowtest, daxdev, verbose);
 }
 
 /********************************************************************/
@@ -318,7 +334,12 @@ do_famfs_cli_mount(int argc, char *argv[])
 		goto err_out;
 	}
 
-	rc = famfs_logplay(realmpt, use_mmap, 0, 0, 0, NULL, verbose);
+	rc = famfs_logplay(realmpt, use_mmap,
+			   0 /* not dry-run */,
+			   0 /* not client-mode */,
+			   NULL /* no shadow path */,
+			   0 /* not shadow-test */,
+			   NULL, verbose);
 
 err_out:
 	free(realdaxdev);

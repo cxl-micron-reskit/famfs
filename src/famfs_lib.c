@@ -1344,6 +1344,7 @@ __famfs_logplay(
 	int                     dry_run,
 	int                     client_mode,
 	int                     shadow,
+	int                     shadowtest,
 	enum famfs_system_role  role,
 	int			verbose)
 {
@@ -1372,7 +1373,7 @@ __famfs_logplay(
 		if (rc) {
 			rc = mkdir(mpt, 0755);
 			if (rc) {
-				fprintf(stderr, "%s: failed to create shadow mpt %s\n",
+				fprintf(stderr, "%s: failed to create shadowpath %s\n",
 					__func__, mpt);
 				return -errno;
 			}
@@ -1385,7 +1386,7 @@ __famfs_logplay(
 
 			default:
 				fprintf(stderr,
-					"%s: shadow mpt (%s) exists and is not a dir\n",
+					"%s: shadowpath (%s) exists and is not a dir\n",
 					__func__, mpt);
 				return -EINVAL;
 			}
@@ -1455,9 +1456,8 @@ __famfs_logplay(
 			realpath(fullpath, rpath);
 
 			if (shadow) {
-				int testmode = (shadow > 1) ? 1:0;
 				famfs_shadow_file_create(rpath, fm, &ls, 0, dry_run,
-							 testmode, verbose);
+							 shadowtest, verbose);
 				continue;
 			}
 
@@ -1632,9 +1632,10 @@ bad_log_fmap:
 /**
  * famfs_shadow_logplay()
  *
- * Play the log into a shadow famfs file system (for famsf_fused)
+ * Play the log into a shadow famfs file system directly from a daxdev
+ * (for famsf_fused)
  *
- * @fspath:      Root path of shadow file system
+ * @shadowpath:  Root path of shadow file system
  * @dry_run:     Parse and print but don't create shadow files / directories
  * @client_mode: Logplay as client, not master
  * @daxdev:      Dax device to map the superblock and log from
@@ -1642,7 +1643,7 @@ bad_log_fmap:
  */
 int
 famfs_shadow_logplay(
-	const char   *fspath,
+	const char   *shadowpath,
 	int           dry_run,
 	int           client_mode,
 	const char   *daxdev,
@@ -1669,9 +1670,10 @@ famfs_shadow_logplay(
 	}
 	role = (client_mode) ? FAMFS_CLIENT : famfs_get_role(sb);
 
-	rc = __famfs_logplay(fspath, sb, logp, dry_run, client_mode,
-			       1 + testmode /* shadow */,
-			       role, verbose);
+	rc = __famfs_logplay(shadowpath, sb, logp, dry_run, client_mode,
+			     1 /* shadow mode */,
+			     1 + testmode /* shadow */,
+			     role, verbose);
 	return rc;
 }
 
@@ -1690,7 +1692,8 @@ famfs_shadow_logplay(
  * @use_mmap:    Use mmap rather than reading the log into a buffer
  * @dry_run:     process the log but don't create the files & directories
  * @client_mode: for testing; play the log as if this is a client node, even on master
- * @shadow:      Play yaml files into a shadow file system (for famfs-fuse)
+ * @shadowpath:  Play yaml files into a shadow file system at this path
+ * @shadowtest:  Enable shadow test mode
  * @daxdev:      If it's a shadow logplay, get SB and log from this daxdev
  * @verbose:     verbose flag
  */
@@ -1700,7 +1703,8 @@ famfs_logplay(
 	int                     use_mmap,
 	int                     dry_run,
 	int                     client_mode,
-	int 			shadow,
+	const char             *shadowpath,
+	int                     shadowtest,
 	const char             *daxdev,
 	int                     verbose)
 {
@@ -1713,12 +1717,9 @@ famfs_logplay(
 	int lfd, sfd;
 	int rc;
 
-	if (shadow) {
-		int testmode = (shadow > 1) ? 1:0;
-
-		return famfs_shadow_logplay(fspath, dry_run, client_mode, daxdev,
-					    testmode, verbose);
-	}
+	if (shadowpath && daxdev)
+		return famfs_shadow_logplay(shadowpath, dry_run, client_mode, daxdev,
+					    shadowtest, verbose);
 
 	/* Open log from meta file */
 	lfd = open_log_file_read_only(fspath, &log_size, mpt_out, NO_LOCK);
@@ -1793,8 +1794,16 @@ famfs_logplay(
 
 	role = (client_mode) ? FAMFS_CLIENT : famfs_get_role(sb);
 
-	rc = __famfs_logplay(mpt_out, sb, logp, dry_run,
-			     client_mode, shadow, role, verbose);
+	if (shadowpath)
+		rc = __famfs_logplay(shadowpath, sb, logp, dry_run,
+				     client_mode, 1 /* Shadow mode */,
+				     shadowtest,
+				     role, verbose);
+	else
+		rc = __famfs_logplay(mpt_out, sb, logp, dry_run,
+				     client_mode, 0 /* not shadow mode */,
+				     0 /* not shadowtest mode */,
+				     role, verbose);
 err_out:
 	if (use_mmap)
 		munmap(logp, log_size);

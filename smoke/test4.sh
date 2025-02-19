@@ -79,28 +79,31 @@ verify_mounted $DEV $MPT "test4.sh mounted"
 sudo $UMOUNT $MPT || fail "test4.sh umount"
 verify_not_mounted $DEV $MPT "test4.sh"
 
-# Test shadow logplay while the fs is not mounnted
+# Test shadow logplay while the fs is not mounted
 SHADOWPATH=/tmp/shadowpath
 ${CLI} logplay --shadow -d /dev/bogodax && fail "shadow logplay should fail with bogus daxdev"
 sudo rm -rf $SHADOWPATH
-${CLI} logplay --shadow --daxdev $DEV -vv  $SHADOWPATH/frob && \
+${CLI} logplay --shadow $SHADOWPATH/frob --daxdev $DEV -vv && \
     fail "shadow logplay to nonexistent shadow dir should fail if parent doesn't exist"
-${CLI} logplay --shadow --daxdev $DEV -vv  $SHADOWPATH || \
+${CLI} logplay --shadow $SHADOWPATH --daxdev $DEV -vv  || \
     fail "shadow logplay to nonexistent shadow dir should succeed if parent exists"
 ${CLI} logplay --daxdev $DEV -vv  $SHADOWPATH && \
     fail "logplay should fail if --daxdev is set without --shadow"
 
 sudo rm -rf $SHADOWPATH
 sudo mkdir -p $SHADOWPATH
-${CLI} logplay --shadow --daxdev $DEV -vv  $SHADOWPATH || \
+${CLI} logplay --shadow $SHADOWPATH --daxdev $DEV -vv || \
     fail "shadow logplay to existing shadow dir should succeed"
-${CLI} logplay --shadow --daxdev $DEV -vv  $SHADOWPATH || \
+${CLI} logplay --shadow $SHADOWPATH --daxdev $DEV -vv || \
     fail "redo shadow logplay to existing shadow dir should succeed"
 
 # Double shadow arg means re-parse yaml to test (if the shadow files are not already present)
 sudo rm -rf $SHADOWPATH
-${CLI} logplay --shadow --shadow --daxdev $DEV  -vv  $SHADOWPATH || \
+${CLI} logplay --shadow $SHADOWPATH --shadowtest --daxdev $DEV  -vv || \
     fail "shadow logplay with yaml test to existing shadow dir should succeed"
+
+${CLI} logplay --shadow $SHADOWPATH --shadow $SHADOWPATH --daxdev $DEV  -vv && \
+    fail "shadow logplay with yaml test with duplicate shadowpaths should fail"
 
 #TODO: add some bad yaml to the yaml tree to test failures (or maybe do this in unit tests?
 
@@ -112,6 +115,9 @@ ${CLI} mount -vvv $DEV $MPT || fail "famfs mount should succeed when not mounted
 ${CLI} mount -vvv $DEV $MPT 2>/dev/null && fail "famfs mount should fail when already mounted"
 
 verify_mounted $DEV $MPT "test4.sh remount"
+
+${CLI} logplay --shadow $SHADOWPATH --shadowtest $MPT  -vv || \
+    fail "shadow logplay from mounted meta files should succeed"
 
 # check that a removed file is restored on remount
 F="$MPT/test_xfile"
