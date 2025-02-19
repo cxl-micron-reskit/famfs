@@ -89,7 +89,8 @@ famfs_dump_opts(const struct famfs_data *fd)
 	printf("    writeback=%d\n", fd->writeback);
 	printf("    flock=%d\n", fd->flock);
 	printf("    xattr=%d\n", fd->xattr);
-	printf("    source=%s\n", fd->source);
+	printf("    shadow=%s\n", fd->source);
+	printf("    daxdev=%s\n", fd->daxdev);
 	printf("    timeout=%f\n", fd->timeout);
 	printf("    cache=%d\n", fd->cache);
 	printf("    timeout_set=%d\n", fd->timeout_set);
@@ -100,7 +101,8 @@ famfs_dump_opts(const struct famfs_data *fd)
 	fuse_log(FUSE_LOG_DEBUG, "    writeback=%d\n", fd->writeback);
 	fuse_log(FUSE_LOG_DEBUG, "    flock=%d\n", fd->flock);
 	fuse_log(FUSE_LOG_DEBUG, "    xattr=%d\n", fd->xattr);
-	fuse_log(FUSE_LOG_DEBUG, "    source=%s\n", fd->source);
+	fuse_log(FUSE_LOG_DEBUG, "    shadow=%s\n", fd->source);
+	fuse_log(FUSE_LOG_DEBUG, "    daxdev=%s\n", fd->daxdev);
 	fuse_log(FUSE_LOG_DEBUG, "    timeout=%f\n", fd->timeout);
 	fuse_log(FUSE_LOG_DEBUG, "    cache=%d\n", fd->cache);
 	fuse_log(FUSE_LOG_DEBUG, "    timeout_set=%d\n", fd->timeout_set);
