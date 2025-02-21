@@ -124,6 +124,8 @@ static const struct fuse_opt famfs_opts[] = {
 	  offsetof(struct famfs_data, flock), 1 },
 	{ "no_flock",
 	  offsetof(struct famfs_data, flock), 0 },
+	{ "pass_yaml",
+	  offsetof(struct famfs_data, pass_yaml), 0 },
 	{ "timeout=%lf",
 	  offsetof(struct famfs_data, timeout), 0 },
 	{ "timeout=",
@@ -218,7 +220,7 @@ static void famfs_init(
 			 __func__);
 		if (lo->daxdev) {
 			fuse_log(FUSE_LOG_NOTICE,
-				 "%s: ENABLING DAX_IOMAP (no daxdev)\n", __func__);
+				 "%s: ENABLING DAX_IOMAP\n", __func__);
 			conn->want |= FUSE_CAP_DAX_IOMAP;
 		} else {
 			fuse_log(FUSE_LOG_NOTICE,
@@ -590,37 +592,40 @@ famfs_do_lookup(
 		fuse_log(FUSE_LOG_DEBUG, "               : inode=%d is a directory\n",
 			 e->attr.st_ino);
 	} else if (S_ISREG(st.st_mode)) {
-#if 1
-		void *yaml_buf;
-		ssize_t yaml_size;
-		ino_t ino = st.st_ino; /* Inode number from file, not yaml */
+		if (lo->pass_yaml) {
+			/* This exposes the yaml files directly */
+			e->attr = st;
+		} else {
+			void *yaml_buf;
+			ssize_t yaml_size;
+			ino_t ino = st.st_ino; /* Inode number from file, not yaml */
 
-		/* XXX: close and reopen now that we know it's a regular file */
-		close(newfd);
-		/* famfs: drop O_PATH so we can read the shadow yaml contents */
-		newfd = openat(parentfd, name, O_NOFOLLOW, O_RDONLY);
-		if (newfd == -1) {
-			goto out_err;
-		}
+			/* XXX: close and reopen now that we know it's a regular file */
+			close(newfd);
+			/* famfs: drop O_PATH so we can read the shadow yaml contents */
+			newfd = openat(parentfd, name, O_NOFOLLOW, O_RDONLY);
+			if (newfd == -1) {
+				goto out_err;
+			}
 		
-		yaml_buf = famfs_read_fd_to_buf(newfd, FAMFS_YAML_MAX, &yaml_size, 1);
-		if (!yaml_buf) {
-			fuse_log(FUSE_LOG_ERR, "failed to read to yaml_buf\n");
-			goto out_err;
+			yaml_buf = famfs_read_fd_to_buf(newfd, FAMFS_YAML_MAX,
+							&yaml_size, 1);
+			if (!yaml_buf) {
+				fuse_log(FUSE_LOG_ERR, "failed to read to yaml_buf\n");
+				goto out_err;
+			}
+
+			fmeta = calloc(1, sizeof(*fmeta));
+			if (!fmeta)
+				goto out_err;
+
+			/* Famfs populates the stat struct from the shadow yaml */
+			res = famfs_shadow_to_stat(yaml_buf, yaml_size, &st,
+						   &e->attr, fmeta, 1);
+			if (res)
+				goto out_err;
+			st.st_ino = ino;
 		}
-
-		fmeta = calloc(1, sizeof(*fmeta));
-		if (!fmeta)
-			goto out_err;
-
-		/* Famfs populates the stat struct from the shadow yaml */
-		res = famfs_shadow_to_stat(yaml_buf, yaml_size, &st, &e->attr, fmeta, 1);
-		if (res)
-			goto out_err;
-		st.st_ino = ino;
-#endif
-		/* This exposes the yaml files directly */
-		e->attr = st;
 
 		fuse_log(FUSE_LOG_DEBUG, "               : inode=%d is a file\n",
 			e->attr.st_ino);
@@ -726,7 +731,7 @@ famfs_get_fmap(
 	inode = famfs_find(famfs_data(req), ino);
 	if (!inode) {
 		fuse_log(FUSE_LOG_ERR, "%s: inode 0x%lx not found\n", __func__, ino);
-		err = -EINVAL;
+		err = EINVAL;
 		goto out_err;
 	}
 
@@ -769,16 +774,18 @@ famfs_get_daxdev(
 	struct fuse_daxdev_out daxdev;
 	int err = 0;
 
+	fuse_log(FUSE_LOG_NOTICE, "%s: daxdev_index=%d\n", __func__);
 	memset(&daxdev, 0, sizeof(daxdev));
 
 	/* Fill in daxdev struct */
 	if (daxdev_index != 0) {
 		fuse_log(FUSE_LOG_ERR, "%s: non-zero daxdev index\n", __func__);
-		err = -EINVAL;
+		err = EINVAL;
 		goto out_err;
 	}
 	if (!fd->dax_enabled) {
 		fuse_log(FUSE_LOG_ERR, "%s: dax not enabled\n", __func__);
+		err = EOPNOTSUPP;
 		goto out_err;
 	}
 
@@ -1620,7 +1627,7 @@ int main(int argc, char *argv[])
 	famfs_data.flock = 1; /* Need flock for log locking on master node */
 	famfs_data.xattr = 0;
 	famfs_data.cache = CACHE_NORMAL;
-	famfs_data.pass_yaml = 1;
+	famfs_data.pass_yaml = 0;
 
 	/*fuse_set_log_func(fused_syslog); */
 	fuse_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
