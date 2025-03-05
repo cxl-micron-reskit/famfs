@@ -507,9 +507,9 @@ yaml_event_str(int event_type)
 static int
 famfs_parse_file_simple_ext_list(
 	yaml_parser_t *parser,
-	//struct famfs_log_file_meta *fm,
-	struct famfs_log_fmap *fmap,
+	struct famfs_simple_extent *se,
 	int max_extents,
+	int *nparsed_out,
 	int verbose)
 {
 	yaml_event_t event;
@@ -551,7 +551,7 @@ famfs_parse_file_simple_ext_list(
 				got_ofs = 1;
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
-				fmap->se[ext_index].se_offset =
+				se[ext_index].se_offset =
 					strtoull((char *)val_event.data.scalar.value, 0, 0);
 				yaml_event_delete(&val_event);
 			} else if (strcmp(current_key, "length") == 0) {
@@ -559,14 +559,14 @@ famfs_parse_file_simple_ext_list(
 				got_len = 1;
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
-				fmap->se[ext_index].se_len =
+				se[ext_index].se_len =
 					strtoull((char *)val_event.data.scalar.value, 0, 0);
 				yaml_event_delete(&val_event);
 			} else if (strcmp(current_key, "devindex") == 0) {
 				/* devindex */
 				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
-				fmap->se[ext_index].se_devindex =
+				se[ext_index].se_devindex =
 					strtoull((char *)val_event.data.scalar.value, 0, 0);
 				yaml_event_delete(&val_event);
 
@@ -618,6 +618,7 @@ famfs_parse_file_simple_ext_list(
 	}
 	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_END_EVENT, rc, err_out, verbose);
 err_out:
+	*nparsed_out = ext_index;
 
 	return rc;
 }
@@ -681,13 +682,37 @@ famfs_parse_file_striped_ext_list(
 							__func__,
 							fm->fm_fmap.ie[ext_index].ie_nstrips);
 			} else  if (strcmp(current_key, "simple_ext_list") == 0) {
+				int nparsed = 0;
 				/* strips (list) */
 
 				/* The strip extent list is the same as a simple extent
 				 * list, but with the max_strips limit instead of
 				 * max_extents... */
-				rc = famfs_parse_file_simple_ext_list(parser, &fm->fm_fmap,
-						     max_strips, verbose);
+				rc = famfs_parse_file_simple_ext_list(parser,
+					      fm->fm_fmap.ie[ext_index].ie_strips,
+					      max_strips, &nparsed, verbose);
+
+				if (rc) {
+					fprintf(stderr,
+						"%s: error parsing simple ext list\n",
+						__func__);
+					goto err_out;
+				}
+
+				if (nparsed != fm->fm_fmap.ie[ext_index].ie_nstrips) {
+					fprintf(stderr,
+						"%s: chunk_size=0x%llx idx=%d\n",
+						__func__,
+						fm->fm_fmap.ie[ext_index].ie_chunk_size,
+						ext_index);
+					fprintf(stderr,
+						"%s: expect %lld strips, found %d\n",
+						__func__,
+						fm->fm_fmap.ie[ext_index].ie_nstrips,
+						nparsed);
+					rc = -EINVAL;
+					goto err_out;
+				}
 
 				/* After we get the strip extents, bump the ext_index */
 				ext_index++;
@@ -822,15 +847,30 @@ famfs_parse_file_yaml(
 				if (verbose > 1) printf("%s: nextents: %d\n",
 							__func__, fm->fm_fmap.fmap_nextents);
 			} else if (strcmp(current_key, "simple_ext_list") == 0) {
+				int nparsed;
 				/* simple_ext_list */
-				fm->ext_type = FAMFS_EXT_SIMPLE;
-				rc = famfs_parse_file_simple_ext_list(parser, &fm->fm_fmap,
-								      max_extents, verbose);
-				if (rc)
+				fm->fm_fmap.fmap_ext_type = FAMFS_EXT_SIMPLE;
+				rc = famfs_parse_file_simple_ext_list(parser,
+						      fm->fm_fmap.se,
+						      max_extents, &nparsed, verbose);
+				if (rc) {
+					fprintf(stderr,
+						"%s: error parsing simple ext list\n",
+						__func__);
 					goto err_out;
+				}
+				if (nparsed != fm->fm_fmap.fmap_nextents) {
+					fprintf(stderr,
+						"%s: expect %d extents, found %d\n",
+						__func__, fm->fm_fmap.fmap_nextents,
+						nparsed);
+					rc = -EINVAL;
+					goto err_out;
+
+				}
 			} else if (strcmp(current_key, "striped_ext_list") == 0) {
 				/* striped_ext_list */
-				fm->ext_type = FAMFS_EXT_INTERLEAVE;
+				fm->fm_fmap.fmap_ext_type = FAMFS_EXT_INTERLEAVE;
 				rc = famfs_parse_file_striped_ext_list(parser, fm, max_extents,
 								       max_strips, verbose);
 				if (rc)

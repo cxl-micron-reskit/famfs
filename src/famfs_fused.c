@@ -499,7 +499,7 @@ famfs_shadow_to_stat(
 	}
 
 	fuse_log(FUSE_LOG_NOTICE, "%s: ext_type=%d\n",
-		 __func__, fmeta.ext_type);
+		 __func__, fmeta.fm_fmap.fmap_ext_type);
 
 	/* Fields we don't provide */
 	stat_out->st_dev     = shadow_stat->st_dev;
@@ -722,7 +722,7 @@ famfs_do_lookup(
 
 	fuse_log(FUSE_LOG_NOTICE, "%s: ino=%lld ext_type=%d\n",
 		 __func__, (long long)e->ino,
-		 (inode->fmeta) ? inode->fmeta->ext_type : -1);
+		 (inode->fmeta) ? inode->fmeta->fm_fmap.fmap_ext_type : -1);
 
 	if (famfs_debug(req))
 		fuse_log(FUSE_LOG_DEBUG, "  %lli/%s -> %lli\n",

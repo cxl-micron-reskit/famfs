@@ -132,7 +132,7 @@ struct famfs_interleaved_ext {
  * proper omf (on-media format) implementation.
  */
 struct famfs_log_fmap {
-	u32 fmap_ext_type; /* enum famfs_log_ext_type */
+	u32 fmap_ext_type; /* enum famfs_log_ext_type */ /* XXX unused? */
 	union {
 		struct {
 			u32 fmap_nextents;
@@ -180,7 +180,7 @@ struct famfs_log_file_meta {
 	mode_t  fm_mode;
 
 	u8      fm_relpath[FAMFS_MAX_PATHLEN];
-	u8      ext_type;
+	//u8      ext_type;
 	struct  famfs_log_fmap fm_fmap;
 };
 

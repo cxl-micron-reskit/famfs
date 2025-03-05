@@ -27,6 +27,7 @@
 #include <linux/ioctl.h>
 #include <linux/famfs_ioctl.h>
 
+#include "famfs_lib.h"
 #include "famfs_meta.h"
 #include "famfs_fmap.h"
 #include "fuse_kernel.h"
@@ -212,11 +213,25 @@ famfs_log_file_meta_to_msg(
 
 	flh->fmap_version = FAMFS_FMAP_VERSION;
 	flh->file_type = file_type;
-	flh->ext_type = log_fmap->fmap_ext_type;
+	//flh->ext_type = log_fmap->fmap_ext_type;
+	flh->ext_type = fmeta->fm_fmap.fmap_ext_type;
 	flh->file_size = fmeta->fm_size;
+	switch (flh->ext_type) {
+	case FAMFS_EXT_SIMPLE:
+		flh->nextents = fmeta->fm_fmap.fmap_nextents;
+		break;
+	case FAMFS_EXT_INTERLEAVE:
+		flh->nextents = fmeta->fm_fmap.fmap_niext;
+		break;
+	default:
+		goto err_out;
+	}
 
 	cursor += sizeof(*flh);
 
+	printf("%s: size=%ld ext_type=%d nextents=%d\n",
+	       __func__, flh->file_size, flh->ext_type, flh->nextents);
+	famfs_emit_file_yaml(fmeta, stdout); /* needs famfs_lib.h */
 	switch (log_fmap->fmap_ext_type) {
 	case FUSE_FAMFS_EXT_SIMPLE: {
 		struct fuse_famfs_simple_ext *se = (struct fuse_famfs_simple_ext *)&msg[cursor];
@@ -224,7 +239,7 @@ famfs_log_file_meta_to_msg(
 
 		cursor += ext_list_size;
 		if (cursor > msg_size)
-			goto overflow_out;
+			goto err_out;
 
 		flh->nextents = log_fmap->fmap_nextents;
 
@@ -246,7 +261,7 @@ famfs_log_file_meta_to_msg(
 		for (i = 0; i < log_fmap->fmap_niext; i++) {
 			cursor += sizeof(*ie);
 			if (cursor > msg_size)
-				goto overflow_out;
+				goto err_out;
 
 			/* Interleaved extent header into msg */
 			memset(ie, 0, sizeof(*ie));
@@ -255,14 +270,19 @@ famfs_log_file_meta_to_msg(
 			ie[i].ie_chunk_size = log_fmap->ie[i].ie_chunk_size;
 			ie[i].ie_nbytes = log_fmap->ie[i].ie_nbytes;
 
+			printf("%s: ie[%d] nstrips=%d chunk=%d nbytes=%ld\n",
+			       __func__, i, ie[i].ie_nstrips, ie[i].ie_chunk_size,
+			       ie[i].ie_nbytes);
 			se = (struct fmap_simple_ext *)&msg[cursor];
 
 			cursor += ie[i].ie_nstrips * sizeof(*se);
 			if (cursor > msg_size)
-				goto overflow_out;
+				goto err_out;
 
 			memset(se, 0, ie[i].ie_nstrips * sizeof(*se));
 
+			printf("%s: interleaved ext %d: strips=%d\n",
+			       __func__, i, ie[i].ie_nstrips);
 			/* Strip extents into msg */
 			for (j = 0; j < ie[i].ie_nstrips; j++) {
 				const struct famfs_simple_extent *strips =
@@ -285,7 +305,7 @@ famfs_log_file_meta_to_msg(
 
 	return cursor;
 
-overflow_out:
+err_out:
 #if 0
 	fuse_log(FUSE_LOG_ERR, "%s: buffer overflow\n",
 		 __func__);
