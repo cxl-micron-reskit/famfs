@@ -199,9 +199,11 @@ famfs_log_file_meta_to_msg(
 	char *msg,
 	int msg_size,
 	int file_type,
-	const struct famfs_log_fmap *log_fmap)
+	const struct famfs_log_file_meta *fmeta)
+//	const struct famfs_log_fmap *log_fmap)
 {
 	struct fuse_famfs_fmap_header *flh = (struct fuse_famfs_fmap_header *)msg;
+	const struct famfs_log_fmap *log_fmap = &fmeta->fm_fmap;
 	int cursor = 0;
 	int i, j;
 
@@ -211,6 +213,7 @@ famfs_log_file_meta_to_msg(
 	flh->fmap_version = FAMFS_FMAP_VERSION;
 	flh->file_type = file_type;
 	flh->ext_type = log_fmap->fmap_ext_type;
+	flh->file_size = fmeta->fm_size;
 
 	cursor += sizeof(*flh);
 

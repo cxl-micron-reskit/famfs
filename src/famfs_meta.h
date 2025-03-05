@@ -85,8 +85,8 @@ enum famfs_system_role {
 /* Extent types */
 
 enum famfs_log_ext_type {
-	FAMFS_EXT_SIMPLE,
-	FAMFS_EXT_INTERLEAVE,
+	FAMFS_EXT_SIMPLE=0,
+	FAMFS_EXT_INTERLEAVE=1,
 };
 
 /* Maximum number of extents in a FC extent list */

@@ -70,7 +70,7 @@ struct famfs_data {
 	int flock;
 	int xattr;
 	char *source;
-	int dax_enabled;
+	//int dax_enabled;
 	char *daxdev;
 	int max_daxdevs;
 	struct famfs_daxdev *daxdev_table;
@@ -78,6 +78,7 @@ struct famfs_data {
 	int cache;
 	int timeout_set;
 	int pass_yaml; /* pass the shadow yaml through */
+	int readdirplus;
 	struct famfs_inode root; /* protected by ->mutex */
 };
 
@@ -109,6 +110,9 @@ famfs_dump_opts(const struct famfs_data *fd)
 	fuse_log(FUSE_LOG_DEBUG, "    pass_yaml=%d\n", fd->pass_yaml);
 }
 
+/*
+ * These are the "-o" opts
+ */
 static const struct fuse_opt famfs_opts[] = {
 	{ "writeback",
 	  offsetof(struct famfs_data, writeback), 1 },
@@ -136,6 +140,10 @@ static const struct fuse_opt famfs_opts[] = {
 	  offsetof(struct famfs_data, cache), CACHE_NORMAL },
 	{ "cache=always",
 	  offsetof(struct famfs_data, cache), CACHE_ALWAYS },
+	{ "readdirplus",
+	  offsetof(struct famfs_data, readdirplus), 1 },
+	{ "no_readdirplus",
+	  offsetof(struct famfs_data, readdirplus), 0 },
 
 	FUSE_OPT_END
 };
@@ -490,6 +498,9 @@ famfs_shadow_to_stat(
 		return rc;
 	}
 
+	fuse_log(FUSE_LOG_NOTICE, "%s: ext_type=%d\n",
+		 __func__, fmeta.ext_type);
+
 	/* Fields we don't provide */
 	stat_out->st_dev     = shadow_stat->st_dev;
 	stat_out->st_rdev    = shadow_stat->st_rdev;
@@ -549,6 +560,22 @@ int fuse_reply_famfs_entry(
 #endif
 
 static int
+famfs_check_inode(
+	struct famfs_inode *inode,
+	struct famfs_log_file_meta *fmeta,
+	struct fuse_entry_param *e)
+{
+	/* e->attr is struct stat */
+
+	/* XXX make sure the inode and stat match as to the following:
+	 * * Same type (file, directory, etc.)
+	 * * Same fmap
+	 * * What else?...
+	 */
+	return 0;
+}
+
+static int
 famfs_do_lookup(
 	fuse_req_t req,
 	fuse_ino_t parent,
@@ -600,9 +627,10 @@ famfs_do_lookup(
 			ssize_t yaml_size;
 			ino_t ino = st.st_ino; /* Inode number from file, not yaml */
 
-			/* XXX: close and reopen now that we know it's a regular file */
+			/* Now that we know it's a regular file, we must
+			 * close and re-open without O_PATH to get to the
+			 * shadow yaml */
 			close(newfd);
-			/* famfs: drop O_PATH so we can read the shadow yaml contents */
 			newfd = openat(parentfd, name, O_NOFOLLOW, O_RDONLY);
 			if (newfd == -1) {
 				goto out_err;
@@ -633,14 +661,26 @@ famfs_do_lookup(
 		fuse_log(FUSE_LOG_DEBUG,
 			 "               : inode=%d is neither file nor dir\n",
 			 e->attr.st_ino);
+		saverr = ENOENT;
+		goto out_err;
 	}
 
 	inode = famfs_find(famfs_data(req), e->attr.st_ino);
 	if (inode) {
+		int rc;
+
 		fuse_log(FUSE_LOG_DEBUG, "               : inode=%d already cached\n",
 			e->attr.st_ino);
 		close(newfd);
 		newfd = -1;
+		rc = famfs_check_inode(inode, fmeta, e);
+		if (rc) {
+			/* Recover by replacing the stale metadata... */
+			if (inode->fmeta) {
+				free(inode->fmeta);
+				inode->fmeta = NULL;
+			}
+		}
 		if (!inode->fmeta && S_ISREG(st.st_mode)) {
 			fuse_log(FUSE_LOG_ERR, "%s: null fmeta for ino=%ld; populating\n",
 				 __func__, e->attr.st_ino);
@@ -664,7 +704,7 @@ famfs_do_lookup(
 		inode->fd = newfd;
 		inode->ino = e->attr.st_ino;
 		inode->dev = e->attr.st_dev;
-		inode->fmeta = fmeta;
+		inode->fmeta = fmeta; /* fmeta is NULL if this is s directory */
 
 		pthread_mutex_lock(&lo->mutex);
 		prev = &lo->root;
@@ -675,9 +715,14 @@ famfs_do_lookup(
 		prev->next = inode;
 		pthread_mutex_unlock(&lo->mutex);
 	}
+
 	e->ino = (uintptr_t) inode;
 	if (fmeta_out)
 		*fmeta_out = inode->fmeta;
+
+	fuse_log(FUSE_LOG_NOTICE, "%s: ino=%lld ext_type=%d\n",
+		 __func__, (long long)e->ino,
+		 (inode->fmeta) ? inode->fmeta->ext_type : -1);
 
 	if (famfs_debug(req))
 		fuse_log(FUSE_LOG_DEBUG, "  %lli/%s -> %lli\n",
@@ -744,7 +789,7 @@ famfs_get_fmap(
 	/* XXX: FUSE_FAMFS_FILE_REG - mark sb and log correctly */
 	fmap_size = famfs_log_file_meta_to_msg(fmap_message, FMAP_MSG_MAX,
 					       FUSE_FAMFS_FILE_REG,
-					       &(inode->fmeta->fm_fmap));
+					       inode->fmeta);
 	if (fmap_size <= 0) {
 		/* Send reply without fmap */
 		fuse_log(FUSE_LOG_ERR, "%s: %ld error putting fmap in message\n",
@@ -774,7 +819,7 @@ famfs_get_daxdev(
 	struct fuse_daxdev_out daxdev;
 	int err = 0;
 
-	fuse_log(FUSE_LOG_NOTICE, "%s: daxdev_index=%d\n", __func__);
+	fuse_log(FUSE_LOG_NOTICE, "%s: daxdev_index=%d\n", __func__, daxdev_index);
 	memset(&daxdev, 0, sizeof(daxdev));
 
 	/* Fill in daxdev struct */
@@ -783,7 +828,7 @@ famfs_get_daxdev(
 		err = EINVAL;
 		goto out_err;
 	}
-	if (!fd->dax_enabled) {
+	if (!fd->daxdev) {
 		fuse_log(FUSE_LOG_ERR, "%s: dax not enabled\n", __func__);
 		err = EOPNOTSUPP;
 		goto out_err;
@@ -1048,8 +1093,8 @@ famfs_do_readdir(
 
 	(void) ino;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%ld size=%ld ofs=%ld\n",
-		  __func__, ino, size, offset);
+	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%ld size=%ld ofs=%ld plus=%d\n",
+		 __func__, ino, size, offset, plus);
 
 	buf = calloc(1, size);
 	if (!buf) {
@@ -1146,6 +1191,7 @@ famfs_readdir(
 	famfs_do_readdir(req, ino, size, offset, fi, 0);
 }
 
+#if 0
 static void
 famfs_readdirplus(
 	fuse_req_t req,
@@ -1154,10 +1200,18 @@ famfs_readdirplus(
 	off_t offset,
 	struct fuse_file_info *fi)
 {
+#if 1
+	/* famfs doesn't support readdirplus; there is no advantage since
+	 * each Lookup must subsequently do a get_fmap
+	 */
+	fuse_reply_err(req, ENOSYS);
+#else
 	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%ld size=%ld offset=%ld\n",
 		  __func__, ino, size, offset);
 	famfs_do_readdir(req, ino, size, offset, fi, 1);
+#endif
 }
+#endif
 
 static void
 famfs_releasedir(
@@ -1384,7 +1438,7 @@ famfs_fallocate(
 {
 #if 1
 	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
-	fuse_reply_err(req, ENOTSUP);
+	fuse_reply_err(req, EOPNOTSUPP);
 #else
 	int err = EOPNOTSUPP;
 	(void) ino;
@@ -1561,7 +1615,7 @@ static const struct fuse_lowlevel_ops famfs_oper = {
 	.forget_multi	= famfs_forget_multi,
 	.flock		= famfs_flock,
 	.fallocate	= famfs_fallocate,
-	.readdirplus	= famfs_readdirplus,
+	//.readdirplus	= famfs_readdirplus,
 #ifdef HAVE_COPY_FILE_RANGE
 	.copy_file_range = famfs_copy_file_range,
 #endif
@@ -1668,13 +1722,6 @@ int main(int argc, char *argv[])
 		goto err_out1;
 	}
 
-	if (famfs_data.daxdev) {
-		famfs_data.daxdev_table = calloc(MAX_DAXDEVS,
-						 sizeof(*famfs_data.daxdev_table));
-		strncpy(famfs_data.daxdev_table[0].dd_daxdev,
-			famfs_data.daxdev, FAMFS_DEVNAME_LEN - 1);
-	}
-
 	/*
 	 * This parses famfs_data from the -o opts
 	 */
@@ -1688,6 +1735,14 @@ int main(int argc, char *argv[])
 		 famfs_data.source, opts.mountpoint);
 
 	famfs_dump_opts(&famfs_data);
+
+	if (famfs_data.daxdev) {
+		/* Store the primary daxdev in slot 0 of the daxdev_table... */
+		famfs_data.daxdev_table = calloc(MAX_DAXDEVS,
+						 sizeof(*famfs_data.daxdev_table));
+		strncpy(famfs_data.daxdev_table[0].dd_daxdev,
+			famfs_data.daxdev, FAMFS_DEVNAME_LEN - 1);
+	}
 
 	if (famfs_data.source) {
 		struct stat stat;

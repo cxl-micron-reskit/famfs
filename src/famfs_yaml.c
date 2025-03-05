@@ -823,12 +823,14 @@ famfs_parse_file_yaml(
 							__func__, fm->fm_fmap.fmap_nextents);
 			} else if (strcmp(current_key, "simple_ext_list") == 0) {
 				/* simple_ext_list */
+				fm->ext_type = FAMFS_EXT_SIMPLE;
 				rc = famfs_parse_file_simple_ext_list(parser, &fm->fm_fmap,
 								      max_extents, verbose);
 				if (rc)
 					goto err_out;
 			} else if (strcmp(current_key, "striped_ext_list") == 0) {
 				/* striped_ext_list */
+				fm->ext_type = FAMFS_EXT_INTERLEAVE;
 				rc = famfs_parse_file_striped_ext_list(parser, fm, max_extents,
 								       max_strips, verbose);
 				if (rc)
