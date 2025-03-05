@@ -239,6 +239,9 @@ ${pcq} --info $MPT/q4                        || fail "empty pcq info 4"
 
 unlink "$STATUSFILE"
 
+mkdir -p ~/smoke.shadow
+${CLI} logplay --shadow ~/smoke.shadow/test_pcq.shadow $MPT
+
 set +x
 echo "======================================================================"
 echo " test_pcq.sh: success!"

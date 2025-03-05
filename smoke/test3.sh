@@ -140,6 +140,9 @@ ${CLI} verify -S 1 -f $MPT/ddtest || fail "verify ddfile should succeed since co
 
 ${CLI} fsck $MPT || fail "fsck should succeed - no cross links yet"
 
+mkdir -p ~/smoke.shadow
+${CLI} logplay --shadow ~/smoke.shadow/test3.shadow $MPT
+
 set +x
 echo "*************************************************************************"
 echo "test3 completed successfully"

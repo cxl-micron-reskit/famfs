@@ -156,6 +156,9 @@ ${CLI} mount $DEV $MPT      || fail "famfs mount should succeed after kmod reloa
 ${CLI} mount -R $DEV $MPT   || fail "famfs mount -R should succeed when nothing is hinky"
 # mount -R needs mkmeta cleanup...
 
+mkdir -p ~/smoke.shadow
+${CLI} logplay --shadow ~/smoke.shadow/test4.shadow $MPT
+
 sudo $UMOUNT $MPT # run_smoke.sh expects the file system unmounted after this test
 ${CLI} mount $DEV $MPT || fail "last famfs mount should succeed"
 set +x

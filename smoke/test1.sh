@@ -358,6 +358,9 @@ ${CLI} fsck -rm $MPT && fail "fsck -r -m $MPT should fail"
 
 sudo cmp $MPT/bigtest0 $MPT/bigtest0_cp       || fail "copies should match"
 
+mkdir -p ~/smoke.shadow
+${CLI} logplay --shadow ~/smoke.shadow/test1.shadow $MPT
+
 set +x
 echo "*************************************************************************"
 echo "test1 completed successfully"

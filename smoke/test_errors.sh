@@ -130,6 +130,9 @@ verify_not_mounted $DEV $MPT "umount should have worked after redundant mounts"
 
 ${CLI} mount $DEV $MPT       || fail "basic mount should succeed"
 
+mkdir -p ~/smoke.shadow
+${CLI} logplay --shadow ~/smoke.shadow/test_errors.shadow $MPT
+
 #sudo $UMOUNT $MPT || fail "umount"
 
 set +x

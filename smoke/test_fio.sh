@@ -82,6 +82,9 @@ $REALSCRIPTS/stress_fio.sh \
 		       -p $TESTDIR \
 		       -j 4 || fail "test_fio failed"
 
+mkdir -p ~/smoke.shadow
+${CLI} logplay --shadow ~/smoke.shadow/test_fio.shadow $MPT
+
 set +x
 echo "*************************************************************************"
 echo "$TEST completed successfully"

@@ -255,6 +255,9 @@ ${CLI} fsck -?   || fail "fsck -h should succeed"x
 ${CLI} fsck $MPT || fail "fsck should succeed"
 ${CLI} fsck --human $MPT || fail "fsck --human should succeed"
 
+mkdir -p ~/smoke.shadow
+${CLI} logplay --shadow ~/smoke.shadow/test0.shadow $MPT
+
 set +x
 echo "*************************************************************************"
 echo "test0 completed successfully"

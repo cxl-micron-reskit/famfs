@@ -110,6 +110,9 @@ verify_mounted $DEV $MPT "test1.sh"
 
 sudo cmp $MPT/bigtest10 $MPT/bigtest11        && fail "files should not match"
 
+mkdir -p ~/smoke.shadow
+${CLI} logplay --shadow ~/smoke.shadow/test2.shadow $MPT
+
 set +x
 echo "*************************************************************************"
 echo "test2 completed successfully"

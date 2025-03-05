@@ -202,6 +202,9 @@ echo 3 | sudo tee /proc/sys/vm/drop_caches
 # work thorugh permissions of different mount types here
 #find $FUSE_MPT || fail "Find to recursively list fuse should succeed"
 
+mkdir -p ~/smoke.shadow
+${CLI} logplay --shadow ~/smoke.shadow/test_shadow_yaml.shadow $MPT
+
 umount $FUSE_MPT
 
 set +x

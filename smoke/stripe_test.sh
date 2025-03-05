@@ -266,6 +266,9 @@ famfs_recreate -d "$DEV" -b "$BIN"
 (( NFILES = 8 ))
 stripe_test_cp "$SIZE" "$CHUNKSIZE" "$NSTRIPS" "$NBUCKETS" 42 "$NFILES"
 
+mkdir -p ~/smoke.shadow
+${CLI} logplay --shadow ~/smoke.shadow/stripe_test.shadow $MPT
+
 # TODO: print some stats on how much stranded space remained
 
 set +x
