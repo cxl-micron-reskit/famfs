@@ -1481,50 +1481,6 @@ famfs_flock(
 	fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
-static void
-famfs_getxattr(
-	fuse_req_t req,
-	fuse_ino_t ino,
-	const char *name,
-	size_t size)
-{
-	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
-	fuse_reply_err(req, ENOTSUP);
-}
-
-static void
-famfs_listxattr(
-	fuse_req_t req,
-	fuse_ino_t ino,
-	size_t size)
-{
-	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
-	fuse_reply_err(req, ENOTSUP);
-}
-
-static void
-famfs_setxattr(
-	fuse_req_t req,
-	fuse_ino_t ino,
-	const char *name,
-	const char *value,
-	size_t size,
-	int flags)
-{
-	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
-	fuse_reply_err(req, ENOTSUP);
-}
-
-static void
-famfs_removexattr(
-	fuse_req_t req,
-	fuse_ino_t ino,
-	const char *name)
-{
-	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
-	fuse_reply_err(req, ENOTSUP);
-}
-
 #ifdef HAVE_COPY_FILE_RANGE
 static void
 famfs_copy_file_range(
@@ -1600,10 +1556,10 @@ static const struct fuse_lowlevel_ops famfs_oper = {
 	.releasedir	= famfs_releasedir,
 	.fsyncdir	= famfs_fsyncdir,
 	.statfs		= famfs_statfs,
-	.setxattr	= famfs_setxattr,
-	.getxattr	= famfs_getxattr,
-	.listxattr	= famfs_listxattr,
-	.removexattr	= famfs_removexattr,
+	/* .setxattr */
+	/* .getxattr */
+	/* .listxattr */
+	/* .removexattr */
 	/* .access */
 	.create		= famfs_create,
 	/* .getlk */
