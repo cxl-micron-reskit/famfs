@@ -200,7 +200,7 @@ file_not_famfs(const char *fname)
 }
 
 static int
-file_has_map(int fd)
+file_has_v1_map(int fd)
 {
 	struct famfs_ioc_map filemap = {0};
 	int rc;
@@ -1086,7 +1086,7 @@ __famfs_mkmeta(
 			return -1;
 		}
 
-		if (file_has_map(sbfd)) {
+		if (file_has_v1_map(sbfd)) {
 			fprintf(stderr, "%s: found valid superblock file; doing nothing\n",
 				__func__);
 		} else {
@@ -1151,7 +1151,7 @@ __famfs_mkmeta(
 			return -1;
 		}
 
-		if (file_has_map(logfd)) {
+		if (file_has_v1_map(logfd)) {
 			fprintf(stderr, "%s: found valid log file; doing nothing\n", __func__);
 		} else {
 			ext.se_offset = sb->ts_log_offset;
