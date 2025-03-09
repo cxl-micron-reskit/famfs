@@ -2093,6 +2093,18 @@ __open_relpath(
 				fd = open(fullpath, openmode, 0);
 				free(rpath);
 
+				/* Check whether the file we found is actually in famfs;
+				 * Unit tests can disable this check but production code
+				 * should not.
+				 */
+				if (!no_fscheck && __file_not_famfs(fd)) {
+					fprintf(stderr,
+						"%s: found file %s but it is not in famfs\n",
+						__func__, fullpath);
+					close(fd);
+					return -1;
+				}
+
 				if (lockopt) {
 					int operation = LOCK_EX;
 
@@ -2105,17 +2117,6 @@ __open_relpath(
 						close(fd);
 						return -1;
 					}
-				}
-				/* Check whether the file we found is actually in famfs;
-				 * Unit tests can disable this check but production code
-				 * should not.
-				 */
-				if (!no_fscheck && __file_not_famfs(fd)) {
-					fprintf(stderr,
-						"%s: found file %s but it is not in famfs\n",
-						__func__, fullpath);
-					close(fd);
-					return -1;
 				}
 				return fd;
 			}
