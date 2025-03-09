@@ -22,9 +22,22 @@
 
 #define STATIC_ASSERT(cond, msg) typedef char static_assertion_##msg[(cond) ? 1 : -1]
 
-#define FAMFS_SUPER_MAGIC      0x87b282ff
+
+/* FAMFS_SUPER_MAGIC     - the magic number at the base of a dax device;
+ * FAMFS_STATFS_MAGIC_V1 - returned by statfs for standalone famfs
+ * FAMFS_STATFS_MAGIC    - returned by statfs for fuse-based famfs
+ */
+#ifndef FAMFS_SUPER_MAGIC
+#define FAMFS_SUPER_MAGIC      0x87b282ff /* on-media (memory) superblock magic number*/
+#endif
+#ifndef FAMFS_STATFS_MAGIC_V1
+#define FAMFS_STATFS_MAGIC_V1  0x87b282fe /* v1 statfs magic number*/
+#endif
+#ifndef FAMFS_STATFS_MAGIC
+#define FAMFS_STATFS_MAGIC     0x87b282fd /* fuse statfs magic number*/
+#endif
+
 #define FAMFS_CURRENT_VERSION  47
-//#define FAMFS_MAX_DAXDEVS      64
 
 #define FAMFS_LOG_OFFSET    0x200000 /* 2MiB */
 #define FAMFS_LOG_LEN       0x800000 /* 8MiB */

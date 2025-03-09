@@ -29,7 +29,9 @@
 #include <zlib.h>
 #include <sys/file.h>
 #include <dirent.h>
+#include <sys/statfs.h>
 #include <linux/famfs_ioctl.h>
+#include <linux/magic.h>
 
 #include "famfs_meta.h"
 #include "famfs_lib.h"
@@ -68,6 +70,35 @@ static int famfs_mmap_superblock_and_log_raw(const char *devname,
 					     int read_only);
 static int open_superblock_file_read_only(const char *path, size_t  *sizep, char *mpt_out);
 static char *famfs_relpath_from_fullpath(const char *mpt, char *fullpath);
+
+/* famfs v2 stuff (dual standalone / fuse) */
+
+enum famfs_type
+file_is_famfs(const char *fname)
+{
+	struct statfs fs;
+
+	if (statfs(fname, &fs))
+		return 0; /* fname not found; not famfs */
+
+	switch (fs.f_type) {
+	case FAMFS_SUPER_MAGIC: /* deprecated but older v1 returns this */
+		return FAMFS_V1;
+
+	case FAMFS_STATFS_MAGIC_V1:
+		return FAMFS_V1;
+
+	case FUSE_SUPER_MAGIC:  /* accept fuse magic until it returns ouer own */
+		return FAMFS_FUSE;
+
+	case FAMFS_STATFS_MAGIC:
+		return FAMFS_FUSE;
+	}
+	/* Not famfs */
+	return NOT_FAMFS;
+}
+
+/* end famfs v2 */
 
 /**
  * famfs_file_read()

@@ -1246,14 +1246,17 @@ do_famfs_cli_creat(int argc, char *argv[])
 
 	rc = stat(filename, &st);
 	if (rc == 0) {
+		enum famfs_type ftype;
+
 		if ((st.st_mode & S_IFMT) != S_IFREG) {
 			fprintf(stderr, "%s: Error: file %s exists and is not a regular file\n",
 				__func__, filename);
 			exit(-1);
 		}
 
-		if (file_not_famfs(filename)) {
-			fprintf(stderr, "%s: Error file %s exists and is not in famfs\n",
+		if ((ftype = file_is_famfs(filename)) == NOT_FAMFS) {
+			fprintf(stderr,
+				"%s: Error file %s exists and is not in famfs\n",
 				__func__, filename);
 			exit(-1);
 		}
