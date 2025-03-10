@@ -14,6 +14,7 @@ project(famfs)
 include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/testlib")
 include_directories("${PROJECT_SOURCE_DIR}/libfuse/include")
+include_directories("${PROJECT_SOURCE_DIR}/libfuse/lib")
 include_directories("${CMAKE_CURRENT_BINARY_DIR}/libfuse")
 
 # Don't build against instlaled libfuse...
@@ -35,7 +36,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   endif()
 endif()
 
-add_library(libfamfs src/famfs_lib.c src/famfs_alloc.c src/famfs_misc.c src/famfs_yaml.c src/famfs_fmap.c)
+add_library(libfamfs src/famfs_lib.c src/famfs_alloc.c src/famfs_misc.c src/famfs_yaml.c src/famfs_fmap.c src/famfs_mount.c)
 add_library(libpcq src/pcq_lib.c  )
 
 add_executable(famfs src/famfs_cli.c )

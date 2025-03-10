@@ -63,7 +63,9 @@ struct famfs_log_stats {
 	u64 yaml_checked;
 };
 
-/* Exported for internal use */
+/*
+ * Exported for internal use
+ */
 u8 *famfs_build_bitmap(const struct famfs_log *logp, const u64 alloc_unit, u64 dev_size_in,
 		   u64 *bitmap_nbits_out, u64 *alloc_errors_out, u64 *size_total_out,
 		   u64 *alloc_total_out, struct famfs_log_stats *log_stats_out,
@@ -73,9 +75,14 @@ int famfs_file_alloc(struct famfs_locked_log *lp, u64 size,
 void mu_print_bitmap(u8 *bitmap, int num_bits);
 int famfs_validate_interleave_param(struct famfs_interleave_param *interleave_param,
 				    const u64 alloc_unit, u64 devsize, int verbose);
+/* famfs_mount.c */
+char *famfs_get_mpt_by_dev(const char *mtdev);
+int famfs_path_is_mount_pt(const char *path, char *dev_out);
 
 
-/* Only exported for unit tests */
+/*
+ * Only exported for unit tests
+ */
 int famfs_validate_log_header(const struct famfs_log *logp);
 int __file_not_famfs(int fd);
 unsigned long famfs_gen_superblock_crc(const struct famfs_superblock *sb);
