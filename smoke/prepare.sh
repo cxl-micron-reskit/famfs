@@ -62,7 +62,7 @@ set -x
 sudo mkdir -p $MPT || fail "mkdir"
 
 # Make sure famfs is not mounted
-findmnt -t famfs $MPT
+findmnt $MPT
 if (( $? == 0 )); then
     sudo umount $MPT
 fi

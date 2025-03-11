@@ -74,10 +74,6 @@ while (( $# > 0)); do
 	    SKIP_ERRS=1
 	    SKIP_STRIPE_TEST=1
 	    ;;
-	(-4)
-	    TEST_ALL=0
-	    TEST4=1
-	    ;;
 	(-N|--nosleep)
 	    SLEEP_TIME=0
 	    ;;

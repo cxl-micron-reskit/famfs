@@ -127,7 +127,7 @@ ${CLI} mount $DEV $MPT || fail "remount after shadow yaml test should work"
 verify_mounted $DEV $MPT "$TEST.sh mounted 2"
 
 # TODO: move this to new smoke/test_fused.sh
-FAMFS_FUSED="$BIN/famfs_fused"
+FAMFS_FUSED="sudo $BIN/famfs_fused"
 
 ${CLI} creat -s 3g  ${MPT}/memfile       || fail "can't create memfile"
 ${CLI} creat -s 100m ${MPT}/memfile1     || fail "creat should succeed with -s 100m"
@@ -156,7 +156,7 @@ ${FAMFS_FUSED} -o source=${FUSE_SHADOW} -o foo=bar $FUSE_MPT && \
 # Mount / start famfs_fused
 ${FAMFS_FUSED} -o source=${FUSE_SHADOW} $FUSE_MPT || fail "Fuse mount failed 0"
 
-cat ${FUSE_MPT}/memfile2 > /dev/null || fail "cat memfile via fuse"
+sudo cat ${FUSE_MPT}/memfile2 > /dev/null || fail "cat memfile via fuse"
 
 #cp -r $MPT $FUSE_SHADOW
 
@@ -165,7 +165,7 @@ cat ${FUSE_MPT}/memfile2 > /dev/null || fail "cat memfile via fuse"
 # (the second un-escaped '.')
 
 # Fail if there are no files
-rsync -a -n --itemize-changes --ignore-times  $MPT/ $FUSE_MPT/ | \
+sudo rsync -a -n --itemize-changes --ignore-times  $MPT/ $FUSE_MPT/ | \
     grep ^.f || fail "no files found in legacy mount"
 
 ls -al $FAMFS_SHADOW
@@ -176,13 +176,13 @@ ls -al $FUSE_MPT
 # The second grep is counting (-c), and there should be no matches as it is
 # looking for mismatched metadata between the legacy and fuse mounts of famfs.
 # so success is &&, not ||
-rsync -a -n --itemize-changes --ignore-times $MPT $FUSE_MPT | \
+sudo rsync -a -n --itemize-changes --ignore-times $MPT $FUSE_MPT | \
     grep ^.f | \
     grep --invert-match -c ^.f\.\..\.\.\.\.\.\. && \
     fail "Shadow-to-fuse translation error - metadata mismatch"
 
-find $FUSE_MPT -type f -print -exec stat {} \; || fail "failed to stat famfs-fuse files"
-find $FUSE_MPT -type f -print -exec cat {} \;  || fail "failed to cat famfs-fuse files"
+sudo find $FUSE_MPT -type f -print -exec stat {} \; || fail "failed to stat famfs-fuse files"
+sudo find $FUSE_MPT -type f -print -exec cat {} \;  || fail "failed to cat famfs-fuse files"
 
 #sudo cat $FUSE_MPT/memfile2 >/dev/null || fail "cat file"
 
@@ -205,7 +205,7 @@ echo 3 | sudo tee /proc/sys/vm/drop_caches
 mkdir -p ~/smoke.shadow
 ${CLI} logplay --shadow ~/smoke.shadow/test_shadow_yaml.shadow $MPT
 
-umount $FUSE_MPT
+sudo umount $FUSE_MPT
 
 set +x
 echo "*************************************************************************"

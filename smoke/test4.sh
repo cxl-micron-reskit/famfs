@@ -55,7 +55,8 @@ done
 echo "DEVTYPE=$DEVTYPE"
 CLI="sudo $VG $BIN/famfs"
 MULTICHASE="sudo $BIN/src/multichase/multichase"
-TEST="test4"
+TEST="test4"F
+FUSED="sudo $VG $BIN/famfs_fused"
 
 source $SCRIPTS/test_funcs.sh
 # Above this line should be the same for all smoke tests
@@ -156,11 +157,26 @@ ${CLI} mount $DEV $MPT      || fail "famfs mount should succeed after kmod reloa
 ${CLI} mount -R $DEV $MPT   || fail "famfs mount -R should succeed when nothing is hinky"
 # mount -R needs mkmeta cleanup...
 
-mkdir -p ~/smoke.shadow
-${CLI} logplay --shadow ~/smoke.shadow/test4.shadow $MPT
+SHADOW_TARGET=~/smoke.shadow
+THIS_SHADOW=test4.shadow
+SH=${SHADOW_TARGET}/${THIS_SHADOW}
+mkdir -p ${SHADOW_TARGET}
+rm -rf $SH
+${CLI} logplay --shadow $SH $MPT
 
 sudo $UMOUNT $MPT # run_smoke.sh expects the file system unmounted after this test
-${CLI} mount $DEV $MPT || fail "last famfs mount should succeed"
+
+
+# This stuff may go away after all commands work via fuse
+${FUSED} -s -o shadow="$SH" -o daxdev=/dev/dax1.0 $MPT || fail "fuse mount on $MPT"
+sudo ls -al $MPT || fail "can't list directory via fuse mount"
+${CLI} verify -S 42 -f $MPT/test_xfile || fail "bad verify via fuse mount"
+${CLI} fsck $MPT || fail "fsck of fuse mount should work"
+sudo umount $MPT
+
+#sudo trace-cmd record -p function -l 'fuse*' -l 'famfs*' umount $MPT
+#sudo trace-cmd report > umount-trace.txt
+
 set +x
 echo "*************************************************************************"
 echo "test4 (multichase) completed successfully"

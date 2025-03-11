@@ -150,7 +150,6 @@ if [[ $GID != $GID_OUT ]]; then
     fail "creat -g err $GID ${GID_OUT}"
 fi
 
-
 ${CLI} logplay -h                  || fail "logplay -h should work"
 ${CLI} logplay $MPT                || fail "logplay $MPT should succeed"
 
