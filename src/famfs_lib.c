@@ -39,6 +39,7 @@
 #include "mu_mem.h"
 
 int mock_kmod = 0; /* unit tests can set this to avoid ioctl calls and whatnot */
+int mock_fstype = 0;
 int mock_flush = 0; /* for unit tests to avoid actual flushing */
 int mock_role = 0; /* for unit tests to specify role rather than testing for it */
 int mock_uuid = 0; /* for unit tests to simulate uuid related errors */
@@ -73,13 +74,33 @@ static char *famfs_relpath_from_fullpath(const char *mpt, char *fullpath);
 
 /* famfs v2 stuff (dual standalone / fuse) */
 
-enum famfs_type
+static const char *
+famfs_mount_type(int type)
+{
+	if (type < 0)
+		return "invalid";
+
+	switch (type) {
+	case FAMFS_V1:
+		return "FAMFS_V1";
+	case FAMFS_FUSE:
+		return "FAMFS_FUSE";
+	case NOT_FAMFS:
+		return "NOT_FAMFS";
+	default:
+		return "INVALID";
+	}
+}
+
+int
 file_is_famfs(const char *fname)
 {
 	struct statfs fs;
 
+	if (mock_fstype)
+		return mock_fstype;
 	if (statfs(fname, &fs))
-		return 0; /* fname not found; not famfs */
+		return -1; /* fname not found */
 
 	switch (fs.f_type) {
 	case FAMFS_SUPER_MAGIC: /* deprecated but older v1 returns this */
@@ -170,31 +191,31 @@ famfs_module_loaded(int verbose)
 }
 
 int
-__file_not_famfs(int fd)
+__file_is_famfs_v1(int fd)
 {
 	int rc;
 
 	if (mock_kmod)
-		return 0;
+		return 1;
 
 	rc = ioctl(fd, FAMFSIOC_NOP, 0);
 	if (rc)
-		return 1;
+		return 0;
 
-	return 0;
+	return 1;
 }
 
 int
-file_not_famfs(const char *fname)
+file_is_famfs_v1(const char *fname)
 {
 	int fd;
 	int rc;
 
 	fd = open(fname, O_RDONLY);
 	if (fd < 0)
-		return -1;
+		return 0;
 
-	rc = __file_not_famfs(fd);
+	rc = __file_is_famfs_v1(fd);
 	close(fd);
 	return rc;
 }
@@ -1966,6 +1987,7 @@ __open_relpath(
 	 */
 	while (1) {
 		char fullpath[PATH_MAX] = {0};
+		int famfs_type;
 
 		rc = stat(rpath, &st);
 		if (rc < 0)
@@ -1976,6 +1998,7 @@ __open_relpath(
 			rc = stat(fullpath, &st);
 			if ((rc == 0) && ((st.st_mode & S_IFMT) == S_IFREG)) {
 				/* We found it. */
+				famfs_type = file_is_famfs(fullpath);
 				if (size_out)
 					*size_out = st.st_size;
 				if (mpt_out)
@@ -1987,7 +2010,7 @@ __open_relpath(
 				 * Unit tests can disable this check but production code
 				 * should not.
 				 */
-				if (!no_fscheck && __file_not_famfs(fd)) {
+				if (!no_fscheck && famfs_type == NOT_FAMFS) {
 					fprintf(stderr,
 						"%s: found file %s but it is not in famfs\n",
 						__func__, fullpath);
@@ -2201,6 +2224,7 @@ famfs_fsck(
 	struct famfs_superblock *sb = NULL;
 	struct famfs_log *logp = NULL;
 	struct stat st;
+	int famfs_type;
 	size_t size;
 	int rc;
 
@@ -2254,12 +2278,20 @@ famfs_fsck(
 	}
 	case S_IFREG:
 	case S_IFDIR: {
+		famfs_type = file_is_famfs(path);
+		char *mpt = find_mount_point(path);
+
 		/*
 		 * More options: default is to read the superblock and log into local buffers
 		 * (which is useful to spot check that posix read is not broken). But if the
 		 * use_mmap open is provided, we will mmap the superblock and logs files
 		 * rather than reading them into a local buffer.
 		 */
+
+		printf("famfs fsck:\n");
+		printf("  mount point: %s\n", mpt);
+		printf("  mount type:  %s\n", famfs_mount_type(famfs_type));
+
 		if (use_mmap) {
 			/* If it's a file or directory, we'll try to mmap the sb and
 			 * log from their files
@@ -2432,6 +2464,24 @@ famfs_init_locked_log(
 		goto err_out;
 	}
 
+	lp->famfs_type = file_is_famfs(fspath);
+
+	if (lp->famfs_type == FAMFS_FUSE) {
+		/* Get the shadow path */
+		if (!mock_fstype) {
+			if (famfs_path_is_mount_pt(lp->mpt, NULL, lp->shadow_path)) {
+				rc = -1;
+				goto err_out;
+			}
+			if (strlen(lp->shadow_path) == 0) {
+				fprintf(stderr, "%s: failed to get shadow path\n",
+					__func__);
+				rc = -1;
+				goto err_out;
+			}
+		}
+	}
+
 	/* Log file */
 	lp->lfd = open_log_file_writable(fspath, &log_size, lp->mpt, BLOCKING_LOCK);
 	if (lp->lfd < 0) {
@@ -2556,7 +2606,7 @@ famfs_file_create_stub(
 	}
 
 	/* XXX is this necessary? Have we already checked if it's in famfs? */
-	if (__file_not_famfs(fd)) {
+	if (!__file_is_famfs_v1(fd)) {
 		close(fd);
 		unlink(path);
 		fprintf(stderr, "%s: file %s not in a famfs mount\n",
@@ -2945,8 +2995,6 @@ famfs_dir_create(
 		return -1;
 	}
 
-	/* Check if dir is in famfs mount? */
-
 	if (uid && gid) {
 		rc = chown(fullpath, uid, gid);
 		if (rc) {
@@ -3050,7 +3098,9 @@ __famfs_mkdir(
 		rc = -1;
 		goto err_out;
 	}
-	rc = famfs_dir_create(mpt_out, relpath, mode, uid, gid);
+
+	rc = famfs_dir_create((lp->famfs_type == FAMFS_FUSE) ? lp->shadow_path : mpt_out,
+			      relpath, mode, uid, gid);
 	if (rc) {
 		fprintf(stderr, "%s: failed to mkdir %s\n", __func__, fullpath);
 		rc = -1;
@@ -3775,8 +3825,8 @@ famfs_clone(const char *srcfile,
 		return -1;
 	}
 	/* and srcfile must be in famfs... */
-	if (file_not_famfs(srcfullpath)) {
-		fprintf(stderr, "%s: source path (%s) not in a famfs file system\n",
+	if (!file_is_famfs_v1(srcfullpath)) {
+		fprintf(stderr, "%s: source path (%s) not in a famfs v1 file system\n",
 			__func__, srcfullpath);
 		return -1;
 	}
@@ -4201,6 +4251,7 @@ int
 famfs_check(const char *path,
 	    int verbose)
 {
+	char shadow_out[PATH_MAX];
 	char metadir[PATH_MAX];
 	char logpath[PATH_MAX];
 	char dev_out[PATH_MAX];
@@ -4218,8 +4269,10 @@ famfs_check(const char *path,
 		fprintf(stderr, "%s: must use absolute path of mount point\n", __func__);
 		return -1;
 	}
-	if (!famfs_path_is_mount_pt(path, dev_out)) {
-		fprintf(stderr, "%s: path (%s) is not a famfs mount point\n", __func__, path);
+
+	if (!famfs_path_is_mount_pt(path, dev_out, shadow_out)) {
+		fprintf(stderr, "%s: path (%s) is not a famfs mount point\n",
+			__func__, path);
 		return -1;
 	}
 

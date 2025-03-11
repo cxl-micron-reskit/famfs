@@ -34,19 +34,23 @@ struct famfs_locked_log {
 	s64               devsize;
 	struct famfs_log *logp;
 	int               lfd;
+	int               famfs_type; /* FAMFS_V1 or FAMFS_FUSE */
 	u8               *bitmap;
 	u64               nbits;
 	u64               alloc_unit;
 	/* In simple linear allocations, remembering the current position speeds up
 	 * repetitive allocations (under a single locked_log session) because we don't
-	 * have re-iterate over the allocated portino of the bitmap */
+	 * have re-iterate over the previously-allocated portion of the bitmap
+	 */
 	u64               cur_pos;
 	/* alloc is contiguous if nbuckets or nstrips are clear;
 	 * if both are set thhe backing device is bucketized at bucket_size, and each
 	 * allocation is interleaved across nstrips buckets (though smaller allocations
-	 * will use fewer strips) */
+	 * will use fewer strips)
+	 */
 	struct famfs_interleave_param interleave_param;
 	char              mpt[PATH_MAX];
+	char              shadow_path[PATH_MAX];
 };
 
 struct famfs_log_stats {
@@ -77,14 +81,14 @@ int famfs_validate_interleave_param(struct famfs_interleave_param *interleave_pa
 				    const u64 alloc_unit, u64 devsize, int verbose);
 /* famfs_mount.c */
 char *famfs_get_mpt_by_dev(const char *mtdev);
-int famfs_path_is_mount_pt(const char *path, char *dev_out);
-
+int famfs_path_is_mount_pt(const char *path, char *dev_out, char *shadow_out);
+char *find_mount_point(const char *path);
 
 /*
  * Only exported for unit tests
  */
 int famfs_validate_log_header(const struct famfs_log *logp);
-int __file_not_famfs(int fd);
+int __file_is_famfs_v1(int fd);
 unsigned long famfs_gen_superblock_crc(const struct famfs_superblock *sb);
 unsigned long famfs_gen_log_header_crc(const struct famfs_log *logp);
 int __famfs_mkfs(const char *daxdev, struct famfs_superblock *sb, struct famfs_log *logp,

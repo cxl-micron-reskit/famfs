@@ -39,6 +39,9 @@ extern "C" {
 
 TEST(famfs, dummy)
 {
+	extern int mock_fstype;
+
+	mock_fstype = FAMFS_V1;
 	printf("Dummy test\n");
 	ASSERT_EQ(0, 0);
 }
@@ -308,7 +311,7 @@ TEST(famfs, famfs_random_buffer)
 }
 
 #define booboofile "/tmp/booboo"
-TEST(famfs, famfs_file_not_famfs)
+TEST(famfs, famfs_file_is_famfs_v1)
 {
 	int sfd;
 	int rc;
@@ -320,16 +323,16 @@ TEST(famfs, famfs_file_not_famfs)
 	ASSERT_NE(sfd, 0);
 
 	mock_kmod = 0;
-	rc = __file_not_famfs(sfd);
-	ASSERT_NE(rc, 0);
+	rc = __file_is_famfs_v1(sfd);
+	ASSERT_EQ(rc, 0);
 	mock_kmod = mock_kmod_save;
 	close(sfd);
 
-	rc = file_not_famfs(booboofile);
-	ASSERT_NE(rc, 0);
+	rc = file_is_famfs_v1(booboofile);
+	ASSERT_EQ(rc, 0);
 
-	rc = file_not_famfs("/tmp/non-existent-file");
-	ASSERT_LT(rc, 0);
+	rc = file_is_famfs_v1("/tmp/non-existent-file");
+	ASSERT_EQ(rc, 0);
 }
 
 TEST(famfs, famfs_mkmeta)

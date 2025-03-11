@@ -41,7 +41,8 @@ enum famfs_type {
 };
 
 /* famfs_lib dual v1/v2 functions */
-enum famfs_type file_is_famfs(const char *fname);
+int file_is_famfs_v1(const char *fname);
+int file_is_famfs(const char *fname);
 
 /* famfs_lib v1 functions */
 int famfs_module_loaded(int verbose);
