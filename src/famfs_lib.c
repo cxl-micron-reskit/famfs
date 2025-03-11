@@ -99,8 +99,18 @@ file_is_famfs(const char *fname)
 
 	if (mock_fstype)
 		return mock_fstype;
-	if (statfs(fname, &fs))
-		return -1; /* fname not found */
+	if (statfs(fname, &fs)) {
+		char *local_path = strdup(fname);
+		local_path = dirname(local_path);
+		if (statfs(local_path, &fs)) {
+			fprintf(stderr,
+				"%s: statfs failed for path %s and its parent\n",
+				__func__, fname);
+			free(local_path);
+			return -1; /* fname not found */
+		}
+		free(local_path);
+	}
 
 	switch (fs.f_type) {
 	case FAMFS_SUPER_MAGIC: /* deprecated but older v1 returns this */
@@ -2278,8 +2288,10 @@ famfs_fsck(
 	}
 	case S_IFREG:
 	case S_IFDIR: {
-		famfs_type = file_is_famfs(path);
 		char *mpt = find_mount_point(path);
+		char backing_dev[PATH_MAX];
+		char shadow_path[PATH_MAX];
+		famfs_type = file_is_famfs(path);
 
 		/*
 		 * More options: default is to read the superblock and log into local buffers
@@ -2288,9 +2300,17 @@ famfs_fsck(
 		 * rather than reading them into a local buffer.
 		 */
 
+		/* Print the "mounted file system" header */
 		printf("famfs fsck:\n");
 		printf("  mount point: %s\n", mpt);
 		printf("  mount type:  %s\n", famfs_mount_type(famfs_type));
+		if (famfs_type == FAMFS_FUSE) {
+			if (famfs_path_is_mount_pt(mpt, backing_dev, shadow_path)) {
+				printf("  backing dev: %s\n", backing_dev);
+				printf("  shadow path: %s\n", shadow_path);
+			}
+		}
+		printf("\n");
 
 		if (use_mmap) {
 			/* If it's a file or directory, we'll try to mmap the sb and
@@ -2464,12 +2484,24 @@ famfs_init_locked_log(
 		goto err_out;
 	}
 
-	lp->famfs_type = file_is_famfs(fspath);
+	/* Log file */
+	lp->lfd = open_log_file_writable(fspath, &log_size, lp->mpt, BLOCKING_LOCK);
+	if (lp->lfd < 0) {
+		fprintf(stderr, "%s: Unable to open famfs log for writing\n", __func__);
+		/* If we can't open the log file for writing, don't allocate */
+		rc = lp->lfd;
+		goto err_out;
+	}
 
+	lp->famfs_type = file_is_famfs(fspath);
+	if (lp->famfs_type < 0) {
+		rc = -1;
+		goto err_out;
+	}
 	if (lp->famfs_type == FAMFS_FUSE) {
 		/* Get the shadow path */
 		if (!mock_fstype) {
-			if (famfs_path_is_mount_pt(lp->mpt, NULL, lp->shadow_path)) {
+			if (!famfs_path_is_mount_pt(lp->mpt, NULL, lp->shadow_path)) {
 				rc = -1;
 				goto err_out;
 			}
@@ -2480,15 +2512,6 @@ famfs_init_locked_log(
 				goto err_out;
 			}
 		}
-	}
-
-	/* Log file */
-	lp->lfd = open_log_file_writable(fspath, &log_size, lp->mpt, BLOCKING_LOCK);
-	if (lp->lfd < 0) {
-		fprintf(stderr, "%s: Unable to open famfs log for writing\n", __func__);
-		/* If we can't open the log file for writing, don't allocate */
-		rc = lp->lfd;
-		goto err_out;
 	}
 
 	addr = mmap(0, log_size, PROT_READ | PROT_WRITE, MAP_SHARED, lp->lfd, 0);
@@ -3099,6 +3122,9 @@ __famfs_mkdir(
 		goto err_out;
 	}
 
+	/* The only difference between a mkdir in FAMFS_V1 and FAMFS_FUSE is that in
+	 * the latter case we mkdir in the shadow file system.
+	 */
 	rc = famfs_dir_create((lp->famfs_type == FAMFS_FUSE) ? lp->shadow_path : mpt_out,
 			      relpath, mode, uid, gid);
 	if (rc) {
