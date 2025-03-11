@@ -106,7 +106,7 @@ __famfs_logplay(
 	const char *mpt, const struct famfs_superblock *sb, const struct famfs_log *logp,
 	int dry_run, int client_mode, int shadow, int shadowtest,
 	enum famfs_system_role role, int verbose);
-int famfs_shadow_logplay(
+int famfs_dax_shadow_logplay(
 	const char *shadowpath, int dry_run, int client_mode, const char *daxdev,
 	int testmode, int verbose);
 int famfs_fsck_scan(const struct famfs_superblock *sb, const struct famfs_log *logp,

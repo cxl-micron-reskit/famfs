@@ -1520,10 +1520,10 @@ bad_log_fmap:
 }
 
 /**
- * famfs_shadow_logplay()
+ * famfs_dax_shadow_logplay()
  *
  * Play the log into a shadow famfs file system directly from a daxdev
- * (for famsf_fused)
+ * (for famfs_fused)
  *
  * @shadowpath:  Root path of shadow file system
  * @dry_run:     Parse and print but don't create shadow files / directories
@@ -1532,7 +1532,7 @@ bad_log_fmap:
  * @verbose:
  */
 int
-famfs_shadow_logplay(
+famfs_dax_shadow_logplay(
 	const char   *shadowpath,
 	int           dry_run,
 	int           client_mode,
@@ -1608,7 +1608,7 @@ famfs_logplay(
 	int rc;
 
 	if (shadowpath && daxdev)
-		return famfs_shadow_logplay(shadowpath, dry_run, client_mode, daxdev,
+		return famfs_dax_shadow_logplay(shadowpath, dry_run, client_mode, daxdev,
 					    shadowtest, verbose);
 
 	/* Open log from meta file */
@@ -2963,7 +2963,7 @@ famfs_dir_create(
  *
  * This should become the mid-level mkdir function; verify that target is a directory
  * with a parent that exists and is in a famfs FS. Inner function should rely on these
- * checks, and use the famsf_locked_log.
+ * checks, and use the famfs_locked_log.
  *
  * Inner function would also be callled by 'cp -r' (which doesn't exist quite yet)
  *

@@ -744,33 +744,33 @@ TEST(famfs, famfs_log)
 	ASSERT_EQ(rc, 0);
 
 	/*
-	 * Test famfs_shadow_logplay:
+	 * Test famfs_dax_shadow_logplay:
 	 * We can test arg errors here, but not acutal logplay becuase it will
 	 * open the log from a dax device
 	 */
 	/* This should fail due to null daxdev */
 	system("rm -rf /tmp/famfs_shadow");
-	rc = famfs_shadow_logplay("/tmp/famfs_shadow", 0, 0, NULL, 1, 0);
+	rc = famfs_dax_shadow_logplay("/tmp/famfs_shadow", 0, 0, NULL, 1, 0);
 	ASSERT_NE(rc, 0);
 
 	/* This should fail due to bogus daxdev, but create /tmp/famfs_shadow */
-	rc = famfs_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 1, 0);
+	rc = famfs_dax_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 1, 0);
 	ASSERT_NE(rc, 0);
 
 	/* This should fail due to bogus daxdev (but /tmp/famfs_shadow will be there already) */
-	rc = famfs_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 1, 0);
+	rc = famfs_dax_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 1, 0);
 	ASSERT_NE(rc, 0);
 
 	/* This should fail due to shadow fs path being a file and not a directory */
 	system("rm -rf /tmp/famfs_shadow");
 	system("touch /tmp/famfs_shadow"); /* craete file where shadow dir should be */
-	rc = famfs_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 1, 0);
+	rc = famfs_dax_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 1, 0);
 	ASSERT_NE(rc, 0);
 	system("rm -f /tmp/famfs_shadow");
 
 	/* This should fail daxdev being bogus */
 	system("mkdir /tmp/famfs_shadow");
-	rc = famfs_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 1, 0);
+	rc = famfs_dax_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 1, 0);
 	ASSERT_NE(rc, 0);
 
 	/*
