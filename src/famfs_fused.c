@@ -33,6 +33,7 @@
 #include "famfs_lib.h"
 #include "famfs_fmap.h"
 #include "fuse_kernel.h"
+#include "fuse_i.h"
 
 /* We are re-using pointers to our `struct famfs_inode` and `struct
    famfs_dirp` elements as inodes. This means that we must be able to
@@ -163,7 +164,8 @@ static void famfs_fused_help(void)
 	printf(
 "    -o writeback           Enable writeback\n"
 "    -o no_writeback        Disable write back\n"
-"    -o shadow=/home/dir    Source directory to be mounted (required)\n"
+"    -o source=/home/dir    Source directory to be mounted (required)\n"
+"    -o shadow=/shadow/path Path to the famfs shadow tree\n"
 "    -o daxdev=/dev/dax0.0  Devdax backing device\n"
 "    -o flock               Enable flock\n" //XXX always enable?
 "    -o no_flock            Disable flock\n"
@@ -1621,6 +1623,7 @@ int main(int argc, char *argv[])
 	struct fuse_cmdline_opts opts;
 	struct fuse_loop_config *config;
 	struct famfs_data famfs_data = { 0 };
+	char shadow_opt[80];
 	int ret = -1;
 
 	/* Don't mask creation mode, kernel already did that */
@@ -1771,8 +1774,14 @@ int main(int argc, char *argv[])
 	if (fuse_set_signal_handlers(se) != 0)
 	    goto err_out2;
 
+	/* Add shadow arg to kernel mount opts */
+	snprintf(shadow_opt, sizeof(shadow_opt), "shadow=%s", famfs_data.source);
+	if (fuse_add_kernel_mount_opt(se, shadow_opt))
+		fuse_log(FUSE_LOG_ERR, "%s: failed to add kernel mount opt (%s)\n",
+			 __func__, shadow_opt);
+
 	if (fuse_session_mount(se, opts.mountpoint) != 0)
-	    goto err_out3;
+		goto err_out3;
 
 	jg_print_fuse_opts(&opts);
 
