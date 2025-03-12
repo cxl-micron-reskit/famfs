@@ -339,7 +339,7 @@ TEST(famfs, famfs_mkmeta)
 {
 	int rc;
 
-	rc = famfs_mkmeta("/dev/bogusdev", 1);
+	rc = famfs_mkmeta("/dev/bogusdev", NULL, 1);
 	ASSERT_NE(rc, 0);
 }
 

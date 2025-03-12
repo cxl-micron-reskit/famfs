@@ -225,26 +225,32 @@ do_famfs_cli_mount(int argc, char *argv[])
 	int use_read = 0;
 	int use_mmap = 0;
 	char *mpt = NULL;
+	int fuse_mode = 0;
 	int remaining_args;
 	char *daxdev = NULL;
 	char *realmpt = NULL;
 	char *realdaxdev = NULL;
+	const char *famfs_mode = getenv("FAMFS_MODE");
 	unsigned long mflags = MS_NOATIME | MS_NOSUID | MS_NOEXEC | MS_NODEV;
 
 	struct option mount_options[] = {
 		/* These options set a */
 		{"remount",    no_argument,            0,  'R'},
-		{"read",       no_argument,             0,  'r'},
-		{"mmap",       no_argument,             0,  'm'},
+		{"read",       no_argument,            0,  'r'},
+		{"mmap",       no_argument,            0,  'm'},
+		{"fuse",       no_argument,            0,  'f'},
 		{"verbose",    no_argument,            0,  'v'},
 		{0, 0, 0, 0}
 	};
+
+	if (famfs_mode)
+		printf("%s: FAMFS_MODE=%s (ignored)\n", __func__, famfs_mode);
 
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+h?Rrmv",
+	while ((c = getopt_long(argc, argv, "+h?Rrfmv",
 				mount_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -268,6 +274,8 @@ do_famfs_cli_mount(int argc, char *argv[])
 		case 'R':
 			mflags |= MS_REMOUNT;
 			break;
+		case 'f':
+			fuse_mode = 1;
 		}
 	}
 
@@ -303,6 +311,12 @@ do_famfs_cli_mount(int argc, char *argv[])
 		rc = -1;
 		goto err_out;
 	}
+
+	if (fuse_mode) {
+		printf("daxdev=%s, mpt=%s\n", realdaxdev, realmpt);
+		rc = famfs_mount_fuse(realdaxdev, realmpt, NULL, verbose);
+		goto out;
+	}
 	if (!famfs_module_loaded(1)) {
 		fprintf(stderr, "famfs mount: famfs kernel module is not loaded!\n");
 		fprintf(stderr, "famfs mount: try 'sudo modprobe famfs'\n");
@@ -327,7 +341,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 		goto err_out;
 	}
 
-	rc = famfs_mkmeta(realdaxdev, verbose);
+	rc = famfs_mkmeta(realdaxdev, NULL, verbose);
 	if (rc) {
 		fprintf(stderr, "famfs mount: err %d from mkmeta; unmounting\n", rc);
 		umount(realmpt);
@@ -341,6 +355,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 			   0 /* not shadow-test */,
 			   NULL, verbose);
 
+out:
 err_out:
 	free(realdaxdev);
 	free(realmpt);
@@ -419,7 +434,7 @@ do_famfs_cli_mkmeta(int argc, char *argv[])
 		free(realdaxdev);
 		return -1;
 	}
-	famfs_mkmeta(realdaxdev, verbose);
+	famfs_mkmeta(realdaxdev, NULL, verbose);
 	free(realdaxdev);
 	return 0;
 }

@@ -99,46 +99,61 @@ out:
 	return NULL;
 }
 
+/**
+ * shadow_path_from_opts()
+ *
+ * Get shadow path from file system mount options (from the opts field in /proc/mounts)
+ *
+ * @opts             - mount options from a famfs /proc/mounts entry
+ * @shadow_path_out  - string to receive shadow path
+ * @shadow_path_size - input - size of shadow_path_out string
+ *
+ * Returns: 0 if shadow path not found
+ *          1 if shadow path found (and returned in shadow_path_out)
+ */
 static int
 shadow_path_from_opts(const char *opts, char *shadow_path_out, size_t shadow_path_size)
 {
-	const char *start = opts;
-	const char *end = opts;
+	const char *start;
+	const char *end;
 	const char *keyword = "shadow=";
 	size_t keyword_len = strlen(keyword);
 
 	if (opts == NULL || shadow_path_out == NULL || shadow_path_size == 0) {
-		return 0;  // Invalid opts
+		return 0;  /* Invalid opts */
 	}
+
+	start = end = opts;
 
 	while (*end != '\0') {
 		if (*end == ',' || *(end + 1) == '\0') {
-			// Adjust end if it's the last character
+			/* Adjust end if it's the last character */
 			if (*(end + 1) == '\0') {
 				end++;
 			}
 
-			// Check if the segment starts with "shadow="
-			if ((end - start) >= keyword_len && strncmp(start, keyword, keyword_len) == 0) {
-				const char *value_start = start + keyword_len;  // Skip "shadow="
+			/* Check if the segment starts with "shadow=" */
+			if ((end - start) >= keyword_len
+			    && strncmp(start, keyword, keyword_len) == 0) {
+				const char *value_start = start + keyword_len;
 				size_t value_length = end - value_start;
 
 				if (value_length >= shadow_path_size) {
-					return 0;  // Shadow_Path_Out buffer too small
+					return 0;  /* output buffer overflow */
 				}
 
 				strncpy(shadow_path_out, value_start, value_length);
 				shadow_path_out[value_length] = '\0';
-				return 1;  // Success
+				return 1;  /* success */
 			}
 
-			// Move to the next segment
+			/* Move to the next opt */
 			start = end + 1;
 		}
 		end++;
 	}
 
-	return 0;  // No matching argument found
+	return 0;  /* No matching argument found */
 }
 
 /* XXX: this function should be renamed more descriptively */
@@ -180,20 +195,25 @@ famfs_path_is_mount_pt(
 		char *xmpt = NULL;
 		char *xpath = NULL;
 
-		if (strstr(line, "famfs")) {
+		if (strstr(line, "famfs")) { /* lazy test on whole line */
 			rc = sscanf(line, "%s %s %s %s %d %d",
 				    dev, mpt, fstype, opts, &x0, &x1);
 			if (rc <= 0)
 				goto out;
 
-			xmpt = realpath(mpt, NULL);
+			/* check for famfs in the actual fstype field */
+			if (!strstr(fstype, "famfs"))
+				continue;
+
+ 			xmpt = realpath(mpt, NULL);
 			if (!xmpt) {
 				fprintf(stderr, "realpath(%s) errno %d\n", mpt, errno);
 				continue;
 			}
 			xpath = realpath(path, NULL);
 			if (!xpath) {
-				fprintf(stderr, "input path realpath(%s) errno %d\n", path, errno);
+				fprintf(stderr, "input path realpath(%s) errno %d\n",
+					path, errno);
 				free(xmpt);
 				continue;
 			}
@@ -203,7 +223,8 @@ famfs_path_is_mount_pt(
 			/* Path matches the mount point of this entry */
 
 			if (shadow_out) {
-				rc = shadow_path_from_opts(opts, shadow_path, sizeof(shadow_path));
+				rc = shadow_path_from_opts(opts, shadow_path,
+							   sizeof(shadow_path));
 				if (rc)
 					strncpy(shadow_out, shadow_path, PATH_MAX - 1);
 				else
@@ -226,6 +247,72 @@ famfs_path_is_mount_pt(
 	}
 
 out:
+	fclose(fp);
+	if (line)
+		free(line);
+	return 0;
+}
+
+/**
+ * Check all famfs-related /proc/mounts entries to see of @shadowpath is already
+ * in use.
+ *
+ * Return 1 if in use, 0 if not
+ */
+static int
+shadow_path_in_use(const char *shadowpath)
+{
+	FILE *fp;
+	char *line = NULL;
+	size_t len = 0;
+	ssize_t read;
+	int rc;
+
+	fp = fopen("/proc/mounts", "r");
+	if (fp == NULL)
+		return 0;
+
+	while ((read = getline(&line, &len, fp)) != -1) {
+		char dev[XLEN];
+		char mpt[XLEN];
+		char fstype[XLEN];
+		char opts[XLEN];
+		char entry_shadow[PATH_MAX];
+		int  x0, x1;
+
+		if (strstr(line, "famfs")) { /* lazy test on whole line */
+			size_t m, n;
+
+			rc = sscanf(line, "%s %s %s %s %d %d",
+				    dev, mpt, fstype, opts, &x0, &x1);
+			if (rc <= 0)
+				continue;
+
+			/* check for famfs in the actual fstype field */
+			if (!strstr(fstype, "famfs"))
+				continue;
+
+			rc = shadow_path_from_opts(opts, entry_shadow,
+						   sizeof(entry_shadow));
+			if (!rc)  /* no shadow path in the current entry */
+				continue;
+
+
+			/* We must avoid overlapping shadow paths. This means that
+			 * the shorter path is a match for the fist n characters of
+			 * the longer path...
+			 */
+			n = strlen(shadowpath) - 1; /* length, not including NULL term */
+			m = strlen(entry_shadow) - 1;
+			if (strncmp(shadowpath, entry_shadow, MIN(m, n))) {
+				fclose(fp);
+				fprintf(stderr, "%s: paths overlap! (%s) (%s)\n",
+					__func__, shadowpath, entry_shadow);
+				return 1; /* Paths overlap */
+			}
+		}
+	}
+
 	fclose(fp);
 	if (line)
 		free(line);
@@ -317,4 +404,79 @@ char *find_mount_point(const char *path)
 	}
 
 	return current_path;  // This is the mount point path
+}
+
+/*
+ * return true if valid, false if not
+ */
+int shadow_path_valid(const char *path)
+{
+	char *path_copy, *parent;
+	struct stat statbuf;
+
+	/* Check for NULL or empty path */
+	if (path == NULL || *path == '\0')
+		return 0;
+
+	/* Check if the path already exists */
+	if (access(path, F_OK) == 0)
+		return 0;
+
+	/* Duplicate path to safely use dirname() */
+	path_copy = strdup(path);
+	parent = dirname(path_copy); /* Extract parent directory */
+
+	/* Check if parent exists and is a directory */
+	if (stat(parent, &statbuf) == 0 && S_ISDIR(statbuf.st_mode))
+		return free(path_copy), 1;
+
+	/* Parent does not exist or is not a directory */
+	free(path_copy);
+	return 0;
+}
+
+int
+famfs_mount_fuse(
+	const char *realdaxdev,
+	const char *realmpt,
+	const char *realshadow,
+	int verbose)
+{
+	char *local_shadow;
+	int rc = 0;
+
+	if (realshadow)
+		local_shadow = strdup(realshadow);
+	else
+		local_shadow = strdup("/tmp/shadow"); /* XXX generate more reasonably */
+
+	if (!shadow_path_valid(local_shadow)) {
+		fprintf(stderr, "%s: invalid shadow path (%s)\n",
+			__func__, local_shadow);
+		rc = -1;
+		goto out;
+	}
+
+	if (shadow_path_in_use(local_shadow)) {
+		fprintf(stderr, "%s: shadow path is already in use!\n", __func__);
+		rc = -EALREADY;
+		goto out;
+	}
+
+	rc = famfs_mkmeta(realdaxdev, local_shadow, verbose);
+	if (rc) {
+		fprintf(stderr, "%s: err mkmeta failed for shadow %s\n",
+			__func__, local_shadow);
+		goto out;
+	}
+
+	printf("good mkmeta; write the rest of the mount code now \n");
+
+	/* Start the fuse daemon */
+
+	/* Play the log */
+
+out:
+	free(local_shadow);
+	return rc;
 }

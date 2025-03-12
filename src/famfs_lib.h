@@ -40,6 +40,10 @@ enum famfs_type {
 	FAMFS_FUSE,
 };
 
+/* fuse-only functions */
+int famfs_mount_fuse(const char *realdaxdev, const char *realmpt, const char *realshadow,
+		     int verbose);
+
 /* famfs_lib dual v1/v2 functions */
 int file_is_famfs_v1(const char *fname);
 int file_is_famfs(const char *fname);
@@ -53,7 +57,7 @@ extern int famfs_get_device_size(const char *fname, size_t *size, enum famfs_ext
 int famfs_check_super(const struct famfs_superblock *sb);
 int famfs_fsck(const char *devname, int use_mmap, int human, int force, int verbose);
 
-int famfs_mkmeta(const char *devname, int verbose);
+int famfs_mkmeta(const char *devname, const char*shadowpath, int verbose);
 int famfs_logplay(
 	const char *mpt, int use_mmap, int dry_run, int client_mode,
 	const char *shadowpath, int shadowtest, const char *daxdev, int verbose);

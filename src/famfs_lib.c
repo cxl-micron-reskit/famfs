@@ -891,6 +891,9 @@ famfs_v2_set_file_map(
 }
 #endif
 
+/**
+ * __famfs_mkmeta()
+ */
 static int
 __famfs_mkmeta(
 	const char *mpt,
@@ -1071,6 +1074,7 @@ __famfs_mkmeta(
 int
 famfs_mkmeta(
 	const char *devname,
+	const char *shadowpath,
 	int verbose)
 {
 	struct famfs_superblock *sb;
@@ -1078,13 +1082,6 @@ famfs_mkmeta(
 	struct famfs_log *logp;
 	char *mpt = NULL;
 	int rc;
-
-	/* Get mount point path */
-	mpt = famfs_get_mpt_by_dev(devname);
-	if (!mpt) {
-		fprintf(stderr, "%s: unable to resolve mount pt from dev %s\n", __func__, devname);
-		return -1;
-	}
 
 	rc = famfs_mmap_superblock_and_log_raw(devname, &sb, &logp, 0 /* figure out log size */,
 					       1 /* Read only */);
@@ -1094,13 +1091,27 @@ famfs_mkmeta(
 	}
 
 	if (famfs_check_super(sb)) {
-		fprintf(stderr, "%s: no valid superblock on device %s\n", __func__, devname);
+		fprintf(stderr, "%s: no valid superblock on device %s\n",
+			__func__, devname);
 		return -1;
 	}
 
 	role = famfs_get_role(sb);
 
-	rc = __famfs_mkmeta(mpt, sb, logp, role, 0 /* not shadow */, verbose);
+	if (shadowpath) {
+		rc = __famfs_mkmeta(shadowpath, sb, logp, role, 1 /* shadow */, verbose);
+	} else {
+		/* Get mount point path */
+		mpt = famfs_get_mpt_by_dev(devname);
+		if (!mpt) {
+			fprintf(stderr, "%s: unable to resolve mount pt from dev %s\n",
+				__func__, devname);
+			return -1;
+		}
+
+		rc = __famfs_mkmeta(mpt, sb, logp, role, 0 /* not shadow */, verbose);
+	}
+
 	free(mpt);
 	return rc;
 }
@@ -1322,7 +1333,8 @@ __famfs_logplay(
 	}
 
 	if (verbose)
-		printf("famfs logplay: log contains %lld entries\n", logp->famfs_log_next_index);
+		printf("famfs logplay: log contains %lld entries\n",
+		       logp->famfs_log_next_index);
 
 	for (i = 0; i < logp->famfs_log_next_index; i++) {
 		struct famfs_log_entry le = logp->entries[i];
@@ -1631,6 +1643,7 @@ famfs_logplay(
 {
 	struct famfs_superblock *sb;
 	char mpt_out[PATH_MAX];
+	char shadow[PATH_MAX];
 	struct famfs_log *logp;
 	size_t log_size;
 	size_t sb_size;
@@ -1658,6 +1671,14 @@ famfs_logplay(
 		close(lfd);
 		return -1;
 	}
+
+	if (!shadowpath) {
+		if (famfs_path_is_mount_pt(mpt_out, NULL, shadow) && verbose)
+			printf("%s: this is logplay for mounted FAMFS_FUSE (shadow=%s)\n",
+			       __func__, shadow);
+	}
+	else
+		strncpy(shadow, shadowpath, PATH_MAX - 1);
 
 	if (use_mmap) {
 		logp = mmap(0, log_size, PROT_READ, MAP_PRIVATE, lfd, 0);
@@ -1715,8 +1736,8 @@ famfs_logplay(
 
 	role = (client_mode) ? FAMFS_CLIENT : famfs_get_role(sb);
 
-	if (shadowpath)
-		rc = __famfs_logplay(shadowpath, sb, logp, dry_run,
+	if (strlen(shadow) > 0)
+		rc = __famfs_logplay(shadow, sb, logp, dry_run,
 				     client_mode, 1 /* Shadow mode */,
 				     shadowtest,
 				     role, verbose);
@@ -2311,6 +2332,7 @@ famfs_fsck(
 			}
 		}
 		printf("\n");
+		free(mpt);
 
 		if (use_mmap) {
 			/* If it's a file or directory, we'll try to mmap the sb and
