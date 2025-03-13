@@ -49,8 +49,8 @@ struct famfs_locked_log {
 	 * will use fewer strips)
 	 */
 	struct famfs_interleave_param interleave_param;
-	char              mpt[PATH_MAX];
-	char              shadow_path[PATH_MAX];
+	char *mpt;
+	char *shadow_path;
 };
 
 struct famfs_log_stats {

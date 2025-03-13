@@ -112,8 +112,6 @@ file_is_famfs(const char *fname)
 		free(local_path);
 	}
 
-	printf("%s: fname=%s, fs_type=%s\n", __func__, fname,
-	       famfs_mount_type(fs.f_type));
 	switch (fs.f_type) {
 	case FAMFS_SUPER_MAGIC: /* deprecated but older v1 returns this */
 		return FAMFS_V1;
@@ -2490,6 +2488,8 @@ famfs_init_locked_log(
 	const char *fspath,
 	int verbose)
 {
+	char mpt[PATH_MAX];
+	char shadow[PATH_MAX];
 	size_t log_size;
 	void *addr;
 	int role;
@@ -2511,13 +2511,14 @@ famfs_init_locked_log(
 	}
 
 	/* Log file */
-	lp->lfd = open_log_file_writable(fspath, &log_size, lp->mpt, BLOCKING_LOCK);
+	lp->lfd = open_log_file_writable(fspath, &log_size, mpt, BLOCKING_LOCK);
 	if (lp->lfd < 0) {
 		fprintf(stderr, "%s: Unable to open famfs log for writing\n", __func__);
 		/* If we can't open the log file for writing, don't allocate */
 		rc = lp->lfd;
 		goto err_out;
 	}
+	lp->mpt = strdup(mpt);
 
 	lp->famfs_type = file_is_famfs(fspath);
 	if (lp->famfs_type < 0) {
@@ -2526,17 +2527,22 @@ famfs_init_locked_log(
 	}
 	if (lp->famfs_type == FAMFS_FUSE) {
 		/* Get the shadow path */
-		if (!mock_fstype) {
-			if (!famfs_path_is_mount_pt(lp->mpt, NULL, lp->shadow_path)) {
-				rc = -1;
-				goto err_out;
-			}
-			if (strlen(lp->shadow_path) == 0) {
-				fprintf(stderr, "%s: failed to get shadow path\n",
-					__func__);
-				rc = -1;
-				goto err_out;
-			}
+		if (!famfs_path_is_mount_pt(lp->mpt, NULL, shadow)) {
+			rc = -1;
+			goto err_out;
+		}
+		if (strlen(shadow) == 0) {
+			fprintf(stderr, "%s: failed to get shadow path\n",
+				__func__);
+			rc = -1;
+			goto err_out;
+		} else
+			lp->shadow_path = strdup(shadow);
+
+		if (!lp->shadow_path) {
+			fprintf(stderr, "%s: failed to get shadow path\n", __func__);
+			rc = -1;
+			goto err_out;
 		}
 	}
 
@@ -2605,6 +2611,10 @@ famfs_release_locked_log(struct famfs_locked_log *lp)
 		fprintf(stderr, "%s: unlock returned an error\n", __func__);
 
 	close(lp->lfd);
+	if (lp->mpt)
+		free(lp->mpt);
+	if (lp->shadow_path)
+		free(lp->shadow_path);
 	return rc;
 }
 
