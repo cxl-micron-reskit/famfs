@@ -435,6 +435,56 @@ int shadow_path_valid(const char *path)
 	return 0;
 }
 
+#define NARGV 64
+
+int
+famfs_start_fuse_daemon(
+	const char *mpt,
+	const char *daxdev,
+	const char *shadow,
+	int verbose)
+{
+	char target_path[PATH_MAX];
+	char exe_path[PATH_MAX];
+	char opts[PATH_MAX];
+	char *argv[NARGV];
+	int argc = 0;
+	ssize_t len;
+	char *dir;
+	pid_t pid;
+
+	pid = fork();
+
+	if (pid < 0) {
+		fprintf(stderr, "%s: failed to fork\n", __func__);
+		return -1;
+	}
+	if (pid > 0)
+		return 0;
+
+	len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+	if (len < 0)
+		fprintf(stderr, "%s: readlink /proc/self/exe failed\n", __func__);
+	dir = dirname(exe_path);
+	snprintf(target_path, sizeof(target_path) - 1, "%s/%s", dir, "famfs_fused");
+
+	snprintf(opts, sizeof(opts), "daxdev=%s,shadow=%s",
+		daxdev, shadow);
+
+	argv[argc++] = "famfsd";
+	argv[argc++] = "-s";
+	argv[argc++] = "-o";
+	argv[argc++] = strdup(opts);
+	argv[argc++] = strdup(mpt);
+	argv[argc++] = NULL;
+
+	assert (argc < NARGV);
+
+	execv(target_path, argv);
+
+	return 0;
+}
+
 int
 famfs_mount_fuse(
 	const char *realdaxdev,
@@ -443,12 +493,19 @@ famfs_mount_fuse(
 	int verbose)
 {
 	char *local_shadow;
+	//char shadow_root[PATH_MAX];
 	int rc = 0;
 
 	if (realshadow)
 		local_shadow = strdup(realshadow);
 	else
 		local_shadow = strdup("/tmp/shadow"); /* XXX generate more reasonably */
+
+	if (shadow_path_in_use(local_shadow)) {
+		fprintf(stderr, "%s: shadow path is already in use!\n", __func__);
+		rc = -EALREADY;
+		goto out;
+	}
 
 	if (!shadow_path_valid(local_shadow)) {
 		fprintf(stderr, "%s: invalid shadow path (%s)\n",
@@ -457,12 +514,23 @@ famfs_mount_fuse(
 		goto out;
 	}
 
-	if (shadow_path_in_use(local_shadow)) {
-		fprintf(stderr, "%s: shadow path is already in use!\n", __func__);
-		rc = -EALREADY;
+	rc = mkdir(local_shadow, 0755);
+	if (rc) {
+		fprintf(stderr, "%s: failed to create shadow path %s\n",
+			__func__, local_shadow);
+		rc = -1;
 		goto out;
 	}
-
+#if 0
+	snprintf(shadow_root, sizeof(shadow_root) - 1, "%s/root", local_shadow);
+	rc = mkdir(shadow_root, 0755);
+	if (rc) {
+		fprintf(stderr, "%s: failed to create shadow root %s\n",
+			__func__, shadow_root);
+		rc = -1;
+		goto out;
+	}
+#endif
 	rc = famfs_mkmeta(realdaxdev, local_shadow, verbose);
 	if (rc) {
 		fprintf(stderr, "%s: err mkmeta failed for shadow %s\n",
@@ -472,9 +540,24 @@ famfs_mount_fuse(
 
 	printf("good mkmeta; write the rest of the mount code now \n");
 
-	/* Start the fuse daemon */
+	/* Start the fuse daemon, which mounts the FS */
+	rc = famfs_start_fuse_daemon(realmpt, realdaxdev, local_shadow, verbose);
+	if (rc < 0) {
+		fprintf(stderr, "%s: failed to start fuse daemon\n", __func__);
+		return rc;
+	}
 
 	/* Play the log */
+	sleep(1); /* XXX need to wait till the mount completes. Hmmmm... */
+
+	/* TODO: wait until the superblock & log appear under the mount point */
+
+	printf("%s: about to play the log...\n", __func__);
+	rc = famfs_logplay(realmpt, 0, 0, 0, local_shadow, 0, realdaxdev, verbose);
+	if (rc < 0) {
+		fprintf(stderr, "%s: failed to play the log\n", __func__);
+		return rc;
+	}
 
 out:
 	free(local_shadow);

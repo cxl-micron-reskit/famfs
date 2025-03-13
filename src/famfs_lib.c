@@ -112,6 +112,8 @@ file_is_famfs(const char *fname)
 		free(local_path);
 	}
 
+	printf("%s: fname=%s, fs_type=%s\n", __func__, fname,
+	       famfs_mount_type(fs.f_type));
 	switch (fs.f_type) {
 	case FAMFS_SUPER_MAGIC: /* deprecated but older v1 returns this */
 		return FAMFS_V1;
@@ -1689,7 +1691,7 @@ famfs_logplay(
 			return -1;
 		}
 		
-		sb = mmap(0, log_size, PROT_READ, MAP_PRIVATE, sfd, 0);
+		sb = mmap(0, FAMFS_SUPERBLOCK_SIZE, PROT_READ, MAP_PRIVATE, sfd, 0);
 		if (logp == MAP_FAILED) {
 			fprintf(stderr, "%s: failed to mmap superblock file %s/.meta/log\n",
 				__func__, mpt_out);
@@ -1698,13 +1700,14 @@ famfs_logplay(
 			return -1;
 		}
 		
-		/* Note that this dereferences logp to get the length, and then invalidates the
-		 * cache. I think this is ok...
+		/* Note that this dereferences logp to get the length, and then
+		 * invalidates the cache. I think this is ok...
 		 */
 		invalidate_processor_cache(logp, logp->famfs_log_len);
 	} else {
-		/* XXX: Hmm, not sure how to invalidate the processor cache before a posix read.
-		 * default is mmap; posix read may not work correctly for non-cache-coherent configs
+		/* XXX: Hmm, not sure how to invalidate the processor cache
+		 * before a posix read. Default is mmap; posix read may not work
+		 * correctly for non-cache-coherent configs
 		 */
 		/* Get log via posix read */
 		logp = malloc(log_size);
@@ -1747,9 +1750,10 @@ famfs_logplay(
 				     0 /* not shadowtest mode */,
 				     role, verbose);
 err_out:
-	if (use_mmap)
+	if (use_mmap) {
 		munmap(logp, log_size);
-	else {
+		munmap(sb, FAMFS_SUPERBLOCK_SIZE);
+	} else {
 		free(logp);
 		free(sb);
 	}
