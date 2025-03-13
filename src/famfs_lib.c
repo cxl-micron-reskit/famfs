@@ -2858,6 +2858,8 @@ __famfs_mkfile(
 		assert(target_fullpath);
 
 		snprintf(target_fullpath, PATH_MAX - 1, "%s/%s", cwd, filename);
+		free(cwd);
+		cwd = NULL;
 	}
 	else
 		target_fullpath = strdup(filename);
@@ -2874,7 +2876,8 @@ __famfs_mkfile(
 	if (stat(target_fullpath, &st) == 0) {
 		fprintf(stderr, "%s: Error: file %s already exists\n", __func__,
 			target_fullpath);
-		return -1;
+		fd = -1;
+		goto out;
 	} else {
 		char *tmp_path = strdup(target_fullpath);
 		char *parent_path = dirname(tmp_path);
@@ -2884,7 +2887,8 @@ __famfs_mkfile(
 		if (rc != 0) {
 			fprintf(stderr, "%s: Error %s parent dir does not exist\n",
 				__func__, target_fullpath);
-			return -1;
+			fd = -1;
+			goto out;
 		}
 		switch (st.st_mode & S_IFMT) {
 		case S_IFDIR:
@@ -2892,8 +2896,8 @@ __famfs_mkfile(
 		default:
 			fprintf(stderr, "%s: Error %s parent exists but is not a directory\n",
 				__func__, target_fullpath);
-			return -1;
-			break;
+			fd = -1;
+			goto out;
 		}
 
 		/* TODO: verify parent_path is in a famfs mount */
@@ -2906,7 +2910,8 @@ __famfs_mkfile(
 	if (rc) {
 		fprintf(stderr, "%s: famfs_file_alloc(%s, size=%ld) failed\n",
 			__func__, target_fullpath, size);
-		return -1;
+		fd = -1;
+		goto out;
 	}
 	assert(fmap->fmap_nextents == 1);
 
@@ -3003,6 +3008,8 @@ __famfs_mkfile(
 out:
 	if (fmap)
 		free(fmap);
+	if (target_fullpath)
+		free(target_fullpath);
 
 	return fd;
 }
