@@ -2730,7 +2730,7 @@ famfs_shadow_file_create(
 	int fd;
 
 	assert(fc);
-	assert(ls);
+	//assert(ls);
 	if (verbose)
 		famfs_emit_file_yaml(fc, stdout);
 
@@ -2746,7 +2746,7 @@ famfs_shadow_file_create(
 			fprintf(stderr,
 				"%s: directory where file %s expected\n",
 				__func__, shadow_fullpath);
-			ls->d_errs++;
+			if (ls) ls->d_errs++;
 			break;
 
 		case S_IFREG:
@@ -2754,7 +2754,7 @@ famfs_shadow_file_create(
 				fprintf(stderr,
 					"%s: file (%s) exists where dir should be\n",
 					__func__, shadow_fullpath);
-			ls->f_existed++;
+			if (ls) ls->f_existed++;
 
 			/* TODO: detect a yaml mismatch in the existing file */
 			return 0;
@@ -2764,7 +2764,7 @@ famfs_shadow_file_create(
 			fprintf(stderr,
 				"%s: something (%s) exists where dir should be\n",
 				__func__, shadow_fullpath);
-			ls->d_errs++;
+			if (ls) ls->d_errs++;
 			break;
 		}
 		return -1;
@@ -2774,7 +2774,7 @@ famfs_shadow_file_create(
 	if (fd < 0) {
 		fprintf(stderr, "%s: open/creat of %s failed, fd %d with %s\n",
 			__func__, shadow_fullpath, fd, strerror(errno));
-		ls->f_errs++;
+		if (ls) ls->f_errs++;
 		return -1;
 	}
 	/* Open shadow file as a stream */
@@ -2787,15 +2787,15 @@ famfs_shadow_file_create(
 
 	/* Write the yaml metadata to the shadow file */
 	rc = famfs_emit_file_yaml(fc, fp);
-	ls->f_created++;
+	if (ls) ls->f_created++;
 
 	if (testmode) {
-		ls->yaml_checked++;
+		if (ls) ls->yaml_checked++;
 		rc = famfs_test_shadow_yaml(fp, fc, verbose);
 		if (rc) {
 			/* In yaml testmode, yaml errrs are file errors */
-			ls->yaml_errs++;
-			ls->f_errs++;
+			if (ls) ls->yaml_errs++;
+			if (ls) ls->f_errs++;
 		}
 	}
 	fclose(fp);
@@ -2810,7 +2810,8 @@ famfs_shadow_file_create(
  * Inner function to create *and* allocate a file, and logs it.
  *
  * @locked_logp - We have a writable lock, which also means we're running on the master node
- * @filename
+ * @filename    - filename, which may be relative to getcwd(), which is NOT NECESSARILY
+ *                relative to the mount point
  * @mode
  * @mode
  * @uid
@@ -2836,16 +2837,32 @@ __famfs_mkfile(
 {
 	struct famfs_log_fmap *fmap = NULL;
 	struct famfs_log *logp;
-	char *fullpath = NULL;
+	char *target_fullpath;
 	char *relpath = NULL;
-	char *rpath = NULL;
 	char mpt[PATH_MAX];
+	char *cwd = get_current_dir_name();
 	struct stat st;
 	int fd = -1;
 	int rc;
 
 	assert(lp);
 	assert(size > 0);
+
+	if (filename[0] != '/') {
+		size_t len;
+
+		len = strlen(cwd) + strlen(filename) + 2; /* add slash and null term */
+
+		assert (len < PATH_MAX);
+		target_fullpath = malloc(len);
+		assert(target_fullpath);
+
+		snprintf(target_fullpath, PATH_MAX - 1, "%s/%s", cwd, filename);
+	}
+	else
+		target_fullpath = strdup(filename);
+
+	/* From here on, use target_fullpath and not filename */
 
 	/* TODO: */
 	/* Don't create the file yet, but...
@@ -2854,18 +2871,19 @@ __famfs_mkfile(
 	 * 3. Parent path must be in a famfs file system
 	 * Otherwise fail
 	 */
-	if (stat(filename, &st) == 0) {
-		fprintf(stderr, "%s: Error: file %s already exists\n", __func__, filename);
+	if (stat(target_fullpath, &st) == 0) {
+		fprintf(stderr, "%s: Error: file %s already exists\n", __func__,
+			target_fullpath);
 		return -1;
 	} else {
-		char *tmp_path = strdup(filename);
+		char *tmp_path = strdup(target_fullpath);
 		char *parent_path = dirname(tmp_path);
 
 		rc = stat(parent_path, &st);
 		free(tmp_path);
 		if (rc != 0) {
 			fprintf(stderr, "%s: Error %s parent dir does not exist\n",
-				__func__, filename);
+				__func__, target_fullpath);
 			return -1;
 		}
 		switch (st.st_mode & S_IFMT) {
@@ -2873,7 +2891,7 @@ __famfs_mkfile(
 			break; /* all good - parent is a directory */
 		default:
 			fprintf(stderr, "%s: Error %s parent exists but is not a directory\n",
-				__func__, filename);
+				__func__, target_fullpath);
 			return -1;
 			break;
 		}
@@ -2881,98 +2899,110 @@ __famfs_mkfile(
 		/* TODO: verify parent_path is in a famfs mount */
 	}
 
-	/* XXX do we need the non-locked-log case? */
 	logp = lp->logp;
 	strncpy(mpt, lp->mpt, PATH_MAX - 1);
 
 	rc = famfs_file_alloc(lp, size, &fmap, verbose);
 	if (rc) {
 		fprintf(stderr, "%s: famfs_file_alloc(%s, size=%ld) failed\n",
-			__func__, filename, size);
+			__func__, target_fullpath, size);
 		return -1;
 	}
 	assert(fmap->fmap_nextents == 1);
 
-	/* Create the file
-	 * V1: this creates an empty file in famfs via normal posix tools
-	 * V2: TBD...
-	 *    * This needs to play this log entry into its new shadow file
-	 *    * Then open the shadow file via the fuse mount
-	 */
-	fd = famfs_file_create_stub(filename, mode, uid, gid, 0);
-	if (fd <= 0)
-		goto out;
-
-	/* Log the file creation */
-
-	/* For the log, we need the path relative to the mount point.
-	 * getting this before we allocate is cleaner if the path is sombhow bogus
-	 */
-	rpath = strdup(filename);
-	if (verbose)
-		printf("filename %s rpath %s\n", filename, rpath);
-
-	/* realpath should not fail because we just created the file */
-	assert((fullpath = realpath(rpath, NULL)));
-
-	relpath = famfs_relpath_from_fullpath(mpt, fullpath);
+	relpath = famfs_relpath_from_fullpath(mpt, target_fullpath);
 	if (!relpath) {
-		close(fd);
 		fd = -1;
 		goto out;
 	}
+
+	if (lp->shadow_path) {
+		struct famfs_log_file_meta fmeta = { 0 };
+		char shadowpath[PATH_MAX];
+		char filepath[PATH_MAX];
+
+		fmeta.fm_size = size;
+		fmeta.fm_flags = FAMFS_FM_ALL_HOSTS_RW;
+		fmeta.fm_uid = uid;
+		fmeta.fm_gid = gid;
+		fmeta.fm_mode = mode;
+
+		memcpy(&fmeta.fm_fmap, fmap, sizeof(*fmap));
+
+		snprintf(shadowpath, PATH_MAX - 1, "%s/%s", lp->shadow_path, relpath);
+		snprintf(filepath, PATH_MAX - 1, "%s/%s", lp->mpt, relpath);
+
+		rc = famfs_shadow_file_create(shadowpath, &fmeta, NULL, 0, 0, 0, verbose);
+		if (rc)
+			goto out;
+
+		fd = open(filepath, O_RDWR, mode);
+		if (fd < 0)
+			fprintf(stderr, "%s: unable to open brand new file %s\n",
+				__func__, filepath);
+	} else {
+		/* Create the stub file
+		 * V1: this creates an empty file in famfs via normal posix tools
+		 * V2: TBD...
+		 *    * This needs to play this log entry into its new shadow file
+		 *    * Then open the shadow file via the fuse mount
+		 */
+		fd = famfs_file_create_stub(filename, mode, uid, gid, 0);
+		if (fd <= 0)
+			goto out;
+
+		if (!mock_kmod) {
+			if (FAMFS_KABI_VERSION > 42) {
+#if (FAMFS_KABI_VERSION > 42)
+				rc =  famfs_v2_set_file_map(fd, size, fmap, FAMFS_REG);
+				if (rc) {
+					close(fd);
+					fd = rc;
+					fprintf(stderr,
+						"%s: failed to create destination file %s\n",
+						__func__, filename);
+				}
+#endif
+			} else {
+				struct famfs_simple_extent ext = {0};
+
+				if (fmap->fmap_nextents > 1) {
+					fprintf(stderr,
+						"%s: nextents %d (are you running a v2 test?)\n",
+						__func__, fmap->fmap_nextents);
+					close(fd);
+					fd = -EINVAL; /* XXX: gotta fix up return codes */
+					goto out;
+				}
+				ext.se_offset = fmap->se[0].se_offset;
+				ext.se_len    = fmap->se[0].se_len;
+
+				/* This will do legacy allocation regardless of whether
+				 * striping is configured in the ll */
+				rc = famfs_v1_set_file_map(fd, size, 1, &ext, FAMFS_REG);
+				if (rc) {
+					close(fd);
+					fd = rc;
+					goto out;
+				}
+			}
+		}
+	}
+
+	/* TODO: accumulate log entries into a buffer, to be committed upon
+	 * release_locked_log() (prior to releasing the lock)
+	 */
+	/* Log the file creation */
 	rc = famfs_log_file_creation(logp, fmap,
 				     relpath, mode, uid, gid, size,
 				     (verbose > 1) ? 1:0 /* dump metadata */);
 	if (rc)
 		return rc;
 
-	/* Create the local file instance (either v1 or v2/shadow) */
-	if (!mock_kmod) {
-
-		if (FAMFS_KABI_VERSION > 42) {
-#if (FAMFS_KABI_VERSION > 42)
-			rc =  famfs_v2_set_file_map(fd, size, fmap, FAMFS_REG);
-			if (rc) {
-				close(fd);
-				fd = rc;
-				fprintf(stderr,
-					"%s: failed to create destination file %s\n",
-					__func__, filename);
-			}
-#endif
-		} else {
-			struct famfs_simple_extent ext = {0};
-
-			if (fmap->fmap_nextents > 1) {
-				fprintf(stderr,
-					"%s: nextents %d (are you running a v2 test?)\n",
-					__func__, fmap->fmap_nextents);
-				close(fd);
-				fd = -EINVAL; /* XXX: gotta fix up return codes */
-				goto out;
-			}
-			ext.se_offset = fmap->se[0].se_offset;
-			ext.se_len    = fmap->se[0].se_len;
-
-			/* This will do legacy allocatnoi regardless of whether striping
-			 * is configured in the ll */
-			rc = famfs_v1_set_file_map(fd, size, 1, &ext, FAMFS_REG);
-			if (rc) {
-				close(fd);
-				fd = rc;
-				goto out;
-			}
-		}
-	}
 
 out:
 	if (fmap)
 		free(fmap);
-	if (fullpath)
-		free(fullpath);
-	if (rpath)
-		free(rpath);
 
 	return fd;
 }
@@ -3338,6 +3368,7 @@ famfs_mkdir_parents(
  * @srcfile  - must exist and be a regular file
  * @destfile - must not exist (and will be a regular file). If @destfile does not fall
  *             within a famfs file system, we will clean up and fail
+ * NOTE: paths may be absolute or relative to getcwd()
  * @mode     - If mode is NULL, mode is inherited fro msource file
  * @uid
  * @gid
@@ -3408,10 +3439,8 @@ __famfs_cp(
 	}
 
 	/* XXX famfs_mkfile() calls famfs_file_alloc()
-	 * famfs_file_alloc() allocates and logs the file under log lock
-	 * but this function copies the data into the file after the log lock is released
-	 * Need a way of holding the lock until the data is copied.
-	 */
+	 * famfs_file_alloc() allocates and logs the file
+	 * under log lock */
 	destfd = __famfs_mkfile(lp, destfile, (mode == 0) ? srcstat.st_mode : mode,
 				uid, gid, srcstat.st_size, verbose);
 	if (destfd <= 0) {

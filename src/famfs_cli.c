@@ -1254,11 +1254,6 @@ do_famfs_cli_creat(int argc, char *argv[])
 	}
 	filename = argv[optind++];
 
-	if (!fsize) {
-		fprintf(stderr, "Non-zero file size is required\n");
-		exit(-1);
-	}
-
 	rc = stat(filename, &st);
 	if (rc == 0) {
 		enum famfs_type ftype;
@@ -1279,10 +1274,12 @@ do_famfs_cli_creat(int argc, char *argv[])
 		/* If the file exists and it's the right size, this becomes a nop;
 		 * if the file is the wrong size, it's a fail
 		 */
-		if (st.st_size != fsize) {
+		if (fsize && st.st_size != fsize) {
 			fprintf(stderr, "%s: Error: file %s exists and is not the same size\n",
 				__func__, filename);
 			exit(-1);
+		} else {
+			fsize = st.st_size;
 		}
 		if (verbose)
 			printf("%s: re-create is nop\n", __func__);
@@ -1300,6 +1297,12 @@ do_famfs_cli_creat(int argc, char *argv[])
 		/* If we pass in interleave_param info, it overrides the famfs_lib defaults */
 		struct famfs_interleave_param *s = (set_stripe) ? &interleave_param : NULL;
 
+		if (!fsize) {
+			fprintf(stderr, "%s: Non-zero file size is required for new files\n",
+				__func__);
+			exit(-1);
+		}
+
 		/* This is horky, but OK for the cli */
 		current_umask = umask(0022);
 		umask(current_umask);
@@ -1311,13 +1314,15 @@ do_famfs_cli_creat(int argc, char *argv[])
 		}
 	}
 	if (randomize) {
-		struct stat st;
+		size_t fsize_out;
+		//struct stat st;
 		void *addr;
 		char *buf;
 
+#if 0
 		rc = fstat(fd, &st);
 		if (rc) {
-			fprintf(stderr, "%s: failed to stat newly craeated file %s\n",
+			fprintf(stderr, "%s: failed to stat newly created file %s\n",
 				__func__, filename);
 			exit(-1);
 		}
@@ -1325,9 +1330,16 @@ do_famfs_cli_creat(int argc, char *argv[])
 			fprintf(stderr, "%s: file size mismatch %ld/%ld\n",
 				__func__, fsize, st.st_size);
 		}
-		addr = mmap(0, fsize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+#endif
+
+		addr = famfs_mmap_whole_file(filename, 0, &fsize_out);
 		if (!addr) {
 			fprintf(stderr, "%s: randomize mmap failed\n", __func__);
+			exit(-1);
+		}
+		if (fsize != fsize_out) {
+			fprintf(stderr, "%s: fsize horky %ld / %ld\n",
+				__func__, fsize, fsize_out);
 			exit(-1);
 		}
 		buf = (char *)addr;
