@@ -19,8 +19,8 @@ fi
 if [ -z "$UMOUNT" ]; then
     UMOUNT="umount"
 fi
-if [ -z "$MODE" ]; then
-    MODE="v1"
+if [ -z "${FAMFS_MODE}" ]; then
+    FAMFS_MODE="v1"
 fi
 
 # Override defaults as needed
@@ -42,7 +42,7 @@ while (( $# > 0)); do
 	    shift;
 	    ;;
 	(-m|--mode)
-	    MODE="$1"
+	    FAMFS_MODE="$1"
 	    shift
 	    ;;
 	(-v|--valgrind)
@@ -56,14 +56,14 @@ while (( $# > 0)); do
     esac
 done
 
-if [[ "$MODE" == "v1" || "$MODE" == "fuse" ]]; then
-    echo "MODE: $MODE"
-    if [[ "$MODE" == "fuse" ]]; then
+if [[ "${FAMFS_MODE}" == "v1" || "${FAMFS_MODE}" == "fuse" ]]; then
+    echo "FAMFS_MODE: ${FAMFS_MODE}"
+    if [[ "${FAMFS_MODE}" == "fuse" ]]; then
         MOUNT_OPTS="-f"
 	sudo rmmod famfs
     fi
 else
-    echo "MODE: invalid"
+    echo "FAMFS_MODE: invalid"
     exit 1;
 fi
 
@@ -91,7 +91,7 @@ ${CLI} creat -s 0x400000 $NOT_IN_FAMFS \
 
 # Famfs getmap should succeed on a file that exists
 LOG=$MPT/.meta/.log
-if [[ "$MODE" == "v1" ]]; then
+if [[ "${FAMFS_MODE}" == "v1" ]]; then
     ${CLI} getmap -h   || fail "getmap -h should succeed"
     ${CLI} getmap      && fail "getmap with no file arg should fail"
     ${CLI} getmap badfile  && fail "getmap on nonexistent file should fail"

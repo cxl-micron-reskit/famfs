@@ -5,7 +5,7 @@ cwd=$(pwd)
 # Defaults
 VG=""
 SCRIPTS=../scripts
-MOUNT_OPTS="-t famfs -o noatime -o dax=always "
+RAW_MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 
@@ -18,6 +18,9 @@ if [ -z "$MPT" ]; then
 fi
 if [ -z "$UMOUNT" ]; then
     UMOUNT="umount"
+fi
+if [ -z "${FAMFS_MODE}" ]; then
+    FAMFS_MODE="v1"
 fi
 
 # Override defaults as needed
@@ -38,6 +41,10 @@ while (( $# > 0)); do
 	    source_root=$1;
 	    shift;
 	    ;;
+	(-m|--mode)
+	    FAMFS_MODE="$1"
+	    shift
+	    ;;
 	(-v|--valgrind)
 	    # no argument to -v; just setup for Valgrind
 	    VG=${VALGRIND_ARG}
@@ -49,8 +56,21 @@ while (( $# > 0)); do
     esac
 done
 
-echo "DEVTYPE=$DEVTYPE"
+if [[ "${FAMFS_MODE}" == "v1" || "${FAMFS_MODE}" == "fuse" ]]; then
+    echo "FAMFS_MODE: ${FAMFS_MODE}"
+    if [[ "${FAMFS_MODE}" == "fuse" ]]; then
+        MOUNT_OPTS="-f"
+	sudo rmmod famfs
+    fi
+else
+    echo "FAMFS_MODE: invalid"
+    exit 1;
+fi
+
+MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
+MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI="sudo $VG $BIN/famfs"
+CLI_NOSUDO="$VG $BIN/famfs"
 TEST="test3"
 
 source $SCRIPTS/test_funcs.sh
@@ -94,21 +114,27 @@ fi
 # Test behavior of standard "cp" into famfs
 # The create should succeed, but the write should fail, leaving an empty, invalid file
 sudo cp /etc/passwd $MPT/pwd && fail "cp to famfs should fail due to invalid famfs metadata"
-test -f $MPT/pwd || fail "cp should leave an invalid destination file"
-test -s $MPT/pwd && fail "file from cp should be empty"
+if [[ "${FAMFS_MODE}" == "v1" ]]; then
+    test -f $MPT/pwd || fail "v1 cp should leave an invalid destination file"
+    test -s $MPT/pwd && fail "file from cp should be empty"
+    # Create an invalid file via "touch" and test behavior
+    sudo touch $MPT/touchfile || fail "touch should succeed at creating an invalid file"
+    sudo dd if=$MPT/touchfile && fail "dd from invalid file should fail"
 
-# Create an invalid file via "touch" and test behavior
-sudo touch $MPT/touchfile || fail "touch should succeed at creating an invalid file"
-sudo dd if=$MPT/touchfile && fail "dd from invalid file should fail"
-
-sudo truncate $MPT/touchfile -s 8192
-if (( $? == 0 )); then
-    # This should be reconsidered when we no longer support kmods that
-    # allow truncate XXX
-    sudo dd if=$MPT/touchfile of=/dev/null bs=8192 count=1  \
-	&& fail "dd from touchfile should fail"
-    sudo dd if=/dev/zero of=$MPT/touchfile bs=8192 count=1  \
-	&& fail "dd to touchfile should fail"
+    sudo truncate $MPT/touchfile -s 8192
+    if (( $? == 0 )); then
+	# This should be reconsidered when we no longer support kmods that
+	# allow truncate XXX
+	sudo dd if=$MPT/touchfile of=/dev/null bs=8192 count=1  \
+	    && fail "dd from touchfile should fail"
+	sudo dd if=/dev/zero of=$MPT/touchfile bs=8192 count=1  \
+	    && fail "dd to touchfile should fail"
+    fi
+else
+    test -f $MPT/pwd && fail "non-cli cp to famfs/fuse should fail outright"
+    # Create an invalid file via "touch" and test behavior
+    sudo touch $MPT/touchfile && fail "non-cli touch should fail in famfs/fuse"
+    sudo dd if=$MPT/touchfile && fail "dd from missing file should fail"
 fi
 
 stat $MPT/ddtest
@@ -116,18 +142,18 @@ stat $MPT/ddtest
 # unmount and remount
 sudo $UMOUNT $MPT || fail "umount"
 findmnt -t famfs
-verify_not_mounted $DEV $MPT "test1.sh"
+verify_not_mounted $DEV $MPT "test3"
 sleep 1
-${CLI} mount $DEV $MPT
-verify_mounted $DEV $MPT "test1.sh"
+${MOUNT} $DEV $MPT
+verify_mounted $DEV $MPT "test3 x"
 findmnt -t famfs
 
-stat $MPT/ddtest
+sudo stat $MPT/ddtest
 
 # Test that our invalid files from above are going after umount/mount
-test -f $MPT/touchfile           && fail "touchfile should have disappeared"
-test -f $MPT/pwd                 && fail "pwd file should have disappeared"
-test -f $MPT/ddtest              || fail "ddtest file should have reappeared and become valid again"
+sudo test -f $MPT/touchfile           && fail "touchfile should have disappeared"
+sudo test -f $MPT/pwd                 && fail "pwd file should have disappeared"
+sudo test -f $MPT/ddtest              || fail "ddtest file should have reappeared and become valid again"
 
 # Unmounting and remounting the file system should have restored the ddtest file's
 # size after the rogue truncate above. Double check this

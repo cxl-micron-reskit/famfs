@@ -19,8 +19,8 @@ fi
 if [ -z "$UMOUNT" ]; then
     UMOUNT="umount"
 fi
-if [ -z "$MODE" ]; then
-    MODE="v1"
+if [ -z "${FAMFS_MODE}" ]; then
+    FAMFS_MODE="v1"
 fi
 
 # Override defaults as needed
@@ -42,7 +42,7 @@ while (( $# > 0)); do
 	    shift;
 	    ;;
 	(-m|--mode)
-	    MODE="$1"
+	    FAMFS_MODE="$1"
 	    shift
 	    ;;
 	(-v|--valgrind)
@@ -56,14 +56,14 @@ while (( $# > 0)); do
     esac
 done
 
-if [[ "$MODE" == "v1" || "$MODE" == "fuse" ]]; then
-    echo "MODE: $MODE"
-    if [[ "$MODE" == "fuse" ]]; then
+if [[ "${FAMFS_MODE}" == "v1" || "${FAMFS_MODE}" == "fuse" ]]; then
+    echo "FAMFS_MODE: ${FAMFS_MODE}"
+    if [[ "${FAMFS_MODE}" == "fuse" ]]; then
         MOUNT_OPTS="-f"
 	sudo rmmod famfs
     fi
 else
-    echo "MODE: invalid"
+    echo "FAMFS_MODE: invalid"
     exit 1;
 fi
 
@@ -205,13 +205,13 @@ ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp9 || fail "verify ${F}_cp9"
 #
 # Cp wildcard to directory from mkdir -p, and verify
 # (with custom mode/uid/gid)
-MODE="600"
+FMODE="600"
 UID=$(id -u)
 GID=$(id -g)
 
 cd ${MPT}/..
 DEST=A/B/C/w/x/y/z
-${CLI} cp -m $MODE -u $UID -g $GID  $MPT/subdir/* $MPT/${DEST} || fail "cp wildcard set to directory should succeed"
+${CLI} cp -m $FMODE -u $UID -g $GID  $MPT/subdir/* $MPT/${DEST} || fail "cp wildcard set to directory should succeed"
 # Verify files from wildcard cp, in a deep directory
 ${CLI} verify -S 42 -f $PFX/${DEST}/${F}_cp0 || fail "verify relpath ${F}_cp0"
 ${CLI} verify -S 42 -f $PFX/${DEST}/${F}_cp1 || fail "verify relpath ${F}_cp1"
@@ -228,9 +228,9 @@ cd -
 
 # Check the custom cp mode/uid/gid on one of the files
 FILE="$MPT/${DEST}/${F}_cp0"
-MODE_OUT="$(sudo stat --format='%a' ${FILE})"
-if [[ $MODE != $MODE_OUT ]]; then
-    fail "cp -m err $MODE ${MODE_OUT}"
+FMODE_OUT="$(sudo stat --format='%a' ${FILE})"
+if [[ $FMODE != $FMODE_OUT ]]; then
+    fail "cp -m err $FMODE ${FMODE_OUT}"
 fi
 UID_OUT="$(sudo stat --format='%u' ${FILE})"
 if [[ $UID != $UID_OUT ]]; then
@@ -247,9 +247,9 @@ ${MOUNT} $DEV $MPT || fail "mount should succeed test1 2"
 verify_mounted $DEV $MPT "test1.sh"
 
 # re-check the custom cp mode/uid/gid on one of the files
-MODE_OUT="$(sudo stat --format='%a' ${FILE})"
-if [[ $MODE != $MODE_OUT ]]; then
-    fail "cp -m err $MODE ${MODE_OUT} after remount"
+FMODE_OUT="$(sudo stat --format='%a' ${FILE})"
+if [[ $FMODE != $FMODE_OUT ]]; then
+    fail "cp -m err $MODE ${FMODE_OUT} after remount"
 fi
 UID_OUT="$(sudo stat --format='%u' ${FILE})"
 if [[ $UID != $UID_OUT ]]; then

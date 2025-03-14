@@ -4,7 +4,8 @@ cwd=$(pwd)
 
 # Defaults
 VG=""
-SCRIPTS=../scripts/
+SCRIPTS=../scripts
+RAW_MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 RMMOD=0
@@ -18,6 +19,9 @@ if [ -z "$MPT" ]; then
 fi
 if [ -z "$UMOUNT" ]; then
     UMOUNT="umount"
+fi
+if [ -z "${FAMFS_MODE}" ]; then
+    FAMFS_MODE="v1"
 fi
 
 # Override defaults as needed
@@ -38,6 +42,10 @@ while (( $# > 0)); do
 	    source_root=$1;
 	    shift;
 	    ;;
+	(-m|--mode)
+	    FAMFS_MODE="$1"
+	    shift
+	    ;;
 	(-v|--valgrind)
 	    # no argument to -v; just setup for Valgrind
 	    VG=${VALGRIND_ARG}
@@ -52,14 +60,27 @@ while (( $# > 0)); do
     esac
 done
 
-echo "DEVTYPE=$DEVTYPE"
+if [[ "${FAMFS_MODE}" == "v1" || "${FAMFS_MODE}" == "fuse" ]]; then
+    echo "FAMFS_MODE: ${FAMFS_MODE}"
+    if [[ "${FAMFS_MODE}" == "fuse" ]]; then
+        MOUNT_OPTS="-f"
+	sudo rmmod famfs
+    fi
+else
+    echo "FAMFS_MODE: invalid"
+    exit 1;
+fi
+
+MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
+MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI="sudo $VG $BIN/famfs"
-MULTICHASE="sudo $BIN/src/multichase/multichase"
-TEST="test4"F
-FUSED="sudo $VG $BIN/famfs_fused"
+CLI_NOSUDO="$VG $BIN/famfs"
+TEST="test4"
 
 source $SCRIPTS/test_funcs.sh
 # Above this line should be the same for all smoke tests
+
+MULTICHASE="sudo $BIN/src/multichase/multichase"
 
 set -x
 
@@ -112,8 +133,8 @@ ${CLI} logplay --shadow $SHADOWPATH --shadow $SHADOWPATH --daxdev $DEV  -vv && \
 # Test cli 'famfs mount'
 #
 # Second mount causes fubar on 6.7, but fails as it should on 6.5 TODO: fix it!!
-${CLI} mount -vvv $DEV $MPT || fail "famfs mount should succeed when not mounted"
-${CLI} mount -vvv $DEV $MPT 2>/dev/null && fail "famfs mount should fail when already mounted"
+${MOUNT} -vvv $DEV $MPT || fail "famfs mount should succeed when not mounted"
+${MOUNT} -vvv $DEV $MPT 2>/dev/null && fail "famfs mount should fail when already mounted"
 
 verify_mounted $DEV $MPT "test4.sh remount"
 
@@ -129,32 +150,35 @@ sudo $UMOUNT $MPT            || fail "umount failed"
 verify_not_mounted $DEV $MPT "test4.sh 2nd umount"
 
 
-${CLI} mount -?             || fail "famfs mount -? should succeed"
-${CLI} mount                && fail "famfs mount with no args should fail"
-${CLI} mount  a b c         && fail "famfs mount with too many args should fail"
-${CLI} mount baddev $MPT    && fail "famfs mount with bad device path should fail"
-${CLI} mount $DEV badmpt    && fail "famfs mount with bad mount point path should fail"
+${MOUNT} -?             || fail "famfs mount -? should succeed"
+${MOUNT}                && fail "famfs mount with no args should fail"
+${MOUNT}  a b c         && fail "famfs mount with too many args should fail"
+${MOUNT} baddev $MPT    && fail "famfs mount with bad device path should fail"
+${MOUNT} $DEV badmpt    && fail "famfs mount with bad mount point path should fail"
 
 
 verify_not_mounted $DEV $MPT "test4.sh various bad mount attempts"
 
-${CLI} mount -rm -vvv $DEV $MPT && fail "famfs mount with -r and -m should fail"
-${CLI} mount -r -vvv $DEV $MPT  || fail "famfs mount 2 should succeed when not mounted"
+${MOUNT} -rm -vvv $DEV $MPT && fail "famfs mount with -r and -m should fail"
+${MOUNT} -r -vvv $DEV $MPT  || fail "famfs mount 2 should succeed when not mounted"
 verify_mounted $DEV $MPT "test4.sh 2nd remount"
 
 sudo test -f $F             || fail "bogusly deleted file did not reappear on remount"
 ${CLI} verify -S 42 -f $F
 sudo $UMOUNT $MPT            || fail "umount should succeed"
-
-if ((RMMOD > 0)); then
-    sudo rmmod famfs            || fail "could not unload famfs when unmoounted"
-    ${CLI} mount -vvv $DEV $MPT && fail "famfs mount should fail when kmod not loaded"
+if [[ "${FAMFS_MODE}" == "v1" ]]; then
+    if ((RMMOD > 0)); then
+	sudo rmmod famfs            || fail "could not unload famfs when unmoounted"
+	${MOUNT} -vvv $DEV $MPT && fail "famfs mount should fail when kmod not loaded"
+	sudo modprobe famfs         || fail "modprobe"
+    fi
 fi
-sudo modprobe famfs         || fail "modprobe"
-${CLI} mount $DEV $MPT      || fail "famfs mount should succeed after kmod reloaded"
+${MOUNT} $DEV $MPT      || fail "famfs mount should succeed after kmod reloaded"
 
 #TODO troubleshoot remount
-${CLI} mount -R $DEV $MPT   || fail "famfs mount -R should succeed when nothing is hinky"
+if [[ "${FAMFS_MODE}" == "v1" ]]; then
+    ${MOUNT} -R $DEV $MPT   || fail "famfs mount -R should succeed when nothing is hinky"
+fi
 # mount -R needs mkmeta cleanup...
 
 SHADOW_TARGET=~/smoke.shadow
@@ -165,17 +189,6 @@ rm -rf $SH
 ${CLI} logplay --shadow $SH $MPT
 
 sudo $UMOUNT $MPT # run_smoke.sh expects the file system unmounted after this test
-
-
-# This stuff may go away after all commands work via fuse
-${FUSED} -s -o shadow="$SH" -o daxdev=/dev/dax1.0 $MPT || fail "fuse mount on $MPT"
-sudo ls -al $MPT || fail "can't list directory via fuse mount"
-${CLI} verify -S 42 -f $MPT/test_xfile || fail "bad verify via fuse mount"
-${CLI} fsck $MPT || fail "fsck of fuse mount should work"
-sudo umount $MPT
-
-#sudo trace-cmd record -p function -l 'fuse*' -l 'famfs*' umount $MPT
-#sudo trace-cmd report > umount-trace.txt
 
 set +x
 echo "*************************************************************************"
