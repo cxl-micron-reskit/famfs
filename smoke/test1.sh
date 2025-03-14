@@ -2,10 +2,10 @@
 
 cwd=$(pwd)
 
-# Defaults running from the directory where this file lives
+# Defaults
 VG=""
 SCRIPTS=../scripts
-MOUNT_OPTS="-t famfs -o noatime -o dax=always "
+RAW_MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 
@@ -18,6 +18,9 @@ if [ -z "$MPT" ]; then
 fi
 if [ -z "$UMOUNT" ]; then
     UMOUNT="umount"
+fi
+if [ -z "$MODE" ]; then
+    MODE="v1"
 fi
 
 # Override defaults as needed
@@ -38,6 +41,10 @@ while (( $# > 0)); do
 	    source_root=$1;
 	    shift;
 	    ;;
+	(-m|--mode)
+	    MODE="$1"
+	    shift
+	    ;;
 	(-v|--valgrind)
 	    # no argument to -v; just setup for Valgrind
 	    VG=${VALGRIND_ARG}
@@ -49,16 +56,22 @@ while (( $# > 0)); do
     esac
 done
 
-echo "DEVTYPE=$DEVTYPE"
+if [[ "$MODE" == "v1" || "$MODE" == "fuse" ]]; then
+    echo "MODE: $MODE"
+    if [[ "$MODE" == "fuse" ]]; then
+        MOUNT_OPTS="-f"
+	sudo rmmod famfs
+    fi
+else
+    echo "MODE: invalid"
+    exit 1;
+fi
 
-# Reference famfs cli by its full path
-CLI_FULLPATH=$(realpath "$BIN/famfs")
-CLI="sudo $VG ${CLI_FULLPATH}"
-CLI_NOSUDO="sudo $VG ${CLI_FULLPATH}"
-TEST="test1"
-
-echo "CLI_FULLLPATH: ${CLI_FULLPATH}"
-echo "CLI: ${CLI}"
+MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
+MKFS="sudo $VG $BIN/mkfs.famfs"
+CLI="sudo $VG $BIN/famfs"
+CLI_NOSUDO="$VG $BIN/famfs"
+TEST="test0"
 
 source $SCRIPTS/test_funcs.sh
 # Above this line should be the same for all smoke tests
@@ -75,7 +88,7 @@ verify_not_mounted $DEV $MPT "test1.sh"
 ${CLI} fsck $MPT && fail "fsck by path should fail when not mounted"
 ${CLI} fsck $DEV || fail "fsck by dev should succeed when not mounted"
 
-${CLI} mount $DEV $MPT  || fail "mount should succeed test1 1"
+${MOUNT} $DEV $MPT  || fail "mount should succeed test1 1"
 
 ${CLI} fsck $MPT || fail "fsck by path should succeed when mounted"
 
@@ -120,12 +133,16 @@ ${CLI} mkdir $MPT/$F && fail "mkdir that collides with existing file should fail
 #
 # mkdir to relpath
 #
-cd $MPT
-${CLI} mkdir foo || fail "mkdir relpath"
-${CLI} mkdir ./foo/foo || fail "mkdir relpath 2"
-${CLI} mkdir foo/foo/./bar || fail "mkdir relpath 3"
-${CLI} mkdir ./foo/foo//bar/baz || fail "mkdir relpath 4"
-${CLI} mkdir ./foo/./foo//bar/baz && fail "mkdir relpath exists should fail"
+
+# hmm. non-root can't access fuse mount currently. Test relpath by cd to just above
+# the mount point. XXX revisit this ...
+PFX=$(dirname "$MPT/..")
+cd $MPT/..
+${CLI} mkdir $PFX/foo || fail "mkdir relpath"
+${CLI} mkdir $PFX/./foo/foo || fail "mkdir relpath 2"
+${CLI} mkdir $PFX/foo/foo/./bar || fail "mkdir relpath 3"
+${CLI} mkdir $PFX/./foo/foo//bar/baz || fail "mkdir relpath 4"
+${CLI} mkdir $PFX/./foo/./foo//bar/baz && fail "mkdir relpath exists should fail"
 cd -
 
 #
@@ -138,10 +155,10 @@ ${CLI} mkdir -pv ${MPT}/AAAA/BBBB/CCC  || fail "mkdir -p 2"
 ${CLI} mkdir -pv ${MPT}/A/B/C/w/x/y/z  || fail "mkdir -p 3"
 
 sudo chmod 0666 ${MPT}/A
-cd ${MPT}
+cd ${MPT}/..
 pwd
-${CLI} mkdir -p A/x/y/z               || fail "mkdir -p 4"
-${CLI} mkdir -p ./A/x/y/z               || fail "mkdir -p 5"
+${CLI} mkdir -p $PFX/A/x/y/z               || fail "mkdir -p 4"
+${CLI} mkdir -p $PFX/./A/x/y/z               || fail "mkdir -p 5"
 cd -
 
 ${CLI} mkdir -pv $MPT/${F}/foo/bar/baz/bing && fail "mkdir -p with a file in path should fail"
@@ -191,20 +208,21 @@ ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp9 || fail "verify ${F}_cp9"
 MODE="600"
 UID=$(id -u)
 GID=$(id -g)
-cd ${MPT}
+
+cd ${MPT}/..
 DEST=A/B/C/w/x/y/z
 ${CLI} cp -m $MODE -u $UID -g $GID  $MPT/subdir/* $MPT/${DEST} || fail "cp wildcard set to directory should succeed"
 # Verify files from wildcard cp, in a deep directory
-${CLI} verify -S 42 -f ${DEST}/${F}_cp0 || fail "verify relpath ${F}_cp0"
-${CLI} verify -S 42 -f ${DEST}/${F}_cp1 || fail "verify relpath ${F}_cp1"
-${CLI} verify -S 42 -f ${DEST}/${F}_cp2 || fail "verify relpath ${F}_cp2"
-${CLI} verify -S 42 -f ${DEST}/${F}_cp3 || fail "verify relpath ${F}_cp3"
-${CLI} verify -S 42 -f ${DEST}/${F}_cp4 || fail "verify relpath ${F}_cp4"
-${CLI} verify -S 42 -f ${DEST}/${F}_cp5 || fail "verify relpath ${F}_cp5"
-${CLI} verify -S 42 -f ${DEST}/${F}_cp6 || fail "verify relpath ${F}_cp6"
-${CLI} verify -S 42 -f ${DEST}/${F}_cp7 || fail "verify relpath ${F}_cp7"
-${CLI} verify -S 42 -f ${DEST}/${F}_cp8 || fail "verify relpath ${F}_cp8"
-${CLI} verify -S 42 -f ${DEST}/${F}_cp9 || fail "verify relpath ${F}_cp9"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F}_cp0 || fail "verify relpath ${F}_cp0"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F}_cp1 || fail "verify relpath ${F}_cp1"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F}_cp2 || fail "verify relpath ${F}_cp2"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F}_cp3 || fail "verify relpath ${F}_cp3"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F}_cp4 || fail "verify relpath ${F}_cp4"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F}_cp5 || fail "verify relpath ${F}_cp5"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F}_cp6 || fail "verify relpath ${F}_cp6"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F}_cp7 || fail "verify relpath ${F}_cp7"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F}_cp8 || fail "verify relpath ${F}_cp8"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F}_cp9 || fail "verify relpath ${F}_cp9"
 cd -
 
 
@@ -225,7 +243,7 @@ fi
 
 sudo $UMOUNT $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
-${CLI} mount $DEV $MPT || fail "mount should succeed test1 2"
+${MOUNT} $DEV $MPT || fail "mount should succeed test1 2"
 verify_mounted $DEV $MPT "test1.sh"
 
 # re-check the custom cp mode/uid/gid on one of the files
@@ -296,8 +314,9 @@ ${CLI} mkdir $MPT/dirtarg/foo || fail "failed to create dir foo"
 #
 # This wildcard copy is also via relative paths
 #
-cd $MPT
-${CLI} cp dirtarg/* dirtarg2 && fail "cp wildcard should succeed but return nonzero when there is a directory that matches the wildcard"
+cd $MPT/..
+${CLI} cp $PFX/dirtarg/* $PFX/dirtarg2 \
+     && fail "cp wildcard should succeed but return nonzero when there is a directory that matches the wildcard"
 cd -
 
 # The files should have been copied in the command above; it's just that there
@@ -335,15 +354,16 @@ sudo diff -r $MPT/A $MPT/A-prime || fail "diff -r A A-prime"
 #
 # cp -r with relative paths
 #
-cd $MPT
-${CLI} cp -r A A-double-prime           || fail "cp -r A A-double-prime"
-sudo diff -r A A-double-prime
+cd $MPT/..
+${CLI} cp -r $PFX/A $PFX/A-double-prime           || fail "cp -r A A-double-prime"
+sudo diff -r $PFX/A $PFX/A-double-prime
 cd -
 
 # Bad cp -r
 ${CLI} cp -r $MPT/A $MPT/bar/foo     && fail "cp -r to bogus path should fail"
 ${CLI} cp -r $MPT/A $MPT/${F}        && fail "cp -r to file"
 ${CLI} cp -r $MPT/A $MPT/${F}/foo    && fail "cp -r to path that uses file as dir"
+
 
 ${CLI} cp $MPT/A/B/C/w/x/y/z/* $MPT || fail "cp valid wildcard to mount pt dir should succeed"
 

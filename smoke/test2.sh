@@ -5,7 +5,7 @@ cwd=$(pwd)
 # Defaults
 VG=""
 SCRIPTS=../scripts
-MOUNT_OPTS="-t famfs -o noatime -o dax=always "
+RAW_MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 
@@ -18,6 +18,9 @@ if [ -z "$MPT" ]; then
 fi
 if [ -z "$UMOUNT" ]; then
     UMOUNT="umount"
+fi
+if [ -z "$MODE" ]; then
+    MODE="v1"
 fi
 
 # Override defaults as needed
@@ -38,6 +41,10 @@ while (( $# > 0)); do
 	    source_root=$1;
 	    shift;
 	    ;;
+	(-m|--mode)
+	    MODE="$1"
+	    shift
+	    ;;
 	(-v|--valgrind)
 	    # no argument to -v; just setup for Valgrind
 	    VG=${VALGRIND_ARG}
@@ -49,8 +56,21 @@ while (( $# > 0)); do
     esac
 done
 
-echo "DEVTYPE=$DEVTYPE"
+if [[ "$MODE" == "v1" || "$MODE" == "fuse" ]]; then
+    echo "MODE: $MODE"
+    if [[ "$MODE" == "fuse" ]]; then
+        MOUNT_OPTS="-f"
+	sudo rmmod famfs
+    fi
+else
+    echo "MODE: invalid"
+    exit 1;
+fi
+
+MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
+MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI="sudo $VG $BIN/famfs"
+CLI_NOSUDO="$VG $BIN/famfs"
 TEST="test2"
 
 source $SCRIPTS/test_funcs.sh
@@ -71,22 +91,22 @@ ${CLI} creat -s 0x400000 $NOT_IN_FAMFS \
 
 # Famfs getmap should succeed on a file that exists
 LOG=$MPT/.meta/.log
-${CLI} getmap -h   || fail "getmap -h should succeed"
-${CLI} getmap      && fail "getmap with no file arg should fail"
-${CLI} getmap badfile  && fail "getmap on nonexistent file should fail"
-${CLI} getmap -c badfile  && fail "getmap -c on nonexistent file should fail"
-${CLI} getmap /etc/passwd && fail "getmap on non-famfs file should fail"
-${CLI} getmap $LOG || fail "getmap should succeed on the famfs log file"
-${CLI} getmap -q $LOG || fail "getmap -q should succeed on the famfs log file"
+if [[ "$MODE" == "v1" ]]; then
+    ${CLI} getmap -h   || fail "getmap -h should succeed"
+    ${CLI} getmap      && fail "getmap with no file arg should fail"
+    ${CLI} getmap badfile  && fail "getmap on nonexistent file should fail"
+    ${CLI} getmap -c badfile  && fail "getmap -c on nonexistent file should fail"
+    ${CLI} getmap /etc/passwd && fail "getmap on non-famfs file should fail"
+    ${CLI} getmap $LOG || fail "getmap should succeed on the famfs log file"
+    ${CLI} getmap -q $LOG || fail "getmap -q should succeed on the famfs log file"
 
+    # famfs getmap should fail on a file that does not exist
+    NOTEXIST=$MPT/not_exist
+    ${CLI} getmap $NOT_EXIST && fail "getmap should fail non nonexistent file in famfs"
 
-# famfs getmap should fail on a file that does not exist
-NOTEXIST=$MPT/not_exist
-${CLI} getmap $NOT_EXIST && fail "getmap should fail non nonexistent file in famfs"
-
-# famfs getmap should fail on a file that is not in a famfs file system
-${CLI} getmap $NOT_IN_FAMFS && fail "getmap should fail if file not in famfs"
-
+    # famfs getmap should fail on a file that is not in a famfs file system
+    ${CLI} getmap $NOT_IN_FAMFS && fail "getmap should fail if file not in famfs"
+fi
 
 F=bigtest
 SIZE=0x4000000
@@ -105,7 +125,7 @@ done
 
 sudo $UMOUNT $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
-${CLI} mount $DEV $MPT || fail "mount should succeed"
+${MOUNT} $DEV $MPT || fail "mount should succeed"
 verify_mounted $DEV $MPT "test1.sh"
 
 sudo cmp $MPT/bigtest10 $MPT/bigtest11        && fail "files should not match"

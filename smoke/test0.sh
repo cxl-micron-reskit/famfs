@@ -60,6 +60,7 @@ if [[ "$FAMFS_MODE" == "v1" || "$FAMFS_MODE" == "fuse" ]]; then
     echo "FAMFS_MODE: $FAMFS_MODE"
     if [[ "$FAMFS_MODE" == "fuse" ]]; then
         MOUNT_OPTS="-f"
+	sudo rmmod famfs
     fi
 else
     echo "FAMFS_MODE: invalid"
