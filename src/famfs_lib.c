@@ -940,9 +940,11 @@ __famfs_mkmeta(
 		if ((st.st_mode & S_IFMT) == S_IFREG) {
 			/* Superblock file exists */
 			if (st.st_size != FAMFS_SUPERBLOCK_SIZE) {
-				fprintf(stderr,
-					"%s: bad superblock file - remount likely required\n",
-					__func__);
+				if (!shadow) /* shadow files aren't "actual size" */
+					fprintf(stderr,
+						"%s: bad superblock file - "
+						"remount likely required\n",
+						__func__);
 			}
 		} else {
 			fprintf(stderr,
@@ -1004,9 +1006,11 @@ __famfs_mkmeta(
 		if ((st.st_mode & S_IFMT) == S_IFREG) {
 			/* Log file exists; is it the right size? */
 			if (st.st_size != sb->ts_log_len) {
-				fprintf(stderr,
-					"%s: bad log file - umount/mount likely required\n",
-					__func__);
+				if (!shadow) /* Shadow files are not "actual size" */
+					fprintf(stderr,
+						"%s: bad log file - "
+						"remount likely required\n",
+						__func__);
 			}
 		} else {
 			fprintf(stderr,

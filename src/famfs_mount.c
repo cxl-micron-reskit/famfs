@@ -202,7 +202,7 @@ famfs_path_is_mount_pt(
 				goto out;
 
 			/* check for famfs in the actual fstype field */
-			if (!strstr(fstype, "famfs"))
+			if (!strstr(fstype, "famfs") && !strstr(opts, "famfs"))
 				continue;
 
  			xmpt = realpath(mpt, NULL);
@@ -468,10 +468,10 @@ famfs_start_fuse_daemon(
 	dir = dirname(exe_path);
 	snprintf(target_path, sizeof(target_path) - 1, "%s/%s", dir, "famfs_fused");
 
-	snprintf(opts, sizeof(opts), "daxdev=%s,shadow=%s",
-		daxdev, shadow);
+	snprintf(opts, sizeof(opts), "daxdev=%s,shadow=%s,fsname=%s",
+		 daxdev, shadow, daxdev);
 
-	argv[argc++] = "famfsd";
+	argv[argc++] = strdup(daxdev);
 	argv[argc++] = "-s";
 	argv[argc++] = "-o";
 	argv[argc++] = strdup(opts);
@@ -485,6 +485,20 @@ famfs_start_fuse_daemon(
 	return 0;
 }
 
+static char *
+gen_shadow_dir(void)
+{
+	char template[] = "/tmp/famfs_shadowXXXXXX";  /* Must end with XXXXXX */
+	char *shadow = mkdtemp(template);  /* Generates a unique name */
+
+	if (!shadow || shadow[0] == '\0') {
+		fprintf(stderr, "%s: failed to generate shadow path\n", __func__);
+		return NULL;
+	}
+
+	return strdup(shadow);
+}
+
 int
 famfs_mount_fuse(
 	const char *realdaxdev,
@@ -492,14 +506,26 @@ famfs_mount_fuse(
 	const char *realshadow,
 	int verbose)
 {
+	int shadow_created = 0;
 	char *local_shadow;
-	//char shadow_root[PATH_MAX];
+	char *mpt_check;
 	int rc = 0;
+
+	mpt_check = famfs_get_mpt_by_dev(realdaxdev);
+	if (mpt_check) {
+		fprintf(stderr, "%s: cannot mount while %s is mounted on %s\n",
+				__func__, realdaxdev, mpt_check);
+		free(mpt_check);
+		return -1;
+	}
 
 	if (realshadow)
 		local_shadow = strdup(realshadow);
-	else
-		local_shadow = strdup("/tmp/shadow"); /* XXX generate more reasonably */
+	else {
+		local_shadow = gen_shadow_dir();
+		if (local_shadow)
+			shadow_created = 1;
+	}
 
 	if (shadow_path_in_use(local_shadow)) {
 		fprintf(stderr, "%s: shadow path is already in use!\n", __func__);
@@ -507,19 +533,22 @@ famfs_mount_fuse(
 		goto out;
 	}
 
-	if (!shadow_path_valid(local_shadow)) {
-		fprintf(stderr, "%s: invalid shadow path (%s)\n",
-			__func__, local_shadow);
-		rc = -1;
-		goto out;
-	}
+	/* Skip validating (and creating) shadow dir if we just created it */
+	if (!shadow_created) {
+		if (!shadow_path_valid(local_shadow)) {
+			fprintf(stderr, "%s: invalid shadow path (%s)\n",
+				__func__, local_shadow);
+			rc = -1;
+			goto out;
+		}
 
-	rc = mkdir(local_shadow, 0755);
-	if (rc) {
-		fprintf(stderr, "%s: failed to create shadow path %s\n",
-			__func__, local_shadow);
-		rc = -1;
-		goto out;
+		rc = mkdir(local_shadow, 0755);
+		if (rc) {
+			fprintf(stderr, "%s: failed to create shadow path %s\n",
+				__func__, local_shadow);
+			rc = -1;
+			goto out;
+		}
 	}
 #if 0
 	snprintf(shadow_root, sizeof(shadow_root) - 1, "%s/root", local_shadow);
@@ -548,7 +577,7 @@ famfs_mount_fuse(
 	}
 
 	/* Play the log */
-	sleep(1); /* XXX need to wait till the mount completes. Hmmmm... */
+	//sleep(1); /* XXX need to wait till the mount completes. Hmmmm... */
 
 	/* TODO: wait until the superblock & log appear under the mount point */
 
