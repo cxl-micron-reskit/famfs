@@ -139,62 +139,13 @@ famfs_get_capacity() {
 famfs_recreate() {
     cwd=$(pwd)
 
-    # Defaults
-    VG=""
-    SCRIPTS=../scripts
-    #BIN=../debug
-    VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
+    MSG=$1
 
-    # Allow these variables to be set from the environment
-    if [ -z "$DEV" ]; then
-	DEV="/dev/dax0.0"
-    fi
-    if [ -z "$MPT" ]; then
-	MPT=/mnt/famfs
-    fi
-    if [ -z "$UMOUNT" ]; then
-	UMOUNT="umount"
-    fi
-
-    # Override defaults as needed
-    while (( $# > 0)); do
-	flag="$1"
-	shift
-	case "$flag" in
-	    (-d|--device)
-		DEV=$1
-		shift;
-		;;
-	    (-b|--bin)
-		BIN=$1
-		shift
-		;;
-	    (-s|--scripts)
-		SCRIPTS=$1
-		source_root=$1;
-		shift;
-		;;
-	    (-m|--mode)
-		MODE="$1"
-		shift;
-	    (-v|--valgrind)
-		# no argument to -v; just setup for Valgrind
-		VG=${VALGRIND_ARG}
-		;;
-	    *)
-		echo "famfs_recreate: Unrecognized command line arg: $flag"
-		;;
-
-	esac
-    done
-
-    #MKFS="sudo $VG $BIN/mkfs.famfs"
-    #CLI="sudo $VG $BIN/famfs"
-    #CLI_NOSUDO="$VG $BIN/famfs"
-
+    sudo umount $MPT || fail "famfs_recreate ($MSG)"
+    verify_not_mounted $DEV $MPT "famfs_recreate ($MSG)"
     # Above this line should be the same for all smoke tests
 
-    sudo mkdir -p $MPT || fail "famfs_recreate: mkdir -t MPT"
+    sudo mkdir -p $MPT || fail "famfs_recreate: mkdir -t MPT ($MSG)"
 
     # Make sure famfs is not mounted
     findmnt -t famfs $MPT
@@ -203,15 +154,15 @@ famfs_recreate() {
     fi
 
     # destroy famfs file system, if any
-    ${MKFS} /tmp/nonexistent && fail "famfs_recreate: mkfs on nonexistent dev should fail"
-    ${MKFS} -f -k $DEV    || fail "famfs_recreate: mkfs/kill should succeed wtih --force"
-    ${MKFS}  $DEV         || fail "famfs_recreate: mkfs"
+    ${MKFS} /tmp/nonexistent && fail "famfs_recreate: mkfs on nonexistent dev should fail ($MSG)"
+    ${MKFS} -f -k $DEV    || fail "famfs_recreate: mkfs/kill should succeed wtih --force ($MSG)"
+    ${MKFS}  $DEV         || fail "famfs_recreate: mkfs ($MSG)"
 
-    if [[ "$MODE" == "v1" ]]; then
-	sudo modprobe famfs || fail "famfs_recreate: modprobe"
+    if [[ "$FAMFS_MODE" == "v1" ]]; then
+	sudo modprobe famfs || fail "famfs_recreate: modprobe ($MSG)"
     fi
 
-    ${MOUNT} $DEV $MPT    || fail "famfs_recreate: famfs mount"
+    ${MOUNT} $DEV $MPT    || fail "famfs_recreate: famfs mount ($MSG)"
 
-    verify_mounted "$DEV" "$MPT" "famfs_recreate"
+    verify_mounted "$DEV" "$MPT" "famfs_recreate ($MSG)"
 }

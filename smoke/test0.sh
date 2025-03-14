@@ -5,7 +5,7 @@ cwd=$(pwd)
 # Defaults
 VG=""
 SCRIPTS=../scripts
-MOUNT_OPTS="-t famfs -o noatime -o dax=always "
+RAW_MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 
@@ -18,6 +18,9 @@ if [ -z "$MPT" ]; then
 fi
 if [ -z "$UMOUNT" ]; then
     UMOUNT="umount"
+fi
+if [ -z "$FAMFS_MODE" ]; then
+    FAMFS_MODE="v1"
 fi
 
 # Override defaults as needed
@@ -38,6 +41,10 @@ while (( $# > 0)); do
 	    source_root=$1;
 	    shift;
 	    ;;
+	(-m|--mode)
+	    FAMFS_MODE="$1"
+	    shift
+	    ;;
 	(-v|--valgrind)
 	    # no argument to -v; just setup for Valgrind
 	    VG=${VALGRIND_ARG}
@@ -49,6 +56,18 @@ while (( $# > 0)); do
     esac
 done
 
+if [[ "$FAMFS_MODE" == "v1" || "$FAMFS_MODE" == "fuse" ]]; then
+    echo "FAMFS_MODE: $FAMFS_MODE"
+    if [[ "$FAMFS_MODE" == "fuse" ]]; then
+        MOUNT_OPTS="-f"
+    fi
+else
+    echo "FAMFS_MODE: invalid"
+    exit 1;
+fi
+
+MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
+MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI="sudo $VG $BIN/famfs"
 CLI_NOSUDO="$VG $BIN/famfs"
 TEST="test0"
@@ -59,7 +78,7 @@ source $SCRIPTS/test_funcs.sh
 set -x
 
 # Start with a clean, empty file systeem
-famfs_recreate -d "$DEV" -b "$BIN" -m "$MPT" -M "recreate in test0.sh"
+famfs_recreate  "test0"
 
 grep famfs /proc/mounts             || fail "No famfs mounted"
 grep $DEV /proc/mounts              || fail "dev=$DEV not in /proc/mounts~"
@@ -110,23 +129,23 @@ ${CLI} creat -r -s 0 -S 1 $MPT/emptyfile  && fail "Create empty file should fail
 
 # Test creat mode/uid/gid options
 # These permissions should make it work without sudo
-MODE="600"
+FMODE="600"
 UID=$(id -u)
 GID=$(id -g)
-${CLI} creat -s 0x100000 -r -m $MODE -u $UID -g $GID $MPT/testmode0 || fail "creat with mode/uid/gid"
+${CLI} creat -s 0x100000 -r -m $FMODE -u $UID -g $GID $MPT/testmode0 || fail "creat with mode/uid/gid"
 
 #
 # Check creat with the custom mode/uid/gid
 #
-MODE_OUT="$(stat --format='%a' $MPT/testmode0)"
-if [[ $MODE != $MODE_OUT ]]; then
-    fail "creat -m err $MODE ${MODE_OUT}"
+FMODE_OUT="$(sudo stat --format='%a' $MPT/testmode0)"
+if [[ $FMODE != $FMODE_OUT ]]; then
+    fail "creat -m err $FMODE ${FMODE_OUT}"
 fi
-UID_OUT="$(stat --format='%u' $MPT/testmode0)"
+UID_OUT="$(sudo stat --format='%u' $MPT/testmode0)"
 if [[ $UID != $UID_OUT ]]; then
     fail "creat -u err $UID ${UID_OUT}"
 fi
-GID_OUT="$(stat --format='%g' $MPT/testmode0)"
+GID_OUT="$(sudo stat --format='%g' $MPT/testmode0)"
 if [[ $GID != $GID_OUT ]]; then
     fail "creat -g err $GID ${GID_OUT}"
 fi
@@ -136,10 +155,10 @@ ${CLI} mkdir   && fail "mkdir with no args should fail"
 # Test mkdir with custom mode/uid/gid
 #
 DIRPATH=$MPT/z/y/x/w
-${CLI} mkdir -p -m $MODE -u $UID -g $GID $DIRPATH
-MODE_OUT="$(sudo stat --format='%a' $DIRPATH)"
-if [[ $MODE != $MODE_OUT ]]; then
-    fail "creat -m err $MODE ${MODE_OUT}"
+${CLI} mkdir -p -m $FMODE -u $UID -g $GID $DIRPATH
+FMODE_OUT="$(sudo stat --format='%a' $DIRPATH)"
+if [[ $FMODE != $FMODE_OUT ]]; then
+    fail "creat -m err $FMODE ${FMODE_OUT}"
 fi
 UID_OUT="$(sudo stat --format='%u' $DIRPATH)"
 if [[ $UID != $UID_OUT ]]; then
@@ -167,15 +186,23 @@ ${CLI} logplay                     && fail "logplay without MPT arg should fail"
 sudo $UMOUNT $MPT || fail "umount should succeed"
 findmnt -t famfs $MPT && fail "famfs is still mounted at $MPT after umount attempt"
 
-sudo mount $MOUNT_OPTS $DEV $MPT   || fail "mount"
+if [[ "$FMODE" == "v1" ]]; then
+    sudo mount$RAW_MOUNT_OPTS $DEV $MPT   || fail "mount"
 
-grep -c famfs /proc/mounts         || fail "famfs not mounted after remount attempt"
+    #grep -c famfs /proc/mounts         || fail "famfs not mounted after remount attempt"
+    verify_mounted  "$DEV" "$MPT" "test0 mount"
 
-echo "this logplay should fail because we haven't done mkmeta yet"
-${CLI} logplay -vvv $MPT               && fail "logplay 1 before mkmeta"
-${CLI} logplay                       && fail "logplay should fail with no args"
-# Post mount, re-create the meta files
-${CLI} mkmeta $DEV                || fail "mkmeta 2"
+    echo "this logplay should fail because we haven't done mkmeta yet"
+    ${CLI} logplay -vvv $MPT               && fail "logplay 1 before mkmeta"
+    ${CLI} logplay                       && fail "logplay should fail with no args"
+    
+    # Post mount, re-create the meta files
+    ${CLI} mkmeta $DEV                || fail "mkmeta 2"
+else
+    ${MOUNT} $DEV $MPT
+    verify_mounted $DEV $MPT "test0 fuse mount"
+fi
+
 sudo test -f $MPT/.meta/.superblock || fail "no superblock file after mkmeta"
 sudo test -f $MPT/.meta/.log        || fail "no log file after mkmeta 2"
 
@@ -197,15 +224,15 @@ ${CLI} verify -S 3 -f $MPT/test3 || fail "verify test3 after replay"
 
 # Re-check the creat custom mode/uid/gid after remount
 # (this tests that the log was populated correctly)
-MODE_OUT="$(stat --format='%a' $MPT/testmode0)"
-if [[ $MODE != $MODE_OUT ]]; then
-    fail "creat -m err $MODE ${MODE_OUT}"
+FMODE_OUT="$(sudo stat --format='%a' $MPT/testmode0)"
+if [[ $FMODE != $FMODE_OUT ]]; then
+    fail "creat -m err $FMODE ${FMODE_OUT}"
 fi
-UID_OUT="$(stat --format='%u' $MPT/testmode0)"
+UID_OUT="$(sudo stat --format='%u' $MPT/testmode0)"
 if [[ $UID != $UID_OUT ]]; then
     fail "creat -u err $UID ${UID_OUT}"
 fi
-GID_OUT="$(stat --format='%g' $MPT/testmode0)"
+GID_OUT="$(sudo stat --format='%g' $MPT/testmode0)"
 if [[ $GID != $GID_OUT ]]; then
     fail "creat -g err $GID ${GID_OUT}"
 fi
@@ -214,9 +241,9 @@ fi
 # re-check mkdir -mug
 #
 echo "re-checking mkdir -mug after remout"
-MODE_OUT="$(sudo sudo stat --format='%a' $DIRPATH)"
-if [[ $MODE != $MODE_OUT ]]; then
-    fail "mkdir -m err $MODE ${MODE_OUT}"
+FMODE_OUT="$(sudo stat --format='%a' $DIRPATH)"
+if [[ $FMODE != $FMODE_OUT ]]; then
+    fail "mkdir -m err $FMODE ${FMODE_OUT}"
 fi
 UID_OUT="$(sudo stat --format='%u' $DIRPATH)"
 if [[ $UID != $UID_OUT ]]; then
@@ -230,18 +257,27 @@ fi
 #
 # test famfs_check
 #
-${CLI} check                  && fail "famfs check with no args should fail"
-${CLI} check -?               || fail "famfs check -? should succeed"
-${CLI_NOSUDO} check $MPT      && fail "famfs check without sudo should fail"
-${CLI} check $MPT             || fail "famfs check should succeed"
-${CLI} check "relpath"        && fail "famfs check on relpath should fail"
-${CLI} check "/badpath"       && fail "famfs check on bad path should fail"
-sudo touch $MPT/unmapped_file
-${CLI} check -vvv $MPT        && fail "famfs check should fail due to unmapped file"
-sudo rm $MPT/unmapped_file
-${CLI} check -v $MPT          || fail "famfs check should succeed after removing unmapped file"
 
-${CLI_NOSUDO} fsck -hv $MPT || fail "fsck without sudo should succeed"
+# 'famfs check' doesn't support fuse mode (yet)
+if [[ ${FAMFS_MODE} == "v1" ]]; then
+    ${CLI} check                  && fail "famfs check with no args should fail"
+    ${CLI} check -?               || fail "famfs check -? should succeed"
+    ${CLI_NOSUDO} check $MPT      && fail "famfs check without sudo should fail"
+    ${CLI} check $MPT             || fail "famfs check should succeed"
+    ${CLI} check "relpath"        && fail "famfs check on relpath should fail"
+    ${CLI} check "/badpath"       && fail "famfs check on bad path should fail"
+    sudo touch $MPT/unmapped_file
+    ${CLI} check -vvv $MPT        && fail "famfs check should fail due to unmapped file"
+    sudo rm $MPT/unmapped_file
+    ${CLI} check -v $MPT          || fail "famfs check should succeed after removing unmapped file"
+
+    ${CLI_NOSUDO} fsck -hv $MPT || fail "fsck without sudo should succeed"
+else
+    ${CLI_NOSUDO} fsck -hv $MPT && fail "fsck without sudo fails on fuse; can we fix?"
+fi
+
+
+
 
 ${CLI} flush -?          || fail "flush -? should work"
 ${CLI} flush             && fail "flush with no args should fail"

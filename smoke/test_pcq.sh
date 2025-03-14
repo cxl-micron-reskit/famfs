@@ -63,7 +63,7 @@ source scripts/test_funcs.sh
 set -x
 
 # Start with a clean, empty file systeem
-famfs_recreate -d "$DEV" -b "$BIN" -m "$MPT" -M "recreate in test_pcq.sh"
+famfs_recreate "test_pcq"
 
 # Test some bogus command line combinations
 ${PCQ} -? || fail "pcq help should work"

@@ -19,8 +19,8 @@ fi
 if [ -z "$UMOUNT" ]; then
     UMOUNT="umount"
 fi
-if [ -z "$MODE" ]; then
-    MODE="v1"
+if [ -z "$FAMFS_MODE" ]; then
+    FAMFS_MODE="v1"
 fi
 
 # Override defaults as needed
@@ -42,7 +42,7 @@ while (( $# > 0)); do
 	    shift;
 	    ;;
 	(-m|--mode)
-	    MODE="$1"
+	    FAMFS_MODE="$1"
 	    shift
 	    ;;
 	(-v|--valgrind)
@@ -56,13 +56,13 @@ while (( $# > 0)); do
     esac
 done
 
-if [[ "$MODE" == "v1" || "$MODE" == "fuse" ]]; then
-    echo "MODE: $MODE"
-    if [[ "$MODE" == "fuse" ]]; then
+if [[ "$FAMFS_MODE" == "v1" || "$FAMFS_MODE" == "fuse" ]]; then
+    echo "FAMFS_MODE: $FAMFS_MODE"
+    if [[ "$FAMFS_MODE" == "fuse" ]]; then
         MOUNT_OPTS="-f"
     fi
 else
-    echo "MODE: invalid"
+    echo "FAMFS_MODE: invalid"
     exit 1;
 fi
 
@@ -124,8 +124,8 @@ ${MKFS}  $DEV         && fail "mkfs redo" # fail, fs exists
 ${CLI} -h || fail "cli -h should succeed"
 ${CLI} fsck $DEV          || fail "fsck"
 
-if [[ "$MODE" == "v1" ]]; then
-    # We now expect the module to already be loaded (if MODE==v1),
+if [[ "$FAMFS_MODE" == "v1" ]]; then
+    # We now expect the module to already be loaded (if FAMFS_MODE==v1),
     # but no harm in modprobe to make double sure
     sudo modprobe famfs       || fail "modprobe"
 
@@ -170,8 +170,6 @@ ${MOUNT} $DEV $MPT     || fail "mount of clean file system should succeed"
 ${MOUNT} $DEV $MPT     && fail "Double mount should fail "
 
 verify_mounted $DEV $MPT "mount failed?"
-
-#famfs_recreate 
 
 set +x
 echo "*************************************************************************"

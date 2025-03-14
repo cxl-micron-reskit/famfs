@@ -152,12 +152,12 @@ fi
 set -x
 ./smoke/prepare.sh "$VGARG" -b "$BIN" -s "$SCRIPTS" -d "$DEV" -m "$MODE"  || exit -1
 
-exit;
-
 if [ -z "$SKIP_TEST0" ]; then
     ./smoke/test0.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  || exit -1
     sleep "${SLEEP_TIME}"
 fi
+exit;
+
 
 if [ -z "$SKIP_TEST1" ]; then
     ./smoke/test1.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  || exit -1

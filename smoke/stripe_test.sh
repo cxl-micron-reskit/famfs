@@ -247,7 +247,7 @@ stripe_test () {
 #set -x
 
 # Start with a clean, empty file systeem
-famfs_recreate -d "$DEV" -b "$BIN" -m "$MPT" -M "recreate in stripe_test.sh"
+famfs_recreate "stripe_test.sh"
 
 BASENAME="/mnt/famfs/stripe_file"
 CAPACITY=$(famfs_get_capacity "$MPT")
@@ -262,7 +262,7 @@ echo "NSTRIPS: $NSTRIPS"
 
 stripe_test "$SIZE" "$CHUNKSIZE" "$NSTRIPS" "$NBUCKETS" 42
 
-famfs_recreate -d "$DEV" -b "$BIN"
+famfs_recreate "stripe_test.sh 2"
 (( NFILES = 8 ))
 stripe_test_cp "$SIZE" "$CHUNKSIZE" "$NSTRIPS" "$NBUCKETS" 42 "$NFILES"
 
