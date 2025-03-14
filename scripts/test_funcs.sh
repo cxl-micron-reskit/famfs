@@ -69,7 +69,12 @@ verify_not_mounted () {
 
     count=$(findmnt -t famfs $MPT | grep -c $DEV)
     if (( count > 0 )); then
-	fail "verify_not_mounted: $MSG"
+	fail "verify_not_mounted: v1: $MSG"
+    else
+	count=$(findmnt $MPT | grep -c $DEV)
+	if (( count > 0 )); then
+	    fail "verify_not_mounted: fuse: $MSG"
+	fi
     fi
 }
 
@@ -78,9 +83,12 @@ verify_mounted () {
     MPT=$2
     MSG=$3
 
-    count=$(findmnt -t famfs $MPT | grep -c $DEV)
+    count=$(findmnt -t famfs $MPT | grep -c $DEV) # find v1 mounts
     if (( count == 0 )); then
-	fail "verify_mounted: $MSG"
+	count=$(findmnt $MPT | grep -c $DEV)
+	if (( count == 0 )); then
+	    fail "verify_mounted: $MSG"
+	fi
     fi
 }
 
@@ -134,8 +142,7 @@ famfs_recreate() {
     # Defaults
     VG=""
     SCRIPTS=../scripts
-    MOUNT_OPTS="-t famfs -o noatime -o dax=always "
-    BIN=../debug
+    #BIN=../debug
     VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 
     # Allow these variables to be set from the environment
@@ -167,24 +174,27 @@ famfs_recreate() {
 		source_root=$1;
 		shift;
 		;;
+	    (-m|--mode)
+		MODE="$1"
+		shift;
 	    (-v|--valgrind)
 		# no argument to -v; just setup for Valgrind
 		VG=${VALGRIND_ARG}
 		;;
 	    *)
-		echo "Unrecognized command line arg: $flag"
+		echo "famfs_recreate: Unrecognized command line arg: $flag"
 		;;
 
 	esac
     done
 
-    MKFS="sudo $VG $BIN/mkfs.famfs"
-    CLI="sudo $VG $BIN/famfs"
-    CLI_NOSUDO="$VG $BIN/famfs"
+    #MKFS="sudo $VG $BIN/mkfs.famfs"
+    #CLI="sudo $VG $BIN/famfs"
+    #CLI_NOSUDO="$VG $BIN/famfs"
 
     # Above this line should be the same for all smoke tests
 
-    sudo mkdir -p $MPT || fail "mkdir -t MPT"
+    sudo mkdir -p $MPT || fail "famfs_recreate: mkdir -t MPT"
 
     # Make sure famfs is not mounted
     findmnt -t famfs $MPT
@@ -193,13 +203,15 @@ famfs_recreate() {
     fi
 
     # destroy famfs file system, if any
-    ${MKFS} /tmp/nonexistent && fail "mkfs on nonexistent dev should fail"
-    ${MKFS} -f -k $DEV    || fail "mkfs/kill should succeed wtih --force"
-    ${MKFS}  $DEV         || fail "mkfs"
-    
-    sudo modprobe famfs       || fail "modprobe"
+    ${MKFS} /tmp/nonexistent && fail "famfs_recreate: mkfs on nonexistent dev should fail"
+    ${MKFS} -f -k $DEV    || fail "famfs_recreate: mkfs/kill should succeed wtih --force"
+    ${MKFS}  $DEV         || fail "famfs_recreate: mkfs"
 
-    ${CLI} mount $DEV $MPT    || fail "famfs mount"
+    if [[ "$MODE" == "v1" ]]; then
+	sudo modprobe famfs || fail "famfs_recreate: modprobe"
+    fi
+
+    ${MOUNT} $DEV $MPT    || fail "famfs_recreate: famfs mount"
 
     verify_mounted "$DEV" "$MPT" "famfs_recreate"
 }

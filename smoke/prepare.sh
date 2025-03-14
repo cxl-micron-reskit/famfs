@@ -5,7 +5,7 @@ cwd=$(pwd)
 # Defaults
 VG=""
 SCRIPTS=../scripts
-MOUNT_OPTS="-t famfs -o noatime -o dax=always "
+RAW_MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 
@@ -18,6 +18,9 @@ if [ -z "$MPT" ]; then
 fi
 if [ -z "$UMOUNT" ]; then
     UMOUNT="umount"
+fi
+if [ -z "$MODE" ]; then
+    MODE="v1"
 fi
 
 # Override defaults as needed
@@ -38,6 +41,10 @@ while (( $# > 0)); do
 	    source_root=$1;
 	    shift;
 	    ;;
+	(-m|--mode)
+	    MODE="$1"
+	    shift
+	    ;;
 	(-v|--valgrind)
 	    # no argument to -v; just setup for Valgrind
 	    VG=${VALGRIND_ARG}
@@ -49,6 +56,17 @@ while (( $# > 0)); do
     esac
 done
 
+if [[ "$MODE" == "v1" || "$MODE" == "fuse" ]]; then
+    echo "MODE: $MODE"
+    if [[ "$MODE" == "fuse" ]]; then
+        MOUNT_OPTS="-f"
+    fi
+else
+    echo "MODE: invalid"
+    exit 1;
+fi
+
+MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
 MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI="sudo $VG $BIN/famfs"
 CLI_NOSUDO="$VG $BIN/famfs"
@@ -59,7 +77,7 @@ source $SCRIPTS/test_funcs.sh
 
 set -x
 
-sudo mkdir -p $MPT || fail "mkdir"
+sudo mkdir -p $MPT || fail "mkdir $MPT"
 
 # Make sure famfs is not mounted
 findmnt $MPT
@@ -106,20 +124,30 @@ ${MKFS}  $DEV         && fail "mkfs redo" # fail, fs exists
 ${CLI} -h || fail "cli -h should succeed"
 ${CLI} fsck $DEV          || fail "fsck"
 
-# We now expect the module to already be loaded, but no harm in modprobe to make double sure
-sudo modprobe famfs       || fail "modprobe"
+if [[ "$MODE" == "v1" ]]; then
+    # We now expect the module to already be loaded (if MODE==v1),
+    # but no harm in modprobe to make double sure
+    sudo modprobe famfs       || fail "modprobe"
 
-#
-# Test manual mount / mkmeta / logplay
-#
-sudo mount $MOUNT_OPTS $DEV $MPT || fail "mount"
-sudo mount $MOUNT_OPTS $DEV $MPT && fail "double mount should fail"
+    #
+    # Test manual mount / mkmeta / logplay
+    #
+    sudo mount $RAW_MOUNT_OPTS $DEV $MPT || fail "mount"
+    sudo mount $RAW_MOUNT_OPTS $DEV $MPT && fail "double mount should fail"
+
+    ${CLI} mkmeta $DEV        || fail "mkmeta"
+
+    # XXX famfs-fuse does not yet put the primary daxdev in /proc/mounts.
+    # need to fix this
+    grep $DEV /proc/mounts              || fail "dev=$DEV not in /proc/mounts~"
+else
+    # In fuse mode, we don't support manual mount...
+    ${MOUNT} $DEV $MPT || fail "famfs fuse mount should work"
+fi
 
 grep famfs /proc/mounts             || fail "No famfs mounted"
-grep $DEV /proc/mounts              || fail "dev=$DEV not in /proc/mounts~"
 grep $MPT /proc/mounts              || fail "Mount pt $MPT not in /proc/mounts~"
 
-${CLI} mkmeta $DEV        || fail "mkmeta"
 sudo test -f $MPT/.meta/.superblock || fail "no superblock file after mkmeta"
 sudo test -f $MPT/.meta/.log        || fail "prep: no log file after mkmeta"
 
@@ -134,10 +162,16 @@ ${MKFS} -f -k $DEV    && fail "mkfs/kill while mounted should fail"
 # Blow away the file system and test famfs mount with no valid superblock
 #
 sudo umount $MPT       || fail "umount $MPT should succeed"
+verify_not_mounted $DEV $MPT "umount failed?"
 ${MKFS} -f -k $DEV     || fail "mkfs/kill should succeed wtih --force"
-${CLI} mount $DEV $MPT && fail "famfs mount should fail with invalid superblock"
+${MOUNT} $DEV $MPT     && fail "famfs mount should fail with invalid superblock"
 ${MKFS} $DEV           || fail "clean mkfs should succeed"
-${CLI} mount $DEV $MPT || fail "mount of clean file system should succeed"
+${MOUNT} $DEV $MPT     || fail "mount of clean file system should succeed"
+${MOUNT} $DEV $MPT     && fail "Double mount should fail "
+
+verify_mounted $DEV $MPT "mount failed?"
+
+#famfs_recreate 
 
 set +x
 echo "*************************************************************************"

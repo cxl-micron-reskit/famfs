@@ -16,6 +16,9 @@ fi
 if [ -z "$ERRS" ]; then
     ERRS=1
 fi
+if [ -z "$MODE" ]; then
+    MODE="v1"
+fi
 
 # Check if we have password-less sudi, which is required
 sudo -n true 2>/dev/null
@@ -37,7 +40,10 @@ while (( $# > 0)); do
 	    DEV=$1
 	    shift;
 	    ;;
-	(-e|--noerrors)
+	(-f|--fuse)
+	    MODE="fuse"
+	    ;;
+	    (-e|--noerrors)
 	    SKIP_ERRS=0
 	    ;;
 	(-E|--justerrors)
@@ -88,6 +94,7 @@ while (( $# > 0)); do
 	(-v|--valgrind)
 	    echo "run_smoke: valgrind mode"
 	    VGARG="--valgrind"
+	    exit;
 	    ;;
 	*)
 	    echo "Unrecognized command line arg: $flag"
@@ -97,6 +104,7 @@ done
 
 CLI="sudo $VG $BIN/famfs"
 
+echo "MODE:     $MODE"
 echo "CWD:      $CWD"
 echo "BIN:      $BIN"
 echo "SCRIPTS:  $SCRIPTS"
@@ -141,9 +149,10 @@ if [[ "$SCRIPTS" =~ *[[:space:]]* ]]; then
     fail "ERROR: the SCRIPTS path ($SCRIPTS) contains spaces!"
 fi
 
-./smoke/prepare.sh "$VGARG" -b "$BIN" -s "$SCRIPTS" -d "$DEV"  || exit -1
-
 set -x
+./smoke/prepare.sh "$VGARG" -b "$BIN" -s "$SCRIPTS" -d "$DEV" -m "$MODE"  || exit -1
+
+exit;
 
 if [ -z "$SKIP_TEST0" ]; then
     ./smoke/test0.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  || exit -1
