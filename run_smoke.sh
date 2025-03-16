@@ -211,6 +211,12 @@ set +x
 echo "-------------------------------------------------------------------"
 echo "run_smoke completed successfully ($(date))"
 echo "-------------------------------------------------------------------"
+if [[ "${MODE}" == "fuse" ]]; then
+    echo "WARNING TEST DISABLED IN FUSE MODE: test_errs.sh"
+    echo "WARNING TEST DISABLED IN FUSE MODE: test_pdq.sh"
+    echo "WARNING TEST DISABLED IN FUSE MODE: test_shadow_yaml.sh"
+    echo "FIX THESE!!"
+fi
 exit 0
 #sleep 4
 #./scripts/teardown.sh

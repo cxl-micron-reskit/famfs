@@ -77,8 +77,6 @@ TEST="test_errors:"
 source $SCRIPTS/test_funcs.sh
 # Above this line should be the same for all smoke tests
 
-set -x
-
 if [[ "${FAMFS_MODE}" == "fuse" ]]; then
     echo "*************************************************************"
     echo "test_errs does not support famfs/fuse yet"
@@ -86,6 +84,8 @@ if [[ "${FAMFS_MODE}" == "fuse" ]]; then
     sleep 1
     exit 0
 fi
+
+set -x
 
 # Start with a clean, empty file system
 famfs_recreate "test_errors"
