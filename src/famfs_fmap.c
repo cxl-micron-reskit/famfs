@@ -767,14 +767,6 @@ famfs_compare_log_file_meta(
 				strncat(msgbuf, tmpbuf, MSG_SIZE - 1);
 				errs++;
 			}
-			if (m1->fm_fmap.ie[j].ie_nbytes != m2->fm_fmap.ie[j].ie_nbytes) {
-				snprintf(tmpbuf, PATH_MAX - 1,
-					 "ie[%d].nbytes mismatch %lld / %lld\n", j,
-					 m1->fm_fmap.ie[j].ie_nbytes,
-					 m2->fm_fmap.ie[j].ie_nbytes);
-				strncat(msgbuf, tmpbuf, MSG_SIZE - 1);
-				errs++;
-			}
 			errs += famfs_compare_simple_ext_list(msgbuf, m1->fm_fmap.fmap_niext,
 							      m1->fm_fmap.ie[j].ie_strips,
 							      m2->fm_fmap.ie[j].ie_strips);

@@ -856,7 +856,10 @@ famfs_v2_set_file_map(
 
 			kie[i].ie_nstrips = ie->ie_nstrips;
 			kie[i].ie_chunk_size = ie->ie_chunk_size;
-			kie[i].ie_nbytes = ie->ie_nbytes;
+			/* XXX if more than one interleaved extent becomes possible,
+			 * we won't just be able to use the file size here
+			 */
+			kie[i].ie_nbytes = size;
 
 			if (ie->ie_nstrips > FAMFS_MAX_SIMPLE_EXTENTS) {
 				fprintf(stderr, "%s: strip list overflow (%lld) at ie %d\n",

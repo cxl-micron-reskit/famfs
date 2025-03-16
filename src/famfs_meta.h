@@ -131,7 +131,6 @@ struct famfs_simple_extent {
 struct famfs_interleaved_ext {
 	u64 ie_nstrips;
 	u64 ie_chunk_size;
-	u64 ie_nbytes;
 	struct famfs_simple_extent ie_strips[FAMFS_MAX_SIMPLE_EXTENTS];
 };
 
