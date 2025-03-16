@@ -268,7 +268,8 @@ famfs_log_file_meta_to_msg(
 
 			ie[i].ie_nstrips = log_fmap->ie[i].ie_nstrips;
 			ie[i].ie_chunk_size = log_fmap->ie[i].ie_chunk_size;
-			ie[i].ie_nbytes = log_fmap->ie[i].ie_nbytes;
+			// XXX ie[i].ie_nbytes = log_fmap->ie[i].ie_nbytes;
+			ie[i].ie_nbytes = fmeta->fm_size;
 
 			printf("%s: ie[%d] nstrips=%d chunk=%d nbytes=%ld\n",
 			       __func__, i, ie[i].ie_nstrips, ie[i].ie_chunk_size,
@@ -643,4 +644,148 @@ validate_mem_fmap(
 	}
 	pr_verbose(verbose, "%s: good fmap\n", __func__);
 	return 0;
+}
+
+#define MSG_SIZE 8192
+
+static int
+famfs_compare_simple_ext_list(
+	char *msgbuf,
+	int next,
+	const struct famfs_simple_extent *se1,
+	const struct famfs_simple_extent *se2)
+{
+	char *tmpbuf = calloc(1, PATH_MAX);
+	int errs = 0;
+	int i;
+
+	for (i = 0; i < next; i++) {
+		if (memcmp(&se1[i], &se2[i], sizeof(se1[i]))) {
+			sprintf(tmpbuf, "ext %d mismatch\n", i);
+			strncat(msgbuf, tmpbuf, MSG_SIZE - 1);
+			errs++;
+		}
+	}
+	return errs;
+}
+
+int
+famfs_compare_log_file_meta(
+	const struct famfs_log_file_meta *m1,
+	const struct famfs_log_file_meta *m2,
+	int verbose)
+{
+	char *msgbuf = calloc(1, 8192);
+	char *tmpbuf = calloc(1, PATH_MAX);
+	int errs = 0;
+	int j;
+
+	if (m1->fm_size != m2->fm_size) {
+		snprintf(tmpbuf, PATH_MAX - 1, "fm_size mismatch %lld / %lld",
+			 m1->fm_size, m2->fm_size);
+		strncat(msgbuf, tmpbuf, MSG_SIZE - 1);
+		errs++;
+	}
+	if (m1->fm_flags != m2->fm_flags) {
+		snprintf(tmpbuf, PATH_MAX - 1, "fm_flags mismatch %x / %x\n",
+			 m1->fm_flags, m2->fm_flags);
+		strncat(msgbuf, tmpbuf, MSG_SIZE - 1);
+		errs++;
+	}
+	if (m1->fm_uid != m2->fm_uid) {
+		snprintf(tmpbuf, PATH_MAX - 1, "fm_uid mismatch %d / %d\n",
+			 m1->fm_uid, m2->fm_uid);
+		strncat(msgbuf, tmpbuf, MSG_SIZE - 1);
+		errs++;
+	}
+	if (m1->fm_gid != m2->fm_gid) {
+		snprintf(tmpbuf, PATH_MAX - 1, "fm_gid mismatch %d / %d\n",
+			 m1->fm_gid, m2->fm_gid);
+		strncat(msgbuf, tmpbuf, MSG_SIZE - 1);
+		errs++;
+	}
+	if (m1->fm_mode != m2->fm_mode) {
+		snprintf(tmpbuf, PATH_MAX - 1, "fm_mode mismatch %o / %o\n",
+			 m1->fm_mode, m2->fm_mode);
+		strncat(msgbuf, tmpbuf, MSG_SIZE - 1);
+		errs++;
+	}
+	if (strcmp(m1->fm_relpath, m2->fm_relpath) != 0) {
+		snprintf(tmpbuf, PATH_MAX - 1, "fm_relpath mismatch %s / %s\n",
+			 m1->fm_relpath, m2->fm_relpath);
+		strncat(msgbuf, tmpbuf, MSG_SIZE - 1);
+		errs++;
+	}
+
+	if (verbose && errs) {
+		fprintf(stderr, msgbuf);
+		msgbuf[0] = 0;
+	}
+
+	if (m1->fm_fmap.fmap_ext_type != m2->fm_fmap.fmap_ext_type) {
+		snprintf(tmpbuf, PATH_MAX - 1, "fm_ext_type mismatch %d / %d\n",
+			 m1->fm_fmap.fmap_ext_type, m2->fm_fmap.fmap_ext_type);
+		strncat(msgbuf, tmpbuf, MSG_SIZE - 1);
+		errs++;
+		return errs;
+	}
+
+	switch (m1->fm_fmap.fmap_ext_type) {
+	case FAMFS_EXT_SIMPLE:
+		if (m1->fm_fmap.fmap_nextents != m1->fm_fmap.fmap_nextents) {
+			snprintf(tmpbuf, PATH_MAX - 1, "fm_ext_type mismatch %d / %d\n",
+				 m1->fm_fmap.fmap_nextents, m2->fm_fmap.fmap_nextents);
+			strncat(msgbuf, tmpbuf, MSG_SIZE - 1);
+			errs++;
+			goto out;
+		}
+		errs += famfs_compare_simple_ext_list(msgbuf, m1->fm_fmap.fmap_nextents,
+						      m1->fm_fmap.se, m2->fm_fmap.se);
+		break;
+	case FAMFS_EXT_INTERLEAVE:
+		if (m1->fm_fmap.fmap_niext != m1->fm_fmap.fmap_niext) {
+			snprintf(tmpbuf, PATH_MAX - 1, "fmap_niext mismatch %d / %d\n",
+				 m1->fm_fmap.fmap_niext, m2->fm_fmap.fmap_niext);
+			strncat(msgbuf, tmpbuf, MSG_SIZE - 1);
+			errs++;
+			goto out;
+		}
+		for (j = 0; j < m1->fm_fmap.fmap_niext; j++) {
+			if (m1->fm_fmap.ie[j].ie_nstrips != m2->fm_fmap.ie[j].ie_nstrips) {
+				snprintf(tmpbuf, PATH_MAX - 1,
+					 "ie[%d].nstrips mismatch %lld / %lld\n", j,
+					 m1->fm_fmap.ie[j].ie_nstrips,
+					 m2->fm_fmap.ie[j].ie_nstrips);
+				strncat(msgbuf, tmpbuf, MSG_SIZE - 1);
+				errs++;
+			}
+			if (m1->fm_fmap.ie[j].ie_chunk_size != m2->fm_fmap.ie[j].ie_chunk_size) {
+				snprintf(tmpbuf, PATH_MAX - 1,
+					 "ie[%d].chunk_size mismatch %lld / %lld\n", j,
+					 m1->fm_fmap.ie[j].ie_chunk_size,
+					 m2->fm_fmap.ie[j].ie_chunk_size);
+				strncat(msgbuf, tmpbuf, MSG_SIZE - 1);
+				errs++;
+			}
+			if (m1->fm_fmap.ie[j].ie_nbytes != m2->fm_fmap.ie[j].ie_nbytes) {
+				snprintf(tmpbuf, PATH_MAX - 1,
+					 "ie[%d].nbytes mismatch %lld / %lld\n", j,
+					 m1->fm_fmap.ie[j].ie_nbytes,
+					 m2->fm_fmap.ie[j].ie_nbytes);
+				strncat(msgbuf, tmpbuf, MSG_SIZE - 1);
+				errs++;
+			}
+			errs += famfs_compare_simple_ext_list(msgbuf, m1->fm_fmap.fmap_niext,
+							      m1->fm_fmap.ie[j].ie_strips,
+							      m2->fm_fmap.ie[j].ie_strips);
+		}
+	}
+
+out:
+	if (verbose && errs) {
+		fprintf(stderr, msgbuf);
+		msgbuf[0] = 0;
+	}
+
+	return errs;
 }

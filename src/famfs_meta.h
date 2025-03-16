@@ -192,7 +192,7 @@ struct famfs_log_file_meta {
 	gid_t   fm_gid;
 	mode_t  fm_mode;
 
-	u8      fm_relpath[FAMFS_MAX_PATHLEN];
+	char    fm_relpath[FAMFS_MAX_PATHLEN];
 	//u8      ext_type;
 	struct  famfs_log_fmap fm_fmap;
 };

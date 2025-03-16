@@ -1268,6 +1268,9 @@ famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index)
  * @dry_run:     process the log but don't create the files & directories
  * @client_mode: for testing; play the log as if this is a client node, even on master
  * @shadow:      Play into shadow file system instead (for famfs-fuse)
+ * @shadowtest:  When playing to shadow, whether or not the shadow file already exists,
+ *               re-ingest the shadow file and verify that results in an identical
+ *               'struct famfs_log_file_meta'
  * @verbose:     verbose flag
  *
  * Returns value: Number of errors detected (0=complete success)
@@ -1570,7 +1573,8 @@ bad_log_fmap:
  * famfs_dax_shadow_logplay()
  *
  * Play the log into a shadow famfs file system directly from a daxdev
- * (for famfs_fused)
+ * (Note this is NOT how the log gets played for famfs/fuse file systems -
+ * in those, the log is played via the meta files into the shadow directory)
  *
  * @shadowpath:  Root path of shadow file system
  * @dry_run:     Parse and print but don't create shadow files / directories
@@ -2701,17 +2705,28 @@ famfs_test_shadow_yaml(FILE *fp, const struct famfs_log_file_meta *fc, int verbo
 
 	rewind(fp);
 	rc = famfs_parse_shadow_yaml(fp, &readback, FAMFS_MAX_SIMPLE_EXTENTS,
-				     FAMFS_MAX_INTERLEAVED_EXTENTS, verbose);
+				     FAMFS_MAX_SIMPLE_EXTENTS, verbose);
 	if (rc) {
+		struct famfs_log_file_meta readback2 = { 0 };
+
+		fprintf(stderr, "-----------------------------------------------------\n");
+		rewind(fp);
+		rc = famfs_parse_shadow_yaml(fp, &readback2, FAMFS_MAX_SIMPLE_EXTENTS,
+					     FAMFS_MAX_INTERLEAVED_EXTENTS, verbose + 4);
 		fprintf(stderr, "%s: failed to parse shadow file yaml\n", __func__);
 		assert(0);
 		return -1;
 	}
+
 	/* Make sure the read-back of the yaml results in an identical
 	 * struct famfs_log_file_meta */
 	if (memcmp(fc, &readback, sizeof(readback))) {
 		fprintf(stderr, "%s: famfs_log_file_meta miscompare\n", __func__);
 		famfs_emit_file_yaml(&readback, stderr);
+		fprintf(stderr, "============\n");
+		famfs_emit_file_yaml(fc, stderr);
+		//diff_text_buffers(); //XXX
+		famfs_compare_log_file_meta(fc, &readback, 1);
 		return -1;
 	}
 	printf("%s: shadow yaml good!\n", fc->fm_relpath);
@@ -2751,7 +2766,7 @@ famfs_shadow_file_create(
 				"%s: directory where file %s expected\n",
 				__func__, shadow_fullpath);
 			if (ls) ls->d_errs++;
-			break;
+			return -1;
 
 		case S_IFREG:
 			if (verbose > 1)
@@ -2761,37 +2776,56 @@ famfs_shadow_file_create(
 			if (ls) ls->f_existed++;
 
 			/* TODO: detect a yaml mismatch in the existing file */
-			return 0;
+			if (!testmode)
+				return 0;
+
+			/* We're in testmode: open the existing yaml so we can test it */
+			fd = open(shadow_fullpath, O_RDONLY);
+			if (fd < 0) {
+				fprintf(stderr, "%s: open of %s failed, fd %d with %s\n",
+					__func__, shadow_fullpath, fd, strerror(errno));
+				if (ls) ls->f_errs++;
+				return -1;
+			}
+
+			/* Open shadow file as a stream */
+			fp = fdopen(fd, "r");
+			if (!fp) {
+				fprintf(stderr, "%s: fdopen failed\n", __func__);
+				close(fd);
+				return -1;
+			}
 			break;
 
 		default:
 			fprintf(stderr,
-				"%s: something (%s) exists where dir should be\n",
+				"%s: something (%s) exists where shadow file should be\n",
 				__func__, shadow_fullpath);
 			if (ls) ls->d_errs++;
-			break;
+			return -1;
 		}
-		return -1;
-	}
+	} else {
+		/* This is a new yaml shadow file */
 
-	fd = open(shadow_fullpath, O_RDWR | O_CREAT, 0644);
-	if (fd < 0) {
-		fprintf(stderr, "%s: open/creat of %s failed, fd %d with %s\n",
-			__func__, shadow_fullpath, fd, strerror(errno));
-		if (ls) ls->f_errs++;
-		return -1;
-	}
-	/* Open shadow file as a stream */
-	fp = fdopen(fd, "w");
-	if (!fp) {
-		fprintf(stderr, "%s: fdopen failed\n", __func__);
-		close(fd);
-		return -1;
-	}
+		fd = open(shadow_fullpath, O_RDWR | O_CREAT, 0644);
+		if (fd < 0) {
+			fprintf(stderr, "%s: open/creat of %s failed, fd %d with %s\n",
+				__func__, shadow_fullpath, fd, strerror(errno));
+			if (ls) ls->f_errs++;
+			return -1;
+		}
+		/* Open shadow file as a stream */
+		fp = fdopen(fd, "w");
+		if (!fp) {
+			fprintf(stderr, "%s: fdopen failed\n", __func__);
+			close(fd);
+			return -1;
+		}
 
-	/* Write the yaml metadata to the shadow file */
-	rc = famfs_emit_file_yaml(fc, fp);
-	if (ls) ls->f_created++;
+		/* Write the yaml metadata to the shadow file */
+		rc = famfs_emit_file_yaml(fc, fp);
+		if (ls) ls->f_created++;
+	}
 
 	if (testmode) {
 		if (ls) ls->yaml_checked++;
@@ -2852,6 +2886,7 @@ __famfs_mkfile(
 	assert(lp);
 	assert(size > 0);
 
+	/* If it's a relative path, append it to "cwd" to make it absolute */
 	if (filename[0] != '/') {
 		size_t len;
 
@@ -2940,6 +2975,8 @@ __famfs_mkfile(
 
 		snprintf(shadowpath, PATH_MAX - 1, "%s/%s", lp->shadow_path, relpath);
 		snprintf(filepath, PATH_MAX - 1, "%s/%s", lp->mpt, relpath);
+		assert(strlen(relpath) < (sizeof(fmeta.fm_relpath) - 1));
+		strncpy(fmeta.fm_relpath, relpath, sizeof(fmeta.fm_relpath) - 1);
 
 		rc = famfs_shadow_file_create(shadowpath, &fmeta, NULL, 0, 0, 0, verbose);
 		if (rc)
