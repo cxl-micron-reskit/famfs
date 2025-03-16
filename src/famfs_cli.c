@@ -146,7 +146,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 		case 'S':
 			if (shadowpath) {
 				fprintf(stderr,
-					"%s: don't specify more than one chadowpath\n",
+					"%s: don't specify more than one shadowpath\n",
 					__func__);
 				return -EINVAL;
 			}
