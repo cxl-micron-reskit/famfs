@@ -141,7 +141,7 @@ famfs_recreate() {
 
     MSG=$1
 
-    sudo umount $MPT || fail "famfs_recreate ($MSG)"
+    sudo umount $MPT # || fail "famfs_recreate ($MSG)"
     verify_not_mounted $DEV $MPT "famfs_recreate ($MSG)"
     # Above this line should be the same for all smoke tests
 

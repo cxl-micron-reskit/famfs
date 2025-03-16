@@ -166,7 +166,6 @@ if [ -z "$SKIP_TEST2" ]; then
     ./smoke/test2.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
-exit;
 
 if [ -z "$SKIP_TEST3" ]; then
     ./smoke/test3.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
@@ -189,6 +188,7 @@ if [ -z "$SKIP_STRIPE_TEST" ]; then
     ./smoke/stripe_test.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
+#exit;
 
 if [ -z "$SKIP_PCQ" ]; then
     ./smoke/test_pcq.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
