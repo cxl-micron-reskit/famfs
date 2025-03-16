@@ -1024,7 +1024,7 @@ __famfs_mkmeta(
 	}
 
 	if (shadow) {
-		/* Create shadow logk file */
+		/* Create shadow log file */
 		struct famfs_log_file_meta fm = {0};
 
 		fm.fm_size = sb->ts_log_len;
@@ -1184,9 +1184,10 @@ famfs_mmap_whole_file(
  */
 
 static void
-famfs_print_log_stats(const char *msg,
-		      const struct famfs_log_stats *ls,
-		      int verbose)
+famfs_print_log_stats(
+	const char *msg,
+	const struct famfs_log_stats *ls,
+	int verbose)
 {
 	printf("%s: processed %llu log entries; %llu new files; %llu new directories\n",
 	       msg, ls->n_entries, ls->f_created, ls->d_created);
@@ -1199,6 +1200,13 @@ famfs_print_log_stats(const char *msg,
 	if (ls->f_errs || ls->d_errs)
 		printf("\t%llu file errors and %llu dir errors\n",
 		       ls->f_errs, ls->d_errs);
+	if (ls->yaml_checked) {
+		printf("\tshadow yaml checked for %lld files\n",
+		       ls->yaml_checked);
+
+		printf("\tthere were %lld yaml errors detected\n",
+			ls->yaml_errs);
+	}
 }
 
 static inline int
@@ -1562,14 +1570,9 @@ bad_log_fmap:
 			break;
 		}
 	}
-	famfs_print_log_stats("famfs_logplay", &ls, verbose);
-	if (ls.yaml_checked)
-		printf("%s: shadow yaml checked for %lld files\n", __func__, ls.yaml_checked);
-
-	if (ls.yaml_errs)
-		fprintf(stderr, "%s: there were %lld yaml errors detected\n",
-			__func__, ls.yaml_errs);
-	return (ls.f_errs + ls.d_errs);
+	famfs_print_log_stats(shadow ? "famfs_logplay(shadow)" : "famfs_logplay(v1)",
+			      &ls, verbose);
+	return (ls.f_errs + ls.d_errs + ls.yaml_errs);
 }
 
 /**
@@ -2724,15 +2727,23 @@ famfs_test_shadow_yaml(FILE *fp, const struct famfs_log_file_meta *fc, int verbo
 	/* Make sure the read-back of the yaml results in an identical
 	 * struct famfs_log_file_meta */
 	if (memcmp(fc, &readback, sizeof(readback))) {
-		fprintf(stderr, "%s: famfs_log_file_meta miscompare\n", __func__);
-		famfs_emit_file_yaml(&readback, stderr);
-		fprintf(stderr, "============\n");
-		famfs_emit_file_yaml(fc, stderr);
-		//diff_text_buffers(); //XXX
-		famfs_compare_log_file_meta(fc, &readback, 1);
+		if (verbose)
+			fprintf(stderr,
+				"%s: famfs_log_file_meta miscompare "
+				"(verbose=2 for more info)\n",
+				__func__);
+		if (verbose > 2) {
+			famfs_emit_file_yaml(&readback, stderr);
+			fprintf(stderr, "============\n");
+			famfs_emit_file_yaml(fc, stderr);
+			//diff_text_buffers(); //XXX
+		}
+		if (verbose > 1)
+			famfs_compare_log_file_meta(fc, &readback, 1);
 		return -1;
 	}
-	printf("%s: shadow yaml good!\n", fc->fm_relpath);
+	if (verbose)
+		printf("%s: shadow yaml good!\n", fc->fm_relpath);
 	return 0;
 }
 
@@ -2763,15 +2774,15 @@ famfs_shadow_file_create(
 	if (!rc) {
 		switch (st.st_mode & S_IFMT) {
 		case S_IFDIR:
-			/* This is normal for log replay */
-			/* TODO: options to verify and fix contents? */
 			fprintf(stderr,
 				"%s: directory where file %s expected\n",
 				__func__, shadow_fullpath);
-			if (ls) ls->d_errs++;
+			if (ls) ls->f_errs++; /* file error because it should be a file */
 			return -1;
 
 		case S_IFREG:
+			/* This is normal for log replay */
+			/* TODO: options to verify and fix contents? */
 			if (verbose > 1)
 				fprintf(stderr,
 					"%s: file (%s) exists where dir should be\n",
@@ -2804,7 +2815,7 @@ famfs_shadow_file_create(
 			fprintf(stderr,
 				"%s: something (%s) exists where shadow file should be\n",
 				__func__, shadow_fullpath);
-			if (ls) ls->d_errs++;
+			if (ls) ls->f_errs++;
 			return -1;
 		}
 	} else {
