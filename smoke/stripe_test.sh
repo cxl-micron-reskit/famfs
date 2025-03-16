@@ -1,78 +1,84 @@
 #!/usr/bin/env bash
 
-CWD=$(pwd)
-BIN="$CWD/debug"
-SCRIPTS="$CWD/scripts"
+cwd=$(pwd)
+
+# Defaults
+VG=""
+SCRIPTS=../scripts
+RAW_MOUNT_OPTS="-t famfs -o noatime -o dax=always "
+BIN=../debug
+VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
+RMMOD=0
 
 # Allow these variables to be set from the environment
-if [ -z "$MPT" ]; then
-    MPT=/mnt/famfs
-fi
 if [ -z "$DEV" ]; then
     DEV="/dev/dax0.0"
 fi
-
-# Check if we have password-less sudo, which is required
-sudo -n true 2>/dev/null
-if [ $? -ne 0 ]; then
-    echo "Error: password-less sudo capability is required to run stress tests"
+if [ -z "$MPT" ]; then
+    MPT=/mnt/famfs
+fi
+if [ -z "$UMOUNT" ]; then
+    UMOUNT="umount"
+fi
+if [ -z "${FAMFS_MODE}" ]; then
+    FAMFS_MODE="v1"
 fi
 
-TEST_FUNCS=$SCRIPTS/test_funcs.sh
-if [ ! -f $TEST_FUNCS ]; then
-    echo "Can't source $TEST_FUNCS"
-    exit -1
-fi
-
+# Override defaults as needed
 while (( $# > 0)); do
     flag="$1"
     shift
     case "$flag" in
-        (-d|--device)
-            DEV=$1
-            shift;
-            ;;
+	(-d|--device)
+	    DEV=$1
+	    shift;
+	    ;;
 	(-b|--bin)
 	    BIN=$1
 	    shift
-	    ;;
-	(-m|--mpt)
-	    MPT=$1
-	    shift;
 	    ;;
 	(-s|--scripts)
 	    SCRIPTS=$1
 	    source_root=$1;
 	    shift;
 	    ;;
+	(-m|--mode)
+	    FAMFS_MODE="$1"
+	    shift
+	    ;;
 	(-v|--valgrind)
 	    # no argument to -v; just setup for Valgrind
 	    VG=${VALGRIND_ARG}
 	    ;;
-        *)
-            echo "Unrecognized command line arg: $flag"
-	    exit -1
-            ;;
+	(-n|--no-rmmod)
+	    RMMOD=0
+	    ;;
+	*)
+	    echo "Unrecognized command line arg: $flag"
+	    ;;
+
     esac
 done
 
+if [[ "${FAMFS_MODE}" == "v1" || "${FAMFS_MODE}" == "fuse" ]]; then
+    echo "FAMFS_MODE: ${FAMFS_MODE}"
+    if [[ "${FAMFS_MODE}" == "fuse" ]]; then
+        MOUNT_OPTS="-f"
+	sudo rmmod famfs
+    fi
+else
+    echo "FAMFS_MODE: invalid"
+    exit 1;
+fi
+
+MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
+MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI="sudo $VG $BIN/famfs"
+CLI_NOSUDO="$VG $BIN/famfs"
+TEST="test4"
 
-echo "CWD:      $CWD"
-echo "BIN:      $BIN"
-echo "SCRIPTS:  $SCRIPTS"
-echo "CLI: 	$CLI"
-
-if [ ! -d $BIN ]; then
-    echo "Can't find executables"
-    exit -1
-fi
-if [ ! -x "$BIN/famfs" ]; then
-    echo "famfs cli missing or not built in subdir $BIN"
-    exit -1
-fi
-
-source $TEST_FUNCS
+source $SCRIPTS/test_funcs.sh
+# Above this line should be the same for all smoke tests
 
 stripe_test_cp () {
     SIZE=$1
@@ -219,7 +225,7 @@ stripe_test () {
     echo
     sudo umount $MPT || fail "umount should work"
     verify_not_mounted $DEV $MPT "stripe_test umount should have succeeded"
-    ${CLI} mount $DEV $MPT  || fail "remount should work"
+    ${MOUNT} $DEV $MPT  || fail "remount should work"
     verify_mounted $DEV $MPT "stripe_test remount should have succeeded"
 
     #

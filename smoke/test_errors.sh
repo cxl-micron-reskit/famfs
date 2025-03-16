@@ -5,7 +5,7 @@ cwd=$(pwd)
 # Defaults
 VG=""
 SCRIPTS=../scripts
-MOUNT_OPTS="-t famfs -o noatime -o dax=always "
+RAW_MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 
 # Allow these variables to be set from the environment
@@ -17,6 +17,9 @@ if [ -z "$MPT" ]; then
 fi
 if [ -z "$UMOUNT" ]; then
     UMOUNT="umount"
+fi
+if [ -z "${FAMFS_MODE}" ]; then
+    FAMFS_MODE="v1"
 fi
 
 # Override defaults as needed
@@ -37,9 +40,16 @@ while (( $# > 0)); do
 	    source_root=$1;
 	    shift;
 	    ;;
+	(-m|--mode)
+	    FAMFS_MODE="$1"
+	    shift
+	    ;;
 	(-v|--valgrind)
 	    # no argument to -v; just setup for Valgrind
-	    VG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
+	    VG=${VALGRIND_ARG}
+	    ;;
+	(-n|--no-rmmod)
+	    RMMOD=0
 	    ;;
 	*)
 	    echo "Unrecognized command line arg: $flag"
@@ -48,8 +58,18 @@ while (( $# > 0)); do
     esac
 done
 
-echo "DEVTYPE=$DEVTYPE"
-echo "SCRIPTS=$SCRIPTS"
+if [[ "${FAMFS_MODE}" == "v1" || "${FAMFS_MODE}" == "fuse" ]]; then
+    echo "FAMFS_MODE: ${FAMFS_MODE}"
+    if [[ "${FAMFS_MODE}" == "fuse" ]]; then
+        MOUNT_OPTS="-f"
+	sudo rmmod famfs
+    fi
+else
+    echo "FAMFS_MODE: invalid"
+    exit 1;
+fi
+
+MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
 MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI="sudo $VG $BIN/famfs"
 TEST="test_errors:"
@@ -58,6 +78,14 @@ source $SCRIPTS/test_funcs.sh
 # Above this line should be the same for all smoke tests
 
 set -x
+
+if [[ "${FAMFS_MODE}" == "fuse" ]]; then
+    echo "*************************************************************"
+    echo "test_errs does not support famfs/fuse yet"
+    echo "*************************************************************"
+    sleep 1
+    exit 0
+fi
 
 # Start with a clean, empty file system
 famfs_recreate "test_errors"
@@ -94,7 +122,7 @@ ${CLI} verify -S 10 -f $MPT/clone1 || fail "re-verify clone1"
 
 sudo $UMOUNT $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test_errors .sh"
-${CLI} mount $DEV $MPT || fail "mount in test_errors"
+${MOUNT} $DEV $MPT || fail "mount in test_errors"
 #full_mount $DEV $MPT "${MOUNT_OPTS}" "test_errors.sh"
 verify_mounted $DEV $MPT "test1.sh"
 
@@ -118,17 +146,17 @@ ${CLI} fsck $MPT && fail "fsck if a clone has ever happened should fail"
 # Some v2-specific tests
 
 sudo $UMOUNT $MPT            || fail "umount should work"
-${CLI} mount $DEV $MPT       || fail "basic mount should succeed"
-${CLI} mount $DEV $MPT       && fail "remount 1 should fail"
-${CLI} mount $DEV $MPT       && fail "remount 2 should fail"
-${CLI} mount $DEV $MPT       && fail "remount 3 should fail"
+${MOUNT} $DEV $MPT       || fail "basic mount should succeed"
+${MOUNT} $DEV $MPT       && fail "remount 1 should fail"
+${MOUNT} $DEV $MPT       && fail "remount 2 should fail"
+${MOUNT} $DEV $MPT       && fail "remount 3 should fail"
 sudo mkdir -p /tmp/famfs
-${CLI} mount $DEV /tmp/famfs && fail "remount at different path should fail"
+${MOUNT} $DEV /tmp/famfs && fail "remount at different path should fail"
 verify_mounted $DEV $MPT     "mounted after redundant mounts"
 sudo $UMOUNT $MPT            || fail "umount should work after redundant mounts"
 verify_not_mounted $DEV $MPT "umount should have worked after redundant mounts"
 
-${CLI} mount $DEV $MPT       || fail "basic mount should succeed"
+${MOUNT} $DEV $MPT       || fail "basic mount should succeed"
 
 mkdir -p ~/smoke.shadow
 ${CLI} logplay --shadow ~/smoke.shadow/test_errors.shadow $MPT
