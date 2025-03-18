@@ -1835,7 +1835,6 @@ famfs_relpath_from_fullpath(
 
 	assert(mpt);
 	assert(fullpath);
-	assert(strlen(fullpath) >= strlen(mpt));
 
 	if (strstr(fullpath, mpt) != fullpath) {
 		/* mpt path should be a substring starting at the beginning of fullpath*/
@@ -1843,6 +1842,9 @@ famfs_relpath_from_fullpath(
 			__func__, mpt, fullpath);
 		return NULL;
 	}
+
+	/* Now that we've established that fullpath descends from mpt... */
+	assert(strlen(fullpath) >= strlen(mpt));
 
 	/* This assumes relpath() removed any duplicate '/' characters: */
 	relpath = &fullpath[strlen(mpt) + 1];
@@ -3439,8 +3441,8 @@ famfs_mkdir_parents(
  * Return values:
  * 0  - Success
  * >0 - Something failed but if it is a multi-file copy, it should continue
- * <0 - A failure that should cause multi-file operations to bail out (such as out of space or
- *      log full...
+ * <0 - A failure that should cause multi-file operations to bail out (such as
+ *      out of space or log full...
  */
 int
 __famfs_cp(

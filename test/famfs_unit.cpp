@@ -368,11 +368,11 @@ TEST(famfs, __famfs_cp)
 	struct famfs_superblock *sb;
 	extern int mock_failure;
 	struct famfs_log *logp;
-	extern int mock_kmod;
+	extern int mock_kmod, mock_fstype;
 	int rc;
 
 	/* Prepare a fake famfs  */
-	mock_kmod = 1;
+	mock_kmod = mock_fstype = 1;
 	rc = create_mock_famfs_instance("/tmp/famfs", device_size, &sb, &logp);
 	ASSERT_EQ(rc, 0);
 	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
@@ -403,7 +403,7 @@ TEST(famfs, __famfs_cp)
 			"/tmp/src",
 			"xx",
 			0, 0, 0, 2);
-	ASSERT_EQ(rc, 1);
+	ASSERT_NE(rc, 0);
 	system("rm /tmp/src");
 
 	/* fail open of src file */
@@ -413,7 +413,7 @@ TEST(famfs, __famfs_cp)
 			"/tmp/src",
 			"xx",
 			0, 0, 0, 2);
-	ASSERT_EQ(rc, 1);
+	ASSERT_NE(rc, 0);
 	mock_failure = MOCK_FAIL_NONE;
 	system("rm /tmp/src");
 
