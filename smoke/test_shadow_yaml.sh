@@ -85,16 +85,6 @@ TEST="test_shadow_yaml"
 source $SCRIPTS/test_funcs.sh
 # Above this line should be the same for all smoke tests
 
-if [[ "${FAMFS_MODE}" == "fuse" ]]; then
-    set +x
-    echo "======================================================================"
-    echo " test_shadow_yaml.sh: WARNING SKIPPING PCQ TESTS FOR FUSE MODE: FIX THIS!!!"
-    echo "======================================================================"
-    echo ""
-    sleep 4
-    exit 0
-fi
-
 set -x
 
 # Start with a clean, empty file systeem
@@ -157,7 +147,7 @@ file:
 ...
 EOF
 
-${CLI} mount $DEV $MPT || fail "remount after shadow yaml test should work"
+${MOUNT} $DEV $MPT || fail "remount after shadow yaml test should work"
 verify_mounted $DEV $MPT "$TEST.sh mounted 2"
 
 # TODO: move this to new smoke/test_fused.sh
@@ -187,48 +177,24 @@ ${FAMFS_FUSED} -o source=/etc/passwd $FUSE_MPT && fail "fused should fail w/file
 ${FAMFS_FUSED} -o source=${FUSE_SHADOW} -o foo=bar $FUSE_MPT && \
     fail "fused should fail with bad -o opt (-o foo=bar)"
 
-# Mount / start famfs_fused
-${FAMFS_FUSED} -o source=${FUSE_SHADOW} $FUSE_MPT || fail "Fuse mount failed 0"
-
-sudo cat ${FUSE_MPT}/memfile2 > /dev/null || fail "cat memfile via fuse"
-
-#cp -r $MPT $FUSE_SHADOW
-
-# Verify that the files *look* right (no data movement yet)
-# Ignore modification time, which famfs does not track
-# (the second un-escaped '.')
-
-# Fail if there are no files
-sudo rsync -a -n --itemize-changes --ignore-times  $MPT/ $FUSE_MPT/ | \
-    grep ^.f || fail "no files found in legacy mount"
-
-ls -al $FAMFS_SHADOW
-ls -al $FUSE_MPT
-
-#fail "stop here"
-
-# The second grep is counting (-c), and there should be no matches as it is
-# looking for mismatched metadata between the legacy and fuse mounts of famfs.
-# so success is &&, not ||
-sudo rsync -a -n --itemize-changes --ignore-times $MPT $FUSE_MPT | \
-    grep ^.f | \
-    grep --invert-match -c ^.f\.\..\.\.\.\.\.\. && \
-    fail "Shadow-to-fuse translation error - metadata mismatch"
-
-sudo find $FUSE_MPT -type f -print -exec stat {} \; || fail "failed to stat famfs-fuse files"
-sudo find $FUSE_MPT -type f -print -exec cat {} \;  || fail "failed to cat famfs-fuse files"
-
-#sudo cat $FUSE_MPT/memfile2 >/dev/null || fail "cat file"
-
 # Stuff that should fail
-sudo truncate --size 0 $FUSE_MPT/memfile     && fail "truncate fuse file should fail"
-sudo mkdir $FUSE_MPT/mydir                   && fail "mkdir should fail in fuse"
-sudo ln $FUSE_MPT/newlink $FUSE_MPT/memfile  && fail "ln hard link in fuse should fail"
-sudo ln -s $FUSE_MPT/slink $FUSE_MPT/memfile && fail "ln soft link in fuse should fail"
-sudo mknod $FUSE_MPT/myblk b 100 100     && fail "mknod special file should fail in fuse"
-sudo rmdir $FUSE_MPT/tmpdir              && fail "rmdir should fail in fuse"
-sudo rm $FUSE_MPT/memfile                && fail "rm file in fuse should fail"
-sudo touch $FUSE_MPT/touchfile           && fail "touch new file in fuse should fail"
+if [[ "${FAMFS_MODE}" == "fuse" ]]; then
+    sudo truncate --size 0 $MPT/memfile     && fail "truncate fuse file should fail"
+    sudo mkdir $MPT/mydir                   && fail "mkdir should fail in fuse"
+    sudo ln $MPT/newlink $MPT/memfile  && fail "ln hard link in fuse should fail"
+    sudo ln -s $MPT/slink $MPT/memfile && fail "ln soft link in fuse should fail"
+    sudo mknod $MPT/myblk b 100 100    && fail "mknod special file should fail in fuse"
+    sudo rmdir $MPT/tmpdir             && fail "rmdir should fail in fuse"
+    sudo rm $MPT/memfile               && fail "rm file in fuse should fail"
+    sudo touch $MPT/touchfile          && fail "touch new file in fuse should fail"
+else
+    sudo truncate --size 0 $MPT/memfile     && fail "truncate famfsv1 file should fail"
+    sudo ln $MPT/newlink $MPT/memfile  && fail "ln hard link in famfsv1 should fail"
+    sudo ln -s $MPT/slink $MPT/memfile && fail "ln soft link in famfsv1 should fail"
+    sudo mknod $MPT/myblk b 100 100    && fail "mknod special file should fail in famfsv1"
+    sudo rmdir $MPT/tmpdir             && fail "rmdir should fail in famfsv1"
+    sudo rm $MPT/memfile               && fail "rm file in famfsv1 should fail"
+fi
 
 
 echo 3 | sudo tee /proc/sys/vm/drop_caches
@@ -238,8 +204,6 @@ echo 3 | sudo tee /proc/sys/vm/drop_caches
 
 mkdir -p ~/smoke.shadow
 ${CLI} logplay --shadow ~/smoke.shadow/test_shadow_yaml.shadow $MPT
-
-sudo umount $FUSE_MPT
 
 set +x
 echo "*************************************************************************"

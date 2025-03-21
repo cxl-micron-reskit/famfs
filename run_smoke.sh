@@ -169,6 +169,11 @@ if [ -z "$SKIP_TEST0" ]; then
     sleep "${SLEEP_TIME}"
 fi
 
+if [ -z "$SKIP_SHADOW_YAML" ]; then
+    ./smoke/test_shadow_yaml.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    sleep "${SLEEP_TIME}"
+fi
+
 if [ -z "$SKIP_TEST1" ]; then
     sudo ./smoke/test1.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
     sleep "${SLEEP_TIME}"
@@ -209,11 +214,6 @@ fi
 
 if [ -z "$SKIP_FIO" ]; then
     ./smoke/test_fio.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
-    sleep "${SLEEP_TIME}"
-fi
-
-if [ -z "$SKIP_SHADOW_YAML" ]; then
-    ./smoke/test_shadow_yaml.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
 
