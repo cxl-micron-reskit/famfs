@@ -50,11 +50,7 @@ target_link_libraries(libfamfs  uuid z yaml)
 target_link_libraries(pcq libpcq libfamfs uuid z famfstest yaml)
 target_link_libraries(famfs_fused libfamfs)
 
-add_executable(passthrough_ll fuse/passthrough_ll.c)
-#add_executable(passthrough_hp fuse/passthrough_hp.cc)
-
 link_directories("${CMAKE_CURRENT_BINARY_DIR}/libfuse/lib")
-target_link_libraries(passthrough_ll "${CMAKE_CURRENT_BINARY_DIR}/libfuse/lib/libfuse3.so"  pthread dl rt systemd )
 target_link_libraries(famfs_fused "${CMAKE_CURRENT_BINARY_DIR}/libfuse/lib/libfuse3.so"  pthread dl rt systemd )
 #target_link_libraries(passthrough_hp "${CMAKE_CURRENT_BINARY_DIR}/libfuse/lib/libfuse3.so"  pthread dl rt)
 

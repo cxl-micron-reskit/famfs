@@ -22,7 +22,7 @@ libfuse:
 		git clone https://github.com/jagalactic/libfuse.git; \
 	fi
 	mkdir -p $(BDIR)/libfuse
-	meson setup $(BDIR)/libfuse ./libfuse
+	meson setup -Dexamples=false $(BDIR)/libfuse ./libfuse
 	meson compile -C $(BDIR)/libfuse
 
 debug:	cmake-modules chk_include
