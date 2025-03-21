@@ -19,7 +19,7 @@ libfuse:
 	fi
 	@if [ ! -d "libfuse" ]; then \
 		echo "cloning libfuse..."; \
-		git clone https://github.com/jagalactic/libfuse.git; \
+		git clone -b famfs https://github.com/jagalactic/libfuse.git; \
 	fi
 	mkdir -p $(BDIR)/libfuse
 	meson setup -Dexamples=false $(BDIR)/libfuse ./libfuse
