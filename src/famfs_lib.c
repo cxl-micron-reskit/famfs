@@ -180,7 +180,8 @@ famfs_file_read(
  *
  * Returns: 1 if the module is loaded, and 0 if not
  */
-#define FAMFS_MODULE_SYSFS "/sys/module/famfs"
+#define FAMFS_MODULE_SYSFS   "/sys/module/famfs"
+#define FAMFS_MODULE_SYSFSV1 "/sys/module/famfsv1"
 int
 famfs_module_loaded(int verbose)
 {
@@ -189,8 +190,11 @@ famfs_module_loaded(int verbose)
 
 	rc = stat(FAMFS_MODULE_SYSFS, &st);
 	if (rc) {
-		printf("%s: NO\n", __func__);
-		return 0;
+		rc = stat(FAMFS_MODULE_SYSFSV1, &st);
+		if (rc) {
+			printf("%s: NO\n", __func__);
+			return 0;
+		}
 	}
 
 	assert((st.st_mode & S_IFMT) == S_IFDIR);

@@ -317,7 +317,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 		rc = famfs_mount_fuse(realdaxdev, realmpt, NULL, verbose);
 		goto out;
 	}
-	if (!famfs_module_loaded(1)) {
+	else if (!famfs_module_loaded(1)) {
 		fprintf(stderr, "famfs mount: famfs kernel module is not loaded!\n");
 		fprintf(stderr, "famfs mount: try 'sudo modprobe famfs'\n");
 		rc = -1;
