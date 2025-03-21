@@ -6,10 +6,15 @@ coverage/
 Module.symvers
 modules.order
 .[Mm]odule*
+.clang-format*
 cli-ref.md
 html
 latex
 cmake-modules
 tmp/
 tools/
+stuff/
+libfuse/
 TAGS
+#*
+.#*
