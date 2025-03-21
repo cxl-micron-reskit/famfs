@@ -9,6 +9,7 @@ RAW_MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
 RMMOD=0
+FAMFS_MOD="famfs.ko"
 
 # Allow these variables to be set from the environment
 if [ -z "$DEV" ]; then
@@ -29,6 +30,10 @@ while (( $# > 0)); do
     flag="$1"
     shift
     case "$flag" in
+	(-M|--module)
+	    FAMFS_MOD=$1
+	    shift
+	    ;;
 	(-d|--device)
 	    DEV=$1
 	    shift;
@@ -168,9 +173,9 @@ ${CLI} verify -S 42 -f $F
 sudo $UMOUNT $MPT            || fail "umount should succeed"
 if [[ "${FAMFS_MODE}" == "v1" ]]; then
     if ((RMMOD > 0)); then
-	sudo rmmod famfs            || fail "could not unload famfs when unmoounted"
+	sudo rmmod ${FAMFS_MOD}     || fail "could not unload famfs when unmoounted"
 	${MOUNT} -vvv $DEV $MPT && fail "famfs mount should fail when kmod not loaded"
-	sudo modprobe famfs         || fail "modprobe"
+	sudo modprobe ${FAMFS_MOD}  || fail "modprobe"
     fi
 fi
 ${MOUNT} $DEV $MPT      || fail "famfs mount should succeed after kmod reloaded"

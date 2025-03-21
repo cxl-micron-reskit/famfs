@@ -159,7 +159,7 @@ famfs_recreate() {
     ${MKFS}  $DEV         || fail "famfs_recreate: mkfs ($MSG)"
 
     if [[ "$FAMFS_MODE" == "v1" ]]; then
-	sudo modprobe famfs || fail "famfs_recreate: modprobe ($MSG)"
+	sudo modprobe ${FAMFS_MOD} || fail "famfs_recreate: modprobe ($MSG)"
     fi
 
     ${MOUNT} $DEV $MPT    || fail "famfs_recreate: famfs mount ($MSG)"

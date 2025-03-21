@@ -8,6 +8,8 @@ SCRIPTS=../scripts
 RAW_MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
 VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
+RMMOD=0
+FAMFS_MOD="famfs.ko"
 
 # Allow these variables to be set from the environment
 if [ -z "$DEV" ]; then
@@ -19,7 +21,7 @@ fi
 if [ -z "$UMOUNT" ]; then
     UMOUNT="umount"
 fi
-if [ -z "$FAMFS_MODE" ]; then
+if [ -z "${FAMFS_MODE}" ]; then
     FAMFS_MODE="v1"
 fi
 
@@ -28,6 +30,11 @@ while (( $# > 0)); do
     flag="$1"
     shift
     case "$flag" in
+	(-M|--module)
+	    FAMFS_MOD=$1
+	    echo "FAMFS_MOD=${FAMFS_MOD}"
+	    shift
+	    ;;
 	(-d|--device)
 	    DEV=$1
 	    shift;
@@ -127,7 +134,7 @@ ${CLI} fsck $DEV          || fail "fsck"
 if [[ "$FAMFS_MODE" == "v1" ]]; then
     # We now expect the module to already be loaded (if FAMFS_MODE==v1),
     # but no harm in modprobe to make double sure
-    sudo modprobe famfs       || fail "modprobe"
+    sudo modprobe ${FAMFS_MOD} || fail "modprobe ${FAMFS_MOD}"
 
     #
     # Test manual mount / mkmeta / logplay

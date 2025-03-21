@@ -142,6 +142,16 @@ else
     exit -1
 fi
 
+# Figure out the module name(s)
+V1PATH="/lib/modules/$(uname -r)/kernel/fs/famfs"
+if [ -f "${V1PATH}/famfs.ko" ]; then
+    MOD_ARG="--module famfs"
+elif [ -f "${V1PATH}/famfsv1.ko" ]; then
+    MOD_ARG="--module famfsv1"
+else
+    MOD_ARG=""
+fi
+
 if [[ "$BIN" == *[[:space:]]* ]]; then
     fail "ERROR: the BIN path ($BIN) contains spaces!"
 fi
@@ -149,59 +159,61 @@ if [[ "$SCRIPTS" =~ *[[:space:]]* ]]; then
     fail "ERROR: the SCRIPTS path ($SCRIPTS) contains spaces!"
 fi
 
+TEST_ARGS="${MOD_ARG} $VGARG -b $BIN -s $SCRIPTS -d $DEV -m $MODE" 
+
 set -x
-./smoke/prepare.sh "$VGARG" -b "$BIN" -s "$SCRIPTS" -d "$DEV" -m "$MODE"  || exit -1
+./smoke/prepare.sh  ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
 
 if [ -z "$SKIP_TEST0" ]; then
-    ./smoke/test0.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    ./smoke/test0.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_TEST1" ]; then
-    sudo ./smoke/test1.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    sudo ./smoke/test1.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_TEST2" ]; then
-    ./smoke/test2.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    ./smoke/test2.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_TEST3" ]; then
-    ./smoke/test3.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    ./smoke/test3.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_TEST4" ]; then
-    ./smoke/test4.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    ./smoke/test4.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_ERRS" ]; then
     sleep "${SLEEP_TIME}"
-    ./smoke/test_errors.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    ./smoke/test_errors.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
 else
     echo "skipping test_errors.sh because -n|--noerrors was specified"
 fi
 
 if [ -z "$SKIP_STRIPE_TEST" ]; then
-    ./smoke/stripe_test.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    ./smoke/stripe_test.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
 #exit;
 
 if [ -z "$SKIP_PCQ" ]; then
-    ./smoke/test_pcq.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    ./smoke/test_pcq.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_FIO" ]; then
-    ./smoke/test_fio.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    ./smoke/test_fio.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_SHADOW_YAML" ]; then
-    ./smoke/test_shadow_yaml.sh $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    ./smoke/test_shadow_yaml.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
 

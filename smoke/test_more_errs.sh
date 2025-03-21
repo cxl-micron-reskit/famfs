@@ -13,8 +13,11 @@ cwd=$(pwd)
 # Defaults
 VG=""
 SCRIPTS=../scripts
-MOUNT_OPTS="-t famfs -o noatime -o dax=always "
+RAW_MOUNT_OPTS="-t famfs -o noatime -o dax=always "
 BIN=../debug
+VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes"
+RMMOD=0
+FAMFS_MOD="famfs.ko"
 
 # Allow these variables to be set from the environment
 if [ -z "$DEV" ]; then
@@ -26,12 +29,19 @@ fi
 if [ -z "$UMOUNT" ]; then
     UMOUNT="umount"
 fi
+if [ -z "${FAMFS_MODE}" ]; then
+    FAMFS_MODE="v1"
+fi
 
 # Override defaults as needed
 while (( $# > 0)); do
     flag="$1"
     shift
     case "$flag" in
+	(-M|--module)
+	    FAMFS_MOD=$1
+	    shift
+	    ;;
 	(-d|--device)
 	    DEV=$1
 	    shift;
@@ -44,6 +54,10 @@ while (( $# > 0)); do
 	    SCRIPTS=$1
 	    source_root=$1;
 	    shift;
+	    ;;
+	(-m|--mode)
+	    FAMFS_MODE="$1"
+	    shift
 	    ;;
 	(-v|--valgrind)
 	    # no argument to -v; just setup for Valgrind
