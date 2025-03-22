@@ -88,6 +88,7 @@ while (( $# > 0)); do
 	    echo "hello release BIN=$BIN"
 	    ;;
 	(-c|--coverage)
+	    COVERAGE=1
 	    BIN="$CWD/coverage"
 	    echo "hello coverage BIN=$BIN"
 	    ;;
@@ -205,11 +206,14 @@ if [ -z "$SKIP_STRIPE_TEST" ]; then
     ./smoke/stripe_test.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
-#exit;
 
-if [ -z "$SKIP_PCQ" ]; then
-    ./smoke/test_pcq.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
-    sleep "${SLEEP_TIME}"
+if [[ $COVERAGE -ne 1 ]]; then
+    if [ -z "$SKIP_PCQ" ]; then
+	# XXX: get test_pcq running properly in coverage test mode
+	./smoke/test_pcq.sh ${MOD_ARG} $VGARG \
+			    -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+	sleep "${SLEEP_TIME}"
+    fi
 fi
 
 if [ -z "$SKIP_FIO" ]; then
@@ -226,7 +230,6 @@ echo "-------------------------------------------------------------------"
 if [[ "${MODE}" == "fuse" ]]; then
     echo "WARNING TEST DISABLED IN FUSE MODE: test_errs.sh"
     echo "WARNING TEST DISABLED IN FUSE MODE: test_pdq.sh"
-    echo "WARNING TEST DISABLED IN FUSE MODE: test_shadow_yaml.sh"
     echo "FIX THESE!!"
 fi
 exit 0
