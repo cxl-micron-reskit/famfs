@@ -177,8 +177,23 @@ ${FAMFS_FUSED} -o source=/etc/passwd $FUSE_MPT && fail "fused should fail w/file
 ${FAMFS_FUSED} -o source=${FUSE_SHADOW} -o foo=bar $FUSE_MPT && \
     fail "fused should fail with bad -o opt (-o foo=bar)"
 
-# Stuff that should fail
+# Get the kernel version string (e.g., "5.15.0-27-generic")
+kernel_version=$(uname -r)
+
+# Use a regex to extract the major and minor version numbers
+if [[ $kernel_version =~ ^([0-9]+)\.([0-9]+) ]]; then
+    major=${BASH_REMATCH[1]}
+    minor=${BASH_REMATCH[2]}
+else
+    echo "Error: Unable to parse the kernel version: $kernel_version" >&2
+    exit 1
+fi
+
+echo "Major Version: $major"
+echo "Minor Version: $minor"
+
 if [[ "${FAMFS_MODE}" == "fuse" ]]; then
+    # Stuff that should fail
     sudo truncate --size 0 $MPT/memfile     && fail "truncate fuse file should fail"
     sudo mkdir $MPT/mydir                   && fail "mkdir should fail in fuse"
     sudo ln $MPT/newlink $MPT/memfile  && fail "ln hard link in fuse should fail"
@@ -187,15 +202,17 @@ if [[ "${FAMFS_MODE}" == "fuse" ]]; then
     sudo rmdir $MPT/tmpdir             && fail "rmdir should fail in fuse"
     sudo rm $MPT/memfile               && fail "rm file in fuse should fail"
     sudo touch $MPT/touchfile          && fail "touch new file in fuse should fail"
-else
+elif [[ "${FAMFS_MODE}" == "v1" && "$major" -ge 6 && "$minor" -ge 12 ]]; then
+    # Stuff that should fail
     sudo truncate --size 0 $MPT/memfile     && fail "truncate famfsv1 file should fail"
     sudo ln $MPT/newlink $MPT/memfile  && fail "ln hard link in famfsv1 should fail"
     sudo ln -s $MPT/slink $MPT/memfile && fail "ln soft link in famfsv1 should fail"
     sudo mknod $MPT/myblk b 100 100    && fail "mknod special file should fail in famfsv1"
     sudo rmdir $MPT/tmpdir             && fail "rmdir should fail in famfsv1"
     sudo rm $MPT/memfile               && fail "rm file in famfsv1 should fail"
+else
+    echo "test_shadow_yaml: skipping some tests due to older famfs and kernel"
 fi
-
 
 echo 3 | sudo tee /proc/sys/vm/drop_caches
 
