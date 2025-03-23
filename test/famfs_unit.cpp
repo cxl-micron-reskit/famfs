@@ -173,7 +173,7 @@ TEST(famfs, famfs_super_test)
 
 	sb->ts_version++;  /* unrecognized version */
 	rc = famfs_check_super(sb);
-	ASSERT_EQ(rc, -1);
+	ASSERT_EQ(rc, 1); /* new: bad version returns 1 - distinguishable */
 
 	sb->ts_version = FAMFS_CURRENT_VERSION;  /* version good again */
 	rc = famfs_check_super(sb);
