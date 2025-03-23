@@ -97,6 +97,8 @@ sudo umount /tmp/famfs_fuse
 ${MKFS} -h            || fail "mkfs -h should work"
 ${MKFS}               && fail "mkfs without dev argument should fail"
 ${MKFS} /tmp/nonexistent && fail "mkfs on nonexistent dev should fail"
+# in case there is not a file system, make one
+${MKFS} $dev # no error check; if there is not a fs already this will create it
 ${MKFS} -k $DEV       && fail "mkfs/kill should fail without --force"
 ${MKFS} -f -k $DEV    || fail "mkfs/kill should succeed wtih --force"
 ${MKFS}  $DEV         || fail "mkfs"
