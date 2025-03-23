@@ -713,7 +713,7 @@ famfs_check_super(const struct famfs_superblock *sb)
 		fprintf(stderr, "%s: superblock version=%lld (expected %lld).\n"
 			"\tThis famfs_lib is not compatible with your famfs instance\n",
 			__func__, sb->ts_version, (u64)FAMFS_CURRENT_VERSION);
-		return -1;
+		return 1; /* rc=1 means the SB may be valid, but is the wrong version */
 	}
 
 	sbcrc = famfs_gen_superblock_crc(sb);
@@ -4190,7 +4190,11 @@ __famfs_mkfs(const char              *daxdev,
 	 * We already verifed (if there is a superblock) that we are running on the master
 	 */
 	invalidate_processor_cache(sb, FAMFS_SUPERBLOCK_SIZE);
-	if (famfs_check_super(sb) == 0 && !force) {
+	rc = famfs_check_super(sb);
+	if ((rc == 0 || rc == 1) && !force) {
+		/* rc == 0 is good superblock, rc == 1 a is possibly good SB at
+		 * wrong version, which still should not be overwritten without 'force'
+		 */
 		fprintf(stderr, "Device %s already has a famfs superblock\n", daxdev);
 		return -1;
 	}
