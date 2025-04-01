@@ -344,7 +344,6 @@ famfs_get_device_size(
 	u_int64_t size_i;
 	struct stat st;
 	int rc;
-	int is_blk = 0;
 
 	rc = stat(fname, &st);
 	if (rc < 0) {
@@ -355,10 +354,6 @@ famfs_get_device_size(
 
 	basename = strrchr(fname, '/');
 	switch (st.st_mode & S_IFMT) {
-	case S_IFBLK:
-		is_blk = 1;
-		snprintf(spath, PATH_MAX, "/sys/class/block%s/size", basename);
-		break;
 	case S_IFCHR:
 		snprintf(spath, PATH_MAX, "/sys/dev/char/%d:%d/size",
 			 major(st.st_rdev), minor(st.st_rdev));
@@ -385,9 +380,6 @@ famfs_get_device_size(
 	}
 
 	fclose(sfile);
-
-	if (is_blk)
-		size_i *= 512; /* blkdev size is in 512b blocks */
 
 	printf("%s: size=%ld\n", __func__, size_i);
 	*size = (size_t)size_i;
@@ -2299,7 +2291,6 @@ famfs_fsck(
 	 *   file system.
 	 */
 	switch (st.st_mode & S_IFMT) {
-	case S_IFBLK:
 	case S_IFCHR: {
 		char *mpt;
 		/* Check if there is a mounted famfs file system on this device;
@@ -2427,6 +2418,8 @@ famfs_fsck(
 		}
 	}
 		break;
+
+	case S_IFBLK: /* fallthrough */
 	default:
 		fprintf(stderr, "invalid path or dax device: %s\n", path);
 		return -EINVAL;
