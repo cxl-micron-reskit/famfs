@@ -324,3 +324,78 @@ famfs_flush_file(const char *filename, int verbose)
 	hard_flush_processor_cache(addr, size);
 	return 0;
 }
+
+static int
+kernel_symbol_exists(
+	const char *symbol_name,
+	const char *mod_name,
+	const int verbose)
+{
+	FILE *fp;
+	char line[PAGE_SIZE];
+
+	if (verbose)
+		printf("%s: looking for function %s in module [%s]\n",
+		       __func__, symbol_name, mod_name);
+
+	fp = fopen("/proc/kallsyms", "r");
+	if (!fp) {
+		perror("Failed to open /proc/kallsyms (are you root?)");
+		return 0;
+	}
+
+	while (fgets(line, sizeof(line), fp)) {
+		char addr[32], type, name[256], mname[256];
+		int rc;
+
+		/* Fast check that both strings are in the line */
+		if (!strstr(line, mod_name) || !strstr(line, symbol_name))
+			continue;
+
+		if (verbose > 1)
+			printf("%s: candidate line: %s", __func__, line);
+
+		/* Each line is like: "ffffffffa0002000 T startup_64 [module_name]" */
+		rc = sscanf(line, "%31s %c %255s [%[^]]]", addr, &type, name, mname); 
+		if (rc == 4) {
+			if (verbose > 1)
+				printf("(symbol=%s module=%s)", name, mname);
+			if ((strcmp(name, symbol_name) == 0)
+			    && (strcmp(mname, mod_name) == 0)) {
+				fclose(fp);
+				if (verbose)
+					printf("...MATCH\n");
+				return 1;
+			}
+		}
+		else
+			printf("(sscanf returned %d)", rc); 
+		if (verbose > 1)
+			printf("\n");
+	}
+
+	fclose(fp);
+	return 0;
+}
+
+/**
+ * famfs_get_kernel_type()
+ *
+ * Return a valid kernel type (FAMFS_FUSE or FAMFS_V1) that matches the
+ * running kernel, or NOT_FAMFS if the running kernel has support for neither.
+ */
+enum famfs_type
+famfs_get_kernel_type(int verbose)
+{
+	/* First choice is fuse */
+	if (kernel_symbol_exists("fuse_file_famfs", "fuse", verbose))
+		return FAMFS_FUSE;
+
+	if (kernel_symbol_exists("famfs_create", "famfsv1", verbose))
+		return FAMFS_V1;
+
+	if (verbose)
+		fprintf(stderr, "%s: no famfs symbols in running kernel\n", __func__);
+
+	return NOT_FAMFS;
+}

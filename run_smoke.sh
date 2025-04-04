@@ -16,6 +16,8 @@ fi
 if [ -z "$ERRS" ]; then
     ERRS=1
 fi
+
+# TODO: change default mode to fuse
 if [ -z "$MODE" ]; then
     MODE="v1"
 fi
@@ -159,8 +161,6 @@ fi
 if [[ "$SCRIPTS" =~ *[[:space:]]* ]]; then
     fail "ERROR: the SCRIPTS path ($SCRIPTS) contains spaces!"
 fi
-
-TEST_ARGS="${MOD_ARG} $VGARG -b $BIN -s $SCRIPTS -d $DEV -m $MODE" 
 
 set -x
 ./smoke/prepare.sh  ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1

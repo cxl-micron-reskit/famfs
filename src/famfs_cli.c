@@ -212,6 +212,8 @@ famfs_mount_usage(int   argc,
 	       "Arguments:\n"
 	       "    -?             - Print this message\n"
 	       "    -R|--remount   - Re-mount\n"
+	       "    -f|--fuse      - Use famfs via fuse\n"
+	       "    -F|--nofuse    - Use the standalone famfs v1 kernel module\n"
 	       "    -v|--verbose   - Print verbose output\n"
 	       "\n", progname);
 }
@@ -239,6 +241,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 		{"read",       no_argument,            0,  'r'},
 		{"mmap",       no_argument,            0,  'm'},
 		{"fuse",       no_argument,            0,  'f'},
+		{"nofuse",     no_argument,            0,  'F'},
 		{"verbose",    no_argument,            0,  'v'},
 		{0, 0, 0, 0}
 	};
@@ -250,7 +253,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+h?Rrfmv",
+	while ((c = getopt_long(argc, argv, "+h?RrfFmv",
 				mount_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -275,7 +278,11 @@ do_famfs_cli_mount(int argc, char *argv[])
 			mflags |= MS_REMOUNT;
 			break;
 		case 'f':
-			fuse_mode = 1;
+			fuse_mode = FAMFS_FUSE;
+			break;
+		case 'F':
+			fuse_mode = FAMFS_V1;
+			break;
 		}
 	}
 
@@ -312,7 +319,15 @@ do_famfs_cli_mount(int argc, char *argv[])
 		goto err_out;
 	}
 
-	if (fuse_mode) {
+	if (fuse_mode == 0)
+		fuse_mode = famfs_get_kernel_type(verbose);
+	if (fuse_mode == NOT_FAMFS) {
+		fprintf(stderr, "%s: kernel not famfs-enabled\n", __func__);
+		rc = -1;
+		goto err_out;
+	}
+
+	if (fuse_mode == FAMFS_FUSE) {
 		printf("daxdev=%s, mpt=%s\n", realdaxdev, realmpt);
 		rc = famfs_mount_fuse(realdaxdev, realmpt, NULL, verbose);
 		goto out;
