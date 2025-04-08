@@ -65,8 +65,9 @@ done
 if [[ "$FAMFS_MODE" == "v1" || "$FAMFS_MODE" == "fuse" ]]; then
     echo "FAMFS_MODE: $FAMFS_MODE"
     if [[ "$FAMFS_MODE" == "fuse" ]]; then
-        MOUNT_OPTS="-f"
-	sudo rmmod famfs
+        MOUNT_OPTS="--fuse" # Can drop this b/c fuse is the default
+    else
+        MOUNT_OPTS="--nofuse" # Can drop this b/c fuse is the default
     fi
 else
     echo "FAMFS_MODE: invalid"
