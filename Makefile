@@ -48,7 +48,6 @@ coverage:	cmake-modules
 # Run the coverage tests
 coverage_test:	coverage
 	-scripts/teardown.sh
-	-scripts/install_kmod.sh
 	script -c "./run_smoke.sh --coverage --nofuse" -O smoke_coverage.v1.log
 	script -c "./run_smoke.sh --coverage --fuse" -O smoke_coverage.fuse.log
 	cd coverage; script -e -c "sudo make famfs_unit_coverage" -O ../unit_coverage.log
@@ -66,7 +65,6 @@ clean:
 install:
 	cd debug; sudo $(MAKE) install
 	$(MAKE) libfuse_install BDIR="debug"
-	-scripts/install_kmod.sh
 
 # Run the unit tests
 test:
@@ -75,14 +73,13 @@ test:
 
 # Run the smoke tests
 smoke:	debug
-	-scripts/install_kmod.sh
 	-scripts/teardown.sh
 	script -e -c ./run_smoke.sh -O smoke.log
 
 smoke_valgrind: debug
 	-scripts/teardown.sh
 	valgrind --version
-	script -e -c "./run_smoke.sh --valgrind" -O smoke.log
+	script -e -c "./run_smoke.sh --valgrind --fuse" -O smoke.log
 	scripts/check_valgrind_output.sh smoke.log
 
 stress_tests:	release
