@@ -405,3 +405,43 @@ famfs_get_kernel_type(int verbose)
 
 	return NOT_FAMFS;
 }
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/stat.h>
+
+/**
+ * check_file_exists()
+ *
+ * Check if file at basepath/relpath exists within timeout seconds
+ *
+ * Returns 0 if the file is found before timeout.
+ * Returns -1 if the timeout is reached and file is still not found.
+ */
+int check_file_exists(
+	const char *basepath,
+	const char *relpath,
+	int timeout)
+{
+	char fullpath[4096];
+	struct stat st;
+	int elapsed = 0;
+
+	/* Build full path */
+	snprintf(fullpath, sizeof(fullpath), "%s/%s", basepath, relpath);
+
+	/* Loop until timeout */
+	while (elapsed < timeout) {
+		if (stat(fullpath, &st) == 0) {
+			/* File exists */
+			return 0;
+		}
+		sleep(1);
+		elapsed++;
+	}
+
+	/* File did not appear within timeout */
+	return -1;
+}

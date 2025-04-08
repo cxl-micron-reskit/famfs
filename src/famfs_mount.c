@@ -464,15 +464,18 @@ famfs_start_fuse_daemon(
 
 	len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
 	if (len < 0)
-		fprintf(stderr, "%s: readlink /proc/self/exe failed\n", __func__);
+		fprintf(stderr, "%s: readlink /proc/self/exe failed\n",
+			__func__);
 	dir = dirname(exe_path);
-	snprintf(target_path, sizeof(target_path) - 1, "%s/%s", dir, "famfs_fused");
+	snprintf(target_path, sizeof(target_path) - 1, "%s/%s",
+		 dir, "famfs_fused");
 
+	/* fsname=/dev/dax1.0 sets the string in column 1 of /proc/mounts */
 	snprintf(opts, sizeof(opts), "daxdev=%s,shadow=%s,fsname=%s",
 		 daxdev, shadow, daxdev);
 
 	argv[argc++] = strdup(daxdev);
-	argv[argc++] = "-s";
+	argv[argc++] = "-s"; /* single-threaded */
 	argv[argc++] = "-o";
 	argv[argc++] = strdup(opts);
 	argv[argc++] = strdup(mpt);
@@ -488,7 +491,7 @@ famfs_start_fuse_daemon(
 static char *
 gen_shadow_dir(void)
 {
-	char template[] = "/tmp/famfs_shadowXXXXXX";  /* Must end with XXXXXX */
+	char template[] = "/tmp/famfs_shadow_XXXXXX";  /* Must end with XXXXXX */
 	char *shadow = mkdtemp(template);  /* Generates a unique name */
 
 	if (!shadow || shadow[0] == '\0') {
@@ -576,10 +579,12 @@ famfs_mount_fuse(
 		return rc;
 	}
 
-	/* Play the log */
-	//sleep(1); /* XXX need to wait till the mount completes. Hmmmm... */
-
-	/* TODO: wait until the superblock & log appear under the mount point */
+	/* Verify that the meta files have appeared (i.e. the fuse mount wassuccessful */
+	if (check_file_exists(realmpt, ".meta/.superblock", 3)) {
+		fprintf(stderr, "%s: superblock file failed to appear\n", __func__);
+		rc = -1;
+		goto out;
+	}
 
 	printf("%s: about to play the log...\n", __func__);
 	rc = famfs_logplay(realmpt, 0, 0, 0, local_shadow, 0, realdaxdev, verbose);
