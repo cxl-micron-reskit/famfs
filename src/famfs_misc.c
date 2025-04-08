@@ -333,6 +333,12 @@ kernel_symbol_exists(
 {
 	FILE *fp;
 	char line[PAGE_SIZE];
+	int symbol_len;
+
+	assert(symbol_name);
+	assert(mod_name);
+
+	symbol_len = strlen(symbol_name);
 
 	if (verbose)
 		printf("%s: looking for function %s in module [%s]\n",
@@ -360,7 +366,7 @@ kernel_symbol_exists(
 		if (rc == 4) {
 			if (verbose > 1)
 				printf("(symbol=%s module=%s)", name, mname);
-			if ((strcmp(name, symbol_name) == 0)
+			if ((strncmp(name, symbol_name, symbol_len) == 0)
 			    && (strcmp(mname, mod_name) == 0)) {
 				fclose(fp);
 				if (verbose)
