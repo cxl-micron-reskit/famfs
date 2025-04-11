@@ -639,7 +639,7 @@ famfs_do_lookup(
 			}
 		
 			yaml_buf = famfs_read_fd_to_buf(newfd, FAMFS_YAML_MAX,
-							&yaml_size, 1);
+							&yaml_size, 0);
 			if (!yaml_buf) {
 				fuse_log(FUSE_LOG_ERR, "failed to read to yaml_buf\n");
 				goto out_err;
@@ -651,7 +651,7 @@ famfs_do_lookup(
 
 			/* Famfs populates the stat struct from the shadow yaml */
 			res = famfs_shadow_to_stat(yaml_buf, yaml_size, &st,
-						   &e->attr, fmeta, 1);
+						   &e->attr, fmeta, 0);
 			if (res)
 				goto out_err;
 			st.st_ino = ino;
