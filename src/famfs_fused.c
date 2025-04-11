@@ -279,7 +279,6 @@ famfs_setattr(
 	int valid,
 	struct fuse_file_info *fi)
 {
-#if 1
 	/*
 	 * Setattr makes ephemeral changes to famfs. The authority is the metadata log.
 	 * Still, we allow certain changes:
@@ -290,78 +289,6 @@ famfs_setattr(
 	 */
 	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
-#else
-	int saverr;
-	char procname[64];
-	struct famfs_inode *inode = famfs_inode(req, ino);
-	int ifd = inode->fd;
-	int res;
-
-	if (valid & FUSE_SET_ATTR_MODE) {
-		if (fi) {
-			res = fchmod(fi->fh, attr->st_mode);
-		} else {
-			sprintf(procname, "/proc/self/fd/%i", ifd);
-			res = chmod(procname, attr->st_mode);
-		}
-		if (res == -1)
-			goto out_err;
-	}
-	if (valid & (FUSE_SET_ATTR_UID | FUSE_SET_ATTR_GID)) {
-		uid_t uid = (valid & FUSE_SET_ATTR_UID) ?
-			attr->st_uid : (uid_t) -1;
-		gid_t gid = (valid & FUSE_SET_ATTR_GID) ?
-			attr->st_gid : (gid_t) -1;
-
-		res = fchownat(ifd, "", uid, gid,
-			       AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
-		if (res == -1)
-			goto out_err;
-	}
-	if (valid & FUSE_SET_ATTR_SIZE) {
-		if (fi) {
-			res = ftruncate(fi->fh, attr->st_size);
-		} else {
-			sprintf(procname, "/proc/self/fd/%i", ifd);
-			res = truncate(procname, attr->st_size);
-		}
-		if (res == -1)
-			goto out_err;
-	}
-	if (valid & (FUSE_SET_ATTR_ATIME | FUSE_SET_ATTR_MTIME)) {
-		struct timespec tv[2];
-
-		tv[0].tv_sec = 0;
-		tv[1].tv_sec = 0;
-		tv[0].tv_nsec = UTIME_OMIT;
-		tv[1].tv_nsec = UTIME_OMIT;
-
-		if (valid & FUSE_SET_ATTR_ATIME_NOW)
-			tv[0].tv_nsec = UTIME_NOW;
-		else if (valid & FUSE_SET_ATTR_ATIME)
-			tv[0] = attr->st_atim;
-
-		if (valid & FUSE_SET_ATTR_MTIME_NOW)
-			tv[1].tv_nsec = UTIME_NOW;
-		else if (valid & FUSE_SET_ATTR_MTIME)
-			tv[1] = attr->st_mtim;
-
-		if (fi)
-			res = futimens(fi->fh, tv);
-		else {
-			sprintf(procname, "/proc/self/fd/%i", ifd);
-			res = utimensat(AT_FDCWD, procname, tv, 0);
-		}
-		if (res == -1)
-			goto out_err;
-	}
-
-	return famfs_getattr(req, ino, fi);
-
-out_err:
-	saverr = errno;
-	fuse_reply_err(req, saverr);
-#endif
 }
 
 void dump_inode_cache(struct famfs_data *lo)
@@ -397,39 +324,6 @@ static struct famfs_inode *famfs_find(struct famfs_data *lo, fuse_ino_t ino)
 	pthread_mutex_unlock(&lo->mutex);
 	return ret;
 }
-
-#if 0
-/* XXX TODO: go to statx, expose birth time */
-void dump_stat(const struct stat *fileStat)
-{
-	char timeStr[100];
-	struct tm *tm_info;
-
-	printf("File Information:\n");
-	printf("--------------------\n");
-	printf("Device ID: %ld\n", (long)fileStat->st_dev);
-	printf("Inode Number: %ld\n", (long)fileStat->st_ino);
-	printf("Mode: 0%o\n", fileStat->st_mode);
-	printf("Hard Links: %ld\n", (long)fileStat->st_nlink);
-	printf("Owner: %ld\n", (long)fileStat->st_uid);
-	printf("Group: %ld\n", (long)fileStat->st_gid);
-	printf("File Size: %ld bytes\n", (long)fileStat->st_size);
-	printf("Block Size: %ld\n", (long)fileStat->st_blksize);
-	printf("Number of Blocks: %ld\n", (long)fileStat->st_blocks);
-
-	tm_info = localtime(&fileStat->st_atime);
-	strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", tm_info);
-	printf("Last Access: %s\n", timeStr);
-
-	tm_info = localtime(&fileStat->st_mtime);
-	strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", tm_info);
-	printf("Last Modification: %s\n", timeStr);
-
-	tm_info = localtime(&fileStat->st_ctime);
-	strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", tm_info);
-	printf("Last Status Change: %s\n", timeStr);
-}
-#endif
 
 void *
 famfs_read_fd_to_buf(int fd, ssize_t max_size, ssize_t *size_out, int verbose)
@@ -529,37 +423,6 @@ famfs_shadow_to_stat(
 }
 
 #define FMAP_MSG_MAX 4096
-
-#if 0
-int fuse_reply_famfs_entry(
-	fuse_req_t req,
-	const struct fuse_entry_param *e,
-	const struct famfs_log_file_meta *fmeta)
-{
-	char fmap_message[FMAP_MSG_MAX];
-	ssize_t fmap_size = 0;
-	const struct famfs_log_fmap *fmap = &fmeta->fm_fmap;
-
-	/* Dir lookup reply has no fmap */
-	if (S_ISDIR(e->attr.st_mode))
-		return fuse_reply_entry(req, e);
-
-	if (fmeta) {
-		/* XXX: Should mark the log and superblock files (not as regular) */
-		fmap_size = famfs_log_file_meta_to_msg(fmap_message, FMAP_MSG_MAX,
-						       FUSE_FAMFS_FILE_REG, fmap);
-	}
-
-	if (fmap_size <= 0) {
-		/* Send reply without fmap */
-		fuse_log(FUSE_LOG_ERR, "%s: %ld error putting fmap in message\n",
-			 __func__, fmap_size);
-		return fuse_reply_entry(req, e);
-	}
-
-	return fuse_reply_entry_plus(req, e, fmap_message, fmap_size);
-}
-#endif
 
 static int
 famfs_check_inode(
@@ -1193,28 +1056,6 @@ famfs_readdir(
 	famfs_do_readdir(req, ino, size, offset, fi, 0);
 }
 
-#if 0
-static void
-famfs_readdirplus(
-	fuse_req_t req,
-	fuse_ino_t ino,
-	size_t size,
-	off_t offset,
-	struct fuse_file_info *fi)
-{
-#if 1
-	/* famfs doesn't support readdirplus; there is no advantage since
-	 * each Lookup must subsequently do a get_fmap
-	 */
-	fuse_reply_err(req, ENOSYS);
-#else
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%ld size=%ld offset=%ld\n",
-		  __func__, ino, size, offset);
-	famfs_do_readdir(req, ino, size, offset, fi, 1);
-#endif
-}
-#endif
-
 static void
 famfs_releasedir(
 	fuse_req_t req,
@@ -1438,32 +1279,8 @@ famfs_fallocate(
 	off_t length,
 	struct fuse_file_info *fi)
 {
-#if 1
 	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, EOPNOTSUPP);
-#else
-	int err = EOPNOTSUPP;
-	(void) ino;
-
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%ld ofs=%lx len=%ld\n",
-		  __func__, ino, offset, length);
-
-#ifdef HAVE_FALLOCATE
-	err = fallocate(fi->fh, mode, offset, length);
-	if (err < 0)
-		err = errno;
-
-#elif defined(HAVE_POSIX_FALLOCATE)
-	if (mode) {
-		fuse_reply_err(req, EOPNOTSUPP);
-		return;
-	}
-
-	err = posix_fallocate(fi->fh, offset, length);
-#endif
-
-	fuse_reply_err(req, err);
-#endif
 }
 
 static void
