@@ -17,11 +17,6 @@ if [ -z "$ERRS" ]; then
     ERRS=1
 fi
 
-# TODO: change default mode to fuse
-if [ -z "$MODE" ]; then
-    MODE="v1"
-fi
-
 # Check if we have password-less sudi, which is required
 sudo -n true 2>/dev/null
 if [ $? -ne 0 ]; then
@@ -43,9 +38,12 @@ while (( $# > 0)); do
 	    shift;
 	    ;;
 	(-f|--fuse)
-	    MODE="fuse"
+	    FAMFS_MODE="fuse"
 	    ;;
-	    (-e|--noerrors)
+	(-F|--nofuse)
+	    FAMFS_MODE="v1"
+	    ;;
+	(-e|--noerrors)
 	    SKIP_ERRS=0
 	    ;;
 	(-E|--justerrors)
@@ -107,7 +105,7 @@ done
 
 CLI="sudo $VG $BIN/famfs"
 
-echo "MODE:     $MODE"
+echo "MODE:     $FAMFS_MODE"
 echo "CWD:      $CWD"
 echo "BIN:      $BIN"
 echo "SCRIPTS:  $SCRIPTS"
@@ -124,6 +122,38 @@ if [ ! -x "$BIN/famfs" ]; then
 fi
 
 source $TEST_FUNCS
+
+# if the mode was not explicitly set, figure out what mode we can run in
+if [ -z "$FAMFS_MODE" ]; then
+    # Mode was not specified; first choice is fuse, but try v1 if no fuse support
+    if [ $(famfs_fuse_supported) -ge 1 ]; then
+	echo "Defaulting to fuse mode"
+	FAMFS_MODE="fuse"
+    elif [ $(famfs_v1_supported) -eq 1 ]; then
+	echo "Fuse mode not enabled; defaulting to v1 mode"
+	FAMFS_MODE="v1"
+    else
+	echo "ERROR: kernel appears not to be famfs-enabled"
+	exit 1
+    fi
+else
+    # Mode was specified... check if the kernel supports it
+    if [[ ${FAMFS_MODE} == "v1" ]]; then
+	if [ $(famfs_v1_supported) -eq 1 ]; then
+	    echo "Smoke: testing famfs in v1 mode"
+	else
+	    echo "ERROR: famfsv1 was specified, but the kernel does not support it"
+	    exit 1
+	fi
+    else
+	if [ $(famfs_fuse_supported) -ge 1 ]; then
+	    echo "Smoke: testing famfs in fuse mode"
+	else
+	    echo "ERROR: famfs-fuse was specified, but the kernel does not support it"
+	    exit 1
+	fi
+    fi
+fi
 
 scripts/chk_memdev.sh "$DEV" || fail "Bad memory device $DEV"
 
@@ -155,6 +185,8 @@ else
     MOD_ARG=""
 fi
 
+
+
 if [[ "$BIN" == *[[:space:]]* ]]; then
     fail "ERROR: the BIN path ($BIN) contains spaces!"
 fi
@@ -163,47 +195,47 @@ if [[ "$SCRIPTS" =~ *[[:space:]]* ]]; then
 fi
 
 set -x
-./smoke/prepare.sh  ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+./smoke/prepare.sh  ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
 
 if [ -z "$SKIP_TEST0" ]; then
-    ./smoke/test0.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    ./smoke/test0.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_SHADOW_YAML" ]; then
-    ./smoke/test_shadow_yaml.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    ./smoke/test_shadow_yaml.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_TEST1" ]; then
-    sudo ./smoke/test1.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    sudo ./smoke/test1.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_TEST2" ]; then
-    ./smoke/test2.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    ./smoke/test2.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_TEST3" ]; then
-    ./smoke/test3.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    ./smoke/test3.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_TEST4" ]; then
-    ./smoke/test4.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    ./smoke/test4.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_ERRS" ]; then
     sleep "${SLEEP_TIME}"
-    ./smoke/test_errors.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    ./smoke/test_errors.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
 else
     echo "skipping test_errors.sh because -n|--noerrors was specified"
 fi
 
 if [ -z "$SKIP_STRIPE_TEST" ]; then
-    ./smoke/stripe_test.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    ./smoke/stripe_test.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
 
@@ -211,13 +243,13 @@ if [[ $COVERAGE -ne 1 ]]; then
     if [ -z "$SKIP_PCQ" ]; then
 	# XXX: get test_pcq running properly in coverage test mode
 	./smoke/test_pcq.sh ${MOD_ARG} $VGARG \
-			    -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+			    -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
 	sleep "${SLEEP_TIME}"
     fi
 fi
 
 if [ -z "$SKIP_FIO" ]; then
-    ./smoke/test_fio.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$MODE" || exit -1
+    ./smoke/test_fio.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
     sleep "${SLEEP_TIME}"
 fi
 
@@ -227,7 +259,7 @@ set +x
 echo "-------------------------------------------------------------------"
 echo "run_smoke completed successfully ($(date))"
 echo "-------------------------------------------------------------------"
-if [[ "${MODE}" == "fuse" ]]; then
+if [[ "${FAMFS_MODE}" == "fuse" ]]; then
     echo "WARNING TEST DISABLED IN FUSE MODE: test_errs.sh"
     echo "WARNING TEST DISABLED IN FUSE MODE: test_pcq.sh"
     echo "FIX THESE!!"

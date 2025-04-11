@@ -122,6 +122,9 @@ int famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index);
 int famfs_cp(struct famfs_locked_log *lp, const char *srcfile, const char *destfile,
 		mode_t mode, uid_t uid, gid_t gid, int verbose);
 
+/* famfs_misc.c */
+int check_file_exists(const char *basepath, const char *relpath, int timeout);
+
 /* famfs_debug.c */
 int famfs_compare_log_file_meta(const struct famfs_log_file_meta *m1,
 				const struct famfs_log_file_meta *m2,

@@ -166,3 +166,21 @@ famfs_recreate() {
 
     verify_mounted "$DEV" "$MPT" "famfs_recreate ($MSG)"
 }
+
+famfs_fuse_supported() {
+    grep -c fuse_file_famfs /proc/kallsyms
+}
+
+famfs_v1_supported() {
+    $(modprobe --dry-run famfsv1)
+    if [ "$?" -eq 0 ]; then
+	echo 1
+    else
+	$(modprobe --dry-run famfs)
+	if  [ "$?" -eq 0 ]; then
+	    echo 1
+	else
+	    echo 0
+	fi
+    fi
+}
