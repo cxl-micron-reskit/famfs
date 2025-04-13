@@ -145,6 +145,8 @@ static const struct fuse_opt famfs_opts[] = {
 	  offsetof(struct famfs_data, readdirplus), 1 },
 	{ "no_readdirplus",
 	  offsetof(struct famfs_data, readdirplus), 0 },
+	{ "debug=%d",
+	  offsetof(struct famfs_data, debug), 0 },
 
 	FUSE_OPT_END
 };
