@@ -2,9 +2,6 @@
 #
 # Make the build fail fast if the famfs uapi include file is not installed
 #
-chk_include:
-	scripts/chk_include.sh
-
 cmake-modules:
 	git clone https://github.com/jagalactic/cmake-modules.git
 
@@ -25,7 +22,7 @@ libfuse:
 	meson setup -Dexamples=false $(BDIR)/libfuse ./libfuse
 	meson compile -C $(BDIR)/libfuse
 
-debug:	cmake-modules chk_include
+debug:	cmake-modules
 	export BDIR="debug"
 	mkdir -p debug;
 	$(MAKE) libfuse BDIR="debug"
@@ -52,7 +49,7 @@ coverage_test:	coverage
 	script -c "./run_smoke.sh --coverage --fuse" -O smoke_coverage.fuse.log
 	cd coverage; script -e -c "sudo make famfs_unit_coverage" -O ../unit_coverage.log
 
-release:	cmake-modules chk_include
+release:	cmake-modules
 	mkdir -p release;
 	$(MAKE) libfuse BDIR="release"
 	cd release; cmake ..; $(MAKE)
