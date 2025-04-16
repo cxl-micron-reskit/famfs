@@ -14,8 +14,6 @@ jobs:
     - uses: actions/checkout@v3
     - name: Install Dependencies
       run: sudo apt-get update && sudo apt-get install -y build-essential && sudo apt-get install -y cmake && sudo apt-get install -y uuid-dev && sudo apt-get install -y zlib1g-dev && sudo apt-get install -y meson && sudo apt-get install -y libsystemd-dev
-    - name: install famfs_ioctl.h
-      run: sudo cp ${GITHUB_WORKSPACE}/linux_include/famfs_ioctl.h /usr/include/linux/
     - name: make
       run: make all
     - name: make test

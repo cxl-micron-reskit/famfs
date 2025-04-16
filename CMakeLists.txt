@@ -17,7 +17,24 @@ include_directories("${PROJECT_SOURCE_DIR}/libfuse/include")
 include_directories("${PROJECT_SOURCE_DIR}/libfuse/lib")
 include_directories("${CMAKE_CURRENT_BINARY_DIR}/libfuse")
 
-# Don't build against instlaled libfuse...
+# Make the build work regardless of whether /usr/include/linux/famfs_ioctl.h
+# exists. This is for the transition from standalone to fuse-based famfs
+# Look for a directory that contains a 'linux/foo.h' path
+find_path(LINUX_INCLUDE_BASE
+    NAMES linux/famfs_ioctl.h
+    PATHS /usr/include "${PROJECT_SOURCE_DIR}/linux_include"
+    NO_DEFAULT_PATH
+)
+
+if (NOT LINUX_INCLUDE_BASE)
+    message(FATAL_ERROR "Could not find linux/famfs_ioctl.h in either system or fallback path (${PROJECT_SOURCE_DIR}/linux_include)")
+endif()
+
+# Add base path — the one that contains the 'linux/' subdir
+include_directories(${LINUX_INCLUDE_BASE})
+
+
+# Don't build against installed libfuse...
 # include_directories("/usr/local/include/fuse3")
 
 ##
