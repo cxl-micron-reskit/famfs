@@ -2,6 +2,10 @@
 #
 # Make the build fail fast if the famfs uapi include file is not installed
 #
+HOSTNAME := $(shell hostname)
+UID := $(shell id -u)
+GID := $(shell id -g)
+
 cmake-modules:
 	git clone https://github.com/jagalactic/cmake-modules.git
 
@@ -44,9 +48,11 @@ coverage:	cmake-modules
 
 # Run the coverage tests
 coverage_test:	coverage
-	-scripts/teardown.sh
-	script -c "./run_smoke.sh --coverage --nofuse" -O smoke_coverage.v1.log
-	script -c "./run_smoke.sh --coverage --fuse" -O smoke_coverage.fuse.log
+	script -c "./run_smoke.sh --coverage --nofuse" \
+			-O "smoke_coverage.nofuse.$(HOSTNAME).log"
+	script -c "./run_smoke.sh --coverage --fuse" \
+			-O "smoke_coverage.fuse.$(HOSTNAME).log"
+	sudo chown -R "$(UID):$(GID)" coverage
 	cd coverage; script -e -c "sudo make famfs_unit_coverage" -O ../unit_coverage.log
 
 release:	cmake-modules
@@ -70,17 +76,20 @@ test:
 
 # Run the smoke tests
 smoke:	debug
-	-scripts/teardown.sh
-	script -e -c ./run_smoke.sh -O smoke.log
+	script -e -c "./run_smoke.sh --nofuse" -O "smoke.$(HOSTNAME).nofuse.log"
+	script -e -c "./run_smoke.sh --fuse" -O "smoke.$(HOSTNAME).fuse.log"
 
 smoke_valgrind: debug
-	-scripts/teardown.sh
 	valgrind --version
-	script -e -c "./run_smoke.sh --valgrind --fuse" -O smoke.log
-	scripts/check_valgrind_output.sh smoke.log
+	script -e -c "./run_smoke.sh --valgrind --nofuse" \
+				-O "smoke.$(HOSTNAME).vg.nofuse.log"
+	script -e -c "./run_smoke.sh --valgrind --fuse" \
+				-O "smoke.$(HOSTNAME).vg.fuse.log"
+	scripts/check_valgrind_output.sh "smoke.$(HOSTNAME).vg.nofuse.log"
+	scripts/check_valgrind_output.sh "smoke.$(HOSTNAME).vg.fuse.log"
 
 stress_tests:	release
-	 script -e -c "./run_stress_tests.sh" -O stress.log
+	 script -e -c "./run_stress_tests.sh" -O "stress.$(HOSTNAME).log"
 
 teardown:
 	pwd

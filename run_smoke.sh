@@ -95,7 +95,6 @@ while (( $# > 0)); do
 	(-v|--valgrind)
 	    echo "run_smoke: valgrind mode"
 	    VGARG="--valgrind"
-	    exit;
 	    ;;
 	*)
 	    echo "Unrecognized command line arg: $flag"
