@@ -2860,9 +2860,10 @@ famfs_shadow_file_create(
  *
  * Inner function to create *and* allocate a file, and logs it.
  *
- * @locked_logp - We have a writable lock, which also means we're running on the master node
- * @filename    - filename, which may be relative to getcwd(), which is NOT NECESSARILY
- *                relative to the mount point
+ * @locked_logp - We have a writable lock, which also means we're running on
+ *                the master node
+ * @filename    - filename, which may be relative to getcwd(), which is
+ *                NOT NECESSARILY relative to the mount point
  * @mode
  * @mode
  * @uid
@@ -2898,6 +2899,7 @@ __famfs_mkfile(
 
 	assert(lp);
 	assert(size > 0);
+	assert(cwd);
 
 	/* If it's a relative path, append it to "cwd" to make it absolute */
 	if (filename[0] != '/') {
@@ -2986,12 +2988,14 @@ __famfs_mkfile(
 
 		memcpy(&fmeta.fm_fmap, fmap, sizeof(*fmap));
 
-		snprintf(shadowpath, PATH_MAX - 1, "%s/%s", lp->shadow_path, relpath);
+		snprintf(shadowpath, PATH_MAX - 1, "%s/%s", lp->shadow_path,
+			 relpath);
 		snprintf(filepath, PATH_MAX - 1, "%s/%s", lp->mpt, relpath);
 		assert(strlen(relpath) < (sizeof(fmeta.fm_relpath) - 1));
 		strncpy(fmeta.fm_relpath, relpath, sizeof(fmeta.fm_relpath) - 1);
 
-		rc = famfs_shadow_file_create(shadowpath, &fmeta, NULL, 0, 0, 0, verbose);
+		rc = famfs_shadow_file_create(shadowpath, &fmeta, NULL,
+					      0, 0, 0, verbose);
 		if (rc)
 			goto out;
 
@@ -3000,11 +3004,9 @@ __famfs_mkfile(
 			fprintf(stderr, "%s: unable to open brand new file %s\n",
 				__func__, filepath);
 	} else {
-		/* Create the stub file
-		 * V1: this creates an empty file in famfs via normal posix tools
-		 * V2: TBD...
-		 *    * This needs to play this log entry into its new shadow file
-		 *    * Then open the shadow file via the fuse mount
+		/* Create the stub file in standalone famfs
+		 * KABI 42: Only supports simple extent lists
+		 * KABI 43: Supports interleaved extents too
 		 */
 		fd = famfs_file_create_stub(filename, mode, uid, gid, 0);
 		if (fd <= 0)
@@ -3013,7 +3015,8 @@ __famfs_mkfile(
 		if (!mock_kmod) {
 			if (FAMFS_KABI_VERSION > 42) {
 #if (FAMFS_KABI_VERSION > 42)
-				rc =  famfs_v2_set_file_map(fd, size, fmap, FAMFS_REG);
+				rc =  famfs_v2_set_file_map(fd, size, fmap,
+							    FAMFS_REG);
 				if (rc) {
 					close(fd);
 					fd = rc;
@@ -3062,6 +3065,8 @@ __famfs_mkfile(
 out:
 	if (fmap)
 		free(fmap);
+	if (cwd)
+		free(cwd);
 	if (target_fullpath)
 		free(target_fullpath);
 

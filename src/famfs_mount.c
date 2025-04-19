@@ -112,7 +112,10 @@ out:
  *          1 if shadow path found (and returned in shadow_path_out)
  */
 static int
-shadow_path_from_opts(const char *opts, char *shadow_path_out, size_t shadow_path_size)
+shadow_path_from_opts(
+	const char *opts,
+	char *shadow_path_out,
+	size_t shadow_path_size)
 {
 	const char *start;
 	const char *end;
@@ -128,9 +131,8 @@ shadow_path_from_opts(const char *opts, char *shadow_path_out, size_t shadow_pat
 	while (*end != '\0') {
 		if (*end == ',' || *(end + 1) == '\0') {
 			/* Adjust end if it's the last character */
-			if (*(end + 1) == '\0') {
+			if (*(end + 1) == '\0')
 				end++;
-			}
 
 			/* Check if the segment starts with "shadow=" */
 			if ((end - start) >= keyword_len
@@ -181,6 +183,9 @@ famfs_path_is_mount_pt(
 	ssize_t read;
 	int rc;
 
+	if (strlen(path) < 2)
+		return 0;
+
 	fp = fopen("/proc/mounts", "r");
 	if (fp == NULL)
 		return 0;
@@ -189,21 +194,28 @@ famfs_path_is_mount_pt(
 		char dev[XLEN];
 		char mpt[XLEN];
 		char fstype[XLEN];
-		char opts[XLEN];
+		char opts[XLEN] = { 0 };
 		char shadow_path[PATH_MAX];
 		int  x0, x1;
 		char *xmpt = NULL;
 		char *xpath = NULL;
 
+		if (!line || strlen(line) < 10) /* No line or too short */
+			continue;
+
 		if (strstr(line, "famfs")) { /* lazy test on whole line */
+			opts[0] = 0;
 			rc = sscanf(line, "%s %s %s %s %d %d",
 				    dev, mpt, fstype, opts, &x0, &x1);
-			if (rc <= 0)
+			if (rc != 6)
 				goto out;
 
 			/* check for famfs in the actual fstype field */
 			if (!strstr(fstype, "famfs") && !strstr(opts, "famfs"))
 				continue;
+
+			if (strlen(opts) <= strlen("shadow="))
+				continue; 
 
  			xmpt = realpath(mpt, NULL);
 			if (!xmpt) {
@@ -445,10 +457,10 @@ famfs_start_fuse_daemon(
 	int debug,
 	int verbose)
 {
-	char target_path[PATH_MAX];
-	char exe_path[PATH_MAX];
-	char opts[PATH_MAX];
-	char *argv[NARGV];
+	char target_path[PATH_MAX] = { 0 };
+	char exe_path[PATH_MAX] = { 0 };
+	char opts[PATH_MAX] = { 0 };
+	char *argv[NARGV] = { 0 };
 	int argc = 0;
 	ssize_t len;
 	char *dir;
@@ -576,7 +588,8 @@ famfs_mount_fuse(
 	printf("good mkmeta; write the rest of the mount code now \n");
 
 	/* Start the fuse daemon, which mounts the FS */
-	rc = famfs_start_fuse_daemon(realmpt, realdaxdev, local_shadow, debug, verbose);
+	rc = famfs_start_fuse_daemon(realmpt, realdaxdev, local_shadow,
+				     debug, verbose);
 	if (rc < 0) {
 		fprintf(stderr, "%s: failed to start fuse daemon\n", __func__);
 		return rc;
@@ -584,13 +597,15 @@ famfs_mount_fuse(
 
 	/* Verify that the meta files have appeared (i.e. the fuse mount wassuccessful */
 	if (check_file_exists(realmpt, ".meta/.superblock", 3)) {
-		fprintf(stderr, "%s: superblock file failed to appear\n", __func__);
+		fprintf(stderr, "%s: superblock file failed to appear\n",
+			__func__);
 		rc = -1;
 		goto out;
 	}
 
 	printf("%s: about to play the log...\n", __func__);
-	rc = famfs_logplay(realmpt, 0, 0, 0, local_shadow, 0, realdaxdev, verbose);
+	rc = famfs_logplay(realmpt, 0, 0, 0, local_shadow, 0, realdaxdev,
+			   verbose);
 	if (rc < 0) {
 		fprintf(stderr, "%s: failed to play the log\n", __func__);
 		return rc;
