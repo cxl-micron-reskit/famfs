@@ -1,6 +1,7 @@
 *~
 build/
 debug/
+release/
 coverage/
 *.log
 Module.symvers
