@@ -212,8 +212,14 @@ famfs_mount_usage(int   argc,
 	       "Arguments:\n"
 	       "    -?             - Print this message\n"
 	       "    -R|--remount   - Re-mount\n"
-	       "    -f|--fuse      - Use famfs via fuse\n"
-	       "    -F|--nofuse    - Use the standalone famfs v1 kernel module\n"
+	       "    -f|--fuse      - Use famfs via fuse. If specified, the mount will\n"
+	       "                     fail if fuse support for famfs is not available.\n"
+	       "    -F|--nofuse    - Use the standalone famfs v1 kernel module. If\n"
+	       "                     specified, the mount will fail if the famfs v1\n"
+	       "                     kernel module is not available\n"
+	       "    -d|--debug     - In fuse mode, the debug option runs the fuse\n"
+	       "                     daemon single-threaded, and may enable more\n"
+	       "                     verbose logging\n"
 	       "    -v|--verbose   - Print verbose output\n"
 	       "\n", progname);
 }
@@ -223,6 +229,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 {
 	int c;
 	int rc;
+	int debug = 0;
 	int verbose = 0;
 	int use_read = 0;
 	int use_mmap = 0;
@@ -240,6 +247,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 		{"remount",    no_argument,            0,  'R'},
 		{"read",       no_argument,            0,  'r'},
 		{"mmap",       no_argument,            0,  'm'},
+		{"debug",      no_argument,            0,  'd'},
 		{"fuse",       no_argument,            0,  'f'},
 		{"nofuse",     no_argument,            0,  'F'},
 		{"verbose",    no_argument,            0,  'v'},
@@ -253,7 +261,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+h?RrfFmv",
+	while ((c = getopt_long(argc, argv, "+h?RrfFmvd",
 				mount_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -264,6 +272,9 @@ do_famfs_cli_mount(int argc, char *argv[])
 			return 0;
 		case 'v':
 			verbose++;
+			break;
+		case 'd':
+			debug++;
 			break;
 		case 'm':
 			use_mmap = 1;
@@ -329,7 +340,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 
 	if (fuse_mode == FAMFS_FUSE) {
 		printf("daxdev=%s, mpt=%s\n", realdaxdev, realmpt);
-		rc = famfs_mount_fuse(realdaxdev, realmpt, NULL, verbose);
+		rc = famfs_mount_fuse(realdaxdev, realmpt, NULL, debug, verbose);
 		goto out;
 	}
 	else if (!famfs_module_loaded(1)) {

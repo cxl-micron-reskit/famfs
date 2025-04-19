@@ -442,6 +442,7 @@ famfs_start_fuse_daemon(
 	const char *mpt,
 	const char *daxdev,
 	const char *shadow,
+	int debug,
 	int verbose)
 {
 	char target_path[PATH_MAX];
@@ -475,7 +476,8 @@ famfs_start_fuse_daemon(
 		 daxdev, shadow, daxdev);
 
 	argv[argc++] = strdup(daxdev);
-	argv[argc++] = "-s"; /* single-threaded */
+	if (debug)
+		argv[argc++] = "-s"; /* single-threaded */
 	argv[argc++] = "-o";
 	argv[argc++] = strdup(opts);
 	argv[argc++] = strdup(mpt);
@@ -507,6 +509,7 @@ famfs_mount_fuse(
 	const char *realdaxdev,
 	const char *realmpt,
 	const char *realshadow,
+	int debug,
 	int verbose)
 {
 	int shadow_created = 0;
@@ -573,7 +576,7 @@ famfs_mount_fuse(
 	printf("good mkmeta; write the rest of the mount code now \n");
 
 	/* Start the fuse daemon, which mounts the FS */
-	rc = famfs_start_fuse_daemon(realmpt, realdaxdev, local_shadow, verbose);
+	rc = famfs_start_fuse_daemon(realmpt, realdaxdev, local_shadow, debug, verbose);
 	if (rc < 0) {
 		fprintf(stderr, "%s: failed to start fuse daemon\n", __func__);
 		return rc;

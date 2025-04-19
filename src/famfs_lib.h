@@ -42,7 +42,7 @@ enum famfs_type {
 
 /* fuse-only functions */
 int famfs_mount_fuse(const char *realdaxdev, const char *realmpt, const char *realshadow,
-		     int verbose);
+		     int debug, int verbose);
 
 /* famfs_lib dual v1/v2 functions */
 int file_is_famfs_v1(const char *fname);

@@ -1432,7 +1432,6 @@ fused_syslog(
 
 #define PROGNAME "famfs_fused"
 
-//struct famfs_daxdev daxdev_table[1] = {0};
 #define MAX_DAXDEVS 1
 
 int main(int argc, char *argv[])
