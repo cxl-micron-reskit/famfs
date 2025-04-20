@@ -20,6 +20,10 @@ mu_bitmap_size(int num_blocks)
 
 void make_bit_string(u8 byte, char *str);
 
+#ifndef unlikely
+#define unlikely __glibc_unlikely
+#endif
+
 /*
  *  Inline routines for 64-bit offsets
  */

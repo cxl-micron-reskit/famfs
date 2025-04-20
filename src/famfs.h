@@ -13,7 +13,6 @@ typedef __u32 u32;
 typedef __u16 u16;
 typedef __u8 u8;
 
-#define unlikely(foo) (foo)
-#endif
+#endif /* __KERNEL__ */
 
-#endif
+#endif /* _LINUX_FAMFS_H */
