@@ -1,17 +1,17 @@
-<p align="center">
-  <img src="famfs-logo.svg" alt="famfs logo">
-</p>
-
 # mkfs.famfs
 ```
 
 Create a famfs file system:
-    mkfs.famfs [args] <memdevice>  # Example memdevices: /dev/pmem0 or /dev/dax0.0
+    mkfs.famfs [args] <memdevice>  # Example memdevice: /dev/dax0.0
+
+Create a famfs file system with a 256MiB log    mkfs.famfs --loglen 256m /dev/dax0.0
 
 Arguments
     -h|-?      - Print this message
     -f|--force - Will create the file system even if there is already a superblock
     -k|--kill  - Will 'kill' the superblock (also requires -f)
+    -l|--loglen <loglen> - Default loglen: 8 MiB
+                           Valid range: >= 8 MiB
 
 ```
 # The famfs CLI
@@ -54,6 +54,14 @@ care of the whole job.
 Arguments:
     -?             - Print this message
     -R|--remount   - Re-mount
+    -f|--fuse      - Use famfs via fuse. If specified, the mount will
+                     fail if fuse support for famfs is not available.
+    -F|--nofuse    - Use the standalone famfs v1 kernel module. If
+                     specified, the mount will fail if the famfs v1
+                     kernel module is not available
+    -d|--debug     - In fuse mode, the debug option runs the fuse
+                     daemon single-threaded, and may enable more
+                     verbose logging
     -v|--verbose   - Print verbose output
 
 ```
@@ -152,11 +160,16 @@ Copy a wildcard set of files to a directory
     famfs cp [args]/path/to/* <dirpath>
 
 Arguments
-    -h|-?            - Print this message
-    -m|--mode=<mode> - Set mode (as in chmod) to octal value
-    -u|--uid=<uid>   - Specify uid (default is current user's uid)
-    -g|--gid=<gid>   - Specify uid (default is current user's gid)
-    -v|verbose       - print debugging output while executing the command
+    -h|-?           		- Print this message
+    -m|--mode <mode> 		- Set mode (as in chmod) to octal value
+    -u|--uid <uid>   		- Specify uid (default is current user's uid)
+    -g|--gid <gid>   		- Specify uid (default is current user's gid)
+    -v|--verbose       		- print debugging output while executing the command
+    -C|--chunksize <size>    	- Size of chunks for interleaved allocation
+                               	  (default=0); non-zero causes interleaved allocation.
+    -N|--nstrips <n>         	- Number of strips to use in interleaved allocations.
+    -B|--nbuckets <n>        	- Number of buckets to divide the device into
+                                  causes strided allocation within a single device.
 
 NOTE 1: 'famfs cp' will never overwrite an existing file, which is a side-effect
         of the facts that famfs never does delete, truncate or allocate-on-write
@@ -179,6 +192,7 @@ Create a file backed by free space:
 
 Create a file containing randomized data from a specific seed:
     famfs creat -s size --randomize --seed <myseed> <filename>
+
 Create a file backed by free space, with octal mode 0644:
     famfs creat -s <size> -m 0644 <filename>
 
@@ -193,6 +207,12 @@ Arguments:
     -u|--uid <int uid>       - Default is caller's uid
     -g|--gid <int gid>       - Default is caller's gid
     -v|--verbose             - Print debugging output while executing the command
+
+    -C|--chunksize <size>    - Size of chunks for interleaved allocation
+                               (default=0); non-zero causes interleaved allocation.
+    -N|--nstrips <n>         - Number of strips to use in interleaved allocations.
+    -B|--nbuckets <n>        - Number of buckets to divide the device into
+                               causes strided allocation within a single device.
 
 NOTE: the --randomize and --seed arguments are useful for testing; the file is
       randomized based on the seed, making it possible to use the 'famfs verify'
@@ -259,11 +279,19 @@ and performing a 'famfs mkmeta' to instantiate all logged files
 
     famfs logplay [args] <mount_point>
 
+    famfs logplay --shadow <shadowpath> --daxdev <daxdev>
+
+    famfs logplay --shadow <shadowpath> <mount_point>
+
 Arguments:
     -r|--read   - Get the superblock and log via posix read
     -m|--mmap   - Get the log via mmap
     -c|--client - force "client mode" (all files read-only)
     -n|--dryrun - Process the log but don't instantiate the files & directories
+    -S|--shadow <path> - create a Yaml based shadow filesystem at mount_point path
+    -s|--shadowtest - test mode for shadow logplay
+    -d|--daxdev <daxdev> - dax device for shadow logplay
+    -v|--verbose - Verbose output
 
 
 ```
