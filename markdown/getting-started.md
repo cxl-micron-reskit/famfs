@@ -5,13 +5,15 @@
 # Getting started with famfs
 
 At this early stage we are not yet distributing famfs in package-manager bundles (e.g. rpm, deb).
-The famfs kernel module has been [submitted to the Linux community as an RFC](https://lore.kernel.org/linux-fsdevel/cover.1708709155.git.john@groves.net/). The steps
-to test famfs are as follows:
+The famfs kernel module has been [submitted to the Linux community as an RFC](https://lore.kernel.org/linux-fsdevel/20250421013346.32530-1-john@groves.net/T/#m16f1386e90a6b40ceb60ae7feca7bbff281956bc),
+[and is available from this git repo](https://github.com/cxl-micron-reskit/famfs-linux).
+See the [famfs kernel documentation](building-a-kernel.md) for more info on building an appropriate kernel. 
+The steps to test famfs are as follows:
 
 ## Contents
 
 1. [Install prerequisites](#Known-Prerequisites)
-1. Build and install a [kernel](building-a-kernel.md) with the famfs patches
+1. Build and install a [famfs-enabled kernel](building-a-kernel.md) with the famfs patches
 2. [Build the famfs user space](#Building-famfs) (this repo)
 3. [Configure one or more real or simulated dax or pmem devices](vm-configuration.md)
 3. [Run the famfs tests](#Running-tests)
@@ -88,7 +90,7 @@ In order to run famfs you need or a
 devdax device (e.g. /dev/dax0.0). To run in a shared mode, you need more than one
 system that shares a memory device.
 
-‼️Note: in April 2024 support for ```/dev/pmem``` devices was deprecated, and the default device was changed to ```/dev/dax0.0```. If you are using the v1 kernel patch set you can still override and use a pmem device, but the famfs v2 patch set will remove pmem support. If you are using pmem devices, they can be converted to devdax mode via ```ndctl```.
+‼️Note: in April 2024 support for ```/dev/pmem``` devices was deprecated, and the default device was changed to ```/dev/dax0.0```. If you are using real or simulated (e.g. virtio) pmem devices, they can be converted to devdax mode via ```ndctl```.
 
 Gory details for setting up virtual machines and virtual dax and pmem devices are in the
 [Configuring Virtual Machines for famfs](vm-configuration.md) documentation.

@@ -10,11 +10,13 @@ kernel can be accessed one of the following ways:
 * [Famfs v2 patch set at lore.kernel.org](https://lore.kernel.org/linux-fsdevel/ZjFcG9Q1CegMPj_7@casper.infradead.org/T/#t) - Famfs v2 was published April 29, 2024.
 * [Famfs v1 patch set at lore.kernel.org](https://lore.kernel.org/linux-fsdevel/cover.1708709155.git.john@groves.net/T/#t) - Famfs was published to the Linux community in February 2024.
 * [famfs-linux git repo](https://github.com/cxl-micron-reskit/famfs-linux) - The famfs v2 patches are also available as the default branch in this git repo.
+* [Patch set incorporating famfs into the Linux FUSE](https://lore.kernel.org/linux-fsdevel/20250421013346.32530-1-john@groves.net/T/#t)
 
 # Famfs Talks
 * [Famfs was introduced at the 2023 Linux Plumbers Conference](https://lpc.events/event/17/contributions/1455/) ([abstract](https://lpc.events/event/17/contributions/1455/), [slides](https://lpc.events/event/17/contributions/1455/attachments/1179/2546/cxl-shared-fam-what-is-needed-v4.pdf), [youtube](https://www.youtube.com/watch?v=aA_DgO95gLo))
-* [Famfs session at LSFMM 2024](https://www.youtube.com/watch?v=nMaZhXJJgmU&list=PLbzoR-pLrL6oj1rVTXLnV7cOuetvjKn9q&index=67) (todo: add slides)
-* [Famfs and shared memory status session at the 2024 Linux Plumbers Conference](https://lpc.events/event/18/contributions/1827/)
+* [Famfs session at LSFMM 2024](https://www.youtube.com/watch?v=nMaZhXJJgmU&list=PLbzoR-pLrL6oj1rVTXLnV7cOuetvjKn9q&index=67)
+* [Famfs and shared memory status session at the 2024 Linux Plumbers Conference](https://lpc.events/event/18/contributions/1827/) ([slides](https://lpc.events/event/18/contributions/1827/attachments/1583/3349/famfs-lpc-2024-v3.pdf), [Youtube](http://www.youtube.com/watch?v=4MsTupxge70))
+* [2025 Famfs talk for the Open Compute Project (OCP) Composable Memory Subsystems (CMS) working group](https://www.youtube.com/watch?v=L1QNpb-8VgM&t=1680)
 
 # What is Famfs?
 
@@ -79,8 +81,7 @@ Write-back metadata is not compatible with scale-out shared memory access, becau
 have no way to agree on the definitive state of metadata (not to mention space allocation).
 
 ## What is dax?
-In Linux, special purpose memory is exposed as a dax device (e.g. ```/dev/dax0.0``` or
-```/dev/pmem0```).
+In Linux, special purpose memory is exposed as a dax device (e.g. ```/dev/dax0.0```).
 Applications can memory map dax memory by opening a dax device calling the mmap() system call
 on the file descriptor.
 
