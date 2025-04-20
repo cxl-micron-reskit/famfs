@@ -49,6 +49,9 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   if(CMAKE_COMPILER_IS_GNUCXX AND FAMFS_TEST_COVERAGE)
     message("Compiling for code coverage tests")
     include(CodeCoverage)
+    set(GCOVR_ADDITIONAL_ARGS
+      "--gcov-ignore-parse-errors" "suspicious_hits.warn_once_per_file"
+    )
     append_coverage_compiler_flags()
   endif()
 endif()

@@ -184,7 +184,8 @@ else
     MOD_ARG=""
 fi
 
-
+id=$(id -un)
+grp=$(id -gn)
 
 if [[ "$BIN" == *[[:space:]]* ]]; then
     fail "ERROR: the BIN path ($BIN) contains spaces!"
@@ -198,43 +199,51 @@ set -x
 
 if [ -z "$SKIP_TEST0" ]; then
     ./smoke/test0.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
+    sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_SHADOW_YAML" ]; then
     ./smoke/test_shadow_yaml.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
+    sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_TEST1" ]; then
     sudo ./smoke/test1.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
+    sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_TEST2" ]; then
     ./smoke/test2.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
+    sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_TEST3" ]; then
     ./smoke/test3.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
+    sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_TEST4" ]; then
     ./smoke/test4.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
+    sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
     sleep "${SLEEP_TIME}"
 fi
 
 if [ -z "$SKIP_ERRS" ]; then
     sleep "${SLEEP_TIME}"
     ./smoke/test_errors.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
+    sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
 else
     echo "skipping test_errors.sh because -n|--noerrors was specified"
 fi
 
 if [ -z "$SKIP_STRIPE_TEST" ]; then
     ./smoke/stripe_test.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
+    sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
     sleep "${SLEEP_TIME}"
 fi
 
@@ -243,12 +252,14 @@ if [[ $COVERAGE -ne 1 ]]; then
 	# XXX: get test_pcq running properly in coverage test mode
 	./smoke/test_pcq.sh ${MOD_ARG} $VGARG \
 			    -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
+	sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
 	sleep "${SLEEP_TIME}"
     fi
 fi
 
 if [ -z "$SKIP_FIO" ]; then
     ./smoke/test_fio.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
+    sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
     sleep "${SLEEP_TIME}"
 fi
 
