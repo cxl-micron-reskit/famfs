@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="famfs-logo.svg" alt="famfs logo">
+</p>
+
 # famfs-fuse Design Notes
 
 The fuse (Filesystem in USEr space) maintainers have asked for famfs to be ported into fuse.
@@ -18,7 +22,7 @@ not directly connected to famfs-fuse functionality.)
 
 The big new item in the fuse version of famfs is the famfs fuse daemon (```famfs_fused```). This is
 a low-level libfuse server. It introduces two new messages and responses into the fuse protocol:
-GET_FMAP and GET_DAXDEV. An fmap is the map of a file to dax device ranges, and a daxdev is (obviously(
+```GET_FMAP``` and ```GET_DAXDEV```. An fmap is the map of a file to dax device ranges, and a daxdev is (obviously(
 a dax device that is or may be referenced by files.
 
 Standalone famfs pushes all file metadata into the kernel when the log is played, but that's not how
@@ -94,7 +98,7 @@ and ```famfs cp```.  Each method creates famfs-fuse files through this general s
 
 ## Kernel Space
 
-- The kernel config parameter CONFIG_FUSE_FAMFS_DAX is added, controlling compilation of the ability to handle famfs files
-- The new flag FUSE_DAX_FMAP advertises the kernel's famfs capability to user space / libfuse.
-- If user space requests the FUSE_DAX_FMAP capability, active files will have their fmaps requested via the new GET_FMAP message / response.
-- For any fmap that references a previously-unknown dax device, the new GET_DAXDEV message / response will be used to retrieve the daxdev.
+- The kernel config parameter ```CONFIG_FUSE_FAMFS_DAX``` is added, controlling compilation of the ability to handle famfs files
+- The new flag ```FUSE_DAX_FMAP``` advertises the kernel's famfs capability to user space / libfuse.
+- If user space requests the ```FUSE_DAX_FMAP``` capability, active files will have their fmaps requested via the new ```GET_FMAP``` message / response.
+- For any fmap that references a previously-unknown dax device, the new ```GET_DAXDEV``` message / response will be used to retrieve the daxdev.

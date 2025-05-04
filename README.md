@@ -18,6 +18,19 @@ kernel can be accessed one of the following ways:
 * [Famfs and shared memory status session at the 2024 Linux Plumbers Conference](https://lpc.events/event/18/contributions/1827/) ([slides](https://lpc.events/event/18/contributions/1827/attachments/1583/3349/famfs-lpc-2024-v3.pdf), [Youtube](http://www.youtube.com/watch?v=4MsTupxge70))
 * [2025 Famfs talk for the Open Compute Project (OCP) Composable Memory Subsystems (CMS) working group](https://www.youtube.com/watch?v=L1QNpb-8VgM&t=1680)
 
+
+# Famfs FUSE Port
+
+Famfs started as a standalone kernel file system, but is transitioning into fuse. The
+fuse port performs at full memory speed, because it caches the entire "fmap" (file to
+memory map) in the kernel for all active files.
+
+As of May 2025 we support both the standalone and fuse versions of famfs, but we will
+be deprecating the standalone file system. The famfs user
+space tools (this repo) should transparently handle either kernel version.
+
+[Design info on the fuse port is here](markdown/famfs-fuse-design-notes.md).
+
 # What is Famfs?
 
 Famfs is a scale-out shared-memory file system. If two or more hosts have shared access

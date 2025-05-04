@@ -4,11 +4,8 @@
 
 # Configuring Virtual Machines for famfs
 
-In order to run famfs, you will need at least one physical or virtual compatible memory device.
-Compatible devices include:
-
-- /dev/dax devices in "devdax" mode
-- /dev/pmem devices in "fsdax" mode
+In order to run famfs, you will need at least one physical or virtual devdax memory device
+(i.e. a ```/dev/dax0.0``` memory device in ```devdax``` mode).
 
 # Prerequisites
 
@@ -17,10 +14,7 @@ You will need to install the following packages:
 - ndctl
 - daxctl
 
-You will also need all systems, including VMs, to be in EFI mode. This can be checked
-by running
-
-    scripts/chk_efi.sh
+:bangbang: Earlier versions of this document said VMs must be in EFI mode; this is no longer true, as the efi_fake_mem kernel parameter was removed.
 
 # Creating Simulated Memory Devices
 
@@ -35,17 +29,38 @@ add the following to the GRUB_CMDLINE string:
 
 :bangbang: **Important:** For the command line above, you must have at least 16G of memory, because you are reserving 8G starting at a starting offset of 8G. Linux does not error-check this; if you try to use nonexistent memory we observes that it both runs slowly and doesn't work.
 
+**Note:** In theory ```memmap=8G$8G``` should give you a dax device rather than pmem. The usual problem is that it's hard to successfully escape the ```$``` so this often fails.
+
 This will reserve 8G of memory at offset 8G into system physical RAM as a simulated
 pmem device. You must check your available memory and make sure that you have enough to
 back the entire range - if not, it won't work well...
 
-After doing that, you will need too run the following command (assuming your system
-is in efi mode:
+After doing that, you will need too run the following commands:
 
-    sudo grub2-mkconfig -o /boot/efi/EFI/fedora/grub.cfg
+    sudo grub2-mkconfig -o /boot/grub2/grub.cfg          # if your vm is not in EFI mode
+    sudo grub2-mkconfig -o /boot/efi/EFI/fedora/grub.cfg # if your vm is in EFI mode
     sudo reboot
 
 After a reboot, you should see a pmem device.
+
+```
+$ ndctl list
+[
+  {
+    "dev":"namespace0.0",
+    "mode":"raw",
+    "size":8573157376,
+    "uuid":"1acedc2a-cf5d-4f20-8e34-f1909e0286a5",
+    "sector_size":512,
+    "blockdev":"pmem0"
+  }
+]
+```
+
+## Converting a pmem device to /dev/dax
+
+Although early versions of famfs worked with either pmem or devdax devices, famfs now
+requires devdax. But a pmem device can be converted to devdax mode.
 
 ## Configuring a simulated /dev/dax device
 
@@ -80,7 +95,7 @@ you will need to convert it to "devdax" mode.
 
 ```
 $ daxctl list
-[
+[ 
   {
     "chardev":"dax1.0",
     "size":8589934592,
@@ -109,18 +124,16 @@ reconfigured 1 device
 # Creating VMs that share a virtual devdax device from the host
 
 This recipe works as follows:
-1. In the hypervisor system that will host the VMs, create a simulated /dev/dax device. Or you can use an
-   actual /dev/dax memory device.
+1. In the hypervisor system that will host the VMs, create a "container" for the VM's dax device. This can be any of the following:
+    - A file (there are advantages to this if you aren't using real CXL memory)
+    - A simulated devdax device in the hypervisor host
+    - An actual CXL devdax device attached to the hypervisor host
 2. Configure one or more VMs that have a virtual pmem device backed by a file or /dev/dax device in the host. More than one VM can have a virtual pmem device backed by the same file or device in the hypervisor, resulting in a shared memory device in the VMs.
 3. Inside the VMs, convert the shared pmem devices to devdax mode.
 
-The reason we use a pmem device in the VMs is that libvirt and qemu do not currently support
-virtual devdax devices backed by a file or memory device in the hypervisor. Since pmem devices can be
-converted to devdax mode, we can have either pmem or devdax shared memory across VMs.
-
 ## Background
 
-Qemu supports virtual pmem devices, which can be backed by a shared file or device -- but it
+Qemu supports virtio pmem devices, which can be backed by a shared (or non-shared) file or devdax device -- but it
 does not support virtual devdax devices. This is usable because a pmem device can be converted
 to devdax mode, at which point a fully functional devdax device (e.g. ```/dev/dax0.0```) will
 appear in its place.
@@ -133,18 +146,23 @@ and use git to manage changes to your libvirt xml files (which are normally loca
 versions and revert if you break it. But maybe these instructions will be so good that it will
 be easy. It was a real pain to figure out... :D
 
-## Create a VM with efi firmware
+## Create a libvirt VM
 
-In order to run VMs that mount famfs file systems on shared dax devices, you should be running
-VMs in efi firmware mode.
-```
-sudo dnf install edk2-ovmf
-```
-If you use virt-manager to install your vm, specify the following:
-- Q35 architecture
-- Select the OVMF_CODE.fd option for system firmware
+The easiest way to create a libvirt VM is to install it from a distro
+ISO image via virt-manager. 
 
-[Image of virt-manager install](virt-mgr.png)
+## Prepare a virtual devdax backing file if needed
+
+If you will not be mapping a devdax to your VM, it is convenient to use a 
+backing file for your virtual pmem/devdax devices. You can create an 8GiB
+backing file this way:
+
+    dd if=/dev/zero of=/var/lib/libvirt/images/f42-pmem-backing bs=1M count=8192
+
+Note it is traditional for VM storage to reside in /var/lib/libvirt/images, but
+it's not required.
+
+Qemu/KVM will mmap the backing file and provide it as a pmem/devdax device to the VM.
 
 ## Preparing to share a memory device across 2 or more VMs
 
@@ -154,21 +172,21 @@ physical or virtual.
 
 We will use ```virsh edit``` to edit the VM
 
-    virsh edit f38-dev2
+    virsh edit f42-dev2
 
 ### The xmlns nonsense
 
 At the top of your xml, you will see a <domain> tag.
 ```
 <domain type='kvm'>
-  <name>f39-dev2</name>
+  <name>f42-dev2</name>
   ...
 ```
 
 If it does not include "xmlns", you should add it:
 ```
 <domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
-  <name>f39-dev2</name>
+  <name>f42-dev2</name>
   ...
 ```
 Failing to include this can cause libvirt to fail to validate the xml.
@@ -205,10 +223,10 @@ pmem device work.
   </cpu>
 ```
 
-:bangbang:**NOTE:** The size of the numa node should match the size of the general purpose memory,
+:bangbang:**NOTE:** The size of the numa node should match the size of the general purpose memory 
 excluding the size of the shared dax device.
 
-**NOTE:** The cpus should be '0-n' for n+1 cpus. Set this correctly for your VM.
+**NOTE:** The ```cpus``` should be ``'0-n'`` for n+1 cpus. Set this correctly for your VM.
 
 ### Virtual pmem device description
 
@@ -217,7 +235,7 @@ The following stanza should be added as the last entry in the <devices> section.
     ...
     <memory model='nvdimm' access='shared'>
       <source>
-        <path>/dev/dax1.0</path>
+        <path>/var/lib/libvirt/images/f42-pmem-backing</path>
         <alignsize unit='MiB'>2</alignsize>
         <pmem/>
       </source>
@@ -233,7 +251,7 @@ The following stanza should be added as the last entry in the <devices> section.
   </devices>
 ```
 Notes:
-- path should reference the shared dax device in the hypervisor host
+- path should reference the backing file, or the shared dax device in the hypervisor host
 - alignsize must be specified as 2MiB (or 2048 KiB)
 - size must match the size of the dax device
 
@@ -255,23 +273,9 @@ $ ndctl list
   }
 ]
 ```
-Note that the device will probably be in raw mode. In order to use it you will need to convert to
-fsdax or devdax mode. Using fsdax mode will give you a /dev/pmem device.
+Note that the device will probably start out in raw mode. In order to use it you will need to convert to
+devdax mode. Using fsdax mode will give you a /dev/pmem device.
 
-```
-$ sudo ndctl create-namespace --force --mode=fsdax --reconfig=namespace0.0
-{
-  "dev":"namespace0.0",
-  "mode":"fsdax",
-  "map":"dev",
-  "size":"7.86 GiB (8.44 GB)",
-  "uuid":"14fff0fc-0afc-4070-adab-b002ccc8ac17",
-  "sector_size":512,
-  "align":2097152,
-  "blockdev":"pmem0"
-}
-```
-Using devdax mode will give you a /dev/dax device.
 ```
 $ sudo ndctl create-namespace --force --mode=devdax --reconfig=namespace0.0
 {
@@ -297,4 +301,17 @@ $ sudo ndctl create-namespace --force --mode=devdax --reconfig=namespace0.0
   "align":2097152
 }
 ```
-Famfs can use either device type (but not raw mode)
+At this point you should see a usable devdax device:
+```
+$ daxctl list
+[
+  {
+    "chardev":"dax0.0",
+    "size":8438939648,
+    "target_node":0,
+    "align":2097152,
+    "mode":"devdax"
+  }
+]
+```
+
