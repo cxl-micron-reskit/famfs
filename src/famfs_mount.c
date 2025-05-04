@@ -568,24 +568,13 @@ famfs_mount_fuse(
 			goto out;
 		}
 	}
-#if 0
-	snprintf(shadow_root, sizeof(shadow_root) - 1, "%s/root", local_shadow);
-	rc = mkdir(shadow_root, 0755);
-	if (rc) {
-		fprintf(stderr, "%s: failed to create shadow root %s\n",
-			__func__, shadow_root);
-		rc = -1;
-		goto out;
-	}
-#endif
+
 	rc = famfs_mkmeta(realdaxdev, local_shadow, verbose);
 	if (rc) {
 		fprintf(stderr, "%s: err mkmeta failed for shadow %s\n",
 			__func__, local_shadow);
 		goto out;
 	}
-
-	printf("good mkmeta; write the rest of the mount code now \n");
 
 	/* Start the fuse daemon, which mounts the FS */
 	rc = famfs_start_fuse_daemon(realmpt, realdaxdev, local_shadow,
@@ -595,7 +584,8 @@ famfs_mount_fuse(
 		return rc;
 	}
 
-	/* Verify that the meta files have appeared (i.e. the fuse mount wassuccessful */
+	/* Verify that the meta files have appeared (i.e. the fuse mount
+	 * was successful */
 	if (check_file_exists(realmpt, ".meta/.superblock", 3)) {
 		fprintf(stderr, "%s: superblock file failed to appear\n",
 			__func__);
@@ -603,7 +593,6 @@ famfs_mount_fuse(
 		goto out;
 	}
 
-	printf("%s: about to play the log...\n", __func__);
 	rc = famfs_logplay(realmpt, 0, 0, 0, local_shadow, 0, realdaxdev,
 			   verbose);
 	if (rc < 0) {
