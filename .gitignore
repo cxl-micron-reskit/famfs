@@ -16,6 +16,7 @@ tmp/
 tools/
 stuff/
 libfuse/
+C-Thread-Pool/
 TAGS
 #*
 .#*

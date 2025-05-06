@@ -12,6 +12,14 @@ cmake-modules:
 libfuse_install:
 	meson install -C $(BUILD)/libfuse
 
+threadpool:
+	@echo "Clone C-Thread-Pool"
+	@if [ ! -d "C-Thread-Pool" ]; then \
+		echo "cloning C-Thread-Pool..."; \
+		git clone -b master https://github.com/jagalactic/C-Thread-Pool.git; \
+	fi
+
+
 libfuse:
 	echo "Build: $(BDIR)"
 	@if [ -z "$(BDIR)" ]; then \
@@ -26,7 +34,7 @@ libfuse:
 	meson setup -Dexamples=false $(BDIR)/libfuse ./libfuse
 	meson compile -C $(BDIR)/libfuse
 
-debug:	cmake-modules
+debug:	cmake-modules threadpool
 	export BDIR="debug"
 	mkdir -p debug;
 	$(MAKE) libfuse BDIR="debug"
@@ -41,7 +49,7 @@ debug:	cmake-modules
 #
 # The comand above will direct you to html files detailing the measured coverage
 #
-coverage:	cmake-modules
+coverage:	cmake-modules threadpool
 	mkdir -p coverage;
 	$(MAKE) libfuse BDIR="coverage"
 	cd coverage; cmake -DCMAKE_BUILD_TYPE=Debug -DFAMFS_TEST_COVERAGE="yes" ..; $(MAKE)
@@ -55,7 +63,7 @@ coverage_test:	coverage
 	sudo chown -R "$(UID):$(GID)" coverage
 	cd coverage; script -e -c "sudo make famfs_unit_coverage" -O ../unit_coverage.log
 
-release:	cmake-modules
+release:	cmake-modules threadpool
 	mkdir -p release;
 	$(MAKE) libfuse BDIR="release"
 	cd release; cmake ..; $(MAKE)
