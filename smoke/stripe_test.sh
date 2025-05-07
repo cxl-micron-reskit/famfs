@@ -81,7 +81,7 @@ MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
 MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI="sudo $VG $BIN/famfs"
 CLI_NOSUDO="$VG $BIN/famfs"
-TEST="test4"
+TEST="stripe_test"
 
 source $SCRIPTS/test_funcs.sh
 # Above this line should be the same for all smoke tests
@@ -119,37 +119,47 @@ stripe_test_cp () {
     done
 
     loopct=0
+    randomize_args=()
     for file in "${files[@]}"; do
 	(( seed = BASE_SEED + loopct ))
-	echo -n "Randomizing file: $file seed=$seed"
-	${CLI} creat  -r -S "$seed" -s "$SIZE" "$file"
-	if [[ $? -eq 0 ]]; then
-	    echo "...done"
-	else
-	    fail "Failed to initialize $file (seed=$seed)"
-	fi
+	#	echo -n "Randomizing file: $file seed=$seed"
+	randomize_args+=("-M")
+	randomize_args+=("${file},${SIZE},${seed} ")
 	(( loopct++ ))
     done
+    ${CLI} creat ${randomize_args[@]}
+    rc=$?
+    if [[ $rc -eq 0 ]]; then
+	echo "...done"
+    else
+	fail "$rc initialization failures"
+    fi
 
     # TODO: if the the FAMFS_KABI_VERSION >= 43, verify that the files are striped
 
     #
     # Check the files with the "remembered" seeds
     #
+    verify_args=()
     echo "Verifying files"
     loopct=0
     for file in "${files[@]}"; do
 	(( seed = BASE_SEED + loopct ))
-	echo -n "Verifying file: $file seed=$seed"
-	${CLI} verify -q -S "$seed" -f "$file"
-	if [[ $? -eq 0 ]]; then
-	    echo "...good"
-	else
-	    fail "Failed to verify $file (seed=$seed)"
-	fi
+	#echo -n "Verifying file: $file seed=$seed"
+	verify_args+=("-m")
+	verify_args+=("${file},${seed} ")
+
 	(( loopct++ ))
     done
-
+    ${CLI} verify ${verify_args[@]}
+    rc="$?"
+    if [[ $rc -eq 0 ]]; then
+	echo "...good"
+    else
+	fail "Failed to verify $rc files (seed=$seed)"
+    fi
+    echo "rc=$rc"
+    
     echo "Created and copied $counter files"
     echo "Processed all successfully copied files."
 }
@@ -194,37 +204,48 @@ stripe_test () {
     # Randomize the files and remember the seeds
     #
     loopct=0
+    randomize_args=()
     for file in "${files[@]}"; do
 	(( seed = BASE_SEED + loopct ))
-	echo -n "Randomizing file: $file seed=$seed"
-	${CLI} creat  -r -S "$seed" -s "$SIZE" "$file"
-	if [[ $? -eq 0 ]]; then
-	    echo "...done"
-	else
-	    fail "Failed to initialize $file (seed=$seed)"
-	fi
+
+	randomize_args+=("-M")
+	randomize_args+=("${file},${SIZE},${seed} ")
+
 	(( loopct++ ))
     done
+    #set -x
+    ${CLI} creat ${randomize_args[@]}
+    rc=$?
+    if [[ $rc -eq 0 ]]; then
+	echo "...done"
+    else
+	fail "$rc failures from initialization"
+    fi
 
     # TODO: if the the FAMFS_KABI_VERSION >= 43, verify that the files are striped
 
     #
     # Check the files with the "remembered" seeds
     #
-    echo "Verifying files"
+    echo "verifying files"
     # Cat each file to /dev/null
     loopct=0
+    verify_args=()
     for file in "${files[@]}"; do
 	(( seed = BASE_SEED + loopct ))
-	echo -n "Verifying file: $file seed=$seed"
-	${CLI} verify -q -S "$seed" -f "$file"
-	if [[ $? -eq 0 ]]; then
-	    echo "...good"
-	else
-	    fail "Failed to verify $file (seed=$seed)"
-	fi
+	echo -n "verifying file: $file seed=$seed"
+	verify_args+=("-m")
+	verify_args+=("${file},${seed} ")
+	
 	(( loopct++ ))
     done
+    ${CLI} verify ${verify_args[@]}
+    rc="$?"
+    if [[ $rc -eq 0 ]]; then
+	echo "...good"
+    else
+	fail "Failed to verify $rc files (seed=$seed)"
+    fi
 
     echo
     echo "Unmount and remount to test logplay for interleaved files"
@@ -241,17 +262,23 @@ stripe_test () {
     echo "Verifying files post unmount/remount"
     # Cat each file to /dev/null
     loopct=0
+    verify_args=()
     for file in "${files[@]}"; do
 	(( seed = BASE_SEED + loopct ))
 	echo -n "re-verifying file: $file seed=$seed"
-	${CLI} verify -q -S "$seed" -f "$file"
-	if [[ $? -eq 0 ]]; then
-	    echo "...good"
-	else
-	    fail "Failed to verify $file after unmount/remount (seed=$seed)"
-	fi
+	verify_args+=("-m")
+	verify_args+=("${file},${seed} ")
+
 	(( loopct++ ))
     done
+
+    ${CLI} verify ${verify_args[@]}
+    rc="$?"
+    if [[ $rc -eq 0 ]]; then
+	echo "...good"
+    else
+	fail "Failed to verify $rc files (seed=$seed)"
+    fi
 
     echo "Processed all successfully created files."
 }
