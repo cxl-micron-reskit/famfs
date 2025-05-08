@@ -1199,6 +1199,9 @@ randomize_one(
 	void *addr;
 	char *buf;
 
+	if (!seed)
+		return 0;
+
 	addr = famfs_mmap_whole_file(filename, 0, &fsize_out);
 	if (!addr) {
 		fprintf(stderr, "%s: randomize mmap failed\n",
@@ -1212,8 +1215,6 @@ randomize_one(
 	}
 	buf = (char *)addr;
 
-	if (!seed)
-		printf("Randomizing buffer with random seed\n");
 	randomize_buffer(buf, fsize, seed);
 	flush_processor_cache(buf, fsize);
 	return 0;
