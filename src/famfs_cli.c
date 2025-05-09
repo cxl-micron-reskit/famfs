@@ -587,7 +587,8 @@ famfs_cp_usage(int   argc,
 	       "    -u|--uid <uid>   		- Specify uid (default is current user's uid)\n"
 	       "    -g|--gid <gid>   		- Specify uid (default is current user's gid)\n"
 	       "    -v|--verbose       		- print debugging output while executing the command\n"
-	       "    -C|--chunksize <size>    	- Size of chunks for interleaved allocation\n"
+	       "Interleaving Arguments:\n"
+	       "    -C|--chunksize <size>[kKmMgG] - Size of chunks for interleaved allocation\n"
 	       "                               	  (default=0); non-zero causes interleaved allocation.\n"
 	       "    -N|--nstrips <n>         	- Number of strips to use in interleaved allocations.\n"
 	       "    -B|--nbuckets <n>        	- Number of buckets to divide the device into\n"
@@ -674,18 +675,12 @@ do_famfs_cli_cp(int argc, char *argv[])
 
 		case 'N':
 			set_stripe++;
-			interleave_param.nstrips = strtoull(optarg, &endptr, 0);
-			mult = get_multiplier(endptr);
-			if (mult > 0)
-				interleave_param.nstrips *= mult;
+			interleave_param.nstrips = strtoull(optarg, 0, 0);
 			break;
 
 		case 'B':
 			set_stripe++;
-			interleave_param.nbuckets = strtoull(optarg, &endptr, 0);
-			mult = get_multiplier(endptr);
-			if (mult > 0)
-				interleave_param.nbuckets *= mult;
+			interleave_param.nbuckets = strtoull(optarg, 0, 0);
 			break;
 		}
 	}
@@ -1164,7 +1159,7 @@ famfs_creat_usage(int   argc,
 	       "                               if non-zero seed specified, will randomize\n"
 	       "\n"
 	       "Interleave arguments:\n"
-	       "    -C|--chunksize <size>    - Size of chunks for interleaved allocation\n"
+	       "    -C|--chunksize <size>[kKmMgG] - Size of chunks for interleaved allocation\n"
 	       "                               (default=0); non-zero causes interleaved allocation.\n"
 	       "    -N|--nstrips <n>         - Number of strips to use in interleaved allocations.\n"
 	       "    -B|--nbuckets <n>        - Number of buckets to divide the device into\n"
@@ -1302,7 +1297,6 @@ static int
 creat_multi(
 	struct multi_creat *mc,
 	int multi_count,
-	int threadct,
 	struct famfs_interleave_param *ip,
 	mode_t mode,
 	uid_t uid,
@@ -1313,6 +1307,12 @@ creat_multi(
 	int errs = 0;
 	int i;
 
+	/* Note: create_mutli should not multi-thread, because allocation
+	 * needs to be serialized.
+	 *
+	 * TODO: do multiple creat's under one locked_log, reducing bitmap
+	 * generating and allocation overhad
+	 */
 	for (i = 0; i < multi_count; i++) {
 		mc[i].rc = creat_one(mc[i].fname, mc[i].fsize, ip,
 				     mode, uid, gid, verbose, &mc[i].created);
@@ -1459,7 +1459,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 		case 'g':
 			gid = strtol(optarg, 0, 0);
 			break;
-
+			/* Interleaving Options */
 		case 'C':
 			set_stripe++;
 			interleave_param.chunk_size = strtoull(optarg, &endptr, 0);
@@ -1470,18 +1470,12 @@ do_famfs_cli_creat(int argc, char *argv[])
 
 		case 'N':
 			set_stripe++;
-			interleave_param.nstrips = strtoull(optarg, &endptr, 0);
-			mult = get_multiplier(endptr);
-			if (mult > 0)
-				interleave_param.nstrips *= mult;
+			interleave_param.nstrips = strtoull(optarg, 0, 0);
 			break;
 
 		case 'B':
 			set_stripe++;
-			interleave_param.nbuckets = strtoull(optarg, &endptr, 0);
-			mult = get_multiplier(endptr);
-			if (mult > 0)
-				interleave_param.nbuckets *= mult;
+			interleave_param.nbuckets = strtoull(optarg, 0, 0);
 			break;
 			/* Multi-creat options */
 		case 't':
@@ -1512,7 +1506,13 @@ do_famfs_cli_creat(int argc, char *argv[])
 
 			/* We know nstrings is in the range 2..3 inclusive */
 			mc[multi_count].fname = strdup(strings[0]);
-			mc[multi_count].fsize = strtoull(strings[1], 0, 0);
+			mc[multi_count].fsize = strtoull(strings[1],
+							 &endptr, 0);
+			/* Apply multiplier, if specified, to the size */
+			mult = get_multiplier(endptr);
+			if (mult > 0)
+				mc[multi_count].fsize *= mult;
+
 			if (nstrings == 3)
 				mc[multi_count].seed = strtoull(strings[2],
 								0, 0);
@@ -1558,7 +1558,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 		if (!rc)
 			rc = randomize_one(filename, fsize, seed, verbose);
 	} else {
-		rc = creat_multi(mc, multi_count, threadct,
+		rc = creat_multi(mc, multi_count,
 				 (set_stripe) ? & interleave_param : NULL,
 				 mode, uid, gid, verbose);
 		if (!rc)
@@ -1855,7 +1855,7 @@ do_famfs_cli_verify(int argc, char *argv[])
 				mv = calloc(argc, sizeof(*mv));
 
 			strings = tokenize_string(optarg, ",", &nstrings);
-			if (!nstrings || nstrings !=2) {
+			if (nstrings !=2) {
 				free_string_list(strings, nstrings);
 				fprintf(stderr,
 					"%s: bad multi arg(%d): %s\n",
