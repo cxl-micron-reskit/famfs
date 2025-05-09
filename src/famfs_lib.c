@@ -3076,7 +3076,7 @@ out:
 /**
  * famfs_mkfile()
  *
- * Do the full job of creatign and allocating a famfs file
+ * Do the full job of creating and allocating a famfs file
  */
 int
 famfs_mkfile(
