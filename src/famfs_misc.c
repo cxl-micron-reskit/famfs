@@ -400,6 +400,9 @@ famfs_get_kernel_type(int verbose)
 	if (kernel_symbol_exists("famfs_create", "famfsv1", verbose))
 		return FAMFS_V1;
 
+	if (kernel_symbol_exists("famfs_create", "famfs", verbose))
+		return FAMFS_V1;
+
 	if (verbose)
 		fprintf(stderr, "%s: no famfs symbols in running kernel\n", __func__);
 
