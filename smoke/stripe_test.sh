@@ -288,6 +288,9 @@ stripe_test () {
 # Start with a clean, empty file systeem
 famfs_recreate "stripe_test.sh"
 
+${CLI} creat -B 100 -C 2m -N 3 -s 2m $MPT/toomanybuckets && fail "too many buckets should fail"
+${CLI} creat -B 10 -C 2000000 -N 3 -s 2m $MPT/badchunksz && fail "bad chunk size should fail"
+ 
 BASENAME="/mnt/famfs/stripe_file"
 CAPACITY=$(famfs_get_capacity "$MPT")
 echo "Capacity: $CAPACITY"

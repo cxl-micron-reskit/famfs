@@ -96,15 +96,40 @@ grep $MPT /proc/mounts              || fail "Mount pt $MPT not in /proc/mounts~"
 sudo test -f $MPT/.meta/.superblock || fail "no superblock file after mkmeta"
 sudo test -f $MPT/.meta/.log        || fail "no log file after mkmeta"
 
+# Basic CLI stuff
+${CLI} && fail "cli with no subcommand should fail"
+${CLI} -h || fail "famfs -h should work"
+${CLI} -h mount || fail "famfs -h mount should work"
+
 # Create 1 file and verify
 ${CLI} creat -h                           || fail "creat -h should succeed"
 ${CLI} creat                              && fail "creat with no args should fail"
 ${CLI} creat -r -S 1 $MPT/test1           && fail "creat without size should fail"
 ${CLI} creat -S -s 10 $MPT/badf           && fail "creat with -S but no -r should fail"
 ${CLI} creat -r -s 4096 -S 1 $MPT/test1   || fail "creat test1"
-${CLI} creat $MPT/.meta && fail "creat an existing directory should fail"
+${CLI} creat $MPT/.meta            && fail "creat an existing directory should fail"
 ${CLI} creat -S 1 -r -m "$MPT/zork,4K,1" && fail "multi and single mode should fail"
 ${CLI} creat -t 1000 -m "$MPT/zork,4K,1" && fail "threadct=1000 should fail"
+${CLI} creat -v -s 4K "/tmp/notfamfs"
+${CLI} creat -v --multi "$MPT/goodfile,4k" \
+       --multi "/tmp/badfile,4M"         && fail "one good, one bad file should be err"
+sudo test -f "$MPT/goodfile" || fail "...but the good file should be created"
+${CLI} creat -S 1 -r -s 2048 "$MPT/goodfile"\
+                                       && fail "randomize with wrong size should fail"
+${CLI} creat -S 1 -r "$MPT/goodfile"  || fail "randomize without size should work"
+${CLI} creat -t 1000 --multi "$MPT/goodfile,2K,1" \
+                                  && fail "randomize with bad threadct should fail"
+${CLI} creat -t 0 --multi "$MPT/goodfile,2K,1" \
+                                  && fail "randomize with bad threadct should fail 2"
+${CLI} creat -t -1 "$MPT/goodfile,2K,1" \
+                                  && fail "randomize with bad threadct should fail 3"
+${CLI} creat -S 1 -r -M "$MPT/notcreated,22" && fail "seed and multi incompatible"
+${CLI} creat -M "$MPT/notcreated"     && fail "multi with no size should fail"
+${CLI} creat -M "$MPT/notcreated"     && fail "multi with no size should fail"
+${CLI} creat -M "$MPT/notcr,22,22,22" && fail "multi with too many params should fail"
+${CLI} creat -M "$MPT/seeded,2M,42" \
+       -M "$MPT/notseeded,2M" || fail "multi-create partially seeded should work"
+${CLI} verify --multi "$MPT/seeded,42" || fail "seeded file should verify"
 
 ${CLI} verify -h                 || fail "verify -h should succeed"
 ${CLI} verify                    && fail "verify with no args should fail"
@@ -121,22 +146,30 @@ ${CLI} creat -r -s 4096 -S 3 $MPT/test3   || fail "creat test3"
 # Verify all 3 files
 ${CLI} verify -S 1 -f $MPT/test1 || fail "verify 1 after multi creat"
 ${CLI} verify -S 2 -f $MPT/test2 || fail "verify 2 after multi creat"
-${CLI} verify -S 3 -f $MPT/test3 || fail "verify 3 after multi creat"
+${CLI} verify --quiet -S 3 -f $MPT/test3 || fail "verify 3 after multi creat"
 
 ${CLI} verify -S 99 -f $MPT/test1 && fail "verify with bad seed should fail"
 ${CLI} verify -m "$MPT/test1,1" || fail "verify --multi should succeed"
 ${CLI} verify -m "$MPT/test1,2" && fail "verify --multi w/bad seed should fail"
 
-${CLI} verify --multi "$MPT/test1,1" --multi "$MPT/test2,2" --multi "$MPT/test3,3" \
+${CLI} verify --multi "$MPT/test1" && fail "no comma in verify multi arg"
+${CLI} verify --multi "$MPT/test1,1,extra" && fail "extra fields in multi"
+${CLI} verify --multi "$MPT/test1,1" \
+       --multi "$MPT/test2,2" \
+       --multi "$MPT/test3,3" \
     || fail "verify multi with good seeds should succeed"
-${CLI} verify --multi "$MPT/test1,9" --multi "$MPT/test2,2" --multi "$MPT/test3,3" \
+${CLI} verify --multi "$MPT/test1,9" \
+       --multi "$MPT/test2,2" --multi "$MPT/test3,3" \
     && fail "verify multi with any bad seeds should fail"
 #bad thread counts
-${CLI} verify --threadct 0 --multi "$MPT/test1,1" --multi "$MPT/test2,2" --multi "$MPT/test3,3" \
+${CLI} verify --threadct 0 \
+       --multi "$MPT/test1,1" --multi "$MPT/test2,2" --multi "$MPT/test3,3" \
     && fail "verify multi with good seeds and 0 thread should fail"
-${CLI} verify --threadct 257 --multi "$MPT/test1,1" --multi "$MPT/test2,2" --multi "$MPT/test3,3" \
+${CLI} verify --threadct 257 \
+       --multi "$MPT/test1,1" --multi "$MPT/test2,2" --multi "$MPT/test3,3" \
     && fail "verify multi with good seeds and 257 thread should fail"
-${CLI} verify -t 999 --multi "$MPT/test1,9" --multi "$MPT/test2,2" --multi "$MPT/test3,3" \
+${CLI} verify -t 999 \
+       --multi "$MPT/test1,9" --multi "$MPT/test2,2" --multi "$MPT/test3,3" \
     && fail "verify multi with any bad seeds and bad threadct fail"
 
 # Create same file should fail unless we're randomizing it
@@ -202,6 +235,7 @@ ${CLI} chkread -l $MPT/.meta/.log        || fail "chkread should succeed on log"
 ${CLI} chkread -s $MPT/.meta/.superblock || fail "chkread should succeed on superblock"
 ${CLI} chkread -?                        || fail "chkread -? should succeed"
 ${CLI} chkread                           && fail "chkread with no args should fail"
+${CLI} chkread -s "$MPT/badfilexx" && fail "chkread should fail w/bad file"
 
 ${CLI} logplay -rc $MPT            || fail "logplay -rc should succeed"
 ${CLI} logplay -rm $MPT            && fail "logplay with -m and -r should fail"
