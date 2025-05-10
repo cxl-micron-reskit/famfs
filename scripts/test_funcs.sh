@@ -4,8 +4,8 @@
 fail () {
     set +x
     echo
-    echo "*** Fail ***"
-    echo "$TEST: $1"
+    echo ":==*** Fail ***"
+    echo ":==$TEST: $1"
     echo
     exit 1
 }

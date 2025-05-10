@@ -314,7 +314,7 @@ ${CLI} logplay --shadow ~/smoke.shadow/stripe_test.shadow $MPT
 # TODO: print some stats on how much stranded space remained
 
 set +x
-echo "*************************************************************************"
-echo "stripe_test completed successfully"
-echo "*************************************************************************"
+echo ":==*************************************************************************"
+echo ":==stripe_test completed successfully"
+echo ":==*************************************************************************"
 exit 0

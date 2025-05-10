@@ -197,7 +197,7 @@ ${CLI} logplay --shadow $SH $MPT
 sudo $UMOUNT $MPT # run_smoke.sh expects the file system unmounted after this test
 
 set +x
-echo "*************************************************************************"
-echo "test4 (multichase) completed successfully"
-echo "*************************************************************************"
+echo ":==*************************************************************************"
+echo ":==test4 (multichase) completed successfully"
+echo ":==*************************************************************************"
 exit 0

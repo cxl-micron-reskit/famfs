@@ -197,7 +197,7 @@ ${MOUNT} $DEV $MPT     && fail "Double mount should fail "
 verify_mounted $DEV $MPT "mount failed?"
 
 set +x
-echo "*************************************************************************"
-echo "prepare completed successfully"
-echo "*************************************************************************"
+echo ":==*************************************************************************"
+echo ":==prepare completed successfully"
+echo ":==*************************************************************************"
 exit 0

@@ -104,12 +104,6 @@ done
 
 CLI="sudo $VG $BIN/famfs"
 
-echo "MODE:     $FAMFS_MODE"
-echo "CWD:      $CWD"
-echo "BIN:      $BIN"
-echo "SCRIPTS:  $SCRIPTS"
-echo "ERRS:     $ERRS"
-
 #BIN=debug
 if [ ! -d $BIN ]; then
     echo "Can't find executables"
@@ -154,6 +148,15 @@ else
     fi
 fi
 
+echo ":==*****************************************************************"
+echo ":== run_smoke.sh $(date)"
+echo ":==MODE:     $FAMFS_MODE"
+echo ":==CWD:      $CWD"
+echo ":==BIN:      $BIN"
+echo ":==SCRIPTS:  $SCRIPTS"
+echo ":==ERRS:     $ERRS"
+echo ":==*****************************************************************"
+
 scripts/chk_memdev.sh "$DEV" || fail "Bad memory device $DEV"
 
 # Verify that this script is not running as root
@@ -170,7 +173,7 @@ fi
 if sudo -l &>/dev/null; then
     echo "user has sudo privileges"
 else
-    echo "Error: this script requires sudo privileges"
+    echo ":==Error: this script requires sudo privileges"
     exit -1
 fi
 
@@ -196,54 +199,75 @@ fi
 
 set -x
 ./smoke/prepare.sh  ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
+echo ":== test0 prepare success"
 
 if [ -z "$SKIP_TEST0" ]; then
     ./smoke/test0.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
+    echo ":== test0 success"
     sleep "${SLEEP_TIME}"
+else
+    echo ":== skipped test0 due to run_smoke options"
 fi
 
 if [ -z "$SKIP_SHADOW_YAML" ]; then
     ./smoke/test_shadow_yaml.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
+    echo ":== test_shadow_yaml success"
     sleep "${SLEEP_TIME}"
+else
+    echo ":== skipped test_shadow_yaml due to run_smoke options"
 fi
 
 if [ -z "$SKIP_TEST1" ]; then
     sudo ./smoke/test1.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
+    echo ":== test1 success"
     sleep "${SLEEP_TIME}"
+else
+    echo ":== skipped test1 due to run_smoke options"
 fi
 
 if [ -z "$SKIP_TEST2" ]; then
     ./smoke/test2.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
+    echo ":== test2 success"
     sleep "${SLEEP_TIME}"
+else
+    echo ":== skipped test2 due to run_smoke options"
 fi
 
 if [ -z "$SKIP_TEST3" ]; then
     ./smoke/test3.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
+    echo ":== test3 success"
     sleep "${SLEEP_TIME}"
+else
+    echo ":== skipped test3 due to run_smoke options"
 fi
 
 if [ -z "$SKIP_TEST4" ]; then
     ./smoke/test4.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
+    echo ":== test4 success"
     sleep "${SLEEP_TIME}"
+else
+    echo ":== skipped test4 due to run_smoke options"
 fi
 
 if [ -z "$SKIP_ERRS" ]; then
     sleep "${SLEEP_TIME}"
     ./smoke/test_errors.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
+    echo ":== test_errs success"
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
 else
-    echo "skipping test_errors.sh because -n|--noerrors was specified"
+    echo ":== skipping test_errors.sh because -n|--noerrors was specified"
 fi
 
 if [ -z "$SKIP_STRIPE_TEST" ]; then
     ./smoke/stripe_test.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
+    echo ":== stripe_test success"
     sleep "${SLEEP_TIME}"
 fi
 
@@ -251,24 +275,33 @@ if [[ $COVERAGE -ne 1 ]]; then
     if [ -z "$SKIP_PCQ" ]; then
 	# XXX: get test_pcq running properly in coverage test mode
 	./smoke/test_pcq.sh ${MOD_ARG} $VGARG \
-			    -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
+			    -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" \
+	    || exit -1
+	echo ":== test_pcq success"
 	sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
 	sleep "${SLEEP_TIME}"
+    else
+	echo ":== skipped test_pcq doe to run_smoke options"
     fi
+else
+    echo ":== Skipped test_pcq due to coverage test (it's slow)"	
 fi
 
 if [ -z "$SKIP_FIO" ]; then
     ./smoke/test_fio.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
+    echo ":== test_fio success"
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
     sleep "${SLEEP_TIME}"
+else
+    echo ":== skipped test_fio due to run_smoke options"
 fi
 
 sudo umount $MPT
 
 set +x
-echo "-------------------------------------------------------------------"
-echo "run_smoke completed successfully ($(date))"
-echo "-------------------------------------------------------------------"
+echo ":==-------------------------------------------------------------------"
+echo ":==run_smoke completed successfully ($(date))"
+echo ":==-------------------------------------------------------------------"
 if [[ "${FAMFS_MODE}" == "fuse" ]]; then
     echo "WARNING TEST DISABLED IN FUSE MODE: test_errs.sh"
     echo "WARNING TEST DISABLED IN FUSE MODE: test_pcq.sh"
