@@ -1182,6 +1182,19 @@ struct multi_creat {
 	int rc;
 };
 
+static void
+free_multi_creat(struct multi_creat *mc, int multi_count)
+{
+	int i;
+
+	if (!mc)
+		return;
+
+	for (i = 0; i < multi_count; i++)
+		if (mc->fname)
+			free(mc->fname);
+	free(mc);
+}
 
 static int
 randomize_one(
@@ -1228,7 +1241,6 @@ creat_one(
 {
 	struct stat st;
 	int rc;
-	int fd;
 
 	rc = stat(filename, &st);
 	if (rc == 0) {
@@ -1267,6 +1279,8 @@ creat_one(
 
 	} else if (rc < 0) {
 		mode_t current_umask;
+		int fd;
+
 		if (!fsize) {
 			fprintf(stderr, "%s: Error: new file size=zero\n",
 				__func__);
@@ -1287,9 +1301,9 @@ creat_one(
 		}
 		if (created)
 			*created = 1;
-	}
-	if (fd)
+
 		close(fd);
+	}
 	return 0;
 }
 
@@ -1348,7 +1362,7 @@ randomize_multi(
 	int threadct,
 	int verbose)
 {
-	int randomize_ct;
+	int randomize_ct = 0;
 	threadpool thp;
 	int errs = 0;
 	int i;
@@ -1398,7 +1412,6 @@ do_famfs_cli_creat(int argc, char *argv[])
 	int rc = 0;
 	s64 mult;
 	int c;
-	int i;
 
 	struct option creat_options[] = {
 		/* These options set a flag. */
@@ -1488,6 +1501,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 			if (seed || filename) {
 				fprintf(stderr, "%s: -S|-f and -m incompatible\n",
 					__func__);
+				rc = -1;
 				goto multi_err;
 			}
 			if (!mc)
@@ -1501,6 +1515,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 					"nstrings=%d\n", 
 					__func__, multi_count, optarg,
 					nstrings);
+				rc = -1;
 				goto multi_err;
 			}
 
@@ -1564,17 +1579,12 @@ do_famfs_cli_creat(int argc, char *argv[])
 		if (!rc)
 			rc = randomize_multi(mc, multi_count,
 					     threadct, verbose);
+
 	}
 
-	return rc;
 multi_err:
-	if (mc) {
-		for (i = 0; i < multi_count; i++)
-			if (mc->fname)
-				free(mc->fname);
-		free(mc);
-	}
-	return -1;
+	free_multi_creat(mc, multi_count); /* ok if null */
+	return rc;
 }
 
 /********************************************************************/
@@ -1703,6 +1713,20 @@ struct multi_verify {
 	int rc;
 };
 
+static void
+free_multi_verify(struct multi_verify *mv, int multi_count)
+{
+	int i;
+
+	if (!mv)
+		return;
+
+	for (i = 0; i < multi_count; i++)
+		if (mv->fname)
+			free(mv->fname);
+	free(mv);
+}
+
 static int
 verify_one(const char *filename, s64 seed, int quiet)
 {
@@ -1798,7 +1822,6 @@ do_famfs_cli_verify(int argc, char *argv[])
 	s64 seed = 0;
 	s64 rc = 0;
 	int c;
-	int i;
 
 	struct option verify_options[] = {
 		/* These options set a */
@@ -1827,6 +1850,7 @@ do_famfs_cli_verify(int argc, char *argv[])
 			if (mv) {
 				fprintf(stderr, "%s: -S and -m incompatible\n",
 					__func__);
+				rc = -1;
 				goto multi_err;
 			}
 			break;
@@ -1836,6 +1860,7 @@ do_famfs_cli_verify(int argc, char *argv[])
 			if (mv) {
 				fprintf(stderr, "%s: -f and -m incompatible\n",
 					__func__);
+				rc = -1;
 				goto multi_err;
 			}
 			break;
@@ -1847,8 +1872,10 @@ do_famfs_cli_verify(int argc, char *argv[])
 			int nstrings;
 
 			if (seed || filename) {
-				fprintf(stderr, "%s: -S|-f and -m incompatible\n",
+				fprintf(stderr,
+					"%s: -S|-f and -m incompatible\n",
 					__func__);
+				rc = -1;
 				goto multi_err;
 			}
 			if (!mv)
@@ -1860,6 +1887,7 @@ do_famfs_cli_verify(int argc, char *argv[])
 				fprintf(stderr,
 					"%s: bad multi arg(%d): %s\n",
 					__func__, multi_count, optarg);
+				rc = -1;
 				goto multi_err;
 			}
 				
@@ -1887,15 +1915,9 @@ do_famfs_cli_verify(int argc, char *argv[])
 	else
 		rc = verify_multi(mv, multi_count, threadct, quiet);
 
-	return rc;
 multi_err:
-	if (mv) {
-		for (i = 0; i < multi_count; i++)
-			if (mv->fname)
-				free(mv->fname);
-		free(mv);
-	}
-	return -1;
+	free_multi_verify(mv, multi_count); /* ok if null */
+	return rc;
 
 }
 
