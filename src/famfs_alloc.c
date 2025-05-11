@@ -297,7 +297,7 @@ bitmap_alloc_contiguous(
 			return -1;
 
 		for (j = i; j < (i+alloc_bits); j++) {
-			if (mse_bitmap_test32(bitmap, j))
+			if (mu_bitmap_test(bitmap, j))
 				goto next;
 		}
 		/* If we get here, we didn't hit the "continue" which means that bits
