@@ -1187,12 +1187,12 @@ free_multi_creat(struct multi_creat *mc, int multi_count)
 {
 	int i;
 
-	if (!mc)
+	if (!mc || multi_count < 1)
 		return;
 
 	for (i = 0; i < multi_count; i++)
-		if (mc->fname)
-			free(mc->fname);
+		if (mc[i].fname)
+			free(mc[i].fname);
 	free(mc);
 }
 
@@ -1223,8 +1223,8 @@ randomize_one(
 	}
 	buf = (char *)addr;
 
-	randomize_buffer(buf, fsize, seed);
-	flush_processor_cache(buf, fsize);
+	randomize_buffer(buf, fsize_out, seed);
+	flush_processor_cache(buf, fsize_out);
 	return 0;
 }
 
@@ -1499,7 +1499,8 @@ do_famfs_cli_creat(int argc, char *argv[])
 			int nstrings;
 
 			if (seed || filename) {
-				fprintf(stderr, "%s: -S|-f and -m incompatible\n",
+				fprintf(stderr,
+					"%s: -S|-f and --multi incompatible\n",
 					__func__);
 				rc = -1;
 				goto multi_err;
@@ -1722,8 +1723,8 @@ free_multi_verify(struct multi_verify *mv, int multi_count)
 		return;
 
 	for (i = 0; i < multi_count; i++)
-		if (mv->fname)
-			free(mv->fname);
+		if (mv[i].fname)
+			free(mv[i].fname);
 	free(mv);
 }
 
