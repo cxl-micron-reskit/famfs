@@ -9,18 +9,18 @@ logfile="$1"
 
 count=$(grep -c "ERROR SUMMARY" $1)
 if (($count <= 0)); then
-    echo "No valgrind output found in file $1"
+    echo ":== Error: No valgrind output found in file $1"
     exit -1;
 fi
 
 count=$(grep "ERROR SUMMARY" $1 | grep -cv "0 errors from 0 contexts (suppressed: 0 from 0)")
 #echo "$count"
 if (($count == 0)); then
-    echo "Congratulations: no errors found by Valgrind"
+    echo ":== Congratulations: no errors found by Valgrind"
     exit 0
 fi
 
-echo "Valgrind found errors..."
+echo ":== Error: Valgrind found errors..."
 echo
 
 lines=$(grep "ERROR SUMMARY" $1 | \
