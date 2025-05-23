@@ -113,7 +113,7 @@ famfs_compare_log_file_meta(
 	}
 
 	if (verbose && errs) {
-		fprintf(stderr, msgbuf);
+		fprintf(stderr, "%s", msgbuf);
 		msgbuf[0] = 0;
 	}
 
@@ -127,24 +127,12 @@ famfs_compare_log_file_meta(
 
 	switch (m1->fm_fmap.fmap_ext_type) {
 	case FAMFS_EXT_SIMPLE:
-		if (m1->fm_fmap.fmap_nextents != m1->fm_fmap.fmap_nextents) {
-			snprintf(tmpbuf, PATH_MAX - 1, "fm_ext_type mismatch %d / %d\n",
-				 m1->fm_fmap.fmap_nextents, m2->fm_fmap.fmap_nextents);
-			strncat(msgbuf, tmpbuf, MSG_SIZE - 1);
-			errs++;
-			goto out;
-		}
-		errs += famfs_compare_simple_ext_list(msgbuf, m1->fm_fmap.fmap_nextents,
-						      m1->fm_fmap.se, m2->fm_fmap.se);
+		errs += famfs_compare_simple_ext_list(msgbuf,
+						      m1->fm_fmap.fmap_nextents,
+						      m1->fm_fmap.se,
+						      m2->fm_fmap.se);
 		break;
 	case FAMFS_EXT_INTERLEAVE:
-		if (m1->fm_fmap.fmap_niext != m1->fm_fmap.fmap_niext) {
-			snprintf(tmpbuf, PATH_MAX - 1, "fmap_niext mismatch %d / %d\n",
-				 m1->fm_fmap.fmap_niext, m2->fm_fmap.fmap_niext);
-			strncat(msgbuf, tmpbuf, MSG_SIZE - 1);
-			errs++;
-			goto out;
-		}
 		for (j = 0; j < m1->fm_fmap.fmap_niext; j++) {
 			if (m1->fm_fmap.ie[j].ie_nstrips != m2->fm_fmap.ie[j].ie_nstrips) {
 				snprintf(tmpbuf, PATH_MAX - 1,
@@ -168,9 +156,8 @@ famfs_compare_log_file_meta(
 		}
 	}
 
-out:
 	if (verbose && errs) {
-		fprintf(stderr, msgbuf);
+		fprintf(stderr, "%s", msgbuf);
 		msgbuf[0] = 0;
 	}
 

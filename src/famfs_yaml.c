@@ -361,8 +361,8 @@ famfs_emit_file_yaml(
 {
 	yaml_emitter_t emitter;
 	yaml_event_t event;
-	int line;
-	int rc;
+	int line = 0;
+	int rc = 0;
 
 	if (!yaml_emitter_initialize(&emitter)) {
 		fprintf(stderr, "Failed to initialize emitter\n");

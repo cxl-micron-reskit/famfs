@@ -339,7 +339,7 @@ famfs_get_device_size(
 	enum famfs_extent_type *type)
 {
 	char spath[PATH_MAX];
-	char *basename;
+	//char *base_name;
 	FILE *sfile;
 	u_int64_t size_i;
 	struct stat st;
@@ -352,7 +352,7 @@ famfs_get_device_size(
 		return -errno;
 	}
 
-	basename = strrchr(fname, '/');
+	//base_name = strrchr(fname, '/');
 	switch (st.st_mode & S_IFMT) {
 	case S_IFCHR:
 		snprintf(spath, PATH_MAX, "/sys/dev/char/%d:%d/size",
