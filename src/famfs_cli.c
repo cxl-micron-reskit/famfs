@@ -1187,12 +1187,16 @@ free_multi_creat(struct multi_creat *mc, int multi_count)
 {
 	int i;
 
-	if (!mc || multi_count < 1)
+	if (!mc)
 		return;
+
+	if (multi_count)
+		goto free_mc;
 
 	for (i = 0; i < multi_count; i++)
 		if (mc[i].fname)
 			free(mc[i].fname);
+free_mc:
 	free(mc);
 }
 
