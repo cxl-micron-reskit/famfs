@@ -62,7 +62,7 @@ fi
 verify_not_mounted $DEV $MPT "stress_prepare.sh"
 
 # We now expect the module to already be loaded, but no harm in modprobe to make double sure
-sudo modprobe famfs       || fail "modprobe"
+sudo modprobe famfs || modprobe famfsv1 || fail "modprobe"
 
 # destroy famfs file system, if any
 ${MKFS} -f -k $DEV     || fail "mkfs/kill"
