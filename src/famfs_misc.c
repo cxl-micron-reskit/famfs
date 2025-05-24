@@ -63,7 +63,7 @@ s64 get_multiplier(const char *endptr)
 	case 'G':
 		multiplier = 1024 * 1024 * 1024;
 		break;
-	case 0:
+	case 0: /* null terminator */
 		return 1;
 	}
 	++endptr;
@@ -325,7 +325,7 @@ famfs_flush_file(const char *filename, int verbose)
 	return 0;
 }
 
-static int
+int
 kernel_symbol_exists(
 	const char *symbol_name,
 	const char *mod_name,
@@ -413,6 +413,8 @@ famfs_get_kernel_type(int verbose)
  * check_file_exists()
  *
  * Check if file at basepath/relpath exists within timeout seconds
+ * This is primarily used during fuse mount, to wait for the superblock
+ * file to become visible via the fuse mount.
  *
  * Returns 0 if the file is found before timeout.
  * Returns -1 if the timeout is reached and file is still not found.

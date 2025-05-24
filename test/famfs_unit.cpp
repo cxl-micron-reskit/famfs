@@ -46,6 +46,32 @@ TEST(famfs, dummy)
 	ASSERT_EQ(0, 0);
 }
 
+TEST(famfs, famfs_misc)
+{
+	char **strings;
+	int rc;
+
+	rc = check_file_exists("/tmp", "this-file-should-not-exist", 1);
+	ASSERT_EQ(rc, -1);
+	rc = famfs_flush_file("/tmp/this-file-should-not-exist", 1);
+	ASSERT_EQ(rc, 3);
+	free_string_list(NULL, 1);
+	rc = get_multiplier(NULL);
+	ASSERT_EQ(rc, 1);
+	rc = get_multiplier("mm");
+	ASSERT_EQ(rc, -1);
+	rc = kernel_symbol_exists("fuse_file_famfs", "fuse", 1);
+	EXPECT_TRUE(rc == 0 || rc == 1);
+	rc = kernel_symbol_exists("famfs_create", "famfs", 1);
+	EXPECT_TRUE(rc == 0 || rc == 1);
+	rc = kernel_symbol_exists("famfs_create", "famfsv1", 1);
+	EXPECT_TRUE(rc == 0 || rc == 1);
+	rc = famfs_get_kernel_type(1);
+	EXPECT_TRUE(rc == FAMFS_FUSE || rc == FAMFS_V1 || rc == NOT_FAMFS);
+	strings = tokenize_string(NULL, ",", NULL);
+	EXPECT_TRUE(strings == NULL);
+}
+
 TEST(famfs, famfs_create_sys_uuid_file)
 {
 	char sys_uuid_file[PATH];
