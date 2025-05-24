@@ -56,9 +56,9 @@ coverage:	cmake-modules threadpool
 
 # Run the coverage tests
 coverage_test:	coverage
-	script -c "./run_smoke.sh --coverage --nofuse" \
+	script -e -c "./run_smoke.sh --coverage --nofuse" \
 			-O "smoke_coverage.nofuse.$(HOSTNAME).log"
-	script -c "./run_smoke.sh --coverage --fuse" \
+	script -e -c "./run_smoke.sh --coverage --fuse" \
 			-O "smoke_coverage.fuse.$(HOSTNAME).log"
 	sudo chown -R "$(UID):$(GID)" coverage
 	cd coverage; script -e -c "sudo make famfs_unit_coverage" -O ../unit_coverage.log
