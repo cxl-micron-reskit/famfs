@@ -3106,8 +3106,10 @@ famfs_mkfile(
 		if (verbose)
 			printf("%s: overriding interleave_param defaults (nbuckets/nstrips/chunk)="
 			       "(%lld/%lld/%lld) with (%lld/%lld/%lld)\n", __func__,
-			       ll.interleave_param.nbuckets, ll.interleave_param.nstrips, ll.interleave_param.chunk_size,
-			       interleave_param->nbuckets, interleave_param->nstrips, interleave_param->chunk_size);
+			       ll.interleave_param.nbuckets, ll.interleave_param.nstrips,
+			       ll.interleave_param.chunk_size,
+			       interleave_param->nbuckets, interleave_param->nstrips,
+			       interleave_param->chunk_size);
 
 		ll.interleave_param = *interleave_param;
 	}

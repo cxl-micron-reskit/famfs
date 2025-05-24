@@ -471,7 +471,9 @@ famfs_validate_interleave_param(
 	assert(interleave_param);
 	assert(devsize);
 
-	if (!interleave_param->nbuckets && !interleave_param->nstrips && !interleave_param->chunk_size)
+	if (!interleave_param->nbuckets
+	    && !interleave_param->nstrips
+	    && !interleave_param->chunk_size)
 		return 0; /* All 0's is valid */
 
 	if (!interleave_param->chunk_size) {
@@ -506,12 +508,6 @@ famfs_validate_interleave_param(
 		errs++;
 		if (verbose)
 			fprintf(stderr, "%s: Error NULL nbuckets\n", __func__);
-	}
-	if (interleave_param->nstrips > interleave_param->nbuckets) {
-		errs++;
-		if (verbose)
-			fprintf(stderr, "%s: Error nstrips (%lld) > nbuckets (%lld)\n",
-				__func__, interleave_param->nstrips, interleave_param->nbuckets);
 	}
 	if (interleave_param->nbuckets > FAMFS_MAX_NBUCKETS) {
 		errs++;
