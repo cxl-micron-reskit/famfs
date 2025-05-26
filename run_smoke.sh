@@ -160,6 +160,14 @@ else
     fi
 fi
 
+# Check for KABI 42 (standalone famfs, no interleave support)
+FAMFS_IOCTL_H="/usr/include/linux/famfs_ioctl.h"
+if [ -f ${FAMFS_IOCTL_H} ]; then
+    if [ grep -q '^#define[[:space:]]\+FAMFS_KABI_VERSION[[:space:]]\+42$' ${FAMFS_IOCTL_H} ] ; then
+	KABI_42=1
+    fi
+fi
+
 echo ":==*****************************************************************"
 echo ":== run_smoke.sh $(date)"
 echo ":==MODE:     $FAMFS_MODE"
@@ -276,11 +284,17 @@ else
     echo ":== skipping test_errors.sh because -n|--noerrors was specified"
 fi
 
-if [ -z "$SKIP_STRIPE_TEST" ]; then
+if [ -z "$SKIP_STRIPE_TEST" || -z "$KABI_42"  ]; then
     ./smoke/stripe_test.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
     echo ":== stripe_test success"
     sleep "${SLEEP_TIME}"
+else
+    if [ -z "$KABI_42" ]; then
+       echo ":== Skipped stripe_test becuase KABI_42 does not support it"
+    else
+	echo ":== Skipped stripe test"   
+    fi
 fi
 
 if [[ $COVERAGE -ne 1 ]]; then

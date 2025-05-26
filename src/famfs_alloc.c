@@ -678,8 +678,17 @@ famfs_file_alloc(
 		lp->cur_pos = 0;
 	}
 
-	if ((FAMFS_KABI_VERSION <= 42) || (!lp->interleave_param.nbuckets || !lp->interleave_param.nstrips))
+	if (FAMFS_KABI_VERSION <= 42) {
+		if (lp->interleave_param.nbuckets ||
+		    lp->interleave_param.nstrips  ||
+		    lp->interleave_param.chunk_size) {
+			fprintf(stderr,
+				"%s: interleave specified on "
+				"non-interleave-capable kernel\n",
+				__func__);
+			return -1;
+		}
 		return famfs_file_alloc_contiguous(lp, size, fmap_out, verbose);
-
+	}
 	return famfs_file_strided_alloc(lp, size, fmap_out, verbose);
 }
