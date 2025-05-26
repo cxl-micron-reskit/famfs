@@ -70,7 +70,7 @@ while (( $# > 0)); do
 	    ;;
 	(--yaml)
 	    # Just test0 and test_shadow_yaml
-	    SKIP_TEST0=1
+	    #SKIP_TEST0=1
 	    SKIP_TEST1=1
 	    SKIP_TEST2=1
 	    SKIP_TEST3=1
@@ -79,9 +79,10 @@ while (( $# > 0)); do
 	    SKIP_FIO=1
 	    SKIP_ERRS=1
 	    SKIP_STRIPE_TEST=1
+	    ;;
 	(--stripe)
 	    # Just test0 and test_shadow_yaml
-	    SKIP_TEST0=1
+	    #SKIP_TEST0=1
 	    SKIP_TEST1=1
 	    SKIP_TEST2=1
 	    SKIP_TEST3=1
@@ -160,11 +161,13 @@ else
     fi
 fi
 
+set -x
 # Check for KABI 42 (standalone famfs, no interleave support)
 FAMFS_IOCTL_H="/usr/include/linux/famfs_ioctl.h"
-if [ -f ${FAMFS_IOCTL_H} ]; then
-    if [ grep -q '^#define[[:space:]]\+FAMFS_KABI_VERSION[[:space:]]\+42$' ${FAMFS_IOCTL_H} ] ; then
+if [ -f "${FAMFS_IOCTL_H}" ]; then
+    if grep -q '^#define[[:space:]]\+FAMFS_KABI_VERSION[[:space:]]\+42$' ${FAMFS_IOCTL_H} ; then
 	KABI_42=1
+	echo KABI=42
     fi
 fi
 
@@ -284,7 +287,7 @@ else
     echo ":== skipping test_errors.sh because -n|--noerrors was specified"
 fi
 
-if [ -z "$SKIP_STRIPE_TEST" || -z "$KABI_42"  ]; then
+if [ -z "$SKIP_STRIPE_TEST" ] && [ -z "$KABI_42"  ]; then
     ./smoke/stripe_test.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
     echo ":== stripe_test success"

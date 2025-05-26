@@ -659,6 +659,17 @@ famfs_file_strided_alloc(
 	return 0;
 }
 
+static inline int
+alloc_is_interleaved(struct famfs_locked_log *lp)
+{
+	if (lp->interleave_param.nbuckets ||
+	    lp->interleave_param.nstrips  ||
+	    lp->interleave_param.chunk_size)
+		return 1;
+
+	return 0;
+}
+
 int
 famfs_file_alloc(
 	struct famfs_locked_log     *lp,
@@ -678,17 +689,15 @@ famfs_file_alloc(
 		lp->cur_pos = 0;
 	}
 
-	if (FAMFS_KABI_VERSION <= 42) {
-		if (lp->interleave_param.nbuckets ||
-		    lp->interleave_param.nstrips  ||
-		    lp->interleave_param.chunk_size) {
-			fprintf(stderr,
-				"%s: interleave specified on "
-				"non-interleave-capable kernel\n",
-				__func__);
-			return -1;
-		}
-		return famfs_file_alloc_contiguous(lp, size, fmap_out, verbose);
+	if ((FAMFS_KABI_VERSION <= 42) && alloc_is_interleaved(lp)) {
+		fprintf(stderr,
+			"%s: interleave specified on "
+			"non-interleave-capable kernel\n",
+			__func__);
+		return -1;
 	}
+	if (!alloc_is_interleaved(lp))
+		return famfs_file_alloc_contiguous(lp, size, fmap_out, verbose);
+
 	return famfs_file_strided_alloc(lp, size, fmap_out, verbose);
 }
