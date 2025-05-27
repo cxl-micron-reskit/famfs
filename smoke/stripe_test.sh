@@ -127,6 +127,7 @@ stripe_test_cp () {
 	randomize_args+=("${file},${SIZE},${seed} ")
 	(( loopct++ ))
     done
+    echo "performing threaded randomize on ${loopct} files:"
     ${CLI} creat ${randomize_args[@]}
     rc=$?
     if [[ $rc -eq 0 ]]; then
@@ -265,14 +266,14 @@ stripe_test () {
     verify_args=()
     for file in "${files[@]}"; do
 	(( seed = BASE_SEED + loopct ))
-	echo -n "re-verifying file: $file seed=$seed"
+	echo "re-verifying file: $file seed=$seed"
 	verify_args+=("-m")
 	verify_args+=("${file},${seed} ")
 
 	(( loopct++ ))
     done
 
-    ${CLI} verify ${verify_args[@]}
+    ${CLI} verify -v ${verify_args[@]}
     rc="$?"
     if [[ $rc -eq 0 ]]; then
 	echo "...good"

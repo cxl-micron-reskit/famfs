@@ -161,7 +161,6 @@ else
     fi
 fi
 
-set -x
 # Check for KABI 42 (standalone famfs, no interleave support)
 FAMFS_IOCTL_H="/usr/include/linux/famfs_ioctl.h"
 if [ -f "${FAMFS_IOCTL_H}" ]; then
@@ -220,7 +219,6 @@ if [[ "$SCRIPTS" =~ *[[:space:]]* ]]; then
     fail "ERROR: the SCRIPTS path ($SCRIPTS) contains spaces!"
 fi
 
-set -x
 ./smoke/prepare.sh  ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
 echo ":== test0 prepare success"
 

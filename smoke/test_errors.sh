@@ -177,6 +177,7 @@ echo " Important note: This test (at least the first run) will generate a stack 
 echo " in the kernel log (a WARN_ONCE) due to cross-linked pages (specifically DAX noticing"
 echo " that a page was mapped to more than one file. This is normal, as this test intentionally"
 echo " does bogus cross-linked mappings"
+set +x
 echo ":==*************************************************************************"
 echo ":==test_errors completed successfully"
 echo ":==*************************************************************************"
