@@ -102,6 +102,7 @@ SPACE_AVAIL=$(sudo $BIN/famfs fsck $TESTDIR | grep "Free space" | awk -e '{print
 pwd
 # Not a stress test, just a smoke test (4 jobs)
 $REALSCRIPTS/stress_fio.sh \
+		       -v \
 		       -b $BIN \
 		       -r 30 \
 		       -s $SPACE_AVAIL \

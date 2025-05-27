@@ -48,6 +48,9 @@ while (( $# > 0)); do
 	    FILES_DIR=$1
 	    shift;
 	    ;;
+	(-v|--verbose)
+	    VERBOSE=" -vv "
+	    ;;
         *)
             echo "Unrecognized command line arg: $flag"
 	    exit 0
@@ -129,7 +132,8 @@ do
     do
         fname="$NAME.$cpu.$fnum"
         #echo "Creating famfs file $FILES_DIR/$fname"
-        sudo $BIN/famfs creat -s $FSIZE_2M_A $FILES_DIR/$fname || fail "failed to create file $fname"
+        sudo $BIN/famfs creat $VERBOSE -s $FSIZE_2M_A $FILES_DIR/$fname \
+	    || fail "failed to create file $fname"
     done
 done
 
