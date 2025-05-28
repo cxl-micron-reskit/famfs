@@ -215,7 +215,7 @@ stripe_test () {
 	(( loopct++ ))
     done
     #set -x
-    ${CLI} creat ${randomize_args[@]}
+    ${CLI} creat -v ${randomize_args[@]}
     rc=$?
     if [[ $rc -eq 0 ]]; then
 	echo "...done"

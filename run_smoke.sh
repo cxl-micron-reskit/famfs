@@ -292,9 +292,9 @@ if [ -z "$SKIP_STRIPE_TEST" ] && [ -z "$KABI_42"  ]; then
     sleep "${SLEEP_TIME}"
 else
     if [ -z "$KABI_42" ]; then
-       echo ":== Skipped stripe_test becuase KABI_42 does not support it"
+	echo ":== Skipped stripe test due to caller options"
     else
-	echo ":== Skipped stripe test"   
+	echo ":== Skipped stripe_test because KABI_42 does not support it"
     fi
 fi
 
