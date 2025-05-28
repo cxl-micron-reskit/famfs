@@ -54,14 +54,36 @@ coverage:	cmake-modules threadpool
 	$(MAKE) libfuse BDIR="coverage"
 	cd coverage; cmake -DCMAKE_BUILD_TYPE=Debug -DFAMFS_TEST_COVERAGE="yes" ..; $(MAKE)
 
-# Run the coverage tests
-coverage_test:	coverage
-	script -e -c "./run_smoke.sh --coverage --nofuse" \
-			-O "smoke_coverage.nofuse.$(HOSTNAME).log"
+smoke_coverage_fuse:
 	script -e -c "./run_smoke.sh --coverage --fuse" \
 			-O "smoke_coverage.fuse.$(HOSTNAME).log"
+
+smoke_coverage_nofuse:
+	script -e -c "./run_smoke.sh --coverage --nofuse" \
+			-O "smoke_coverage.nofuse.$(HOSTNAME).log"
+
+unit_coverage:
+	cd coverage; script -e -c "sudo make famfs_unit_coverage" \
+			-O ../unit_coverage.log
+
+# Run the coverage tests
+coverage_test:	coverage
+	$(MAKE) smoke_coverage_fuse
+	$(MAKE) smoke_coverage_nofuse
 	sudo chown -R "$(UID):$(GID)" coverage
-	cd coverage; script -e -c "sudo make famfs_unit_coverage" -O ../unit_coverage.log
+	$(MAKE) unit_coverage
+
+coverage_fuse:	coverage
+	$(MAKE) smoke_coverage_fuse
+	sudo chown -R "$(UID):$(GID)" coverage
+	$(MAKE) unit_coverage
+
+coverage_nofuse: coverage
+	$(MAKE) smoke_coverage_nofuse
+	sudo chown -R "$(UID):$(GID)" coverage
+	$(MAKE) unit_coverage
+
+coverage_dual:	coverage_test
 
 release:	cmake-modules threadpool
 	mkdir -p release;
