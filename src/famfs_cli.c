@@ -1207,6 +1207,7 @@ randomize_one(
 	size_t fsize_out;
 	void *addr;
 	char *buf;
+	int rc = 0;
 
 	if (!seed)
 		return 0;
@@ -1220,13 +1221,17 @@ randomize_one(
 	if (fsize && fsize != fsize_out) {
 		fprintf(stderr, "%s: fsize horky %ld / %ld\n",
 			__func__, fsize, fsize_out);
-		return -1;
+		rc = -1;
+		goto out;
 	}
 	buf = (char *)addr;
 
 	randomize_buffer(buf, fsize_out, seed);
 	flush_processor_cache(buf, fsize_out);
-	return 0;
+	printf("randomized %ld bytes: %s\n", fsize_out, filename);
+ out:
+	munmap(addr, fsize_out);
+	return rc;
 }
 
 static int
@@ -1273,7 +1278,8 @@ creat_one(
 			fsize = st.st_size;
 		}
 		if (verbose)
-			printf("%s: re-create is nop\n", __func__);
+			printf("%s: re-create (%s) is nop\n",
+			       __func__, filename);
 
 		if (created)
 			*created = 0;
@@ -1374,6 +1380,8 @@ randomize_multi(
 		return -1;
 	}
 
+	printf("%s: randomizing %d files via %d threads\n",
+	       __func__, multi_count, threadct);
 	thp = thpool_init(threadct);
 	for (i = 0; i < multi_count; i++)
 		thpool_add_work(thp, threaded_randomize, (void *)&mc[i]);
@@ -1763,9 +1771,12 @@ verify_one(const char *filename, s64 seed, int quiet)
 	rc = validate_random_buffer(buf, fsize, seed);
 	if (rc == -1) {
 		if (!quiet)
-			printf("Success: verified %ld bytes in file %s\n", fsize, filename);
+			printf("Success: verified %ld bytes in file %s\n",
+			       fsize, filename);
 	} else {
-		fprintf(stderr, "Verify fail at offset %lld of %ld bytes\n", rc, fsize);
+		fprintf(stderr,
+			"Verify fail: %s at offset %lld of %ld bytes\n",
+			filename, rc, fsize);
 		return 1;
 	}
 	return 0;
@@ -1796,6 +1807,10 @@ verify_multi(
 			__func__, threadct);
 		return -1;
 	}
+
+	if (!quiet)
+		printf("%s: threads=%d nfiles=%d\n",
+		       __func__, threadct,multi_count);
 
 	thp = thpool_init(threadct);
 	for (i = 0; i < multi_count; i++)
