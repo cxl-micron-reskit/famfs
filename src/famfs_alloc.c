@@ -487,22 +487,18 @@ famfs_validate_interleave_param(
 		return -EINVAL;
 	}
 	if (interleave_param->chunk_size % alloc_unit) {
-		fprintf(stderr, "%s: chunk_size=0x%llx must be a multiple of alloc_unit\n",
+		fprintf(stderr,
+		     "%s: chunk_size=0x%llx must be a multiple of alloc_unit\n",
 			__func__, interleave_param->chunk_size);
 		return -EINVAL;
 	}
 	if (interleave_param->nstrips > interleave_param->nbuckets) {
 		errs++;
 		if (verbose)
-			fprintf(stderr, "%s: Error nstrips (%lld) > nbuckets (%lld)\n",
-				__func__, interleave_param->nstrips, interleave_param->nbuckets);
-	}
-	if (interleave_param->chunk_size % alloc_unit) {
-		errs++;
-		if (verbose)
 			fprintf(stderr,
-				"%s: Error chunk_size %lld not multiplle of alloc_unit (%lld)\n",
-				__func__, interleave_param->chunk_size, alloc_unit);
+				"%s: Error nstrips (%lld) > nbuckets (%lld)\n",
+				__func__, interleave_param->nstrips,
+				interleave_param->nbuckets);
 	}
 	if (!interleave_param->nbuckets) {
 		errs++;
@@ -512,15 +508,18 @@ famfs_validate_interleave_param(
 	if (interleave_param->nbuckets > FAMFS_MAX_NBUCKETS) {
 		errs++;
 		if (verbose)
-			fprintf(stderr, "%s: Error nbuckets %lld exceeds max %d\n",
-				__func__, interleave_param->nbuckets, FAMFS_MAX_NBUCKETS);
+			fprintf(stderr,
+				"%s: Error nbuckets %lld exceeds max %d\n",
+				__func__, interleave_param->nbuckets,
+				FAMFS_MAX_NBUCKETS);
 	}
 
 	bucket_size = (interleave_param->nbuckets) ? devsize / interleave_param->nbuckets : 0;
 	if ((bucket_size < 1024 * 1024 * 1024) && !mock_stripe) {
 		errs++;
 		if (verbose)
-			fprintf(stderr, "%s: Bucket_size (%lld) < 1G\n", __func__, bucket_size);
+			fprintf(stderr, "%s: Bucket_size (%lld) < 1G\n",
+				__func__, bucket_size);
 	}
 
 	return errs;
