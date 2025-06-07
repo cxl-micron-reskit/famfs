@@ -654,16 +654,19 @@ famfs_lookup(
 static void
 famfs_get_fmap(
 	fuse_req_t req,
-	fuse_ino_t nodeid)
+	fuse_ino_t nodeid,
+	size_t size)
 {
-	char fmap_message[FMAP_MSG_MAX];
+	ssize_t fmap_bufsize = FMAP_MSG_MAX;
+	char fmap_message[fmap_bufsize];
 	struct famfs_inode *inode;
 	ssize_t fmap_size;
 	int err = 0;
 
 	memset(fmap_message, 0, FMAP_MSG_MAX);
 
-	fuse_log(FUSE_LOG_NOTICE, "%s: inode=%ld\n", __func__, nodeid);
+	fuse_log(FUSE_LOG_NOTICE, "%s: inode=%ld size=%ld\n",
+		 __func__, nodeid, size);
 	inode = famfs_find_inode(famfs_data(req), nodeid);
 	if (inode) /* XXX drop when first fuse patch set is deprecated */
 		fuse_log(FUSE_LOG_DEBUG, "%s: old kmod - found by i_ino\n",
@@ -697,7 +700,7 @@ famfs_get_fmap(
 	fuse_log(FUSE_LOG_NOTICE, "%s: sending fmap message len=%ld\n",
 		 __func__, fmap_size);
 
-	err = fuse_reply_buf(req, fmap_message, /* fmap_size */ FMAP_MSG_MAX);
+	err = fuse_reply_buf(req, fmap_message, fmap_size /* FMAP_MSG_MAX */);
 	if (err)
 		fuse_log(FUSE_LOG_ERR, "%s: fuse_reply_buf returned err %d\n",
 			 __func__, err);
