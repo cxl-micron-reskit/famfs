@@ -171,6 +171,9 @@ cd -
 ${CLI} mkdir -pv $MPT/${F}/foo/bar/baz/bing && fail "mkdir -p with a file in path should fail"
 ${CLI} mkdir -pvvv $MPT/a/y/../../../.. && fail "mkdir -p ../../../.. ascended out of famfs"
 
+# Cause some eviction and re-reading
+echo 2 | sudo tee /proc/sys/vm/drop_caches
+
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp0      || fail "cp0 $F"
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp1      || fail "cp1 $F"
 ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp2      || fail "cp2 $F"
@@ -197,6 +200,9 @@ ${CLI} cp $MPT/$F $MPT/dirtarg      || fail "cp to dir $F"
 ${CLI} verify -S 42 -f $MPT/dirtarg/${F} || fail "verify dirtarg/${F}"
 
 ${CLI} logplay -n $MPT
+
+# Cause some eviction and re-reading
+echo 2 | sudo tee /proc/sys/vm/drop_caches
 
 ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp0 || fail "verify ${F}_cp0"
 ${CLI} verify -S 42 -f $MPT/subdir/${F}_cp1 || fail "verify ${F}_cp1"

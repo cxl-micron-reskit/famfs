@@ -118,6 +118,9 @@ stripe_test_cp () {
 	((counter++))
     done
 
+    # Cause some eviction and re-reading
+    echo 2 | sudo tee /proc/sys/vm/drop_caches
+
     loopct=0
     randomize_args=()
     for file in "${files[@]}"; do
@@ -137,6 +140,9 @@ stripe_test_cp () {
     fi
 
     # TODO: if the the FAMFS_KABI_VERSION >= 43, verify that the files are striped
+
+    # Cause some eviction and re-reading
+    echo 2 | sudo tee /proc/sys/vm/drop_caches
 
     #
     # Check the files with the "remembered" seeds
@@ -201,6 +207,9 @@ stripe_test () {
 
     echo "created $counter files"
 
+    # Cause some eviction and re-reading
+    echo 2 | sudo tee /proc/sys/vm/drop_caches
+
     #
     # Randomize the files and remember the seeds
     #
@@ -224,6 +233,9 @@ stripe_test () {
     fi
 
     # TODO: if the the FAMFS_KABI_VERSION >= 43, verify that the files are striped
+
+    # Cause some eviction and re-reading
+    echo 2 | sudo tee /proc/sys/vm/drop_caches
 
     #
     # Check the files with the "remembered" seeds
