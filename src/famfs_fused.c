@@ -687,7 +687,7 @@ famfs_get_fmap(
 	}
 
 	/* XXX: FUSE_FAMFS_FILE_REG - mark sb and log correctly */
-	fmap_size = famfs_log_file_meta_to_msg(fmap_message, FMAP_MSG_MAX,
+	fmap_size = famfs_log_file_meta_to_msg(fmap_message, fmap_bufsize,
 					       FUSE_FAMFS_FILE_REG,
 					       inode->fmeta);
 	if (fmap_size <= 0) {
