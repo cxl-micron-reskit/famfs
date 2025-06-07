@@ -699,7 +699,15 @@ famfs_get_fmap(
 	}
 	fuse_log(FUSE_LOG_NOTICE, "%s: sending fmap message len=%ld\n",
 		 __func__, fmap_size);
-
+#if 1
+	/* XXX revertme
+	 * For the moment we return fmap_bufsize because the v1 famfs-fuse
+	 * kernel patch set doesn't handle shorter replies. Revert this when
+	 * we no longer need to support shortening the reply to the actual
+	 * length of the fmap
+	 */
+	fmap_size = fmap_bufsize; /* override to 4K for v1 famfs-fuse kernel */
+#endif
 	err = fuse_reply_buf(req, fmap_message, fmap_size /* FMAP_MSG_MAX */);
 	if (err)
 		fuse_log(FUSE_LOG_ERR, "%s: fuse_reply_buf returned err %d\n",
