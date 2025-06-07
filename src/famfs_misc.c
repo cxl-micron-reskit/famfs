@@ -404,7 +404,8 @@ famfs_get_kernel_type(int verbose)
 		return FAMFS_V1;
 
 	if (verbose)
-		fprintf(stderr, "%s: no famfs symbols in running kernel\n", __func__);
+		fprintf(stderr, "%s: no famfs symbols in running kernel\n",
+			__func__);
 
 	return NOT_FAMFS;
 }

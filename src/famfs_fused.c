@@ -834,8 +834,6 @@ unref_inode(
 	if (!inode)
 		return;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: parent=%lx\n", __func__, inode);
-
 	pthread_mutex_lock(&lo->mutex);
 	assert(inode->refcount >= n);
 	inode->refcount -= n;
@@ -848,13 +846,21 @@ unref_inode(
 		prev->next = next;
 
 		pthread_mutex_unlock(&lo->mutex);
+
+		fuse_log(FUSE_LOG_DEBUG,
+			 "%s: i_ino=%d nodeid=%lx dropped\n",
+			 __func__, inode->ino, inode);
+
 		close(inode->fd);
 		if (inode->fmeta)
 			free(inode->fmeta);
 		free(inode);
-
 	} else {
 		pthread_mutex_unlock(&lo->mutex);
+		fuse_log(FUSE_LOG_DEBUG,
+			 "%s: i_ino=%d nodeid=%lx dereferenced by %ld\n",
+			 __func__, inode->ino, inode, n);
+
 	}
 }
 
@@ -883,6 +889,7 @@ famfs_forget(
 	fuse_ino_t nodeid,
 	uint64_t nlookup)
 {
+	fuse_log(FUSE_LOG_DEBUG, "%s:\n", __func__);
 	famfs_forget_one(req, nodeid, nlookup);
 	fuse_reply_none(req);
 }
@@ -894,6 +901,8 @@ famfs_forget_multi(
 	struct fuse_forget_data *forgets)
 {
 	int i;
+
+	fuse_log(FUSE_LOG_DEBUG, "%s:\n", __func__);
 
 	for (i = 0; i < count; i++)
 		famfs_forget_one(req, forgets[i].ino, forgets[i].nlookup);
@@ -1552,8 +1561,8 @@ int main(int argc, char *argv[])
 
 	if (famfs_data.daxdev) {
 		/* Store the primary daxdev in slot 0 of the daxdev_table... */
-		famfs_data.daxdev_table = calloc(MAX_DAXDEVS,
-						 sizeof(*famfs_data.daxdev_table));
+		famfs_data.daxdev_table =
+			calloc(MAX_DAXDEVS, sizeof(*famfs_data.daxdev_table));
 		strncpy(famfs_data.daxdev_table[0].dd_daxdev,
 			famfs_data.daxdev, FAMFS_DEVNAME_LEN - 1);
 	}
@@ -1575,7 +1584,8 @@ int main(int argc, char *argv[])
 		if (!S_ISDIR(stat.st_mode)) {
 			fprintf(stderr, "%s: source (%s) is not a directory\n",
 				PROGNAME, famfs_data.source);
-			fuse_log(FUSE_LOG_ERR, "%s: source (%s) is not a directory\n",
+			fuse_log(FUSE_LOG_ERR,
+				 "%s: source (%s) is not a directory\n",
 				 PROGNAME, famfs_data.source);
 			exit(1);
 		}
@@ -1583,12 +1593,11 @@ int main(int argc, char *argv[])
 		/* XXX validate that the source is a valid famfs shadow fs */
 
 	} else {
-		fuse_log(FUSE_LOG_ERR,
-			 "%s: must supply shadow fs path as -o source=</shadow/path>\n",
-			 PROGNAME);
-		fprintf(stderr, 
-			"%s: must supply shadow fs path as -o source=</shadow/path>\n",
-			PROGNAME);
+		const char *fmt = "%s: must supply shadow fs path "
+			"as -o source=</shadow/path>\n";
+
+		fuse_log(FUSE_LOG_ERR, fmt, PROGNAME);
+		fprintf(stderr, fmt, PROGNAME);
 		exit(1);
 	}
 	if (!famfs_data.timeout_set) {
@@ -1622,7 +1631,8 @@ int main(int argc, char *argv[])
 	/*
 	 * this creates the fuse session
 	 */
-	se = fuse_session_new(&args, &famfs_oper, sizeof(famfs_oper), &famfs_data);
+	se = fuse_session_new(&args, &famfs_oper, sizeof(famfs_oper),
+			      &famfs_data);
 	if (se == NULL)
 	    goto err_out1;
 
@@ -1632,7 +1642,8 @@ int main(int argc, char *argv[])
 	/* Add shadow arg to kernel mount opts */
 	snprintf(shadow_opt, sizeof(shadow_opt), "shadow=%s", famfs_data.source);
 	if (fuse_add_kernel_mount_opt(se, shadow_opt))
-		fuse_log(FUSE_LOG_ERR, "%s: failed to add kernel mount opt (%s)\n",
+		fuse_log(FUSE_LOG_ERR,
+			 "%s: failed to add kernel mount opt (%s)\n",
 			 __func__, shadow_opt);
 
 	if (fuse_session_mount(se, opts.mountpoint) != 0)
