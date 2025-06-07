@@ -123,7 +123,8 @@ int famfs_cp(struct famfs_locked_log *lp, const char *srcfile, const char *destf
 		mode_t mode, uid_t uid, gid_t gid, int verbose);
 
 /* famfs_misc.c */
-int check_file_exists(const char *basepath, const char *relpath, int timeout);
+int check_file_exists(const char *basepath, const char *relpath,
+		      int timeout, int verbose);
 int kernel_symbol_exists(const char *symbol_name, const char *mod_name,
 			 const int verbose);
 

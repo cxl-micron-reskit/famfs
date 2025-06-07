@@ -586,7 +586,8 @@ famfs_mount_fuse(
 
 	/* Verify that the meta files have appeared (i.e. the fuse mount
 	 * was successful */
-	if (check_file_exists(realmpt, ".meta/.superblock", 3 /* timeout */)) {
+	if (check_file_exists(realmpt, ".meta/.superblock",
+			      3 /* timeout */, verbose)) {
 		fprintf(stderr, "%s: superblock file failed to appear\n",
 			__func__);
 		rc = -1;

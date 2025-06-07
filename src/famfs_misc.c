@@ -422,11 +422,14 @@ famfs_get_kernel_type(int verbose)
 int check_file_exists(
 	const char *basepath,
 	const char *relpath,
-	int timeout)
+	int timeout,
+	int verbose)
 {
 	char fullpath[4096];
 	struct stat st;
 	int elapsed = 0;
+	useconds_t wait_us = 100 * 1000; /* 100ms */
+	useconds_t waited = 0;
 
 	/* Build full path */
 	snprintf(fullpath, sizeof(fullpath), "%s/%s", basepath, relpath);
@@ -435,10 +438,14 @@ int check_file_exists(
 	while (elapsed < timeout) {
 		if (stat(fullpath, &st) == 0) {
 			/* File exists */
+			if (verbose)
+				printf("%s: waited %dms\n", __func__,
+				       waited / 1000);
 			return 0;
 		}
-		sleep(1);
+		usleep(wait_us);
 		elapsed++;
+		waited += wait_us;
 	}
 
 	/* File did not appear within timeout */

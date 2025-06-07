@@ -51,7 +51,7 @@ TEST(famfs, famfs_misc)
 	char **strings;
 	int rc;
 
-	rc = check_file_exists("/tmp", "this-file-should-not-exist", 1);
+	rc = check_file_exists("/tmp", "this-file-should-not-exist", 1, 1);
 	ASSERT_EQ(rc, -1);
 	rc = famfs_flush_file("/tmp/this-file-should-not-exist", 1);
 	ASSERT_EQ(rc, 3);
