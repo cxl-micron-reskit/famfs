@@ -611,7 +611,7 @@ famfs_do_lookup(
 	 * "forgotten", in which case that memory will have been freed and/or
 	 * reused. So we still have to look up the inode in our cache...
 	 */
-	fuse_log(FUSE_LOG_NOTICE, "%s: nodeid=%lld i_ino=%ld ext_type=%d\n",
+	fuse_log(FUSE_LOG_NOTICE, "%s: nodeid=%lx i_ino=%ld ext_type=%d\n",
 		 __func__, (long long)e->ino, e->attr.st_ino,
 		 (inode->fmeta) ? inode->fmeta->fm_fmap.fmap_ext_type : -1);
 
@@ -986,7 +986,7 @@ famfs_do_readdir(
 
 	(void) nodeid;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%ld size=%ld ofs=%ld plus=%d\n",
+	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%lx size=%ld ofs=%ld plus=%d\n",
 		 __func__, nodeid, size, offset, plus);
 
 	buf = calloc(1, size);
@@ -1080,7 +1080,7 @@ famfs_readdir(
 	off_t offset,
 	struct fuse_file_info *fi)
 {
-	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%ld size=%ld offset=%ld\n",
+	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%lx size=%ld offset=%ld\n",
 		  __func__, nodeid, size, offset);
 	famfs_do_readdir(req, nodeid, size, offset, fi, 0);
 }
@@ -1137,7 +1137,7 @@ famfs_open(
 	char buf[64];
 	struct famfs_data *lo = famfs_data(req);
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%ld\n", __func__, nodeid);
+	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
 
 	if (famfs_debug(req))
 		fuse_log(FUSE_LOG_DEBUG, "famfs_open(nodeid=%lx, flags=%d)\n",
@@ -1192,7 +1192,7 @@ famfs_release(
 {
 	(void) nodeid;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%ld\n", __func__, nodeid);
+	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
 
 	close(fi->fh);
 	fuse_reply_err(req, 0);
@@ -1207,7 +1207,7 @@ famfs_flush(
 	int res;
 	(void) nodeid;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%ld\n", __func__, nodeid);
+	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
 
 	res = close(dup(fi->fh));
 	fuse_reply_err(req, res == -1 ? errno : 0);
@@ -1223,7 +1223,7 @@ famfs_fsync(
 	int res;
 	(void) nodeid;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%ld\n", __func__, nodeid);
+	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
 
 	if (datasync)
 		res = fdatasync(fi->fh);
@@ -1265,7 +1265,7 @@ famfs_write_buf(
 	ssize_t res;
 	struct fuse_bufvec out_buf = FUSE_BUFVEC_INIT(fuse_buf_size(in_buf));
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%ld\n", __func__, nodeid);
+	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
 
 	out_buf.buf[0].flags = FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK;
 	out_buf.buf[0].fd = fi->fh;
@@ -1291,7 +1291,7 @@ famfs_statfs(
 	int res;
 	struct statvfs stbuf;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%ld\n", __func__, nodeid);
+	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
 
 	res = fstatvfs(famfs_fd(req, nodeid), &stbuf);
 	if (res == -1)
@@ -1323,7 +1323,7 @@ famfs_flock(
 	int res;
 	(void) nodeid;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%ld op=%d\n",
+	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%lx op=%d\n",
 		 __func__, nodeid, op);
 
 	res = flock(fi->fh, op);
