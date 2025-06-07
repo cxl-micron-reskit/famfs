@@ -664,7 +664,12 @@ famfs_get_fmap(
 	memset(fmap_message, 0, FMAP_MSG_MAX);
 
 	fuse_log(FUSE_LOG_NOTICE, "%s: inode=%ld\n", __func__, nodeid);
-	inode = famfs_inode(req, nodeid);
+	inode = famfs_find_inode(famfs_data(req), nodeid);
+	if (inode) /* XXX drop when first fuse patch set is deprecated */
+		fuse_log(FUSE_LOG_DEBUG, "%s: old kmod - found by i_ino\n",
+			 __func__);
+	if (!inode)
+		inode = famfs_inode(req, nodeid);
 	if (!inode) {
 		fuse_log(FUSE_LOG_ERR, "%s: inode 0x%ld not found\n",
 			 __func__, nodeid);
