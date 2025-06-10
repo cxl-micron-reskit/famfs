@@ -20,6 +20,9 @@ threadpool:
 	fi
 
 
+LIBFUSE_REPO := https://github.com/jagalactic/libfuse.git;
+LIBFUSE_BRANCH := famfs-6.14
+
 libfuse:
 	echo "Build: $(BDIR)"
 	@if [ -z "$(BDIR)" ]; then \
@@ -28,7 +31,7 @@ libfuse:
 	fi
 	@if [ ! -d "libfuse" ]; then \
 		echo "cloning libfuse..."; \
-		git clone -b famfs https://github.com/jagalactic/libfuse.git; \
+		git clone -b $(LIBFUSE_BRANCH) $(LIBFUSE_REPO) \
 	fi
 	mkdir -p $(BDIR)/libfuse
 	meson setup -Dexamples=false $(BDIR)/libfuse ./libfuse
