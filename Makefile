@@ -107,10 +107,20 @@ test:
 	sudo rm -rf /tmp/famfs
 	cd debug; sudo ctest --output-on-failure
 
+smoke_nofuse:	debug
+	script -e -c "./run_smoke.sh --nofuse" -O "smoke.$(HOSTNAME).nofuse.log"
+
+smoke_fuse:	debug
+	script -e -c "./run_smoke.sh --fuse" -O "smoke.$(HOSTNAME).fuse.log"
+
 # Run the smoke tests
 smoke:	debug
-	script -e -c "./run_smoke.sh --nofuse" -O "smoke.$(HOSTNAME).nofuse.log"
-	script -e -c "./run_smoke.sh --fuse" -O "smoke.$(HOSTNAME).fuse.log"
+	make smoke_nofuse
+	make smoke_fuse
+
+smoke_dual:	debug
+	make smoke_nofuse
+	make smoke_fuse
 
 smoke_valgrind: debug
 	valgrind --version
