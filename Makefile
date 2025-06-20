@@ -122,6 +122,16 @@ smoke_dual:	debug
 	make smoke_nofuse
 	make smoke_fuse
 
+smoke_valgrind_nofuse:	debug
+	script -e -c "./run_smoke.sh --valgrind --nofuse" \
+				-O "smoke.$(HOSTNAME).vg.nofuse.log"
+	scripts/check_valgrind_output.sh "smoke.$(HOSTNAME).vg.nofuse.log"
+
+smoke_valgrind_fuse:	debug
+	script -e -c "./run_smoke.sh --valgrind --fuse" \
+				-O "smoke.$(HOSTNAME).vg.fuse.log"
+	scripts/check_valgrind_output.sh "smoke.$(HOSTNAME).vg.fuse.log"
+
 smoke_valgrind: debug
 	valgrind --version
 	script -e -c "./run_smoke.sh --valgrind --nofuse" \
@@ -130,6 +140,8 @@ smoke_valgrind: debug
 				-O "smoke.$(HOSTNAME).vg.fuse.log"
 	scripts/check_valgrind_output.sh "smoke.$(HOSTNAME).vg.nofuse.log"
 	scripts/check_valgrind_output.sh "smoke.$(HOSTNAME).vg.fuse.log"
+
+smoke_valgrind_dual:	smoke_valgrind
 
 stress_tests:	release
 	 script -e -c "./run_stress_tests.sh" -O "stress.$(HOSTNAME).log"
