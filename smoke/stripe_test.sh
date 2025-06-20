@@ -246,7 +246,7 @@ stripe_test () {
     verify_args=()
     for file in "${files[@]}"; do
 	(( seed = BASE_SEED + loopct ))
-	echo -n "verifying file: $file seed=$seed"
+	echo "verifying file: $file seed=$seed"
 	verify_args+=("-m")
 	verify_args+=("${file},${seed} ")
 	
