@@ -78,7 +78,7 @@ MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
 MKFS="sudo $VG $BIN/mkfs.famfs"
 CLI="sudo $VG $BIN/famfs"
 CLI_NOSUDO="$VG $BIN/famfs"
-TEST="test0"
+TEST="test1"
 
 source $SCRIPTS/test_funcs.sh
 # Above this line should be the same for all smoke tests

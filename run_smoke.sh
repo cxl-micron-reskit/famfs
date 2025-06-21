@@ -46,6 +46,16 @@ while (( $# > 0)); do
 	(-e|--noerrors)
 	    SKIP_ERRS=0
 	    ;;
+	(--jmg) # For debugging an intermittent segfault in test1.sh
+	    SKIP_TEST0=1
+	    SKIP_SHADOW_YAML=1
+	    SKIP_TEST2=1
+	    SKIP_TEST3=1
+	    SKIP_TEST4=1
+	    SKIP_PCQ=1
+	   # SKIP_FIO=1
+	    SKIP_STRIPE_TEST=1
+	    ;;
 	(-E|--justerrors)
 	    SKIP_TEST0=1
 	    SKIP_TEST1=1
