@@ -299,7 +299,8 @@ int
 famfs_get_role_by_dev(const char *daxdev)
 {
 	struct famfs_superblock *sb;
-	int rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, NULL, 0, 1 /* read only */);
+	int rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, NULL,
+						   0, 1 /* read only */);
 
 	if (rc)
 		return rc;
@@ -581,25 +582,27 @@ famfs_fsck_scan(
  * famfs_mmap_superblock_and_log_raw()
  *
  * This function mmaps a superblock and log directly from a dax device.
- * This is used during mkfs, mount, and fsck (only if the file system is not mounted).
- * No other apps should use this interface.
+ * This is used during mkfs, mount, and fsck (only if the file system is not
+ * mounted). No other apps should use this interface.
  *
- * If called with a NULL @logp, only the superblock is mapped (which is deterministically
- * sized at FAMFS_SUPERBLOCK_SIZE.
+ * If called with a NULL @logp, only the superblock is mapped (which is
+ * deterministically sized at FAMFS_SUPERBLOCK_SIZE.
  *
  * If @logp is non-NULL, we attempt to map the log as follows:
- * * If log_size==0, we figure out the log size and map it - if there is a valid superblock
- * * If log_size>0 (and is a multiple of 2MiB), we attempt to map log_size from offset
- *   FAMFS_LOG_OFFSET into the device.
+ * * If log_size==0, we figure out the log size and map it - if there is a
+ *   valid superblock
+ * * If log_size>0 (and is a multiple of 2MiB), we attempt to map log_size
+ *   from offset FAMFS_LOG_OFFSET into the device.
  *
- * The superblock is not validated - UNLESS we need to get the log size from it, in which
- * case we must validate the superblock.
+ * The superblock is not validated - UNLESS we need to get the log size from it,
+ * in which case we must validate the superblock.
  *
  * @devname:   dax device name
  * @sbp:       (mandatory) Return superblock in this pointer
  * @logp:      (optional)  Map log and return it in this pointer
- * @log_size:  If nonzero, map this size. If zero, figure out the log size from the superblock
- *             and map the correct size. (if no valid superblock, don't map the log)
+ * @log_size:  If nonzero, map this size. If zero, figure out the log size
+ *             from the superblock and map the correct size. (if no valid
+ *             superblock, don't map the log)
  * @read_only: map sb and log read-only if nonzero
  */
 static int
@@ -621,13 +624,15 @@ famfs_mmap_superblock_and_log_raw(
 
 	if (log_size &&
 	    ((log_size < FAMFS_LOG_LEN) || (log_size & (log_size - 1)) )) {
-		fprintf(stderr, "%s: invalid log_size %lld\n", __func__, log_size);
+		fprintf(stderr, "%s: invalid log_size %lld\n",
+			__func__, log_size);
 		return -EINVAL;
 	}
 	fd = open(devname, openmode, 0);
 	if (fd < 0) {
 		if (errno == ENOENT)
-			fprintf(stderr, "%s: device %s not found\n", __func__, devname);
+			fprintf(stderr, "%s: device %s not found\n",
+				__func__, devname);
 		else
 			fprintf(stderr, "%s: open %s failed; rc %d errno %d\n",
 				__func__, devname, rc, errno);
@@ -648,23 +653,25 @@ famfs_mmap_superblock_and_log_raw(
 
 	/* Map the log if requested.
 	 * * If log_size is nonzero, we mmap that size.
-	 * * If log_size == 0, we get the log size from the superblock, and we only
-	 *   map the log if there is a valid superblock
+	 * * If log_size == 0, we get the log size from the superblock, and
+	 *   we only map the log if there is a valid superblock
 	 */
 	if (logp) {
 		void *addr;
 		u64 lsize = log_size;
 
-		/* Special case: if the log_size arg==0, we figure out the log size from the
-		 * superblock, which first requires validating the superblock */
+		/* Special case: if the log_size arg==0, we figure out the
+		 * log size from the superblock, which first requires validating
+		 * the superblock */
 		if (lsize == 0) {
 			invalidate_processor_cache(sb, FAMFS_SUPERBLOCK_SIZE);
 			if (famfs_check_super(sb)) {
-				/* No valid superblock, and no log_size - don't map log */
+				/* No valid superblock, and no log_size -
+				 * don't map log */
 				goto out;
 			}
 
-			/* Superblock is valid, and we need the log size from it */
+			/* Superblock is valid; get the log size from it */
 			lsize = sb->ts_log_len;
 		}
 
@@ -707,12 +714,13 @@ famfs_check_super(const struct famfs_superblock *sb)
 		fprintf(stderr, "%s: superblock version=%lld (expected %lld).\n"
 			"\tThis famfs_lib is not compatible with your famfs instance\n",
 			__func__, sb->ts_version, (u64)FAMFS_CURRENT_VERSION);
-		return 1; /* rc=1 means the SB may be valid, but is the wrong version */
+		return 1; /* rc=1: SB may be valid, but is the wrong version */
 	}
 
 	sbcrc = famfs_gen_superblock_crc(sb);
 	if (sb->ts_crc != sbcrc) {
-		fprintf(stderr, "%s ERROR: crc mismatch in superblock!\n", __func__);
+		fprintf(stderr, "%s ERROR: crc mismatch in superblock!\n",
+			__func__);
 		return -1;
 	}
 
@@ -755,7 +763,7 @@ famfs_ext_to_simple_ext(
  * This function attaches an allocated simple extent list to a file
  *
  * @path:
- * @fd:           file descriptor for the file whose map will be created (already open)
+ * @fd: file descriptor for the file whose map will be created (already open)
  * @size:
  * @nextents:
  * @extent_list:
@@ -765,7 +773,7 @@ famfs_v1_set_file_map(
 	int                         fd,
 	size_t                      size,
 	int                         nextents,
-	struct famfs_simple_extent *ext_list, /* TODO: convert to famfs_log_fmap */
+	struct famfs_simple_extent *ext_list,/* TODO: convert to famfs_log_fmap */
 	enum famfs_file_type        type)
 {
 	struct famfs_ioc_map filemap = {0};
@@ -801,7 +809,7 @@ famfs_v1_set_file_map(
  * This function attaches an allocated simple extent list to a file
  *
  * @path:
- * @fd:           file descriptor for the file whose map will be created (already open)
+ * @fd:  file descriptor for the file whose map will be created (already open)
  * @size:
  * @nextents:
  * @extent_list:
@@ -860,7 +868,8 @@ famfs_v2_set_file_map(
 			kie[i].ie_nbytes = size;
 
 			if (ie->ie_nstrips > FAMFS_MAX_SIMPLE_EXTENTS) {
-				fprintf(stderr, "%s: strip list overflow (%lld) at ie %d\n",
+				fprintf(stderr,
+					"%s: strip overflow (%lld) at ie %d\n",
 					__func__, ie->ie_nstrips, i);
 				return -EINVAL;
 			}
@@ -949,8 +958,8 @@ __famfs_mkmeta(
 			}
 		} else {
 			fprintf(stderr,
-				"%s: non-regular file found where superblock expected\n",
-				__func__);
+				"%s: non-regular file found "
+				"where superblock expected\n", __func__);
 			return -EINVAL;
 		}
 	}
@@ -964,7 +973,8 @@ __famfs_mkmeta(
 		fm.fm_uid = 0;
 		fm.fm_gid = 0;
 		fm.fm_mode = 0444;
-		strncpy((char *)fm.fm_relpath, famfs_relpath_from_fullpath(mpt, sb_file),
+		strncpy((char *)fm.fm_relpath,
+			famfs_relpath_from_fullpath(mpt, sb_file),
 			FAMFS_MAX_PATHLEN - 1);
 
 		fm.fm_fmap.fmap_ext_type = FAMFS_EXT_SIMPLE;
@@ -976,22 +986,26 @@ __famfs_mkmeta(
 		famfs_shadow_file_create(sb_file, &fm, &ls, 0, 0, 0, verbose);
 	} else {
 		/* Create and provide mapping for Superblock file */
-		sbfd = open(sb_file, O_RDWR|O_CREAT, 0444 /* sb file is read-only everywhere */);
+		sbfd = open(sb_file, O_RDWR|O_CREAT,
+			    0444 /* sb file is read-only everywhere */);
 		if (sbfd < 0) {
-			fprintf(stderr, "%s: failed to create file %s\n", __func__, sb_file);
+			fprintf(stderr, "%s: failed to create file %s\n",
+				__func__, sb_file);
 			return -1;
 		}
 
 		if (file_has_v1_map(sbfd)) {
-			fprintf(stderr, "%s: found valid superblock file; doing nothing\n",
+			fprintf(stderr,
+				"%s: found valid superblock file; NOP\n",
 				__func__);
 		} else {
 			ext.se_offset = 0;
 			ext.se_len    = FAMFS_SUPERBLOCK_SIZE;
-			rc = famfs_v1_set_file_map(sbfd, FAMFS_SUPERBLOCK_SIZE, 1, &ext,
-						   FAMFS_SUPERBLOCK);
+			rc = famfs_v1_set_file_map(sbfd, FAMFS_SUPERBLOCK_SIZE,
+						   1, &ext, FAMFS_SUPERBLOCK);
 			if (rc) {
-				fprintf(stderr, "%s: failed to create superblock file %s\n",
+				fprintf(stderr,
+				    "%s: failed to create superblock file %s\n",
 					__func__, sb_file);
 				close(sbfd);
 				unlink(sb_file);
@@ -1007,11 +1021,13 @@ __famfs_mkmeta(
 		if ((st.st_mode & S_IFMT) == S_IFREG) {
 			/* Log file exists; is it the right size? */
 			if (st.st_size != sb->ts_log_len) {
-				if (!shadow) /* Shadow files are not "actual size" */
+				if (!shadow) {
+					/* Shadow files are not "actual size" */
 					fprintf(stderr,
 						"%s: bad log file - "
 						"remount likely required\n",
 						__func__);
+				}
 			}
 		} else {
 			fprintf(stderr,
@@ -1030,7 +1046,8 @@ __famfs_mkmeta(
 		fm.fm_uid = 0;
 		fm.fm_gid = 0;
 		fm.fm_mode = (role == FAMFS_MASTER) ? 0644 : 0444;
-		strncpy((char *)fm.fm_relpath, famfs_relpath_from_fullpath(mpt, log_file),
+		strncpy((char *)fm.fm_relpath,
+			famfs_relpath_from_fullpath(mpt, log_file),
 			FAMFS_MAX_PATHLEN - 1);
 
 		fm.fm_fmap.fmap_ext_type = FAMFS_EXT_SIMPLE;
@@ -1043,21 +1060,26 @@ __famfs_mkmeta(
 		/* Create and provide mapping for log file
 		 * Log is only writable on the master node
 		 */
-		logfd = open(log_file, O_RDWR|O_CREAT, (role == FAMFS_MASTER) ? 0644 : 0444);
+		logfd = open(log_file, O_RDWR|O_CREAT,
+			     (role == FAMFS_MASTER) ? 0644 : 0444);
 		if (logfd < 0) {
-			fprintf(stderr, "%s: failed to create file %s\n", __func__, log_file);
+			fprintf(stderr, "%s: failed to create file %s\n",
+				__func__, log_file);
 			return -1;
 		}
 
 		if (file_has_v1_map(logfd)) {
-			fprintf(stderr, "%s: found valid log file; doing nothing\n", __func__);
+			fprintf(stderr,
+				"%s: found valid log file; doing nothing\n",
+				__func__);
 		} else {
 			ext.se_offset = sb->ts_log_offset;
 			ext.se_len    = sb->ts_log_len;
 			rc = famfs_v1_set_file_map(logfd, sb->ts_log_len, 1,
 						   &ext, FAMFS_LOG);
 			if (rc) {
-				fprintf(stderr, "%s: failed to create log file %s\n",
+				fprintf(stderr,
+					"%s: failed to create log file %s\n",
 					__func__, log_file);
 				return -1;
 			}
@@ -1088,7 +1110,8 @@ famfs_mkmeta(
 	char *mpt = NULL;
 	int rc;
 
-	rc = famfs_mmap_superblock_and_log_raw(devname, &sb, &logp, 0 /* figure out log size */,
+	rc = famfs_mmap_superblock_and_log_raw(devname, &sb, &logp,
+					       0 /* figure out log size */,
 					       1 /* Read only */);
 	if (rc) {
 		fprintf(stderr, "%s: superblock/log access failed\n", __func__);
@@ -1104,17 +1127,20 @@ famfs_mkmeta(
 	role = famfs_get_role(sb);
 
 	if (shadowpath) {
-		rc = __famfs_mkmeta(shadowpath, sb, logp, role, 1 /* shadow */, verbose);
+		rc = __famfs_mkmeta(shadowpath, sb, logp, role,
+				    1 /* shadow */, verbose);
 	} else {
 		/* Get mount point path */
 		mpt = famfs_get_mpt_by_dev(devname);
 		if (!mpt) {
-			fprintf(stderr, "%s: unable to resolve mount pt from dev %s\n",
+			fprintf(stderr,
+				"%s: unable to resolve mount pt from dev %s\n",
 				__func__, devname);
 			return -1;
 		}
 
-		rc = __famfs_mkmeta(mpt, sb, logp, role, 0 /* not shadow */, verbose);
+		rc = __famfs_mkmeta(mpt, sb, logp, role,
+				    0 /* not shadow */, verbose);
 	}
 
 	free(mpt);
@@ -1152,7 +1178,8 @@ famfs_mmap_whole_file(
 		return NULL;
 	}
 	if ((st.st_mode & S_IFMT) != S_IFREG) {
-		fprintf(stderr, "%s: error %s is not a regular file\n", __func__, fname);
+		fprintf(stderr, "%s: error %s is not a regular file\n",
+			__func__, fname);
 		return NULL;
 	}
 	if (sizep)
@@ -1160,7 +1187,8 @@ famfs_mmap_whole_file(
 
 	fd = open(fname, openmode, 0);
 	if (fd < 0) {
-		fprintf(stderr, "open %s failed; rc %d errno %d\n", fname, rc, errno);
+		fprintf(stderr, "open %s failed; rc %d errno %d\n",
+			fname, rc, errno);
 		rc = -1;
 		return NULL;
 	}
@@ -1187,7 +1215,7 @@ famfs_print_log_stats(
 	const struct famfs_log_stats *ls,
 	int verbose)
 {
-	printf("%s: processed %llu log entries; %llu new files; %llu new directories\n",
+	printf("%s: %llu log entries; %llu new files; %llu new directories\n",
 	       msg, ls->n_entries, ls->f_created, ls->d_created);
 	if (verbose) {
 		printf("\tCreated:  %llu files, %llu directories\n",
@@ -1259,7 +1287,8 @@ famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index)
 	}
 	crc = famfs_gen_log_entry_crc(le);
 	if (le->famfs_log_entry_crc != crc) {
-		fprintf(stderr, "%s: bad crc at log index %lld\n", __func__, index);
+		fprintf(stderr, "%s: bad crc at log index %lld\n",
+			__func__, index);
 		errors++;
 	}
 	return errors;
@@ -1275,11 +1304,12 @@ famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index)
  * @sb:          superblock (may be NULL unless it's a shadow logplay)
  * @logp:        pointer to a read-only copy or mmap of the log
  * @dry_run:     process the log but don't create the files & directories
- * @client_mode: for testing; play the log as if this is a client node, even on master
+ * @client_mode: for testing; play the log as if this is a client node,
+ *               even on master
  * @shadow:      Play into shadow file system instead (for famfs-fuse)
- * @shadowtest:  When playing to shadow, whether or not the shadow file already exists,
- *               re-ingest the shadow file and verify that results in an identical
- *               'struct famfs_log_file_meta'
+ * @shadowtest:  When playing to shadow, whether or not the shadow file
+ *               already exists, re-ingest the shadow file and verify that
+ *               results in an identical 'struct famfs_log_file_meta'
  * @verbose:     verbose flag
  *
  * Returns value: Number of errors detected (0=complete success)
@@ -1310,9 +1340,9 @@ __famfs_logplay(
 	}
 
 	/*
-	 * Non-shadow logplay has already verified that mpt exists and is a dir, because it
-	 * had to open the meta files. But for shadow logplay, we need to make sure mpt exists,
-	 * and create it if not.
+	 * Non-shadow logplay has already verified that mpt exists and is a dir,
+	 * because it had to open the meta files. But for shadow logplay,
+	 * we need to make sure mpt exists, and create it if not.
 	 */
 	if (shadow) {
 		struct stat st;
@@ -1321,7 +1351,8 @@ __famfs_logplay(
 		if (rc) {
 			rc = mkdir(mpt, 0755);
 			if (rc) {
-				fprintf(stderr, "%s: failed to create shadowpath %s\n",
+				fprintf(stderr,
+					"%s: failed to create shadowpath %s\n",
 					__func__, mpt);
 				return -errno;
 			}
@@ -1329,13 +1360,14 @@ __famfs_logplay(
 		else if (!rc) {
 			switch (st.st_mode & S_IFMT) {
 			case S_IFDIR:
-				/* mpt (where shadow replay will happen) is a directory */
+				/* mpt (where shadow replay will happen)
+				 * is a directory */
 				break;
 
 			default:
 				fprintf(stderr,
-					"%s: shadowpath (%s) exists and is not a dir\n",
-					__func__, mpt);
+					"%s: shadowpath (%s) exists "
+					"and is not a dir\n", __func__, mpt);
 				return -EINVAL;
 			}
 		}
@@ -1349,14 +1381,16 @@ __famfs_logplay(
 	}
 
 	if (verbose)
-		printf("famfs logplay: log contains %lld entries\n",
-		       logp->famfs_log_next_index);
+		printf("%s: log contains %lld entries\n",
+		       __func__, logp->famfs_log_next_index);
 
 	for (i = 0; i < logp->famfs_log_next_index; i++) {
 		struct famfs_log_entry le = logp->entries[i];
 
 		if (famfs_validate_log_entry(&le, i)) {
-			fprintf(stderr, "%s: invalid log entry at index %lld\n", __func__, i);
+			fprintf(stderr,
+				"%s: invalid log entry at index %lld\n",
+				__func__, i);
 			return -1;
 		}
 		ls.n_entries++;
@@ -1376,22 +1410,24 @@ __famfs_logplay(
 
 			if (!famfs_log_entry_fc_path_is_relative(fm) || mock_path) {
 				fprintf(stderr,
-					"%s: ignoring log entry; path is not relative\n",
+					"%s: ignoring log entry; "
+					"path is not relative\n",
 					__func__);
 				ls.f_errs++;
 				skip_file++;
 			}
 
 			/* The only file that should have an extent with offset 0
-			 * is the superblock, which is not in the log. Check for files with
-			 * null offset...
+			 * is the superblock, which is not in the log.
+			 * Check for files with null offset...
 			 */
 			for (j = 0; j < fm->fm_fmap.fmap_nextents; j++) {
 				const struct famfs_simple_extent *se = &fm->fm_fmap.se[j];
 
 				if (se->se_offset == 0 || mock_path) {
 					fprintf(stderr,
-						"%s: ERROR file %s has extent with 0 offset\n",
+						"%s: ERROR file %s "
+						"has extent with 0 offset\n",
 						__func__, fm->fm_relpath);
 					ls.f_errs++;
 					skip_file++;
@@ -1401,11 +1437,13 @@ __famfs_logplay(
 			if (skip_file)
 				continue;
 
-			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, fm->fm_relpath);
+			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt,
+				 fm->fm_relpath);
 			realpath(fullpath, rpath);
 
 			if (shadow) {
-				famfs_shadow_file_create(rpath, fm, &ls, 0, dry_run,
+				famfs_shadow_file_create(rpath, fm, &ls, 0,
+							 dry_run,
 							 shadowtest, verbose);
 				continue;
 			}
@@ -1416,20 +1454,23 @@ __famfs_logplay(
 			rc = stat(rpath, &st);
 			if (!rc) {
 				if (verbose > 1)
-					fprintf(stderr, "famfs logplay: File %s exists\n",
-						rpath);
+					fprintf(stderr,
+						"%s: File %s exists\n",
+						__func__, rpath);
 				ls.f_existed++;
 				continue;
 			}
 			if (verbose) {
-				printf("famfs logplay: creating file %s", fm->fm_relpath);
+				printf("%s: creating file %s",
+				       __func__, fm->fm_relpath);
 				if (verbose > 1)
 					printf(" mode %o", fm->fm_mode);
 
 				printf("\n");
 			}
 
-			fd = famfs_file_create_stub(rpath, fm->fm_mode, fm->fm_uid, fm->fm_gid,
+			fd = famfs_file_create_stub(rpath, fm->fm_mode,
+						    fm->fm_uid, fm->fm_gid,
 					       (role == FAMFS_CLIENT) ? 1 : 0);
 			if (fd < 0) {
 				fprintf(stderr,
@@ -1441,16 +1482,18 @@ __famfs_logplay(
 				continue;
 			}
 
-			/* Build extent list of famfs_simple_extent; the log entry has a
-			 * different kind of extent list...
+			/* Build extent list of famfs_simple_extent; the
+			 * log entry has a different kind of extent list...
 			 */
 			if (FAMFS_KABI_VERSION > 42) {
 #if (FAMFS_KABI_VERSION > 42)
 				rc =  famfs_v2_set_file_map(fd, fm->fm_size,
-							    &fm->fm_fmap, FAMFS_REG);
+							    &fm->fm_fmap,
+							    FAMFS_REG);
 				if (rc) {
 					fprintf(stderr,
-						"%s: v2 setmap failed to create file %s\n",
+						"%s: v2 setmap "
+						"failed to create file %s\n",
 						__func__, rpath);
 				}
 #endif
@@ -1460,13 +1503,15 @@ __famfs_logplay(
 
 				if (fm->fm_fmap.fmap_ext_type != FAMFS_EXT_SIMPLE) {
 					fprintf(stderr,
-						"%s: error: non-simple extents in abi 42\n",
+						"%s: error: "
+						"non-simple extents in abi 42\n",
 						__func__);
 					rc = -1;
 					goto bad_log_fmap;
 				}
 
-				el = calloc(fm->fm_fmap.fmap_nextents, sizeof(*el));
+				el = calloc(fm->fm_fmap.fmap_nextents,
+					    sizeof(*el));
 				assert(el);
 
 				for (j = 0; j < fm->fm_fmap.fmap_nextents; j++) {
@@ -1480,7 +1525,8 @@ __famfs_logplay(
 							   el, FAMFS_REG);
 bad_log_fmap:
 				if (rc)
-					fprintf(stderr, "%s: v1 setmap failed for file %s\n",
+					fprintf(stderr, "%s: "
+						"v1 setmap failed for file %s\n",
 						__func__, rpath);
 				free(el);
 			}
@@ -1501,7 +1547,8 @@ bad_log_fmap:
 
 			if (!famfs_log_entry_md_path_is_relative(md) || mock_path) {
 				fprintf(stderr,
-					"%s: ignoring log mkdir entry; path is not relative\n",
+					"%s: ignoring log mkdir entry; "
+					"path is not relative\n",
 					__func__);
 				ls.d_errs++;
 				skip_dir++;
@@ -1513,7 +1560,8 @@ bad_log_fmap:
 			if (dry_run)
 				continue;
 
-			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt, md->md_relpath);
+			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt,
+				 md->md_relpath);
 			realpath(fullpath, rpath);
 
 			rc = stat(rpath, &st);
@@ -1523,22 +1571,23 @@ bad_log_fmap:
 					/* This is normal for log replay */
 					if (verbose > 1) {
 						fprintf(stderr,
-							"famfs logplay: directory %s exists\n",
-							rpath);
+							"%s: dir %s exists\n",
+							__func__, rpath);
 					}
 					ls.d_existed++;
 					break;
 
 				case S_IFREG:
 					fprintf(stderr,
-						"%s: file (%s) exists where dir should be\n",
+						"%s: file (%s) exists "
+						"where dir should be\n",
 						__func__, rpath);
 					ls.d_errs++;
 					break;
 
 				default:
-					fprintf(stderr,
-						"%s: something (%s) exists where dir should be\n",
+					fprintf(stderr, "%s: something (%s) "
+						"exists where dir should be\n",
 						__func__, rpath);
 					ls.d_errs++;
 					break;
@@ -1547,13 +1596,15 @@ bad_log_fmap:
 			}
 
 			if (verbose)
-				printf("famfs logplay: creating directory %s\n", md->md_relpath);
+				printf("%s: creating directory %s\n",
+				       __func__, md->md_relpath);
 
-			rc = famfs_dir_create(mpt, (char *)md->md_relpath, md->md_mode,
+			rc = famfs_dir_create(mpt, (char *)md->md_relpath,
+					      md->md_mode,
 					      md->md_uid, md->md_gid);
 			if (rc) {
-				fprintf(stderr,
-					"%s: error: unable to create directory (%s)\n",
+				fprintf(stderr, "%s: error: "
+					"unable to create directory (%s)\n",
 					__func__, md->md_relpath);
 				ls.d_errs++;
 				continue;
@@ -1568,7 +1619,8 @@ bad_log_fmap:
 			break;
 		}
 	}
-	famfs_print_log_stats(shadow ? "famfs_logplay(shadow)" : "famfs_logplay(v1)",
+	famfs_print_log_stats(shadow ?
+			      "famfs_logplay(shadow)" : "famfs_logplay(v1)",
 			      &ls, verbose);
 	return (ls.f_errs + ls.d_errs + ls.yaml_errs);
 }
@@ -1607,7 +1659,8 @@ famfs_dax_shadow_logplay(
 		return -EINVAL;
 	}
 
-	rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &logp, 0, 1 /* read-only */);
+	rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &logp, 0,
+					       1 /* read-only */);
 	if (rc) {
 		fprintf(stderr, "%s: failed to map superblock and log from %s\n",
 			__func__, daxdev);
@@ -1627,16 +1680,18 @@ famfs_dax_shadow_logplay(
  *
  * Outer function to play the log for a famfs file system
  *
- * This function uses the meta files for the superblock and log, unless "shadow" is set,
- * in which case it reads the sb and log from the daxdev.
+ * This function uses the meta files for the superblock and log, unless
+ * "shadow" is set, in which case it reads the sb and log from the daxdev.
  *
- * This function gets and verifies the superblock and log, and then calls the inner
- * logplay function to do the work (in the shadow case, via famfs_shadow_logplay()
+ * This function gets and verifies the superblock and log, and then calls the
+ * inner logplay function to do the work (in the shadow case,
+ * via famfs_shadow_logplay()
  *
  * @fspath:      mount point, or any path within the famfs file system
  * @use_mmap:    Use mmap rather than reading the log into a buffer
  * @dry_run:     process the log but don't create the files & directories
- * @client_mode: for testing; play the log as if this is a client node, even on master
+ * @client_mode: For testing; play the log as if this is a client node,
+ *               even on master
  * @shadowpath:  Play yaml files into a shadow file system at this path
  * @shadowtest:  Enable shadow test mode
  * @daxdev:      If it's a shadow logplay, get SB and log from this daxdev
@@ -1664,8 +1719,9 @@ famfs_logplay(
 	int rc;
 
 	if (shadowpath && daxdev)
-		return famfs_dax_shadow_logplay(shadowpath, dry_run, client_mode, daxdev,
-					    shadowtest, verbose);
+		return famfs_dax_shadow_logplay(shadowpath, dry_run,
+						client_mode, daxdev,
+						shadowtest, verbose);
 
 	/* Open log from meta file */
 	lfd = open_log_file_read_only(fspath, &log_size, mpt_out, NO_LOCK);
@@ -1678,7 +1734,8 @@ famfs_logplay(
 	/* Open superblock from meta file */
 	sfd = open_superblock_file_read_only(fspath, &sb_size, mpt_out);
 	if (sfd < 0) {
-		fprintf(stderr, "%s: failed to open superblock file for filesystem %s\n",
+		fprintf(stderr,
+			"%s: failed to open superblock file for filesystem %s\n",
 			__func__, fspath);
 		close(lfd);
 		return -1;
@@ -1686,7 +1743,8 @@ famfs_logplay(
 
 	if (!shadowpath) {
 		if (famfs_path_is_mount_pt(mpt_out, NULL, shadow) && verbose)
-			printf("%s: this is logplay for mounted FAMFS_FUSE (shadow=%s)\n",
+			printf("%s: this is logplay for mounted FAMFS_FUSE "
+			       "(shadow=%s)\n",
 			       __func__, shadow);
 	}
 	else
@@ -1695,15 +1753,18 @@ famfs_logplay(
 	if (use_mmap) {
 		logp = mmap(0, log_size, PROT_READ, MAP_PRIVATE, lfd, 0);
 		if (logp == MAP_FAILED) {
-			fprintf(stderr, "%s: failed to mmap log file %s/.meta/log\n",
+			fprintf(stderr,
+				"%s: failed to mmap log file for %s\n",
 				__func__, mpt_out);
 			close(lfd);
 			return -1;
 		}
 		
-		sb = mmap(0, FAMFS_SUPERBLOCK_SIZE, PROT_READ, MAP_PRIVATE, sfd, 0);
+		sb = mmap(0, FAMFS_SUPERBLOCK_SIZE, PROT_READ,
+			  MAP_PRIVATE, sfd, 0);
 		if (logp == MAP_FAILED) {
-			fprintf(stderr, "%s: failed to mmap superblock file %s/.meta/log\n",
+			fprintf(stderr, "%s: "
+				"failed to mmap superblock file for %s\n",
 				__func__, mpt_out);
 			close(lfd);
 			close(sfd);
@@ -1723,11 +1784,13 @@ famfs_logplay(
 		logp = malloc(log_size);
 		if (!logp) {
 			close(lfd);
-			fprintf(stderr, "%s: malloc %ld failed for log\n", __func__, log_size);
+			fprintf(stderr, "%s: malloc %ld failed for log\n",
+				__func__, log_size);
 			return -ENOMEM;
 		}
 
-		rc = famfs_file_read(lfd, (char *)logp, log_size, __func__, "log file", verbose);
+		rc = famfs_file_read(lfd, (char *)logp, log_size, __func__,
+				     "log file", verbose);
 		if (rc)
 			goto err_out;
 
@@ -1782,8 +1845,8 @@ err_out:
  * @logp: pointer to struct famfs_log in memory media
  * @e:    pointer to log entry in memory
  *
- * NOTE: this function is not re-entrant. Must hold a lock or mutex when calling this
- * function if there is any chance of re-entrancy.
+ * NOTE: this function is not re-entrant. Must hold a lock or mutexj
+ * when calling this function if there is any chance of re-entrancy.
  */
 static int
 famfs_append_log(struct famfs_log       *logp,
@@ -1803,10 +1866,10 @@ famfs_append_log(struct famfs_log       *logp,
 	logp->famfs_log_next_index++;
 
 	/* Could flush: 1) the log entry, 2) the log header
-	 * That would be less flushing, but would not guarantee that the entry is visible
-	 * before the log header. If the log header becomes visible first (leading to
-	 * reading a cache-incoherent log entry), the checksum on the log entry will
-	 * save us - and the logplay can be retried.
+	 * That would be less flushing, but would not guarantee that the entry
+	 * is visible before the log header. If the log header becomes visible
+	 * first (leading to reading a cache-incoherent log entry), the checksum
+	 * on the log entry will save us - and the logplay can be retried.
 	 *
 	 * But now we're just flushing the whole log every time...
 	 */
@@ -1819,7 +1882,8 @@ famfs_append_log(struct famfs_log       *logp,
 /**
  * famfs_relpath_from_fullpath()
  *
- * Returns a pointer to the relpath. This pointer points within the fullpath string
+ * Returns a pointer to the relpath. This pointer points
+ * within the fullpath string
  *
  * @mpt:      mount point string (rationalized by realpath())
  * @fullpath:
@@ -1835,8 +1899,10 @@ famfs_relpath_from_fullpath(
 	assert(fullpath);
 
 	if (strstr(fullpath, mpt) != fullpath) {
-		/* mpt path should be a substring starting at the beginning of fullpath*/
-		fprintf(stderr, "%s: failed to get relpath from mpt=%s fullpath=%s\n",
+		/* mpt path should be a substring
+		 * starting at the beginning of fullpath*/
+		fprintf(stderr,
+			"%s: failed to get relpath from mpt=%s fullpath=%s\n",
 			__func__, mpt, fullpath);
 		return NULL;
 	}
@@ -1962,7 +2028,8 @@ find_real_parent_path(const char *path)
 	strncpy(path_copy, path, PATH_MAX - 1);
 	while (1) {
 		if (strlen(pc) <= 1) {
-			fprintf(stderr, "%s: path %s appears not to be in a famfs mount\n",
+			fprintf(stderr, "%s: "
+				"path %s appears not to be in a famfs mount\n",
 				__func__, path);
 			return NULL;
 		}
@@ -1973,8 +2040,8 @@ find_real_parent_path(const char *path)
 
 		pc = dirname(pc);
 		if (--loop_ct == 0) {
-			fprintf(stderr,
-				"%s: bailed from possible infinite loop; path=%s path_copy=%s\n",
+			fprintf(stderr, "%s: bailed from possible infinite loop; "
+				"path=%s path_copy=%s\n",
 				__func__, path, pc);
 			return NULL;
 		}
@@ -1985,15 +2052,15 @@ find_real_parent_path(const char *path)
 /**
  * __open_relpath()
  *
- * This functionn starts with @path and ascends until @relpath is a valid
+ * This function starts with @path and ascends until @relpath is a valid
  * sub-path from the ascended subset of @path.
  *
- * This is intended for ascending from @path until (e.g.) @relpath=".meta/.superblock"
- * is valid - and opening that.
+ * This is intended for ascending from @path until (e.g.)
+ * @relpath=".meta/.superblock" is valid - and opening that.
  *
- * It is also important to verify that the @relpath file is in a famfs file system,
- * but there are also (unit test) cases where it is useful to exercise this logic
- * even if the ascended @path is not in a famfs file system.
+ * It is also important to verify that the @relpath file is in a famfs
+ * file system, but there are also (unit test) cases where it is useful to
+ * exercise this logic even if the ascended @path is not in a famfs file system.
  *
  * @path:       any path within a famfs file system (from mount pt on down)
  * @relpath:    the relative path to open (relative to the mount point)
@@ -2003,6 +2070,13 @@ find_real_parent_path(const char *path)
  *              (the string space is assumed to be of size PATH_MAX)
  * @no_fscheck: For unit tests only - don't check whether the file with @relpath
  *              is actually in a famfs file system.
+ */
+/* XXX: JG: this needs further consideration. It will ascend until relpath
+ * is valid (AND rpath is in famfs). But it doesn't guarantee that rpath is
+ * the mount point path - and I'm pretty sure we are only interested in opening
+ * rpath relative to the mount point path.
+ *
+ * Possible fix: require that the mount point be passed in in place of "path"...
  */
 int
 __open_relpath(
@@ -2020,17 +2094,18 @@ __open_relpath(
 	int rc, fd;
 
 	/*
-	 * If path does not exist, ascend canonically until we find something that does
-	 * exist, or until that remaining path string is too short, or until it looks like
-	 * we might be in an infinite loop
+	 * If path does not exist, ascend canonically until we find something
+	 * that does exist, or until that remaining path string is too short,
+	 * or until it looks like we might be in an infinite loop
 	 */
 	rpath = find_real_parent_path(path);
 	if (!rpath)
 		return -1;
 
 	/*
-	 * At this point rpath does exist, and is a root-based path. Continue to ascend as
-	 * necessary to find the mount point which contains the meta files
+	 * At this point rpath does exist, and is a root-based path. Continue
+	 * to ascend as necessary to find the mount point which contains the
+	 * meta files
 	 */
 	while (1) {
 		char fullpath[PATH_MAX] = {0};
@@ -2053,13 +2128,14 @@ __open_relpath(
 				fd = open(fullpath, openmode, 0);
 				free(rpath);
 
-				/* Check whether the file we found is actually in famfs;
-				 * Unit tests can disable this check but production code
-				 * should not.
+				/* Check whether the file we found is actually
+				 * in famfs; Unit tests can disable this check
+				 * but production code should not.
 				 */
 				if (!no_fscheck && famfs_type == NOT_FAMFS) {
 					fprintf(stderr,
-						"%s: found file %s but it is not in famfs\n",
+						"%s: found file %s but it is "
+						"not in famfs\n",
 						__func__, fullpath);
 					close(fd);
 					return -1;
@@ -2072,7 +2148,9 @@ __open_relpath(
 						operation |= LOCK_NB;
 					rc = flock(fd, operation);
 					if (rc) {
-						fprintf(stderr, "%s: failed to get lock on %s\n",
+						fprintf(stderr,
+							"%s: failed to get lock "
+							"on %s\n",
 							__func__, fullpath);
 						close(fd);
 						return -1;
@@ -2099,8 +2177,8 @@ next:
  *
  * @path - any path within a famfs file system (from mount pt on down)
  *
- * This will traverse upward from path, looking for a directory containing a .meta/.log
- * If found, it opens the log.
+ * This will traverse upward from path, looking for a directory
+ * containing a .meta/.log. If found, it opens the log.
  */
 static int
 __open_log_file(
@@ -2110,7 +2188,8 @@ __open_log_file(
 	char       *mpt_out,
 	enum lock_opt lockopt)
 {
-	return __open_relpath(path, LOG_FILE_RELPATH, read_only, sizep, mpt_out, lockopt, 0);
+	return __open_relpath(path, LOG_FILE_RELPATH, read_only, sizep,
+			      mpt_out, lockopt, 0);
 }
 
 int
@@ -2143,7 +2222,8 @@ __open_cfg_file(
 	int         read_only,
 	size_t     *sizep)
 {
-	return __open_relpath(path, CFG_FILE_RELPATH, read_only, sizep, NULL, NO_LOCK, 0);
+	return __open_relpath(path, CFG_FILE_RELPATH, read_only,
+			      sizep, NULL, NO_LOCK, 0);
 }
 
 int
@@ -2176,7 +2256,8 @@ __open_superblock_file(
 	char       *mpt_out)
 {
 	/* No need to plumb locking for the superblock; use the log for locking */
-	return __open_relpath(path, SB_FILE_RELPATH, read_only, sizep, mpt_out, NO_LOCK, 0);
+	return __open_relpath(path, SB_FILE_RELPATH, read_only, sizep,
+			      mpt_out, NO_LOCK, 0);
 }
 
 static int
@@ -2204,14 +2285,16 @@ famfs_map_superblock_by_path(
 	fd = __open_superblock_file(path, read_only,
 				    &sb_size, NULL);
 	if (fd < 0) {
-		fprintf(stderr, "%s: failed to open superblock file %s for filesystem %s\n",
+		fprintf(stderr, "%s: "
+			"failed to open superblock file %s for filesystem %s\n",
 			__func__, read_only ? "read-only" : "writable",	path);
 		return NULL;
 	}
 	addr = mmap(0, sb_size, prot, MAP_SHARED, fd, 0);
 	close(fd);
 	if (addr == MAP_FAILED) {
-		fprintf(stderr, "%s: Failed to mmap superblock file %s\n", __func__, path);
+		fprintf(stderr, "%s: Failed to mmap superblock file %s\n",
+			__func__, path);
 		return NULL;
 	}
 	sb = (struct famfs_superblock *)addr;
@@ -2243,12 +2326,13 @@ famfs_map_log_by_path(
 	addr = mmap(0, log_size, prot, MAP_SHARED, fd, 0);
 	close(fd);
 	if (addr == MAP_FAILED) {
-		fprintf(stderr, "%s: Failed to mmap log file %s\n", __func__, path);
+		fprintf(stderr, "%s: Failed to mmap log file %s\n",
+			__func__, path);
 		return NULL;
 	}
-	/* Should not need to invalidate the cache for the log because we have verified
-	 * that we are running on the master, which is the only node that is allowed to
-	 * write the log */
+	/* Should not need to invalidate the cache for the log because we have
+	 * verified that we are running on the master, which is the only node
+	 * that is allowed to write the log */
 	logp = (struct famfs_log *)addr;
 	if (log_size != logp->famfs_log_len) {
 		fprintf(stderr, "%s: log file length is invalid (%lld / %lld)\n",
@@ -2287,31 +2371,35 @@ famfs_fsck(
 
 	/*
 	 * Lots of options here;
-	 * * If a dax device we'll fsck that - but only if the fs is not currently mounted.
-	 * * If any file path from the mount point on down in a mounted famfs file system is
-	 *   specified, we will find the superblock and log files and fsck the mounted
-	 *   file system.
+	 * * If a dax device we'll fsck that - but only if the fs is
+	 *   not currently mounted.
+	 * * If any file path from the mount point on down in a mounted famfs
+	 *   file system is specified, we will find the superblock and log files
+	 *   and fsck the mounted file system.
 	 */
 	switch (st.st_mode & S_IFMT) {
 	case S_IFCHR: {
 		char *mpt;
 		/* Check if there is a mounted famfs file system on this device;
-		 * fail if so - if mounted, have to fsck by mount pt rather than device
+		 * fail if so - if mounted, have to fsck by mount pt
+		 * rather than by device
 		 */
 		mpt = famfs_get_mpt_by_dev(path);
 		if (mpt) {
 			free(mpt);
 			if (!force) {
-				fprintf(stderr,
-					"%s: error - cannot fsck by device (%s) when mounted\n",
+				fprintf(stderr, "%s: error: "
+				    "cannot fsck by device (%s) when mounted\n",
 					__func__, path);
 				return -EBUSY;
 			}
-			fprintf(stderr, "%s: Attempting %s mmap when fs is mounted\n",
+			fprintf(stderr,
+				"%s: Attempting %s mmap when fs is mounted\n",
 				__func__, path);
 		}
 
-		/* If it's a device, we'll try to mmap superblock and log from the device */
+		/* If it's a device, we'll try to mmap superblock and log
+		 * from the device */
 		rc = famfs_get_device_size(path, &size, NULL);
 		if (rc < 0)
 			return -1;
@@ -2330,10 +2418,11 @@ famfs_fsck(
 		famfs_type = file_is_famfs(path);
 
 		/*
-		 * More options: default is to read the superblock and log into local buffers
-		 * (which is useful to spot check that posix read is not broken). But if the
-		 * use_mmap open is provided, we will mmap the superblock and logs files
-		 * rather than reading them into a local buffer.
+		 * More options: default is to read the superblock and log into
+		 * local buffers (which is useful to spot check that posix read
+		 * is not broken). But if the use_mmap open is provided, we will
+		 * mmap the superblock and logs files rather than reading them
+		 * into a local buffer.
 		 */
 
 		/* Print the "mounted file system" header */
@@ -2350,21 +2439,25 @@ famfs_fsck(
 		free(mpt);
 
 		if (use_mmap) {
-			/* If it's a file or directory, we'll try to mmap the sb and
-			 * log from their files
+			/* If it's a file or directory, we'll try to mmap the sb
+			 * and log from their files
 			 *
 			 * Note that this tends to fail
 			 */
-			sb =   famfs_map_superblock_by_path(path, 1 /* read only */);
+			sb =   famfs_map_superblock_by_path(path,
+							    1 /* read only */);
 			if (!sb) {
-				fprintf(stderr, "%s: failed to map superblock from file %s\n",
+				fprintf(stderr, "%s: "
+					"failed to map superblock from file %s\n",
 					__func__, path);
 				return -1;
 			}
 
-			logp = famfs_map_log_by_path(path, 1 /* read only */, NO_LOCK);
+			logp = famfs_map_log_by_path(path, 1 /* read only */,
+						     NO_LOCK);
 			if (!logp) {
-				fprintf(stderr, "%s: failed to map log from file %s\n",
+				fprintf(stderr,
+					"%s: failed to map log from file %s\n",
 					__func__, path);
 				return -1;
 			}
@@ -2375,19 +2468,23 @@ famfs_fsck(
 
 			sfd = open_superblock_file_read_only(path, NULL, NULL);
 			if (sfd < 0 || mock_failure == MOCK_FAIL_OPEN_SB) {
-				fprintf(stderr, "%s: failed to open superblock file\n", __func__);
+				fprintf(stderr,
+					"%s: failed to open superblock file\n",
+					__func__);
 				return -1;
 			}
 
 			sb = calloc(1, FAMFS_SUPERBLOCK_SIZE);
 			assert(sb);
 
-			rc = famfs_file_read(sfd, (char *)sb, FAMFS_SUPERBLOCK_SIZE, __func__,
+			rc = famfs_file_read(sfd, (char *)sb,
+					     FAMFS_SUPERBLOCK_SIZE, __func__,
 					     "superblock file", verbose);
 			if (rc != 0 || mock_failure == MOCK_FAIL_READ_SB) {
 				free(sb);
 				close(sfd);
-				fprintf(stderr, "%s: error %d reading superblock file\n",
+				fprintf(stderr,
+					"%s: error %d reading superblock file\n",
 					__func__, errno);
 				return -errno;
 			}
@@ -2397,7 +2494,9 @@ famfs_fsck(
 			if (lfd < 0 || mock_failure == MOCK_FAIL_OPEN_LOG) {
 				free(sb);
 				close(sfd);
-				fprintf(stderr, "%s: failed to open log file\n", __func__);
+				fprintf(stderr,
+					"%s: failed to open log file\n",
+					__func__);
 				return -1;
 			}
 
@@ -2405,7 +2504,8 @@ famfs_fsck(
 			assert(logp);
 
 			/* Read a copy of the log */
-			rc = famfs_file_read(lfd, (char *)logp, sb->ts_log_len, __func__,
+			rc = famfs_file_read(lfd, (char *)logp, sb->ts_log_len,
+					     __func__,
 					     "log file", verbose);
 			if (rc != 0
 			    || mock_failure == MOCK_FAIL_READ_FULL_LOG
@@ -2428,7 +2528,8 @@ famfs_fsck(
 	}
 
 	if (famfs_check_super(sb)) {
-		fprintf(stderr, "%s: no valid famfs superblock on device %s\n", __func__, path);
+		fprintf(stderr, "%s: no valid famfs superblock on device %s\n",
+			__func__, path);
 		return -1;
 	}
 	rc = famfs_fsck_scan(sb, logp, human, verbose);
@@ -2446,7 +2547,8 @@ err_out:
  *
  * @path
  *
- * Validate the superblock and return the dax device size, or -1 if sb or size invalid
+ * Validate the superblock and return the dax device size, or -1 if sb or size
+ * invalid
  */
 static ssize_t
 famfs_validate_superblock_by_path(const char *path, u64 *alloc_unit)
@@ -2465,12 +2567,14 @@ famfs_validate_superblock_by_path(const char *path, u64 *alloc_unit)
 
 	addr = mmap(0, sb_size, PROT_READ, MAP_SHARED, sfd, 0);
 	if (addr == MAP_FAILED) {
-		fprintf(stderr, "%s: Failed to mmap superblock file\n", __func__);
+		fprintf(stderr, "%s: Failed to mmap superblock file\n",
+			__func__);
 		close(sfd);
 		return -1;
 	}
 	sb = (struct famfs_superblock *)addr;
-	invalidate_processor_cache(sb, sb_size); /* Invalidate the processor cache for the superblock */
+	 /* Invalidate the processor cache for the superblock */
+	invalidate_processor_cache(sb, sb_size);
 
 	if (famfs_check_super(sb)) {
 		fprintf(stderr, "%s: invalid superblock\n", __func__);
@@ -2486,7 +2590,7 @@ famfs_validate_superblock_by_path(const char *path, u64 *alloc_unit)
 	return daxdevsize;
 }
 
-/***********************************************************************************
+/******************************************************************************
  * Locked Log Abstraction
  */
 
@@ -2579,7 +2683,7 @@ famfs_init_locked_log(
 			__func__);
 		fprintf(stderr, "%s: log size mismatch log hdr %lld != %ld\n",
 			__func__, lp->logp->famfs_log_len, log_size);
-		famfs_fsck_scan(sb, lp->logp, 0, 1);
+		//famfs_fsck_scan(sb, lp->logp, 0, 1);
 		rc = -1;
 		goto err_out;
 	}
