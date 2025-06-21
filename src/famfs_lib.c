@@ -493,6 +493,7 @@ famfs_fsck_scan(
 	printf("  OMF minor version: %d\n", sb->ts_omf_ver_minor);
 
 	printf("  sizeof superblock: %ld\n", sizeof(struct famfs_superblock));
+	printf("  log size (bytes):  %lld\n", sb->ts_log_len);
 	printf("  primary: %s   %ld\n",
 	       sb->ts_daxdev.dd_daxdev, sb->ts_daxdev.dd_size);
 
@@ -503,6 +504,7 @@ famfs_fsck_scan(
 	printf("  # of log entries in use: %lld of %lld\n",
 	       logp->famfs_log_next_index, logp->famfs_log_last_index + 1);
 	printf("  Log size in use:          %ld\n", effective_log_size);
+	printf("  Log size (total bytes)    %lld\n", logp->famfs_log_len);
 
 	/*
 	 * Build the log bitmap to scan for errors
@@ -2510,14 +2512,16 @@ famfs_init_locked_log(
 
 	memset(lp, 0, sizeof(*lp));
 
-	lp->devsize = famfs_validate_superblock_by_path(fspath, &(lp->alloc_unit));
+	lp->devsize = famfs_validate_superblock_by_path(fspath,
+							&(lp->alloc_unit));
 	if (lp->devsize < 0)
 		return -1;
 
 	/* famfs_get_role also validates the superblock */
 	role = famfs_get_role_by_path(fspath, NULL);
 	if (role != FAMFS_MASTER) {
-		fprintf(stderr, "%s: Error not running on FAMFS_MASTER node for this FS\n",
+		fprintf(stderr,
+			"%s: Error not running on FAMFS_MASTER node\n",
 			__func__);
 		rc = -1;
 		goto err_out;
@@ -2526,7 +2530,8 @@ famfs_init_locked_log(
 	/* Log file */
 	lp->lfd = open_log_file_writable(fspath, &log_size, mpt, BLOCKING_LOCK);
 	if (lp->lfd < 0) {
-		fprintf(stderr, "%s: Unable to open famfs log for writing\n", __func__);
+		fprintf(stderr, "%s: Unable to open famfs log for writing\n",
+			__func__);
 		/* If we can't open the log file for writing, don't allocate */
 		rc = lp->lfd;
 		goto err_out;
@@ -2553,7 +2558,8 @@ famfs_init_locked_log(
 			lp->shadow_path = strdup(shadow);
 
 		if (!lp->shadow_path) {
-			fprintf(stderr, "%s: failed to get shadow path\n", __func__);
+			fprintf(stderr, "%s: failed to get shadow path\n",
+				__func__);
 			rc = -1;
 			goto err_out;
 		}
@@ -2566,8 +2572,22 @@ famfs_init_locked_log(
 		goto err_out;
 	}
 	lp->logp = (struct famfs_log *)addr;
-	invalidate_processor_cache(lp->logp, log_size); /* Invalidate the processor cache for the log */
+#if 1
+	/* Been occasionally hitting this assert; get more info */
+	if (lp->logp->famfs_log_len != log_size) {
+		fprintf(stderr, "%s: *****************************************\n",
+			__func__);
+		fprintf(stderr, "%s: log size mismatch log hdr %lld != %ld\n",
+			__func__, lp->logp->famfs_log_len, log_size);
+		famfs_fsck_scan(sb, lp->logp, 0, 1);
+		rc = -1;
+		goto err_out;
+	}
+#endif
 	assert(lp->logp->famfs_log_len == log_size);
+	 /* Invalidate the processor cache for the log */
+	invalidate_processor_cache(lp->logp, log_size);
+
 
 #if (FAMFS_KABI_VERSION > 42)
 	if (FAMFS_KABI_VERSION > 42) {
