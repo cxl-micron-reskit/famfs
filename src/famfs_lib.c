@@ -2116,7 +2116,8 @@ __open_relpath(
 			goto next;
 		if ((st.st_mode & S_IFMT) == S_IFDIR) {
 			/* It's a dir; does it have <relpath> under it? */
-			snprintf(fullpath, PATH_MAX - 1, "%s/%s", rpath, relpath);
+			snprintf(fullpath, PATH_MAX - 1, "%s/%s",
+				 rpath, relpath);
 			rc = stat(fullpath, &st);
 			if ((rc == 0) && ((st.st_mode & S_IFMT) == S_IFREG)) {
 				/* We found it. */
@@ -2558,11 +2559,27 @@ famfs_validate_superblock_by_path(const char *path, u64 *alloc_unit)
 	size_t sb_size;
 	ssize_t daxdevsize;
 	struct famfs_superblock *sb;
+	int retries = 1;
 
+retry:
 	sfd = open_superblock_file_read_only(path, &sb_size, NULL);
 	if (sfd < 0)
 		return sfd;
-
+#if 1
+	/* debug intermittent failures in long tests */
+	if (sb_size != FAMFS_SUPERBLOCK_SIZE) {
+		fprintf(stderr, "%s: bad superblock size for path %s:"
+			"fd=%d sb_size=%ld expected=%d\n",
+			__func__, path, sfd, sb_size, FAMFS_SUPERBLOCK_SIZE);
+		/* See if a retry also gets it wrong: */
+		if (retries) {
+			retries = 0;
+			close(sfd);
+			goto retry;
+		}
+	}
+	assert(retries == 1); /* Need to know if this ever fixes it */
+#endif
 	assert(sb_size == FAMFS_SUPERBLOCK_SIZE);
 
 	addr = mmap(0, sb_size, PROT_READ, MAP_SHARED, sfd, 0);
