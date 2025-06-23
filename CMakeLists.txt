@@ -1,5 +1,5 @@
 
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.5)
 
 # Uncomment for clang - which detects different issues than gcc...
 #set(CMAKE_C_COMPILER clang)
