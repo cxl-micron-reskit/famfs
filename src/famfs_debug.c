@@ -43,6 +43,25 @@
 
 #define MSG_SIZE 8192
 
+#include <execinfo.h>
+
+void dump_stack()
+{
+	void *buffer[100];
+	int nptrs = backtrace(buffer, 100);
+	char **strings = backtrace_symbols(buffer, nptrs);
+
+	if (strings == NULL) {
+		perror("backtrace_symbols");
+		exit(EXIT_FAILURE);
+	}
+
+	for (int i = 0; i < nptrs; i++)
+		printf("%s\n", strings[i]);
+
+	free(strings);
+}
+
 static int
 famfs_compare_simple_ext_list(
 	char *msgbuf,

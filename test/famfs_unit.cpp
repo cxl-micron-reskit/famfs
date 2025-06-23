@@ -239,54 +239,58 @@ TEST(famfs, famfs_open_relpath)
 	/* /tmp/famfs should already exist and have a superblock and log in it */
 	system("mkdir -p /tmp/famfs/0000/1111/2222/3333/4444/5555");
 
-	rc = __open_relpath("/tmp/bogus/path", SB_RELPATH, 1, NULL, NULL, NO_LOCK, 1);
+	rc = __open_relpath("/tmp/bogus/path", SB_RELPATH, 1, NULL, -1,
+			    NULL, NO_LOCK, 1);
 	ASSERT_NE(rc, 0);;
 
-	rc = __open_relpath("/tmp/bogus/path", SB_RELPATH, 1, NULL, NULL, NO_LOCK, 1);
+	rc = __open_relpath("/tmp/bogus/path", SB_RELPATH, 1, NULL, -1,
+			    NULL, NO_LOCK, 1);
 	ASSERT_NE(rc, 0);
 
 	/* Good, no ascent necessary  */
-	rc = __open_relpath("/tmp/famfs/", LOG_RELPATH, 1, NULL, NULL, NO_LOCK, 1);
+	rc = __open_relpath("/tmp/famfs/", LOG_RELPATH, 1, NULL, -1,
+			    NULL, NO_LOCK, 1);
 	ASSERT_GT(rc, 0);
 	close(rc);
-	rc = __open_relpath("/tmp/famfs", LOG_RELPATH, 1, NULL, NULL, NO_LOCK, 1);
+	rc = __open_relpath("/tmp/famfs", LOG_RELPATH, 1, NULL, -1,
+			    NULL, NO_LOCK, 1);
 	ASSERT_GT(rc, 0);
 	close(rc);
 
 	/* Good but deep path */
 	rc = __open_relpath("/tmp/famfs/0000/1111/2222/3333/4444/5555",
-			    LOG_RELPATH, 1, NULL, NULL, NO_LOCK, 1);
+			    LOG_RELPATH, 1, NULL, -1, NULL, NO_LOCK, 1);
 	ASSERT_GT(rc, 0);
 	close(rc);
 
 	/* Bogus path that ascends to a real path with .meta */
 	rc = __open_relpath("/tmp/famfs/0000/1111/2222/3333/4444/5555/66666",
-			    LOG_RELPATH, 1, NULL, NULL, NO_LOCK, 1);
+			    LOG_RELPATH, 1, NULL, -1, NULL, NO_LOCK, 1);
 	ASSERT_GT(rc, 0);
 	close(rc);
 
 	/* Deep bogus path that ascends to a real path with .meta */
 	rc = __open_relpath("/tmp/famfs/0000/1111/2222/3333/4444/5555/66666/7/6/5/4/3/2/xxx",
-			    LOG_RELPATH, 1, NULL, NULL, NO_LOCK, 1);
+			    LOG_RELPATH, 1, NULL, -1, NULL, NO_LOCK, 1);
 	ASSERT_GT(rc, 0);
 	close(rc);
 
 	/* empty path */
-	rc = __open_relpath("", LOG_RELPATH, 1, NULL, NULL, NO_LOCK, 1);
+	rc = __open_relpath("", LOG_RELPATH, 1, NULL, -1, NULL, NO_LOCK, 1);
 	ASSERT_LT(rc, 0);
 	close(rc);
 
 	/* "/" */
-	rc = __open_relpath("/", LOG_RELPATH, 1, NULL, NULL, NO_LOCK, 1);
+	rc = __open_relpath("/", LOG_RELPATH, 1, NULL, -1, NULL, NO_LOCK, 1);
 	ASSERT_LT(rc, 0);
 	close(rc);
 
 	/* No "/" */
-	rc = __open_relpath("blablabla", LOG_RELPATH, 1, NULL, NULL, BLOCKING_LOCK, 1);
+	rc = __open_relpath("blablabla", LOG_RELPATH, 1, NULL, -1, NULL, BLOCKING_LOCK, 1);
 	ASSERT_LT(rc, 0);
 	close(rc);
 	/* No "/" and spaces */
-	rc = __open_relpath("bla bla bla", LOG_RELPATH, 1, NULL, NULL, NON_BLOCKING_LOCK, 1);
+	rc = __open_relpath("bla bla bla", LOG_RELPATH, 1, NULL, -1, NULL, NON_BLOCKING_LOCK, 1);
 	ASSERT_LT(rc, 0);
 	close(rc);
 }

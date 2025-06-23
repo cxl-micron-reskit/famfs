@@ -63,6 +63,7 @@ static int famfs_shadow_file_create(const char *path,
 				    struct famfs_log_stats *ls, int disable_write, int dry_run,
 				    int testmode, int verbose);
 static int open_log_file_read_only(const char *path, size_t *sizep,
+				   ssize_t size_in,
 				   char *mpt_out, enum lock_opt lo);
 static int famfs_mmap_superblock_and_log_raw(const char *devname,
 					     struct famfs_superblock **sbp,
@@ -1724,7 +1725,7 @@ famfs_logplay(
 						shadowtest, verbose);
 
 	/* Open log from meta file */
-	lfd = open_log_file_read_only(fspath, &log_size, mpt_out, NO_LOCK);
+	lfd = open_log_file_read_only(fspath, &log_size, -1, mpt_out, NO_LOCK);
 	if (lfd < 0) {
 		fprintf(stderr, "%s: failed to open log file for filesystem %s\n",
 			__func__, fspath);
@@ -2066,6 +2067,7 @@ find_real_parent_path(const char *path)
  * @relpath:    the relative path to open (relative to the mount point)
  * @read_only:
  * @size_out:   File size will be returned if this pointer is non-NULL
+ * @size_in:    Expected size; -1 is no expected size.
  * @mpt_out:    Mount point will be returned if this pointer is non-NULL
  *              (the string space is assumed to be of size PATH_MAX)
  * @no_fscheck: For unit tests only - don't check whether the file with @relpath
@@ -2084,6 +2086,7 @@ __open_relpath(
 	const char    *relpath,
 	int            read_only,
 	size_t        *size_out,
+	ssize_t        size_in,
 	char          *mpt_out,
 	enum lock_opt  lockopt,
 	int            no_fscheck)
@@ -2157,6 +2160,13 @@ __open_relpath(
 						return -1;
 					}
 				}
+				if (size_in != -1 && size_in != st.st_size) {
+					fprintf(stderr, "%s: size_in=%ld "
+						"size_out=%ld\n", __func__,
+						size_in, st.st_size);
+					dump_stack();
+					assert(1);
+				}
 				return fd;
 			}
 			/* no */
@@ -2186,10 +2196,11 @@ __open_log_file(
 	const char *path,
 	int         read_only,
 	size_t     *sizep,
+	ssize_t     size_in,
 	char       *mpt_out,
 	enum lock_opt lockopt)
 {
-	return __open_relpath(path, LOG_FILE_RELPATH, read_only, sizep,
+	return __open_relpath(path, LOG_FILE_RELPATH, read_only, sizep, size_in,
 			      mpt_out, lockopt, 0);
 }
 
@@ -2197,20 +2208,22 @@ int
 static open_log_file_read_only(
 	const char *path,
 	size_t     *sizep,
+	ssize_t     size_in,
 	char       *mpt_out,
 	enum lock_opt lockopt)
 {
-	return __open_log_file(path, 1, sizep, mpt_out, lockopt);
+	return __open_log_file(path, 1, sizep, size_in, mpt_out, lockopt);
 }
 
 static int
 open_log_file_writable(
 	const char *path,
 	size_t     *sizep,
+	ssize_t     size_in,
 	char       *mpt_out,
 	enum lock_opt lockopt)
 {
-	return __open_log_file(path, 0, sizep, mpt_out, lockopt);
+	return __open_log_file(path, 0, sizep, size_in, mpt_out, lockopt);
 }
 
 /*
@@ -2224,7 +2237,7 @@ __open_cfg_file(
 	size_t     *sizep)
 {
 	return __open_relpath(path, CFG_FILE_RELPATH, read_only,
-			      sizep, NULL, NO_LOCK, 0);
+			      sizep, -1, NULL, NO_LOCK, 0);
 }
 
 int
@@ -2258,6 +2271,7 @@ __open_superblock_file(
 {
 	/* No need to plumb locking for the superblock; use the log for locking */
 	return __open_relpath(path, SB_FILE_RELPATH, read_only, sizep,
+			      FAMFS_SUPERBLOCK_SIZE,
 			      mpt_out, NO_LOCK, 0);
 }
 
@@ -2318,9 +2332,10 @@ famfs_map_log_by_path(
 	/* XXX: the open is always read-only, but the mmap is sometimes writable;
 	 * Why does this work ?!
 	 */
-	fd = __open_log_file(path, 1 /* read only */, &log_size, NULL, lockopt);
+	fd = open_log_file_read_only(path, &log_size, -1, NULL, lockopt);
 	if (fd < 0) {
-		fprintf(stderr, "%s: failed to open log file for filesystem %s\n",
+		fprintf(stderr,
+			"%s: failed to open log file for filesystem %s\n",
 			__func__, path);
 		return NULL;
 	}
@@ -2491,7 +2506,8 @@ famfs_fsck(
 			}
 			close(sfd);
 
-			lfd = open_log_file_read_only(path, NULL, NULL, NO_LOCK);
+			lfd = open_log_file_read_only(path, NULL, -1,
+						      NULL, NO_LOCK);
 			if (lfd < 0 || mock_failure == MOCK_FAIL_OPEN_LOG) {
 				free(sb);
 				close(sfd);
@@ -2649,7 +2665,8 @@ famfs_init_locked_log(
 	}
 
 	/* Log file */
-	lp->lfd = open_log_file_writable(fspath, &log_size, mpt, BLOCKING_LOCK);
+	lp->lfd = open_log_file_writable(fspath, &log_size, -1,
+					 mpt, BLOCKING_LOCK);
 	if (lp->lfd < 0) {
 		fprintf(stderr, "%s: Unable to open famfs log for writing\n",
 			__func__);
@@ -4202,7 +4219,8 @@ famfs_clone(const char *srcfile,
 	 * For this operation we need to open the log file, which also gets us
 	 * the mount point path
 	 */
-	lfd = open_log_file_writable(srcfullpath, &log_size, mpt_out, BLOCKING_LOCK);
+	lfd = open_log_file_writable(srcfullpath, &log_size, -1,
+				     mpt_out, BLOCKING_LOCK);
 	addr = mmap(0, log_size, PROT_READ | PROT_WRITE, MAP_SHARED, lfd, 0);
 	if (addr == MAP_FAILED) {
 		fprintf(stderr, "%s: Failed to mmap log file\n", __func__);
