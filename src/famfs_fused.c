@@ -459,6 +459,9 @@ famfs_do_lookup(
 	} else if (S_ISREG(st.st_mode)) {
 		if (lo->pass_yaml) {
 			/* This exposes the yaml files directly */
+			fuse_log(FUSE_LOG_ERR,
+				 "%s: passing yaml file stat (size=%ld)\n",
+				 __func__, st.st_size);
 			e->attr = st;
 		} else {
 			void *yaml_buf;
