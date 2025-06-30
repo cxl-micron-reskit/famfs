@@ -208,6 +208,9 @@ famfs_mount_usage(int   argc,
 	       "    -F|--nofuse    - Use the standalone famfs v1 kernel module. If\n"
 	       "                     specified, the mount will fail if the famfs v1\n"
 	       "                     kernel module is not available\n"
+	       "    -t|--timeout   - Fuse metadata timeout in seconds\n"
+	       "    -c|--cache=always|normal|never"
+	       "                   - Cache metadata in fuse indefinitely|1s|never\n"
 	       "    -d|--debug     - In fuse mode, the debug option runs the fuse\n"
 	       "                     daemon single-threaded, and may enable more\n"
 	       "                     verbose logging\n"
@@ -229,6 +232,8 @@ do_famfs_cli_mount(int argc, char *argv[])
 	int remaining_args;
 	char *daxdev = NULL;
 	char *realmpt = NULL;
+	ssize_t timeout = -1;
+	char *cachearg = NULL;
 	char *realdaxdev = NULL;
 	const char *famfs_mode = getenv("FAMFS_MODE");
 	unsigned long mflags = MS_NOATIME | MS_NOSUID | MS_NOEXEC | MS_NODEV;
@@ -241,6 +246,8 @@ do_famfs_cli_mount(int argc, char *argv[])
 		{"debug",      no_argument,            0,  'd'},
 		{"fuse",       no_argument,            0,  'f'},
 		{"nofuse",     no_argument,            0,  'F'},
+		{"timeout",    required_argument,      0,  't'},
+		{"cache",      required_argument,      0,  'c'},
 		{"verbose",    no_argument,            0,  'v'},
 		{0, 0, 0, 0}
 	};
@@ -252,7 +259,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+h?RrfFmvd",
+	while ((c = getopt_long(argc, argv, "+h?RrfFmvdt:c:",
 				mount_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -285,6 +292,12 @@ do_famfs_cli_mount(int argc, char *argv[])
 		case 'F':
 			fuse_mode = FAMFS_V1;
 			break;
+		case 't':
+			timeout = strtoul(optarg, 0, 0);
+			break;
+		case 'c':
+			cachearg = optarg;
+			break;
 		}
 	}
 
@@ -296,6 +309,24 @@ do_famfs_cli_mount(int argc, char *argv[])
 	} else if (!(use_mmap || use_read)) {
 		/* If neither method was explicitly requested, default to mmap */
 		use_mmap = 1;
+	}
+	if (timeout != -1 && cachearg) {
+		fprintf(stderr,
+			"%s: Error: timeout & cache args mutually exclusive\n",
+			__func__);
+		return -1;
+	} else if (cachearg) {
+		if (strcmp(cachearg, "always") == 0)
+			timeout = 3600 * 24 * 365;
+		else if (strcmp(cachearg, "normal") == 0)
+			timeout = 1;
+		else if (strcmp(cachearg, "never") == 0)
+			timeout = 0;
+		else {
+			fprintf(stderr, "%s: invalid arg cache=%s\n",
+				__func__, cachearg);
+			return -1;
+		}
 	}
 	remaining_args = argc - optind;
 
@@ -331,36 +362,41 @@ do_famfs_cli_mount(int argc, char *argv[])
 
 	if (fuse_mode == FAMFS_FUSE) {
 		printf("daxdev=%s, mpt=%s\n", realdaxdev, realmpt);
-		rc = famfs_mount_fuse(realdaxdev, realmpt, NULL, debug, verbose);
+		rc = famfs_mount_fuse(realdaxdev, realmpt, NULL, timeout,
+				      debug, verbose);
 		goto out;
 	}
 	else if (!famfs_module_loaded(1)) {
-		fprintf(stderr, "famfs mount: famfs kernel module is not loaded!\n");
+		fprintf(stderr,
+			"famfs mount: famfs kernel module is not loaded!\n");
 		fprintf(stderr, "famfs mount: try 'sudo modprobe famfs'\n");
 		rc = -1;
 		goto err_out;
 	}
 
-	/* This functions as a verification that the daxdev contains a valid famfs
-	 * file system. Need to fail out before calling the system mount() if it's not
-	 * a valid famfs file system.
+	/* This functions as a verification that the daxdev contains a valid
+	 * famfs file system. Need to fail out before calling the system mount()
+	 * if it's not a valid famfs file system.
 	 */
 	rc = famfs_get_role_by_dev(realdaxdev);
 	if (rc < 0 || rc == FAMFS_NOSUPER) {
-		fprintf(stderr, "famfs mount: failed to validate famfs file system\n");
+		fprintf(stderr,
+			"famfs mount: failed to validate famfs file system\n");
 		rc = -1;
 		goto err_out;
 	}
 	rc = mount(realdaxdev, realmpt, "famfs", mflags, "");
 	if (rc) {
-		fprintf(stderr, "famfs mount: mount returned %d; errno %d\n", rc, errno);
+		fprintf(stderr,
+			"famfs mount: mount returned %d; errno %d\n", rc, errno);
 		perror("mount fail\n");
 		goto err_out;
 	}
 
 	rc = famfs_mkmeta(realdaxdev, NULL, verbose);
 	if (rc) {
-		fprintf(stderr, "famfs mount: err %d from mkmeta; unmounting\n", rc);
+		fprintf(stderr,
+			"famfs mount: err %d from mkmeta; unmounting\n", rc);
 		umount(realmpt);
 		goto err_out;
 	}

@@ -449,11 +449,12 @@ int shadow_path_valid(const char *path)
 
 #define NARGV 64
 
-int
+static int
 famfs_start_fuse_daemon(
 	const char *mpt,
 	const char *daxdev,
 	const char *shadow,
+	ssize_t timeout,
 	int debug,
 	int verbose)
 {
@@ -484,8 +485,21 @@ famfs_start_fuse_daemon(
 		 dir, "famfs_fused");
 
 	/* fsname=/dev/dax1.0 sets the string in column 1 of /proc/mounts */
-	snprintf(opts, sizeof(opts), "daxdev=%s,shadow=%s,fsname=%s",
+	snprintf(opts, sizeof(opts),
+		 "daxdev=%s,shadow=%s,fsname=%s",
+		 //"daxdev=%s,shadow=%s,fsname=%s,cache=always",
 		 daxdev, shadow, daxdev);
+	if (timeout >= 0) {
+		char timeout_arg[PATH_MAX];
+
+		snprintf(timeout_arg, sizeof(timeout_arg),
+			 ",timeout=%f", (float)timeout);
+		strncat(opts, timeout_arg,
+			sizeof(opts) - strlen(opts) - 1);
+	}
+
+	if (verbose)
+		printf("%s: opts: %s\n", __func__, opts);
 
 	argv[argc++] = strdup(daxdev);
 	if (debug)
@@ -521,6 +535,7 @@ famfs_mount_fuse(
 	const char *realdaxdev,
 	const char *realmpt,
 	const char *realshadow,
+	ssize_t timeout,
 	int debug,
 	int verbose)
 {
@@ -577,7 +592,7 @@ famfs_mount_fuse(
 	}
 
 	/* Start the fuse daemon, which mounts the FS */
-	rc = famfs_start_fuse_daemon(realmpt, realdaxdev, local_shadow,
+	rc = famfs_start_fuse_daemon(realmpt, realdaxdev, local_shadow, timeout,
 				     debug, verbose);
 	if (rc < 0) {
 		fprintf(stderr, "%s: failed to start fuse daemon\n", __func__);

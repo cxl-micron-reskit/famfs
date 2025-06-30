@@ -41,7 +41,8 @@ enum famfs_type {
 };
 
 /* fuse-only functions */
-int famfs_mount_fuse(const char *realdaxdev, const char *realmpt, const char *realshadow,
+int famfs_mount_fuse(const char *realdaxdev, const char *realmpt,
+		     const char *realshadow, ssize_t timeout,
 		     int debug, int verbose);
 
 /* famfs_lib dual v1/v2 functions */

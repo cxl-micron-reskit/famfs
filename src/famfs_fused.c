@@ -1584,6 +1584,7 @@ int main(int argc, char *argv[])
 			 famfs_data.timeout);
 		exit(1);
 	}
+	printf("timeout=%f\n", famfs_data.timeout);
 
 	famfs_data.icache.root.fd = open(famfs_data.source, O_PATH);
 	printf("root=(%s) fd=%d\n", famfs_data.source, famfs_data.icache.root.fd);
