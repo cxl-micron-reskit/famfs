@@ -428,25 +428,24 @@ int check_file_exists(
 {
 	char fullpath[4096];
 	struct stat st;
-	int elapsed = 0;
 	useconds_t wait_us = 100 * 1000; /* 100ms */
-	useconds_t waited = 0;
+	useconds_t waited_us = 0;
+	useconds_t timeout_us = timeout * 1000 * 1000;
 
 	/* Build full path */
 	snprintf(fullpath, sizeof(fullpath), "%s/%s", basepath, relpath);
 
 	/* Loop until timeout */
-	while (elapsed < timeout) {
+	while (waited_us < timeout_us) {
 		if (stat(fullpath, &st) == 0) {
 			/* File exists */
 			if (verbose)
 				printf("%s: waited %dms\n", __func__,
-				       waited / 1000);
+				       waited_us / 1000);
 			return 0;
 		}
 		usleep(wait_us);
-		elapsed++;
-		waited += wait_us;
+		waited_us += wait_us;
 	}
 
 	/* File did not appear within timeout */
