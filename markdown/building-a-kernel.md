@@ -4,11 +4,15 @@
 
 # Building and installing a famfs-compatible Linux kernel
 
-Clone the kernel. The kernel below has patches that enable testing with /dev/dax devices,
-but are not used with /dev/pmem devices. (Running with /dev/pmem devices is currently
-recommended.)
+Clone the kernel.
 
     git clone https://github.com/cxl-micron-reskit/famfs-linux.git
+
+Checkout the appropriate branch
+
+    git checkout famfs-6.14.11-standalone
+
+(see [Kernel Branches](#kernel-branches) below for info on available kernel branches.)
 
 Put an appropriate .config file in place
 
@@ -19,6 +23,10 @@ has appropriate kernel config files for some
 kernels - e.g. the famfs-config-6.8 config file is appropriate for a kernel with the
 famfs v1 patch set. We recommend choosing the closest config file at or below the
 version of your kernel.
+
+What kernel branch should you build?
+
+
 
 Build the kernel
 
@@ -58,11 +66,14 @@ kernels: FUSE and standalone.
 
 # Kernel Branches
 
-The famfs kernel repo contains several branches; here are the important ones as of May 2025.
+The famfs kernel repo contains an evolving set of branches; here are the important ones as of July 2025.
 
 ‼️Note that none of these branches should be considered "stable". They will be rebased as the famfs kernel components get improved and updated.
 
 | **Branch** | **Notes** |
 |------------|-------------|
-| ```famfs-6.14``` | The famfs fuse-mode kernel |
-| ```famfs_dual``` | A dual-mode kernel, which can run famfs either via fuse or via the standalone fs/famfs file system. The standalone famfs in this branch has all fixes and improvements that have been applied since the last standalone famfs patchset (05/24). |
+| ```famfs-6.14.11-standalone``` | If you're testing or running demos with famfs, this is most likely what you should run. |
+| ```famfs-6.14.11-dual``` | This branch contains both standalone and fuse-based famfs support. We use it heavily in testing; don't use this unless you know why you need it. |
+
+| ```famfs-fuse-v2```| The famfs-fuse V2 kernel patch. There are still some permission-related problems with the fuse port, so we don't recommend it (yet) unless you specifically want to run via fuse. |
+| ```famfs-6.14.11-fuse``` | This branch currently matches ```famfs-fuse-v2```, but will be rebased if we apply fixes to this version. |
