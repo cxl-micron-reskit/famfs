@@ -64,7 +64,7 @@ int
 main(int argc, char *argv[])
 {
 	int c;
-
+	int rc = 0;
 	char *daxdev = NULL;
 	int force = 0;
 	u64 loglen = 0x800000;
@@ -110,5 +110,16 @@ main(int argc, char *argv[])
 	/* TODO: multiple devices? */
 	daxdev = argv[optind++];
 
-	return famfs_mkfs(daxdev, loglen, kill_super, force);
+	famfs_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
+	famfs_log(FAMFS_LOG_NOTICE, "Starting famfs mkfs on device %s", daxdev);
+
+	rc = famfs_mkfs(daxdev, loglen, kill_super, force);
+	if (rc == 0)
+		famfs_log(FAMFS_LOG_NOTICE, "mkfs %scommand successful on device %s",
+			       (kill_super && force) ? "-k -f " : "", daxdev);
+	else
+		famfs_log(FAMFS_LOG_ERR, "mkfs failed on device %s", daxdev);
+
+	famfs_log_close_syslog();
+	return rc;
 }
