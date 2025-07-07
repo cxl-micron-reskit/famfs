@@ -166,6 +166,7 @@ shadow_path_from_opts(
  *
  * @path:
  * @dev_out: if non-null, the device name will be copied here
+ * @shadow_out:
  *
  * Return values
  * 1 - the path is an active famfs mount point
@@ -219,12 +220,14 @@ famfs_path_is_mount_pt(
 
  			xmpt = realpath(mpt, NULL);
 			if (!xmpt) {
-				fprintf(stderr, "realpath(%s) errno %d\n", mpt, errno);
+				fprintf(stderr, "realpath(%s) errno %d\n",
+					mpt, errno);
 				continue;
 			}
 			xpath = realpath(path, NULL);
 			if (!xpath) {
-				fprintf(stderr, "input path realpath(%s) errno %d\n",
+				fprintf(stderr,
+					"input path realpath(%s) errno %d\n",
 					path, errno);
 				free(xmpt);
 				continue;
@@ -238,7 +241,8 @@ famfs_path_is_mount_pt(
 				rc = shadow_path_from_opts(opts, shadow_path,
 							   sizeof(shadow_path));
 				if (rc)
-					strncpy(shadow_out, shadow_path, PATH_MAX - 1);
+					strncpy(shadow_out, shadow_path,
+						PATH_MAX - 1);
 				else
 					shadow_out[0] = 0;
 			}
@@ -418,6 +422,75 @@ char *find_mount_point(const char *path)
 	return current_path;  // This is the mount point path
 }
 
+static int is_directory(const char *path)
+{
+	struct stat st;
+	return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+/**
+ * get_shadow_root()
+ *
+ * @shadow_path: a shadow path that should be already valid
+ *
+ * A valid shadow path should contain a ./root subdirectory,
+ * which is the shadow_root path.
+ */
+char *
+famfs_get_shadow_root(
+	const char *shadow_path,
+	int verbose)
+{
+	size_t len = strlen(shadow_path);
+	const char *suffix = "/root";
+	size_t suffix_len = strlen(suffix);
+	char *root_path;
+
+	if (!shadow_path)
+		return NULL;
+	if (!is_directory(shadow_path)) {
+		if (verbose)
+			fprintf(stderr,
+				"%s: shadow_path=%s is not a directory\n",
+				__func__, shadow_path);
+		return NULL;
+	}
+
+	if (len >= suffix_len &&
+	    strcmp(shadow_path + len - suffix_len, suffix) == 0) {
+		/* Already ends in "/root" */
+		if (verbose)
+			printf("%s: shadow_path=%s already ends in '/root'\n",
+			       __func__, shadow_path);
+		return strdup(shadow_path);
+	}
+
+	/* Build shadow_path + "/root" */
+	root_path = malloc(len + 1 + suffix_len + 1);
+	if (!root_path)
+		return NULL;
+
+	sprintf(root_path, "%s%s", shadow_path,
+		shadow_path[len - 1] == '/' ? "root" : "/root");
+
+	if (is_directory(root_path)) {
+		if (verbose)
+			printf("%s: shadow_path=%s; "
+			       "shadow_path/root exists Yay\n",
+			       __func__, shadow_path);
+			       
+		return root_path;
+	}
+
+	fprintf(stderr,
+		"%s: shadow_path=%s exists, but not shadow_path/root\n",
+		__func__, shadow_path);
+	free(root_path);
+	return NULL;
+}
+
+
+
 /*
  * return true if valid, false if not
  */
@@ -439,8 +512,10 @@ int shadow_path_valid(const char *path)
 	parent = dirname(path_copy); /* Extract parent directory */
 
 	/* Check if parent exists and is a directory */
-	if (stat(parent, &statbuf) == 0 && S_ISDIR(statbuf.st_mode))
-		return free(path_copy), 1;
+	if (stat(parent, &statbuf) == 0 && S_ISDIR(statbuf.st_mode)) {
+		free(path_copy);
+		return 1;
+	}
 
 	/* Parent does not exist or is not a directory */
 	free(path_copy);
@@ -520,14 +595,16 @@ static char *
 gen_shadow_dir(void)
 {
 	char template[] = "/tmp/famfs_shadow_XXXXXX";  /* Must end with XXXXXX */
-	char *shadow = mkdtemp(template);  /* Generates a unique name */
+	char *shadow = mkdtemp(template);  /* Generates a dir with unique name */
 
 	if (!shadow || shadow[0] == '\0') {
-		fprintf(stderr, "%s: failed to generate shadow path\n", __func__);
+		fprintf(stderr,
+			"%s: Err %d failed to generate shadow path (%s)\n",
+			__func__, errno, template);
 		return NULL;
 	}
 
-	return strdup(shadow);
+	return strdup(shadow );
 }
 
 int
@@ -539,6 +616,7 @@ famfs_mount_fuse(
 	int debug,
 	int verbose)
 {
+	char shadow_root[PATH_MAX] = {0};
 	int shadow_created = 0;
 	char *local_shadow;
 	char *mpt_check;
@@ -561,7 +639,8 @@ famfs_mount_fuse(
 	}
 
 	if (shadow_path_in_use(local_shadow)) {
-		fprintf(stderr, "%s: shadow path is already in use!\n", __func__);
+		fprintf(stderr, "%s: shadow path is already in use!\n",
+			__func__);
 		rc = -EALREADY;
 		goto out;
 	}
@@ -584,7 +663,22 @@ famfs_mount_fuse(
 		}
 	}
 
-	rc = famfs_mkmeta(realdaxdev, local_shadow, verbose);
+	/* The official "shadow_path" is in local_shadow[], but the root of the
+	 * shadow yaml tree is now <local_shadow>/root, allowing config &
+	 * control files to live at <local shadow> without being exposed.
+	 */
+	snprintf(shadow_root, sizeof(shadow_root), "%s/root", local_shadow);
+	rc = mkdir(shadow_root, 0755);
+	if (rc) {
+		fprintf(stderr,
+			"%s: failed to create shadow root path %s\n",
+			__func__, local_shadow);
+		rc = -1;
+		goto out;
+	}
+
+
+	rc = famfs_mkmeta(realdaxdev, shadow_root, verbose);
 	if (rc) {
 		fprintf(stderr, "%s: err mkmeta failed for shadow %s\n",
 			__func__, local_shadow);

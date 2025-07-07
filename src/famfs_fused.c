@@ -1449,10 +1449,11 @@ fused_syslog(
 int main(int argc, char *argv[])
 {
 	struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
-	struct fuse_session *se;
-	struct fuse_cmdline_opts opts;
-	struct fuse_loop_config *config;
 	struct famfs_data famfs_data = { 0 };
+	struct fuse_loop_config *config;
+	struct fuse_cmdline_opts opts;
+	char *shadow_root = NULL;
+	struct fuse_session *se;
 	char shadow_opt[80];
 	int ret = -1;
 
@@ -1514,7 +1515,7 @@ int main(int argc, char *argv[])
 	 * This parses famfs_data from the -o opts
 	 */
 	if (fuse_opt_parse(&args, &famfs_data, famfs_opts, NULL)== -1)
-		return 1;
+		goto err_out1;
 
 	famfs_data.debug = opts.debug;
 	famfs_data.icache.root.refcount = 2;
@@ -1532,39 +1533,23 @@ int main(int argc, char *argv[])
 			famfs_data.daxdev, FAMFS_DEVNAME_LEN - 1);
 	}
 
-	if (famfs_data.source) {
-		struct stat stat;
-		int res;
-
-		res = lstat(famfs_data.source, &stat);
-		if (res == -1) {
-			fprintf(stderr,
-				"%s: failed to stat source (\"%s\"): %m\n",
-				PROGNAME, famfs_data.source);
-			fuse_log(FUSE_LOG_ERR,
-				 "%s: failed to stat source (\"%s\"): %m\n",
-				 PROGNAME, famfs_data.source);
-			exit(1);
-		}
-		if (!S_ISDIR(stat.st_mode)) {
-			fprintf(stderr, "%s: source (%s) is not a directory\n",
-				PROGNAME, famfs_data.source);
-			fuse_log(FUSE_LOG_ERR,
-				 "%s: source (%s) is not a directory\n",
-				 PROGNAME, famfs_data.source);
-			exit(1);
-		}
-
-		/* XXX validate that the source is a valid famfs shadow fs */
-
-	} else {
+	if (!famfs_data.source) {
 		const char *fmt = "%s: must supply shadow fs path "
 			"as -o source=</shadow/path>\n";
 
 		fuse_log(FUSE_LOG_ERR, fmt, PROGNAME);
 		fprintf(stderr, fmt, PROGNAME);
-		exit(1);
+		ret = 1;
+		goto err_out1;
 	}
+
+	shadow_root = famfs_get_shadow_root(famfs_data.source, 0 /* verbose */);
+	if (!shadow_root) {
+		fprintf(stderr, "%s: failed to resolve shadow_root from %s\n",
+			__func__, famfs_data.source);
+		goto err_out1;
+	}
+
 	if (!famfs_data.timeout_set) {
 		switch (famfs_data.cache) {
 		case CACHE_NEVER:
@@ -1582,16 +1567,19 @@ int main(int argc, char *argv[])
 	} else if (famfs_data.timeout < 0) {
 		fuse_log(FUSE_LOG_ERR, "timeout is negative (%lf)\n",
 			 famfs_data.timeout);
-		exit(1);
+		ret = 1;
+		goto err_out1;
 	}
 	printf("timeout=%f\n", famfs_data.timeout);
 
-	famfs_data.icache.root.fd = open(famfs_data.source, O_PATH);
-	printf("root=(%s) fd=%d\n", famfs_data.source, famfs_data.icache.root.fd);
+	famfs_data.icache.root.fd = open(shadow_root, O_PATH);
+	printf("root=(%s) fd=%d\n", shadow_root, famfs_data.icache.root.fd);
 	if (famfs_data.icache.root.fd == -1) {
 		fuse_log(FUSE_LOG_ERR, "open(\"%s\", O_PATH): %m\n",
-			 famfs_data.source);
-		exit(1);
+			 shadow_root);
+		free(shadow_root);
+		ret = 1;
+		goto err_out1;
 	}
 
 	/*
@@ -1639,6 +1627,8 @@ err_out3:
 err_out2:
 	fuse_session_destroy(se);
 err_out1:
+	if (shadow_root)
+		free(shadow_root);
 	free(opts.mountpoint);
 	fuse_opt_free_args(&args);
 

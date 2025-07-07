@@ -1327,7 +1327,9 @@ __famfs_logplay(
 	enum famfs_system_role  role,
 	int			verbose)
 {
+
 	struct famfs_log_stats ls = { 0 };
+	char *shadow_root = NULL;
 	u64 i, j;
 	int rc;
 
@@ -1346,34 +1348,19 @@ __famfs_logplay(
 	 * we need to make sure mpt exists, and create it if not.
 	 */
 	if (shadow) {
-		struct stat st;
-
-		rc = stat(mpt, &st);
-		if (rc) {
-			rc = mkdir(mpt, 0755);
-			if (rc) {
-				fprintf(stderr,
-					"%s: failed to create shadowpath %s\n",
-					__func__, mpt);
-				return -errno;
-			}
+		/* Remember: mpt is supposted to be the shadow path here,
+		 * not the mount point
+		 */
+		shadow_root = famfs_get_shadow_root(mpt, verbose);
+		if (!shadow_root) {
+			fprintf(stderr,
+				"%s: failed to get shadow root from mpt=%s\n",
+				__func__, mpt);
+			return -1;
 		}
-		else if (!rc) {
-			switch (st.st_mode & S_IFMT) {
-			case S_IFDIR:
-				/* mpt (where shadow replay will happen)
-				 * is a directory */
-				break;
 
-			default:
-				fprintf(stderr,
-					"%s: shadowpath (%s) exists "
-					"and is not a dir\n", __func__, mpt);
-				return -EINVAL;
-			}
-		}
 		assert(sb);
-		rc = __famfs_mkmeta(mpt, sb, logp, role, 1, verbose);
+		rc = __famfs_mkmeta(shadow_root, sb, logp, role, 1, verbose);
 		if (rc) {
 			fprintf(stderr, "%s: shadow mkmeta failed\n", __func__);
 			return -1;
@@ -1409,7 +1396,8 @@ __famfs_logplay(
 
 			ls.f_logged++;
 
-			if (!famfs_log_entry_fc_path_is_relative(fm) || mock_path) {
+			if (!famfs_log_entry_fc_path_is_relative(fm) ||
+			    mock_path) {
 				fprintf(stderr,
 					"%s: ignoring log entry; "
 					"path is not relative\n",
@@ -1438,16 +1426,26 @@ __famfs_logplay(
 			if (skip_file)
 				continue;
 
-			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt,
-				 fm->fm_relpath);
-			realpath(fullpath, rpath);
-
 			if (shadow) {
+				/* For shadow logplay, file path is based on
+				 * shadow_root, which may not match mpt
+				 */
+				snprintf(fullpath, PATH_MAX - 1, "%s/%s",
+					 shadow_root,
+					 fm->fm_relpath);
+				realpath(fullpath, rpath);
+
 				famfs_shadow_file_create(rpath, fm, &ls, 0,
 							 dry_run,
 							 shadowtest, verbose);
 				continue;
 			}
+
+			/* Get the rationalized full path */
+			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt,
+				 fm->fm_relpath);
+			realpath(fullpath, rpath);
+
 
 			if (dry_run)
 				continue;
@@ -1522,8 +1520,8 @@ __famfs_logplay(
 					el[j].se_len    = tle->se[j].se_len;
 				}
 				rc = famfs_v1_set_file_map(fd, fm->fm_size,
-							   fm->fm_fmap.fmap_nextents,
-							   el, FAMFS_REG);
+						fm->fm_fmap.fmap_nextents,
+						el, FAMFS_REG);
 bad_log_fmap:
 				if (rc)
 					fprintf(stderr, "%s: "
@@ -1546,7 +1544,8 @@ bad_log_fmap:
 
 			ls.d_logged++;
 
-			if (!famfs_log_entry_md_path_is_relative(md) || mock_path) {
+			if (!famfs_log_entry_md_path_is_relative(md) ||
+			    mock_path) {
 				fprintf(stderr,
 					"%s: ignoring log mkdir entry; "
 					"path is not relative\n",
@@ -1561,7 +1560,8 @@ bad_log_fmap:
 			if (dry_run)
 				continue;
 
-			snprintf(fullpath, PATH_MAX - 1, "%s/%s", mpt,
+			snprintf(fullpath, PATH_MAX - 1, "%s/%s",
+				 shadow ? shadow_root : mpt,
 				 md->md_relpath);
 			realpath(fullpath, rpath);
 
@@ -1600,7 +1600,8 @@ bad_log_fmap:
 				printf("%s: creating directory %s\n",
 				       __func__, md->md_relpath);
 
-			rc = famfs_dir_create(mpt, (char *)md->md_relpath,
+			rc = famfs_dir_create(shadow ? shadow_root : mpt,
+					      (char *)md->md_relpath,
 					      md->md_mode,
 					      md->md_uid, md->md_gid);
 			if (rc) {
@@ -2692,10 +2693,11 @@ famfs_init_locked_log(
 				__func__);
 			rc = -1;
 			goto err_out;
-		} else
-			lp->shadow_path = strdup(shadow);
+		} else {
+			lp->shadow_root = famfs_get_shadow_root(shadow, verbose);
+		}
 
-		if (!lp->shadow_path) {
+		if (!lp->shadow_root) {
 			fprintf(stderr, "%s: failed to get shadow path\n",
 				__func__);
 			rc = -1;
@@ -2784,8 +2786,8 @@ famfs_release_locked_log(struct famfs_locked_log *lp)
 	close(lp->lfd);
 	if (lp->mpt)
 		free(lp->mpt);
-	if (lp->shadow_path)
-		free(lp->shadow_path);
+	if (lp->shadow_root)
+		free(lp->shadow_root);
 	return rc;
 }
 
@@ -3133,7 +3135,7 @@ __famfs_mkfile(
 		goto out;
 	}
 
-	if (lp->shadow_path) {
+	if (lp->shadow_root) {
 		struct famfs_log_file_meta fmeta = { 0 };
 		char shadowpath[PATH_MAX];
 		char filepath[PATH_MAX];
@@ -3146,7 +3148,7 @@ __famfs_mkfile(
 
 		memcpy(&fmeta.fm_fmap, fmap, sizeof(*fmap));
 
-		snprintf(shadowpath, PATH_MAX - 1, "%s/%s", lp->shadow_path,
+		snprintf(shadowpath, PATH_MAX - 1, "%s/%s", lp->shadow_root,
 			 relpath);
 		snprintf(filepath, PATH_MAX - 1, "%s/%s", lp->mpt, relpath);
 		assert(strlen(relpath) < (sizeof(fmeta.fm_relpath) - 1));
@@ -3324,11 +3326,12 @@ famfs_dir_create(
 /**
  * __famfs_mkdir()
  *
- * This should become the mid-level mkdir function; verify that target is a directory
- * with a parent that exists and is in a famfs FS. Inner function should rely on these
- * checks, and use the famfs_locked_log.
+ * This should become the mid-level mkdir function; verify that target is a
+ * directory with a parent that exists and is in a famfs FS. Inner function
+ * should rely on these checks, and use the famfs_locked_log.
  *
- * Inner function would also be callled by 'cp -r' (which doesn't exist quite yet)
+ * Inner function would also be callled by 'cp -r' (which doesn't exist quite
+ * yet)
  *
  * @lp         - XXX make lp mandatory?
  * @dirpath
@@ -3377,17 +3380,21 @@ __famfs_mkdir(
 	parentdir = dirname(dirdupe);
 	rc = stat(parentdir, &st);
 	if (rc) {
-		fprintf(stderr, "%s: parent path (%s) stat failed\n", __func__, parentdir);
+		fprintf(stderr, "%s: parent path (%s) stat failed\n",
+			__func__, parentdir);
 	} else if ((st.st_mode & S_IFMT) != S_IFDIR) {
-		fprintf(stderr, "%s: parent (%s) of path %s is not a directory\n",
+		fprintf(stderr,
+			"%s: parent (%s) of path %s is not a directory\n",
 			__func__, dirpath, parentdir);
 		rc = -1;
 		goto err_out;
 	}
 
-	/* Parentdir exists and is a directory; rationalize the path with realpath */
+	/* Parentdir exists and is a directory; rationalize the path with
+	 * realpath */
 	if (realpath(parentdir, realparent) == 0) {
-		fprintf(stderr, "%s: failed to rationalize parentdir path (%s)\n",
+		fprintf(stderr,
+			"%s: failed to rationalize parentdir path (%s)\n",
 			__func__, parentdir);
 		rc = -1;
 		goto err_out;
@@ -3409,15 +3416,18 @@ __famfs_mkdir(
 
 	relpath = famfs_relpath_from_fullpath(mpt_out, fullpath);
 	if (strcmp(mpt_out, fullpath) == 0) {
-		fprintf(stderr, "%s: failed to create mount point dir: EALREADY\n", __func__);
+		fprintf(stderr,
+			"%s: failed to create mount point dir: EALREADY\n",
+			__func__);
 		rc = -1;
 		goto err_out;
 	}
 
-	/* The only difference between a mkdir in FAMFS_V1 and FAMFS_FUSE is that in
-	 * the latter case we mkdir in the shadow file system.
+	/* The only difference between a mkdir in FAMFS_V1 and FAMFS_FUSE is
+	 * that in the latter case we mkdir in the shadow file system.
 	 */
-	rc = famfs_dir_create((lp->famfs_type == FAMFS_FUSE) ? lp->shadow_path : mpt_out,
+	rc = famfs_dir_create((lp->famfs_type == FAMFS_FUSE) ?
+			      lp->shadow_root : mpt_out,
 			      relpath, mode, uid, gid);
 	if (rc) {
 		fprintf(stderr, "%s: failed to mkdir %s\n", __func__, fullpath);

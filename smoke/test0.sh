@@ -300,7 +300,7 @@ fi
 #
 # re-check mkdir -mug
 #
-echo "re-checking mkdir -mug after remout"
+echo "re-checking mkdir -mug after remount"
 FMODE_OUT="$(sudo stat --format='%a' $DIRPATH)"
 if [[ $FMODE != $FMODE_OUT ]]; then
     fail "mkdir -m err $FMODE ${FMODE_OUT}"

@@ -307,7 +307,8 @@ famfs_flush_file(const char *filename, int verbose)
 	}
 	if ((st.st_mode & S_IFMT) != S_IFREG) {
 		if (verbose)
-			fprintf(stderr, "%s: not a regular file: (%s)\n", __func__, filename);
+			fprintf(stderr, "%s: not a regular file: (%s)\n",
+				__func__, filename);
 		return 2;
 	}
 

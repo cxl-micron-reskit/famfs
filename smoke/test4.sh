@@ -108,13 +108,11 @@ sudo $UMOUNT $MPT || fail "test4.sh umount"
 verify_not_mounted $DEV $MPT "test4.sh"
 
 # Test shadow logplay while the fs is not mounted
-SHADOWPATH=/tmp/shadowpath
+SHADOWPATH=/tmp/shadowpath/root
 ${CLI} logplay --shadow -d /dev/bogodax && fail "shadow logplay should fail with bogus daxdev"
 sudo rm -rf $SHADOWPATH
 ${CLI} logplay --shadow $SHADOWPATH/frob --daxdev $DEV -vv && \
     fail "shadow logplay to nonexistent shadow dir should fail if parent doesn't exist"
-${CLI} logplay --shadow $SHADOWPATH --daxdev $DEV -vv  || \
-    fail "shadow logplay to nonexistent shadow dir should succeed if parent exists"
 ${CLI} logplay --daxdev $DEV -vv  $SHADOWPATH && \
     fail "logplay should fail if --daxdev is set without --shadow"
 
@@ -127,8 +125,6 @@ ${CLI} logplay --shadow $SHADOWPATH --daxdev $DEV -vv || \
 
 # Double shadow arg means re-parse yaml to test (if the shadow files are not already present)
 sudo rm -rf $SHADOWPATH
-${CLI} logplay --shadow $SHADOWPATH --shadowtest --daxdev $DEV  -vv || \
-    fail "shadow logplay with yaml test to existing shadow dir should succeed"
 
 ${CLI} logplay --shadow $SHADOWPATH --shadow $SHADOWPATH --daxdev $DEV  -vv && \
     fail "shadow logplay with yaml test with duplicate shadowpaths should fail"
@@ -144,6 +140,7 @@ ${MOUNT} -vvv $DEV $MPT 2>/dev/null && fail "famfs mount should fail when alread
 
 verify_mounted $DEV $MPT "test4.sh remount"
 
+sudo mkdir ${SHADOWPATH}
 ${CLI} logplay --shadow $SHADOWPATH --shadowtest $MPT  -vv || \
     fail "shadow logplay from mounted meta files should succeed"
 

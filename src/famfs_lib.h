@@ -41,6 +41,7 @@ enum famfs_type {
 };
 
 /* fuse-only functions */
+char *famfs_get_shadow_root(const char *shadow_path, int verbose);
 int famfs_mount_fuse(const char *realdaxdev, const char *realmpt,
 		     const char *realshadow, ssize_t timeout,
 		     int debug, int verbose);

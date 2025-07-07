@@ -38,19 +38,20 @@ struct famfs_locked_log {
 	u8               *bitmap;
 	u64               nbits;
 	u64               alloc_unit;
-	/* In simple linear allocations, remembering the current position speeds up
-	 * repetitive allocations (under a single locked_log session) because we don't
-	 * have re-iterate over the previously-allocated portion of the bitmap
+	/* In simple linear allocations, remembering the current position
+	 * speeds up repetitive allocations (under a single locked_log session)
+	 * because we don't have re-iterate over the previously-allocated
+	 * portion of the bitmap 
 	 */
 	u64               cur_pos;
 	/* alloc is contiguous if nbuckets or nstrips are clear;
-	 * if both are set thhe backing device is bucketized at bucket_size, and each
-	 * allocation is interleaved across nstrips buckets (though smaller allocations
-	 * will use fewer strips)
+	 * if both are set thhe backing device is bucketized at bucket_size,
+	 * and each allocation is interleaved across nstrips buckets (though
+	 * smaller allocations will use fewer strips)
 	 */
 	struct famfs_interleave_param interleave_param;
 	char *mpt;
-	char *shadow_path;
+	char *shadow_root;
 };
 
 struct famfs_log_stats {

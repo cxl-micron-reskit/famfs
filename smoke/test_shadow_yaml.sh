@@ -98,13 +98,11 @@ sudo $UMOUNT $MPT || fail "$TEST.sh umount"
 verify_not_mounted $DEV $MPT "$TEST.sh"
 
 # Test shadow logplay while the fs is not mounted
-SHADOWPATH=/tmp/shadowpath
+SHADOWPATH=/tmp/shadowpath/root
 ${CLI} logplay --shadow -d /dev/bogodax && fail "shadow logplay should fail with bogus daxdev"
 sudo rm -rf $SHADOWPATH
 ${CLI} logplay --shadow $SHADOWPATH/frob --daxdev $DEV -vv   && \
     fail "shadow logplay to nonexistent shadow dir should fail if parent doesn't exist"
-${CLI} logplay --shadow $SHADOWPATH --daxdev $DEV -vv  || \
-    fail "shadow logplay to nonexistent shadow dir should succeed if parent exists"
 ${CLI} logplay --daxdev $DEV $SHADOWPATH -vv && \
     fail "logplay should fail if --daxdev is set without --shadow"
 ${CLI} logplay --shadow /etc/passwd --daxdev $DEV -vv  && \
@@ -117,8 +115,9 @@ ${CLI} logplay --shadow $SHADOWPATH --daxdev $DEV -vv  || \
 ${CLI} logplay --shadow $SHADOWPATH --daxdev $DEV -vv || \
     fail "redo shadow logplay to existing shadow dir should succeed"
 
-# Double shadow arg means re-parse yaml to test (if the shadow files are not already present)
-sudo rm -rf $SHADOWPATH
+# --shadowtest arg means re-parse yaml to test
+# (if shadow the files are not already present)
+sudo rm -rf $SHADOWPATH/*
 ${CLI} logplay --shadow $SHADOWPATH --shadowtest --daxdev $DEV  -vv  || \
     fail "shadow logplay with yaml test to existing shadow dir should succeed"
 
@@ -158,7 +157,7 @@ ${CLI} creat -s 3g  ${MPT}/memfile       || fail "can't create memfile"
 ${CLI} creat -s 100m ${MPT}/memfile1     || fail "creat should succeed with -s 100m"
 ${CLI} creat -s 10000k ${MPT}/memfile2   || fail "creat with -s 10000k should succeed"
 ${CLI} mkdir ${MPT}/tmpdir || fail "mkdir should succeed"
-FUSE_SHADOW="/tmp/s"
+FUSE_SHADOW="/tmp/s/root"
 
 FUSE_MPT="/tmp/famfs_fuse"
 sudo rm -rf $FUSE_SHADOW
