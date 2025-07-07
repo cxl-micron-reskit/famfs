@@ -13,6 +13,7 @@
 
 #include "famfs.h"
 #include "famfs_meta.h"
+#include "famfs_log.h"
 
 #define FAMFS_YAML_MAX 16384
 
