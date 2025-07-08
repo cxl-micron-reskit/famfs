@@ -402,7 +402,8 @@ TEST(famfs, __famfs_cp)
 	int rc;
 
 	/* Prepare a fake famfs  */
-	mock_kmod = mock_fstype = 1;
+	mock_kmod = 1;
+	mock_fstype = FAMFS_V1;
 	rc = create_mock_famfs_instance("/tmp/famfs", device_size, &sb, &logp);
 	ASSERT_EQ(rc, 0);
 	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
@@ -490,10 +491,12 @@ TEST(famfs, famfs_alloc)
 	char *fspath = "/tmp/famfs";
 	struct famfs_log *logp;
 	extern int mock_kmod;
+	extern int mock_fstype;
 	int rc;
 
 	/* Prepare a fake famfs  */
 	mock_kmod = 1;
+	mock_fstype = FAMFS_V1;
 	rc = create_mock_famfs_instance(fspath, device_size, &sb, &logp);
 	ASSERT_EQ(rc, 0);
 	rc = famfs_init_locked_log(&ll, fspath, 1);
@@ -579,8 +582,8 @@ TEST(famfs, famfs_alloc)
 	ASSERT_EQ(fmap->ie[0].ie_chunk_size, ll.interleave_param.chunk_size);
 	ASSERT_EQ(fmap->ie[0].ie_nstrips, 8);
 
-	/* A second allocation of the same size should fail on the first strip, because
-	 * the superblock and log are there */
+	/* A second allocation of the same size should fail on the first strip,
+	 * because the superblock and log are there */
 	rc = famfs_file_alloc(&ll, 8 * 16 * MiB, &fmap, 2);
 	ASSERT_NE(rc, 0);
 
@@ -588,7 +591,8 @@ TEST(famfs, famfs_alloc)
 	rc = famfs_file_alloc(&ll, 4096, &fmap, 1);
 	ASSERT_EQ(rc, 0);
 
-	/* Chunk size must be a multiple of FAMFS_ALLOC_UNIT, so this should fail */
+	/* Chunk size must be a multiple of FAMFS_ALLOC_UNIT, so
+	 * this should fail */
 	ll.interleave_param.chunk_size += 1;
 
 	/* But small alloc should still succeed because it won't be strided */
@@ -596,8 +600,9 @@ TEST(famfs, famfs_alloc)
 	ASSERT_NE(rc, 0);
 
 	ll.interleave_param.chunk_size--; /* make it valid again */
-	ll.interleave_param.nstrips = 6;  /* Fewer strips; try an alloc that not all strips can handle,
-`			  * but enough can */
+	ll.interleave_param.nstrips = 6;  /* Fewer strips; try an alloc that
+					   * not all strips can handle,
+					   * but enough can */
 
 	printf("1:\n");
 	rc = famfs_file_alloc(&ll, 16 * MiB, &fmap, 2);
@@ -740,11 +745,13 @@ TEST(famfs, famfs_log)
 	extern int mock_kmod;
 	extern int mock_role;
 	extern int mock_path;
+	extern int mock_fstype;
 	u64 tmp;
 	int rc;
 	int i;
 
 	mock_kmod = 1;
+	mock_fstype = FAMFS_V1;
 	/** can call famfs_file_alloc() and __famfs_mkdir() on our fake famfs in /tmp/famfs */
 
 	/* Prepare a fake famfs (move changes to this block everywhere it is) */
@@ -797,13 +804,15 @@ TEST(famfs, famfs_log)
 	/* This should fail due to shadow fs path being a file and not a directory */
 	system("rm -rf /tmp/famfs_shadow");
 	system("touch /tmp/famfs_shadow"); /* craete file where shadow dir should be */
-	rc = famfs_dax_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 1, 0);
+	rc = famfs_dax_shadow_logplay("/tmp/famfs_shadow", 0, 0,
+				      "/dev/bogo_dax", 1, 0);
 	ASSERT_NE(rc, 0);
 	system("rm -f /tmp/famfs_shadow");
 
 	/* This should fail daxdev being bogus */
-	system("mkdir /tmp/famfs_shadow");
-	rc = famfs_dax_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 1, 0);
+	system("mkdir -p /tmp/famfs_shadow/root");
+	rc = famfs_dax_shadow_logplay("/tmp/famfs_shadow", 0, 0,
+				      "/dev/bogo_dax", 1, 0);
 	ASSERT_NE(rc, 0);
 
 	/*
@@ -822,15 +831,20 @@ TEST(famfs, famfs_log)
 
 	printf("\nStart mark\n");
 	system("sudo rm -rf /tmp/famfs_shadow2");
-	/* Do a shadow log play; shadow==2 will cause the yaml to be re-parsed and verified */
+	system("sudo mkdir -p /tmp/famfs_shadow2/root");
+	/* Do a shadow log play; shadow==2 will cause the yaml to be
+	 * re-parsed and verified */
 	rc = __famfs_logplay("/tmp/famfs_shadow2", sb, logp, 0 /* dry_run */,
-			     0, 1 /* shadow */, 1 /* shadowtest */, FAMFS_MASTER, 1);
+			     0, 1 /* shadow */, 1 /* shadowtest */,
+			     FAMFS_MASTER, 1);
 	ASSERT_EQ(rc, 0);
 
 	/* Re-do shadow logplay when the files already exist */
-	/* Do a shadow log play; shadow==2 will cause the yaml to be re-parsed and verified */
+	/* Do a shadow log play; shadow==2 will cause the yaml to be
+	 * re-parsed and verified */
 	rc = __famfs_logplay("/tmp/famfs_shadow2", sb, logp, 1 /* dry_run */,
-			     0, 1 /* shadow */, 1 /* shadowtest */, FAMFS_MASTER, 1);
+			     0, 1 /* shadow */, 1 /* shadowtest */,
+			     FAMFS_MASTER, 1);
 	ASSERT_EQ(rc, 0);
 
 	/*
@@ -838,14 +852,16 @@ TEST(famfs, famfs_log)
 	 */
 	/* fail FAMFS_LOG_MAGIC check */
 	logp->famfs_log_magic = 420;
-	rc = __famfs_logplay("/tmp/famfs", sb, logp, 0, 0, 0, 0, FAMFS_MASTER, 4);
+	rc = __famfs_logplay("/tmp/famfs", sb, logp, 0, 0, 0, 0,
+			     FAMFS_MASTER, 4);
 	ASSERT_NE(rc, 0);
 	logp->famfs_log_magic = FAMFS_LOG_MAGIC;
 
 	/* fail famfs_validate_log_entry() */
 	tmp = logp->entries[0].famfs_log_entry_seqnum;
 	logp->entries[0].famfs_log_entry_seqnum = 420;
-	rc = __famfs_logplay("/tmp/famfs", sb, logp, 0, 0, 0, 0, FAMFS_MASTER, 4);
+	rc = __famfs_logplay("/tmp/famfs", sb, logp, 0, 0, 0, 0,
+			     FAMFS_MASTER, 4);
 	ASSERT_NE(rc, 0);
 	logp->entries[0].famfs_log_entry_seqnum = tmp;
 
@@ -853,7 +869,8 @@ TEST(famfs, famfs_log)
 	mock_path = 1;
 	tmp = logp->entries[0].famfs_log_entry_type;
 	logp->entries[0].famfs_log_entry_type = FAMFS_LOG_FILE;
-	rc = __famfs_logplay("/tmp/famfs", sb, logp, 0, 0, 0, 0, FAMFS_MASTER, 0);
+	rc = __famfs_logplay("/tmp/famfs", sb, logp, 0, 0, 0, 0,
+			     FAMFS_MASTER, 0);
 	ASSERT_NE(rc, 0);
 	mock_path = 0;
 	logp->entries[0].famfs_log_entry_type = tmp;
@@ -862,7 +879,8 @@ TEST(famfs, famfs_log)
 	mock_failure = MOCK_FAIL_GENERIC;
 	tmp = logp->entries[0].famfs_log_entry_type;
 	logp->entries[0].famfs_log_entry_type = FAMFS_LOG_INVALID;
-	rc = __famfs_logplay("/tmp/famfs", sb, logp, 0, 0, 0, 0, FAMFS_MASTER, 1);
+	rc = __famfs_logplay("/tmp/famfs", sb, logp, 0, 0, 0, 0,
+			     FAMFS_MASTER, 1);
 	ASSERT_EQ(rc, 0);
 	mock_failure = MOCK_FAIL_NONE;
 	logp->entries[0].famfs_log_entry_type = tmp;
@@ -872,7 +890,8 @@ TEST(famfs, famfs_log)
 	mock_failure = MOCK_FAIL_LOG_MKDIR;
 	tmp = logp->entries[0].famfs_log_entry_type;
 	logp->entries[0].famfs_log_entry_type = FAMFS_LOG_MKDIR;
-	rc = __famfs_logplay("/tmp/famfs", sb, logp, 0, 0, 0, 0, FAMFS_MASTER, 0);
+	rc = __famfs_logplay("/tmp/famfs", sb, logp, 0, 0, 0, 0,
+			     FAMFS_MASTER, 0);
 	ASSERT_NE(rc, 0);
 	mock_failure = MOCK_FAIL_NONE;
 	logp->entries[0].famfs_log_entry_type = tmp;

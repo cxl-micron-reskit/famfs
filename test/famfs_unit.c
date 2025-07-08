@@ -64,11 +64,18 @@ int create_mock_famfs_instance(
 	snprintf(pathbuf, PATH_MAX - 1, "rm -rf %s", path);
 	system(pathbuf);
 
+	
+	   
 	/* Create fake famfs and famfs/.meta mount point */
 	rc = mkdir(path, mode);
 	famfs_assert_eq(rc, 0);
 
 	snprintf(pathbuf, PATH_MAX - 1, "%s/.meta", path);
+	rc = mkdir(pathbuf, mode);
+	famfs_assert_eq(rc, 0);
+
+	/* Create famfs/root for shadow-related operations */
+	snprintf(pathbuf, PATH_MAX - 1, "%s/root", path);
 	rc = mkdir(pathbuf, mode);
 	famfs_assert_eq(rc, 0);
 
