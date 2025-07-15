@@ -109,8 +109,8 @@ stripe_test_cp () {
 	assert_equal $? 0 "Failed to create interleaved file $file_name"
 
 	dst_name="$file_name""_copy"
-	echo "Copying $file_name into $dst_name"
-	${CLI} cp  -C "$CHUNKSIZE" -N "$NSTRIPS" -B "$NBUCKETS" "$file_name" "$dst_name" || fail "striped file cp of $dst_name failed"
+	echo "Copying $file_name into $dst_name"	
+${CLI} cp  -C "$CHUNKSIZE" -N "$NSTRIPS" -B "$NBUCKETS" "$file_name" "$dst_name" || fail "striped file cp of $dst_name failed"
 
 	# Add the file name to the array
 	files+=("$dst_name")
@@ -203,6 +203,11 @@ stripe_test () {
 
 	# Increment the counter
 	((counter++))
+
+	if [ "$counter" -gt 26 ]; then
+	    echo ":== stripe_test: Not filling large file system"
+	    break;
+	fi
     done
 
     echo "created $counter files"
@@ -307,7 +312,14 @@ ${CLI} creat -B 10 -C 2000000 -N 3 -s 2m $MPT/badchunksz && fail "bad chunk size
 BASENAME="/mnt/famfs/stripe_file"
 CAPACITY=$(famfs_get_capacity "$MPT")
 echo "Capacity: $CAPACITY"
-(( NBUCKETS = CAPACITY / (1024 * 1024 * 1024) ))
+
+(( V32G = 32 * 1024 * 1024 * 1024 ))
+if [ "$CAPACITY" -le "$V32G" ]; then
+    (( NBUCKETS = CAPACITY / (1024 * 1024 * 1024) ))
+else
+    (( NBUCKETS = 32 ))
+fi
+
 (( NSTRIPS = NBUCKETS - 1 ))
 echo "NBUCKETS: $NBUCKETS"
 echo "NSTRIPS: $NSTRIPS"
