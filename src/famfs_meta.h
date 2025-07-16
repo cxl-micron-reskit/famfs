@@ -103,7 +103,7 @@ enum famfs_log_ext_type {
 };
 
 /* Maximum number of extents in a FC extent list */
-#define FAMFS_MAX_SIMPLE_EXTENTS 32
+#define FAMFS_MAX_SIMPLE_EXTENTS 16
 #define FAMFS_MAX_INTERLEAVED_EXTENTS 1
 #define FAMFS_MAX_NBUCKETS 64
 

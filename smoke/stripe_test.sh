@@ -109,8 +109,8 @@ stripe_test_cp () {
 	assert_equal $? 0 "Failed to create interleaved file $file_name"
 
 	dst_name="$file_name""_copy"
-	echo "Copying $file_name into $dst_name"	
-${CLI} cp  -C "$CHUNKSIZE" -N "$NSTRIPS" -B "$NBUCKETS" "$file_name" "$dst_name" || fail "striped file cp of $dst_name failed"
+	echo "Copying $file_name into $dst_name"
+	${CLI} cp  -C "$CHUNKSIZE" -N "$NSTRIPS" -B "$NBUCKETS" "$file_name" "$dst_name" || fail "striped file cp of $dst_name failed"
 
 	# Add the file name to the array
 	files+=("$dst_name")
@@ -204,6 +204,10 @@ stripe_test () {
 	# Increment the counter
 	((counter++))
 
+	# Our smoke test VMs have 8GiB virtual daxdevs. On an 8G daxdev,
+	# this will create test files until it is full. But if the daxdev
+	# is huge, we don't want this test to take forever, so bail at 26
+	# files (which is the number you get on an 8G daxdev).
 	if [ "$counter" -gt 26 ]; then
 	    echo ":== stripe_test: Not filling large file system"
 	    break;
@@ -313,11 +317,16 @@ BASENAME="/mnt/famfs/stripe_file"
 CAPACITY=$(famfs_get_capacity "$MPT")
 echo "Capacity: $CAPACITY"
 
-(( V32G = 32 * 1024 * 1024 * 1024 ))
-if [ "$CAPACITY" -le "$V32G" ]; then
+# Bucket size is 1G and NBUCKETS is calculated if the CAPACITY <=16G. Otherwise,
+# NBUCKETS = 16 (and bucket size is CAPACITY/16). 
+# Standalone famfs has a 16 strip limit that won't be fixed, but fuse based
+# famfs has a 32 strip limit (and that can increase more easily - because the fmap
+# message format in famfs-fuse is more flexible. 
+(( V16G = 16 * 1024 * 1024 * 1024 ))
+if [ "$CAPACITY" -le "$V16G" ]; then
     (( NBUCKETS = CAPACITY / (1024 * 1024 * 1024) ))
 else
-    (( NBUCKETS = 32 ))
+    (( NBUCKETS = 16 ))
 fi
 
 (( NSTRIPS = NBUCKETS - 1 ))
