@@ -624,11 +624,12 @@ famfs_cp_usage(int   argc,
 	       "    -g|--gid <gid>   		- Specify uid (default is current user's gid)\n"
 	       "    -v|--verbose       		- print debugging output while executing the command\n"
 	       "Interleaving Arguments:\n"
+	       "    -N|--nstrips <n>  - Number of strips to use in interleaved allocations.\n"
+	       "    -B|--nbuckets <n> - Number of buckets to divide the device into\n"
+	       "                        (nstrips && nbuckets) causes strided\n"
+	       "                        allocation within a single device.\n"
 	       "    -C|--chunksize <size>[kKmMgG] - Size of chunks for interleaved allocation\n"
-	       "                               	  (default=0); non-zero causes interleaved allocation.\n"
-	       "    -N|--nstrips <n>         	- Number of strips to use in interleaved allocations.\n"
-	       "    -B|--nbuckets <n>        	- Number of buckets to divide the device into\n"
-	       "                                  causes strided allocation within a single device.\n"
+	       "                        (default=256M)\n"
 	       "\n"
 	       "NOTE 1: 'famfs cp' will never overwrite an existing file, which is a side-effect\n"
 	       "        of the facts that famfs never does delete, truncate or allocate-on-write\n"
@@ -656,6 +657,8 @@ do_famfs_cli_cp(int argc, char *argv[])
 	int c;
 	int set_stripe = 0;
 	s64 mult;
+
+	interleave_param.chunk_size = 0x200000; /* 2MiB default chunk */
 
 	struct option cp_options[] = {
 		/* These options set a */
@@ -724,14 +727,15 @@ do_famfs_cli_cp(int argc, char *argv[])
 	remaining_args = argc - optind;
 
 	if (remaining_args < 2) {
-		fprintf(stderr, "famfs cp error: source and destination args are required\n");
+		fprintf(stderr,
+			"famfs cp error: source and dest args required\n");
 		famfs_cp_usage(argc, argv);
 		return -1;
 	}
-	if (interleave_param.nstrips > FAMFS_MAX_SIMPLE_EXTENTS) {
-		fprintf(stderr, "famfs cp error: Number of strips(%lld) should not be"
-				" more than maximum allowed strips(%d) \n",
-				interleave_param.nstrips, FAMFS_MAX_SIMPLE_EXTENTS);
+	if (set_stripe && interleave_param.nstrips > FAMFS_MAX_SIMPLE_EXTENTS) {
+		fprintf(stderr,
+			"famfs cp error: nstrips(%lld) > %d \n",
+			interleave_param.nstrips, FAMFS_MAX_SIMPLE_EXTENTS);
 		return -1;
 	}
 
@@ -1177,29 +1181,30 @@ famfs_creat_usage(int   argc,
 	       "    %s creat --multi file1,256M --multi file2,256M\n"
 	       "\n"
 	       "Arguments:\n"
-	       "    -?                       - Print this message\n"
-	       "    -m|--mode <octal-mode>   - Default is 0644\n"
-	       "                               Note: mode is ored with ~umask, so the actual mode\n"
-	       "                               may be less permissive; see umask for more info\n"
-	       "    -u|--uid <int uid>       - Default is caller's uid\n"
-	       "    -g|--gid <int gid>       - Default is caller's gid\n"
-	       "    -v|--verbose             - Print debugging output while executing the command\n"
+	       "    -?                     - Print this message\n"
+	       "    -m|--mode <octal-mode> - Default is 0644\n"
+	       "                             Note: mode is ored with ~umask, so the actual mode\n"
+	       "                             may be less permissive; see umask for more info\n"
+	       "    -u|--uid <int uid> - Default is caller's uid\n"
+	       "    -g|--gid <int gid> - Default is caller's gid\n"
+	       "    -v|--verbose       - Print debugging output while executing the command\n"
 	       "Single-file create: (cannot mix with multi-create)\n"
 	       "    -s|--size <size>[kKmMgG] - Required file size\n"
 	       "    -S|--seed <random-seed>  - Optional seed for randomization\n"
 	       "    -r|--randomize           - Optional - will randomize with provided seed\n"
 	       "Multi-file create: (cannot mix with single-create)\n"
-	       "    -t|--threadct <nthreads>     - Thread count in --multi mode\n"
+	       "    -t|--threadct <nthreads> - Thread count in --multi mode\n"
 	       "    -M|--multi <fname>,<size>[,<seed>]\n"
-	       "                             - This arg can repeat; will create each fiel\n"
-	       "                               if non-zero seed specified, will randomize\n"
+	       "                        - This arg can repeat; will create each fiel\n"
+	       "                          if non-zero seed specified, will randomize\n"
 	       "\n"
 	       "Interleave arguments:\n"
+	       "    -N|--nstrips <n>  - Number of strips to use in interleaved allocations.\n"
+	       "    -B|--nbuckets <n> - Number of buckets to divide the device into\n"
+	       "                        (nstrips && nbuckets) causes strided\n"
+	       "                        allocation within a single device.\n"
 	       "    -C|--chunksize <size>[kKmMgG] - Size of chunks for interleaved allocation\n"
-	       "                               (default=0); non-zero causes interleaved allocation.\n"
-	       "    -N|--nstrips <n>         - Number of strips to use in interleaved allocations.\n"
-	       "    -B|--nbuckets <n>        - Number of buckets to divide the device into\n"
-	       "                               causes strided allocation within a single device.\n"
+	       "                        (default=256M)\n"
 	       "\n"
 	       "NOTE: the --randomize and --seed arguments are useful for testing; the file is\n"
 	       "      randomized based on the seed, making it possible to use the 'famfs verify'\n"
@@ -1458,6 +1463,8 @@ do_famfs_cli_creat(int argc, char *argv[])
 	s64 mult;
 	int c;
 
+	interleave_param.chunk_size = 0x200000; /* 2MiB default chunk */
+
 	struct option creat_options[] = {
 		/* These options set a flag. */
 		{"size",        required_argument,             0,  's'},
@@ -1596,13 +1603,12 @@ do_famfs_cli_creat(int argc, char *argv[])
 
 	if (seed && !randomize) {
 		fprintf(stderr,
-			"Error you provided a seed (-S) without the randomize (-r) argument\n");
+			"Error seed (-S) without randomize (-r) argument\n");
 		return -1;
 	}
-	if (interleave_param.nstrips > FAMFS_MAX_SIMPLE_EXTENTS) {
+	if (set_stripe && interleave_param.nstrips > FAMFS_MAX_SIMPLE_EXTENTS) {
 		fprintf(stderr,
-			"famfs creat error: Number of strips(%lld) should not be "
-			"more than maximum allowed strips(%d) \n",
+			"famfs creat error: nstrips(%lld) > %d \n",
 			interleave_param.nstrips, FAMFS_MAX_SIMPLE_EXTENTS);
 		return -1;
 	}
