@@ -539,19 +539,21 @@ famfs_file_strided_alloc(
 	int nstripes;
 	u64 tmp;
 	/* Quantities in units of alloc_unit (au) */
-	u64 alloc_size_au, devsize_au, bucket_size_au, stripe_size_au, strip_size_au, chunk_size_au;
+	u64 alloc_size_au, devsize_au, bucket_size_au;
+	u64 stripe_size_au, strip_size_au, chunk_size_au;
 	int i, j;
 	int rc;
 
-	rc = famfs_validate_interleave_param(&lp->interleave_param, lp->alloc_unit,
+	rc = famfs_validate_interleave_param(&lp->interleave_param,
+					     lp->alloc_unit,
 					     lp->devsize, verbose);
 	if (rc)
 		return rc;
 	assert(lp->interleave_param.nstrips <= lp->interleave_param.nbuckets);
 
 	if (size < lp->interleave_param.chunk_size) {
-		/* if the file size is less than a chunk, fall back to a contiguous allocation
-		 * from a random bucket
+		/* if the file size is less than a chunk, fall back to a
+		 * contiguous allocation from a random bucket
 		 */
 
 		lp->cur_pos = 0;
@@ -560,23 +562,27 @@ famfs_file_strided_alloc(
 
 	alloc_size_au = (size + lp->alloc_unit - 1) / lp->alloc_unit;
 
-	/* Authoritative device, bucket, stripe and strip sizes are in allocation units */
+	/* Authoritative device, bucket, stripe and strip sizes are in
+	 * allocation units */
 	chunk_size_au  = lp->interleave_param.chunk_size / lp->alloc_unit;
-	devsize_au     = lp->devsize / lp->alloc_unit;    /* This may round down */
-	bucket_size_au = devsize_au / lp->interleave_param.nbuckets;         /* This may also round down */
+	/* This may round down: */
+	devsize_au     = lp->devsize / lp->alloc_unit;
+	/* This may also round down: */
+	bucket_size_au = devsize_au / lp->interleave_param.nbuckets;
 	stripe_size_au = lp->interleave_param.nstrips * chunk_size_au;
 	assert(!(stripe_size_au % lp->interleave_param.nstrips));
 
 	nstripes = (alloc_size_au + stripe_size_au - 1) / stripe_size_au;
 	strip_size_au  = nstripes * chunk_size_au;
 
-	/* Just for curiosity, let's check how much space at the end of devsize is leftover
-	 * after the last bucket */
+	/* Just for curiosity, let's check how much space at the end of
+	 * devsize is leftover after the last bucket */
 	tmp = bucket_size_au * lp->alloc_unit * lp->interleave_param.nbuckets;
 	assert(tmp <= lp->devsize);
 	if (verbose && tmp < lp->devsize)
 		printf("%s: nbuckets=%lld wastes %lld bytes of dev capacity\n",
-		       __func__, lp->interleave_param.nbuckets, lp->devsize - tmp);
+		       __func__, lp->interleave_param.nbuckets,
+		       lp->devsize - tmp);
 
 	if (verbose > 1)
 		printf("%s: size=0x%llx stripe_size=0x%llx strip_size=0x%llx\n",
@@ -598,20 +604,21 @@ famfs_file_strided_alloc(
 	fmap->ie[0].ie_chunk_size = lp->interleave_param.chunk_size;
 	strips = fmap->ie[0].ie_strips;
 
-	/* Allocate our strips. If nstrips is <  nbuckets, we can tolerate some failures */
+	/* Allocate our strips. If nstrips is <  nbuckets,
+	 * we can tolerate some failures */
 	for (i = 0; i < lp->interleave_param.nbuckets; i++) {
 		int bucket_num = next_bucket(&bs);
 		s64 ofs;
 		u64 pos = bucket_num * bucket_size_au * lp->alloc_unit;
 
 		/* Oops: bitmap might not be allocated yet */
-		ofs = bitmap_alloc_contiguous(lp->bitmap, lp->nbits, lp->alloc_unit,
+		ofs = bitmap_alloc_contiguous(lp->bitmap, lp->nbits,
+					      lp->alloc_unit,
 					      strip_size_au * lp->alloc_unit,
 					      &pos,
 					      bucket_size_au * lp->alloc_unit);
 
 		if (ofs > 0) {
-
 			strips[nstrips_allocated].se_devindex = 0;
 			strips[nstrips_allocated].se_offset = ofs;
 			strips[nstrips_allocated].se_len = strip_size_au * lp->alloc_unit;
@@ -629,18 +636,23 @@ famfs_file_strided_alloc(
 
 	if (nstrips_allocated < lp->interleave_param.nstrips) {
 		/* Allocation failed; got fewer strips than needed */
-		fprintf(stderr, "%s: failed %lld strips @%lldb each; got %lld strips\n",
-			__func__, lp->interleave_param.nstrips, strip_size_au * lp->alloc_unit,
+		fprintf(stderr,
+			"%s: failed %lld strips @%lldb each; got %lld strips\n",
+			__func__, lp->interleave_param.nstrips,
+			strip_size_au * lp->alloc_unit,
 			nstrips_allocated);
 
 		if (verbose > 1) {
-			printf("%s: before freeing strips from failed alloc:", __func__);
+			printf("%s: before freeing strips from failed alloc:",
+			       __func__);
 			mu_print_bitmap(lp->bitmap, lp->nbits);
 		}
 
 		for (j = 0; j < i; j++)
-			bitmap_free_contiguous(lp->bitmap, lp->nbits, lp->alloc_unit,
-					       strips[j].se_offset, strips[j].se_len);
+			bitmap_free_contiguous(lp->bitmap, lp->nbits,
+					       lp->alloc_unit,
+					       strips[j].se_offset,
+					       strips[j].se_len);
 		free(fmap);
 		if (verbose > 1) {
 			printf("%s: after:", __func__);
@@ -649,7 +661,8 @@ famfs_file_strided_alloc(
 
 		return -ENOMEM;
 	}
-	fmap->fmap_niext = 1; /* We only support single-interleaved-extent (but multi-strip) alloc */
+	/* We only support single-interleaved-extent (but multi-strip) alloc: */
+	fmap->fmap_niext = 1;
 	*fmap_out = fmap;
 
 	if (verbose > 1)
