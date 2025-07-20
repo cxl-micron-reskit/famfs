@@ -1362,6 +1362,7 @@ __famfs_logplay(
 		assert(sb);
 		rc = __famfs_mkmeta(shadow_root, sb, logp, role, 1, verbose);
 		if (rc) {
+			free(shadow_root);
 			fprintf(stderr, "%s: shadow mkmeta failed\n", __func__);
 			return -1;
 		}
@@ -1621,6 +1622,9 @@ bad_log_fmap:
 			break;
 		}
 	}
+	if (shadow_root)
+		free(shadow_root);
+
 	famfs_print_log_stats(shadow ?
 			      "famfs_logplay(shadow)" : "famfs_logplay(v1)",
 			      &ls, verbose);
