@@ -3582,9 +3582,10 @@ famfs_mkdir_parents(
 	char *rpath;
 	int rc;
 
-	/* dirpath as an indeterminate number of nonexistent dirs, under a path that
-	 * must exist. But the immediate parent may not exist. All existing elements
-	 * in the path must be dirs. By opening the log, we can get the mount point path...
+	/* dirpath as an indeterminate number of nonexistent dirs, under a path
+	 * that must exist. But the immediate parent may not exist. All existing
+	 * elements in the path must be dirs. By opening the log, we can get the
+	 * mount point path...
 	 */
 
 	if (dirpath[0] == '/')
@@ -3608,7 +3609,8 @@ famfs_mkdir_parents(
 		return rc;
 	}
 
-	/* Now recurse up fromm abspath till we find an existing parent, and mkdir back down */
+	/* Now recurse up fromm abspath till we find an existing parent,
+	 * and mkdir back down */
 	rc = famfs_make_parent_dir(&ll, abspath, mode, uid, gid, 0, verbose);
 
 	/* Separate function should release ll and lock */
@@ -3630,8 +3632,9 @@ famfs_mkdir_parents(
  *
  * @lp       - famfs_locked_log struct
  * @srcfile  - must exist and be a regular file
- * @destfile - must not exist (and will be a regular file). If @destfile does not fall
- *             within a famfs file system, we will clean up and fail
+ * @destfile - must not exist (and will be a regular file).
+ *             If @destfile does not fall within a famfs file system, we will
+ *             clean up and fail
  * NOTE: paths may be absolute or relative to getcwd()
  * @mode     - If mode is NULL, mode is inherited fro msource file
  * @uid
@@ -3665,7 +3668,8 @@ __famfs_cp(
 	/* Validate source file */
 	rc = stat(srcfile, &srcstat);
 	if (rc) {
-		fprintf(stderr, "%s: unable to stat srcfile (%s)\n", __func__, srcfile);
+		fprintf(stderr, "%s: unable to stat srcfile (%s)\n",
+			__func__, srcfile);
 		return 1; /* not an abort condition */
 	}
 	switch (srcstat.st_mode & S_IFMT) {
@@ -3673,7 +3677,8 @@ __famfs_cp(
 		/* Source is a file - all good */
 		if (srcstat.st_size == 0) {
 			if (verbose > 1)
-				fprintf(stderr, "%s: skipping empty file %s\n", __func__, srcfile);
+				fprintf(stderr, "%s: skipping empty file %s\n",
+					__func__, srcfile);
 
 			return 1;
 		}
@@ -3681,15 +3686,18 @@ __famfs_cp(
 
 	case S_IFDIR:
 		/* source is a directory; fail for now
-		 * (should this be mkdir? Probably... at least if it's a recursive copy)
+		 * (should this be mkdir? Probably...
+		 * at least if it's a recursive copy)
 		 */
-		fprintf(stderr, "%s: -r not specified; omitting directory '%s'\n",
+		fprintf(stderr,
+			"%s: -r not specified; omitting directory '%s'\n",
 			__func__, srcfile);
 		return 1;
 
 	default:
 		fprintf(stderr,
-			"%s: error: src %s is not a regular file\n", __func__, srcfile);
+			"%s: error: src %s is not a regular file\n",
+			__func__, srcfile);
 		return 1;
 	}
 
@@ -3698,21 +3706,24 @@ __famfs_cp(
 	 */
 	srcfd = open(srcfile, O_RDONLY, 0);
 	if (srcfd < 0 || mock_failure == MOCK_FAIL_OPEN) {
-		fprintf(stderr, "%s: unable to open srcfile (%s)\n", __func__, srcfile);
+		fprintf(stderr, "%s: unable to open srcfile (%s)\n",
+			__func__, srcfile);
 		return 1;
 	}
 
 	/* XXX famfs_mkfile() calls famfs_file_alloc()
 	 * famfs_file_alloc() allocates and logs the file
 	 * under log lock */
-	destfd = __famfs_mkfile(lp, destfile, (mode == 0) ? srcstat.st_mode : mode,
+	destfd = __famfs_mkfile(lp, destfile,
+				(mode == 0) ? srcstat.st_mode : mode,
 				uid, gid, srcstat.st_size, verbose);
 	if (destfd <= 0) {
 		fprintf(stderr, "%s: failed in __famfs_mkfile\n", __func__);
 		return destfd;
 	}
 
-	destp = mmap(0, srcstat.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, destfd, 0);
+	destp = mmap(0, srcstat.st_size, PROT_READ | PROT_WRITE,
+		     MAP_SHARED, destfd, 0);
 	if (destp == MAP_FAILED ||
 			mock_failure == MOCK_FAIL_MMAP) {
 		fprintf(stderr, "%s: dest mmap failed (%s) size %ld\n",
@@ -3764,8 +3775,9 @@ __famfs_cp(
  *
  * @lp       - Locked Log struct (required)
  * @srcfile  - skipped unless it's a regular file
- * @destfile - Nonexistent file, or existing directory. If destfile is a directory, this
- *             function fill append basename(srcfile) to destfile to get a nonexistent file path
+ * @destfile - Nonexistent file, or existing directory. If destfile is a
+ *             directory, this function fill append basename(srcfile) to
+ *             destfile to get a nonexistent file path
  * @verbose
  */
 int
@@ -3796,31 +3808,35 @@ famfs_cp(struct famfs_locked_log *lp,
 			char src[PATH_MAX];
 
 			if (verbose > 1)
-				printf("%s: (%s) -> (%s/)\n", __func__, srcfile, destfile);
+				printf("%s: (%s) -> (%s/)\n", __func__,
+				       srcfile, destfile);
 
-			/* Destination is directory;  get the realpath and append the basename
-			 * from the source
+			/* Destination is directory;  get the realpath and
+			 * append the basename from the source
 			 */
 			if (realpath(destfile, destpath) == 0 ||
 					mock_failure == MOCK_FAIL_GENERIC) {
-				fprintf(stderr, "%s: failed to rationalize destath path (%s)\n",
-					__func__, destfile);
+				fprintf(stderr,
+					"%s: failed to rationalize dest path "
+					"(%s)\n", __func__, destfile);
 				return 1;
 			}
 			strncpy(src, srcfile, PATH_MAX - 1);
-			snprintf(destpath, PATH_MAX - 1, "%s/%s", destfile, basename(src));
+			snprintf(destpath, PATH_MAX - 1, "%s/%s",
+				 destfile, basename(src));
 			strncpy(actual_destfile, destpath, PATH_MAX - 1);
 			break;
 		}
 		default:
-			fprintf(stderr,
-				"%s: error: destination file (%s) exists and is not a directory\n",
+			fprintf(stderr, "%s: error: dest file (%s) exists "
+				"and is not a directory\n",
 				__func__, destfile);
 			return -EEXIST;
 		}
 	} else {
 		/* File does not exist;
-		 * the check whether it is in famfs will happen after the file is created
+		 * the check whether it is in famfs will happen after the
+		 * file is created
 		 */
 		if (verbose > 1)
 			printf("%s: (%s) -> (%s)\n", __func__, srcfile, destfile);
@@ -3838,8 +3854,8 @@ famfs_cp(struct famfs_locked_log *lp,
  *
  * @lp       - (required)
  * @src      - src path (must exist and be a directory)
- * @dest     - Must be a directory if it exists; if dest does not exist, its parent dir
- *             is required to exist.
+ * @dest     - Must be a directory if it exists; if dest does not exist,
+ *             its parent dir is required to exist.
  * @mode
  * @uid
  * @gid
@@ -3870,15 +3886,17 @@ int famfs_cp_dir(
 		/* The directory doesn't exist yet */
 		rc = __famfs_mkdir(lp, dest, mode, uid, gid, verbose);
 		if (rc) {
-			/* Recursive copy can't really recover from a mkdir failure */
+			/* Recursive copy can't recover from a mkdir failure */
 			return rc;
 		}
 	}
 
 	directory = opendir(src);
 	if (directory == NULL) {
-		/* XXX is it possible to get here since we created the dir if it didn't exist? */
-		fprintf(stderr, "%s: failed to open src dir (%s)\n", __func__, src);
+		/* XXX is it possible to get here since we
+		 * created the dir if it didn't exist? */
+		fprintf(stderr, "%s: failed to open src dir (%s)\n",
+			__func__, src);
 		return 1;
 	}
 
@@ -3887,7 +3905,8 @@ int famfs_cp_dir(
 		char srcfullpath[PATH_MAX];
 		struct stat src_stat;
 
-		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+		if (strcmp(entry->d_name, ".") == 0 ||
+		    strcmp(entry->d_name, "..") == 0)
 			continue;
 
 		snprintf(srcfullpath, PATH_MAX - 1, "%s/%s", src, entry->d_name);
