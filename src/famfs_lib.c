@@ -4361,13 +4361,13 @@ __famfs_mkfs(const char              *daxdev,
 
 	/* Minimum log length is the FAMFS_LOG_LEN; Also, must be a power of 2 */
 	if (log_len & (log_len - 1) || log_len < FAMFS_LOG_LEN) {
-		fprintf(stderr, "Error: log length (%lld) must be >=8 MiB and a power of 2",
-			log_len);
+		fprintf(stderr, "Error: invalid log length (%lld)\n", log_len);
 		return -EINVAL;
 	}
 
-	/* This test is redundant with famfs_mfks(), but is kept because that function can't
-	 * be called by unit tests (because it opens the actual device)
+	/* This test is redundant with famfs_mfks(), but is kept because that
+	 * function can't be called by unit tests (because it opens the
+	 * actual device)
 	 */
 	if (kill && force) {
 		printf("Famfs superblock killed\n");
@@ -4377,15 +4377,18 @@ __famfs_mkfs(const char              *daxdev,
 	}
 
 	/* Bail if there is a valid superblock and force is not set;
-	 * We already verifed (if there is a superblock) that we are running on the master
+	 * We already verifed (if there is a superblock) that we are running
+	 * on the master
 	 */
 	invalidate_processor_cache(sb, FAMFS_SUPERBLOCK_SIZE);
 	rc = famfs_check_super(sb);
 	if ((rc == 0 || rc == 1) && !force) {
 		/* rc == 0 is good superblock, rc == 1 a is possibly good SB at
-		 * wrong version, which still should not be overwritten without 'force'
+		 * wrong version, which still should not be overwritten without
+		 * 'force'
 		 */
-		fprintf(stderr, "Device %s already has a famfs superblock\n", daxdev);
+		fprintf(stderr,
+			"Device %s already has a famfs superblock\n", daxdev);
 		return -1;
 	}
 
@@ -4398,13 +4401,21 @@ __famfs_mkfs(const char              *daxdev,
 	sb->ts_version    = FAMFS_CURRENT_VERSION;
 	sb->ts_log_offset = FAMFS_LOG_OFFSET;
 	sb->ts_log_len    = log_len;
-	sb->ts_alloc_unit = FAMFS_ALLOC_UNIT; /* Future: make this configurable */
+	sb->ts_alloc_unit = FAMFS_ALLOC_UNIT; /* Future: make configurable */
 	sb->ts_omf_ver_major = FAMFS_OMF_VER_MAJOR;
 	sb->ts_omf_ver_minor = FAMFS_OMF_VER_MINOR;
 	famfs_uuidgen(&sb->ts_uuid);
 
-	/* Note: generated UUIDs are ok now, but we will need to use tagged-capaciyt
-	 * UUIDs when CXL3 provdies UUIDs as tags */
+	/* Check for bad / non-writable daxdev */
+	if (sb->ts_magic != FAMFS_SUPER_MAGIC) {
+		fprintf(stderr,
+			"%s: Error: primary daxdev (%s) is not writable\n",
+			__func__, daxdev);
+		return -1;
+	}
+
+	/* Note: generated UUIDs are ok now, but we will need to use
+	 * tagged-capacity UUIDs when CXL3 provdies UUIDs as tags */
 	famfs_uuidgen(&sb->ts_dev_uuid);
 
 	/* Configure the first daxdev */
