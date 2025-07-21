@@ -11,6 +11,10 @@ VALGRIND_ARG="valgrind --leak-check=full --show-leak-kinds=all --track-origins=y
 RMMOD=0
 FAMFS_MOD="famfs.ko"
 
+CREAT="creat"
+VERIFY="verify"
+CP="cp"
+
 # Allow these variables to be set from the environment
 if [ -z "$DEV" ]; then
     DEV="/dev/dax0.0"
@@ -54,6 +58,10 @@ while (( $# > 0)); do
 	(-v|--valgrind)
 	    # no argument to -v; just setup for Valgrind
 	    VG=${VALGRIND_ARG}
+	    # Also: creat/cp multi threadct=1 to keep valgrind from crashing
+	    CREAT="creat -t 1"
+	    VERIFY="verify -t 1"
+	    CP="cp -t 1"
 	    ;;
 	(-n|--no-rmmod)
 	    RMMOD=0
@@ -104,13 +112,13 @@ stripe_test_cp () {
 
 	echo "Creating file $counter:$file_name"
 	# Try to create the file
-	${CLI} creat  -C "$CHUNKSIZE" -N "$NSTRIPS" -B "$NBUCKETS" -s "$SIZE" "$file_name"
+	${CLI} ${CREAT}  -C "$CHUNKSIZE" -N "$NSTRIPS" -B "$NBUCKETS" -s "$SIZE" "$file_name"
 	# Assert if file creation failed
 	assert_equal $? 0 "Failed to create interleaved file $file_name"
 
 	dst_name="$file_name""_copy"
 	echo "Copying $file_name into $dst_name"
-	${CLI} cp  -C "$CHUNKSIZE" -N "$NSTRIPS" -B "$NBUCKETS" "$file_name" "$dst_name" || fail "striped file cp of $dst_name failed"
+	${CLI} ${CP}  -C "$CHUNKSIZE" -N "$NSTRIPS" -B "$NBUCKETS" "$file_name" "$dst_name" || fail "striped file cp of $dst_name failed"
 
 	# Add the file name to the array
 	files+=("$dst_name")
@@ -131,7 +139,7 @@ stripe_test_cp () {
 	(( loopct++ ))
     done
     echo "performing threaded randomize on ${loopct} files:"
-    ${CLI} creat ${randomize_args[@]}
+    ${CLI} ${CREAT} ${randomize_args[@]}
     rc=$?
     if [[ $rc -eq 0 ]]; then
 	echo "...done"
@@ -158,7 +166,7 @@ stripe_test_cp () {
 
 	(( loopct++ ))
     done
-    ${CLI} verify ${verify_args[@]}
+    ${CLI} ${VERIFY} ${verify_args[@]}
     rc="$?"
     if [[ $rc -eq 0 ]]; then
 	echo "...good"
@@ -189,7 +197,7 @@ stripe_test () {
 
 	echo "Creating file $counter:$file_name"
 	# Try to create the file
-	${CLI} creat  -C "$CHUNKSIZE" -N "$NSTRIPS" -B "$NBUCKETS" -s "$SIZE" "$file_name"
+	${CLI} ${CREAT}  -C "$CHUNKSIZE" -N "$NSTRIPS" -B "$NBUCKETS" -s "$SIZE" "$file_name"
 	if [[ $? -ne 0 ]]; then
 	    echo "File creation failed on $file_name"
 	    # Assert if counter is 0 i.e. first interleaved file creation failed
@@ -233,7 +241,7 @@ stripe_test () {
 	(( loopct++ ))
     done
     #set -x
-    ${CLI} creat -v ${randomize_args[@]}
+    ${CLI} ${CREAT} -v ${randomize_args[@]}
     rc=$?
     if [[ $rc -eq 0 ]]; then
 	echo "...done"
@@ -261,7 +269,7 @@ stripe_test () {
 	
 	(( loopct++ ))
     done
-    ${CLI} verify ${verify_args[@]}
+    ${CLI} ${VERIFY} ${verify_args[@]}
     rc="$?"
     if [[ $rc -eq 0 ]]; then
 	echo "...good"
@@ -294,7 +302,7 @@ stripe_test () {
 	(( loopct++ ))
     done
 
-    ${CLI} verify -v ${verify_args[@]}
+    ${CLI} ${VERIFY} -v ${verify_args[@]}
     rc="$?"
     if [[ $rc -eq 0 ]]; then
 	echo "...good"
@@ -310,8 +318,8 @@ stripe_test () {
 # Start with a clean, empty file systeem
 famfs_recreate "stripe_test.sh"
 
-${CLI} creat -vv -B 100 -C 2m -N 3 -s 2m $MPT/toomanybuckets && fail "too many buckets should fail"
-${CLI} creat -B 10 -C 2000000 -N 3 -s 2m $MPT/badchunksz && fail "bad chunk size should fail"
+${CLI} ${CREAT} -vv -B 100 -C 2m -N 3 -s 2m $MPT/toomanybuckets && fail "too many buckets should fail"
+${CLI} ${CREAT} -B 10 -C 2000000 -N 3 -s 2m $MPT/badchunksz && fail "bad chunk size should fail"
  
 BASENAME="/mnt/famfs/stripe_file"
 CAPACITY=$(famfs_get_capacity "$MPT")

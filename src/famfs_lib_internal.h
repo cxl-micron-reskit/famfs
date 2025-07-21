@@ -56,6 +56,7 @@ struct famfs_locked_log {
 
 struct famfs_log_stats {
 	u64 n_entries;
+	u64 bad_entries;
 	u64 f_logged;
 	u64 f_existed;
 	u64 f_created;
