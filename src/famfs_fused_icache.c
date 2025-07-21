@@ -30,14 +30,14 @@ void dump_icache(struct famfs_icache *icache)
 	size_t nino = 0;
 
 	pthread_mutex_lock(&icache->mutex);
-	fuse_log(FUSE_LOG_DEBUG, "%s: count=%lld\n",
+	famfs_log(FAMFS_LOG_DEBUG, "%s: count=%lld\n",
 		 __func__, icache->count);
 	for (p = icache->root.next; p != &icache->root; p = p->next) {
-		fuse_log(FUSE_LOG_DEBUG, "\tinode=%ld\n", p->ino);
+		famfs_log(FAMFS_LOG_DEBUG, "\tinode=%ld\n", p->ino);
 		nino++;
 	}
 	pthread_mutex_unlock(&icache->mutex);
-	fuse_log(FUSE_LOG_DEBUG, "   %ld inodes cached\n", nino);
+	famfs_log(FAMFS_LOG_DEBUG, "   %ld inodes cached\n", nino);
 }
 
 /*
@@ -161,7 +161,7 @@ famfs_icache_unref_inode(
 
 		pthread_mutex_unlock(&icache->mutex);
 
-		fuse_log(FUSE_LOG_DEBUG,
+		famfs_log(FAMFS_LOG_DEBUG,
 			 "%s: icache_count=%ld i_ino=%d nodeid=%lx dropped\n",
 			 __func__, icache_count, inode->ino, inode);
 
@@ -174,7 +174,7 @@ famfs_icache_unref_inode(
 		uint64_t icache_count = icache->count;
 
 		pthread_mutex_unlock(&icache->mutex);
-		fuse_log(FUSE_LOG_DEBUG,
+		famfs_log(FAMFS_LOG_DEBUG,
 			 "%s: icache_count=%ld i_ino=%d nodeid=%lx "
 			 "deref=%ld newref=%ld\n",
 			 __func__, icache_count, inode->ino, inode, n, refcount);

@@ -91,6 +91,7 @@ int
 do_famfs_cli_logplay(int argc, char *argv[])
 {
 	int c;
+	int rc = 0;
 	char *fspath;
 	int verbose = 0;
 	int dry_run = 0;
@@ -195,8 +196,14 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	}
 	fspath = argv[optind++];
 
-	return famfs_logplay(fspath, use_mmap, dry_run, client_mode,
+	rc = famfs_logplay(fspath, use_mmap, dry_run, client_mode,
 			     shadowpath, shadowtest, daxdev, verbose);
+	if (rc == 0)
+		famfs_log(FAMFS_LOG_NOTICE, "famfs logplay completed successfully on %s", fspath);
+	else
+		famfs_log(FAMFS_LOG_ERR, "famfs logplay failed on %s", fspath);
+
+	return rc;
 }
 
 /********************************************************************/
@@ -426,6 +433,10 @@ do_famfs_cli_mount(int argc, char *argv[])
 			   NULL /* no shadow path */,
 			   0 /* not shadow-test */,
 			   NULL, verbose);
+	if (rc == 0)
+		famfs_log(FAMFS_LOG_NOTICE, "famfs mount completed successfully on %s", realmpt);
+	else
+		famfs_log(FAMFS_LOG_ERR, "famfs mount failed on %s", realmpt);
 
 out:
 err_out:
@@ -2334,6 +2345,7 @@ main(int argc, char **argv)
 	}
 
 	famfs_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
+
 	for (i = 0; (famfs_cli_cmds[i].cmd); i++) {
 		if (!strcmp(argv[optind], famfs_cli_cmds[i].cmd)) {
 			optind++; /* move past cmd on cmdline */
