@@ -422,6 +422,11 @@ do_famfs_cli_mount(int argc, char *argv[])
 			   0 /* not shadow-test */,
 			   NULL, verbose);
 
+	if (rc == 0)
+		famfs_log(FAMFS_LOG_NOTICE, "famfs logplay completed successfully on %s", realmpt);
+	else
+		famfs_log(FAMFS_LOG_ERR, "famfs logplay failed on %s", realmpt);
+
 out:
 err_out:
 	free(realdaxdev);
@@ -2316,6 +2321,7 @@ main(int argc, char **argv)
 	}
 
 	famfs_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
+
 	for (i = 0; (famfs_cli_cmds[i].cmd); i++) {
 		if (!strcmp(argv[optind], famfs_cli_cmds[i].cmd)) {
 			optind++; /* move past cmd on cmdline */

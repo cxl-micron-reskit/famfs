@@ -87,17 +87,17 @@ famfs_dump_opts(const struct famfs_data *fd)
 	printf("    timeout_set=%d\n", fd->timeout_set);
 	printf("    pass_yaml=%d\n", fd->pass_yaml);
 
-	fuse_log(FUSE_LOG_DEBUG, "%s:\n", __func__);
-	fuse_log(FUSE_LOG_DEBUG, "    debug=%d\n", fd->debug);
-	fuse_log(FUSE_LOG_DEBUG, "    writeback=%d\n", fd->writeback);
-	fuse_log(FUSE_LOG_DEBUG, "    flock=%d\n", fd->flock);
-	fuse_log(FUSE_LOG_DEBUG, "    xattr=%d\n", fd->xattr);
-	fuse_log(FUSE_LOG_DEBUG, "    shadow=%s\n", fd->source);
-	fuse_log(FUSE_LOG_DEBUG, "    daxdev=%s\n", fd->daxdev);
-	fuse_log(FUSE_LOG_DEBUG, "    timeout=%f\n", fd->timeout);
-	fuse_log(FUSE_LOG_DEBUG, "    cache=%d\n", fd->cache);
-	fuse_log(FUSE_LOG_DEBUG, "    timeout_set=%d\n", fd->timeout_set);
-	fuse_log(FUSE_LOG_DEBUG, "    pass_yaml=%d\n", fd->pass_yaml);
+	famfs_log(FAMFS_LOG_DEBUG, "%s:\n", __func__);
+	famfs_log(FAMFS_LOG_DEBUG, "    debug=%d\n", fd->debug);
+	famfs_log(FAMFS_LOG_DEBUG, "    writeback=%d\n", fd->writeback);
+	famfs_log(FAMFS_LOG_DEBUG, "    flock=%d\n", fd->flock);
+	famfs_log(FAMFS_LOG_DEBUG, "    xattr=%d\n", fd->xattr);
+	famfs_log(FAMFS_LOG_DEBUG, "    shadow=%s\n", fd->source);
+	famfs_log(FAMFS_LOG_DEBUG, "    daxdev=%s\n", fd->daxdev);
+	famfs_log(FAMFS_LOG_DEBUG, "    timeout=%f\n", fd->timeout);
+	famfs_log(FAMFS_LOG_DEBUG, "    cache=%d\n", fd->cache);
+	famfs_log(FAMFS_LOG_DEBUG, "    timeout_set=%d\n", fd->timeout_set);
+	famfs_log(FAMFS_LOG_DEBUG, "    pass_yaml=%d\n", fd->pass_yaml);
 }
 
 /*
@@ -187,7 +187,7 @@ famfs_inode_from_nodeid(
 	if (nodeid == FUSE_ROOT_ID)
 		return &famfs_data(req)->icache.root;
 	else if (inode->owner != famfs_data(req)) {
-		fuse_log(FUSE_LOG_ERR, "%s: bad nodeid %p ref=%lld\n",
+		famfs_log(FAMFS_LOG_ERR, "%s: bad nodeid %p ref=%lld\n",
 			 __func__, nodeid, inode->refcount);
 		return NULL;
 	}
@@ -215,30 +215,30 @@ static void famfs_init(
 	if (lo->writeback &&
 	    conn->capable & FUSE_CAP_WRITEBACK_CACHE) {
 		if (lo->debug)
-			fuse_log(FUSE_LOG_DEBUG,
+			famfs_log(FAMFS_LOG_DEBUG,
 				 "famfs_init: activating writeback\n");
 		conn->want |= FUSE_CAP_WRITEBACK_CACHE;
 	}
 	if (lo->flock && conn->capable & FUSE_CAP_FLOCK_LOCKS) {
 		if (lo->debug)
-			fuse_log(FUSE_LOG_DEBUG,
+			famfs_log(FAMFS_LOG_DEBUG,
 				 "famfs_init: activating flock locks\n");
 		conn->want |= FUSE_CAP_FLOCK_LOCKS;
 	}
 
 	if (conn->capable & FUSE_CAP_PASSTHROUGH)
-		fuse_log(FUSE_LOG_NOTICE, "%s: Kernel is passthrough-capable\n",
+		famfs_log(FAMFS_LOG_NOTICE, "%s: Kernel is passthrough-capable\n",
 			 __func__);
 
 	if (conn->capable & FUSE_CAP_DAX_FMAP) {
-		fuse_log(FUSE_LOG_NOTICE,  "%s: Kernel is DAX_IOMAP-capable\n",
+		famfs_log(FAMFS_LOG_NOTICE,  "%s: Kernel is DAX_IOMAP-capable\n",
 			 __func__);
 		if (lo->daxdev) {
-			fuse_log(FUSE_LOG_NOTICE,
+			famfs_log(FAMFS_LOG_NOTICE,
 				 "%s: ENABLING DAX_IOMAP\n", __func__);
 			conn->want |= FUSE_CAP_DAX_FMAP;
 		} else {
-			fuse_log(FUSE_LOG_NOTICE,
+			famfs_log(FAMFS_LOG_NOTICE,
 				 "%s: disabling DAX_IOMAP (no daxdev)\n",
 				 __func__);
 		}
@@ -289,7 +289,7 @@ famfs_setattr(
 	 * XXX how can we cache ephemeral changes without changing the yaml
 	 * (which must reflect the log authority)?...
 	 */
-	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
+	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
 
@@ -301,19 +301,19 @@ famfs_read_fd_to_buf(int fd, ssize_t max_size, ssize_t *size_out, int verbose)
 	ssize_t n;
 
 	if (max_size > FAMFS_YAML_MAX)
-		fuse_log(FUSE_LOG_ERR, "%s: max_size=%lld > limit=%d\n",
+		famfs_log(FAMFS_LOG_ERR, "%s: max_size=%lld > limit=%d\n",
 			 __func__, max_size, FAMFS_YAML_MAX);
 
 	buf = calloc(1, max_size + 8);
 	if (!buf) {
-		fuse_log(FUSE_LOG_ERR, "%s: failed to malloc(%ld)\n",
+		famfs_log(FAMFS_LOG_ERR, "%s: failed to malloc(%ld)\n",
 			 __func__, max_size);
 		return NULL;
 	}
 
 	n = pread(fd, buf, max_size, 0);
 	if (n < 0) {
-		fuse_log(FUSE_LOG_ERR,
+		famfs_log(FAMFS_LOG_ERR,
 		       "%s: failed to read max_size=%ld from fd(%d) errno %d\n",
 			 __func__, max_size, fd, errno);
 		free(buf);
@@ -340,17 +340,17 @@ famfs_shadow_to_stat(
 
 	assert(fmeta_out);
 	if (bufsize < 100) /* This is imprecise... */
-		fuse_log(FUSE_LOG_ERR,
+		famfs_log(FAMFS_LOG_ERR,
 			 "File size=%ld: too small  to contain valid yaml\n",
 			 bufsize);
 
 	if (verbose)
-		fuse_log(FUSE_LOG_DEBUG, "file yaml:\n%s\n", (char *)yaml_buf);
+		famfs_log(FAMFS_LOG_DEBUG, "file yaml:\n%s\n", (char *)yaml_buf);
 
 	/* Make a stream for the yaml parser to use */
 	yaml_stream = fmemopen((void *)yaml_buf, bufsize, "r");
 	if (!yaml_stream) {
-		fuse_log(FUSE_LOG_ERR,
+		famfs_log(FAMFS_LOG_ERR,
 			 "failed to convert yaml_buf to stream (errno=%d\n",
 			 __func__, errno);
 		return -1;
@@ -360,11 +360,11 @@ famfs_shadow_to_stat(
 				     FAMFS_MAX_SIMPLE_EXTENTS,
 				     FAMFS_MAX_SIMPLE_EXTENTS, verbose);
 	if (rc) {
-		fuse_log(FUSE_LOG_ERR, "%s: err from yaml parser rc=%d\n", __func__, rc);
+		famfs_log(FAMFS_LOG_ERR, "%s: err from yaml parser rc=%d\n", __func__, rc);
 		return rc;
 	}
 
-	fuse_log(FUSE_LOG_NOTICE, "%s: ext_type=%d\n",
+	famfs_log(FAMFS_LOG_NOTICE, "%s: ext_type=%d\n",
 		 __func__, fmeta.fm_fmap.fmap_ext_type);
 
 	/* Fields we don't provide */
@@ -427,7 +427,7 @@ famfs_do_lookup(
 	int newfd;
 	int res;
 
-	fuse_log(FUSE_LOG_DEBUG,
+	famfs_log(FAMFS_LOG_DEBUG,
 		 "%s: parent_inode=%ld name=%s icache_count=%lld\n",
 		 __func__, parent, name, famfs_icache_count(&lo->icache));
 
@@ -437,11 +437,11 @@ famfs_do_lookup(
 
 	parentfd = famfs_fd_from_nodeid(req, parent);
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: name=%s (%s)\n", __func__, name,
+	famfs_log(FAMFS_LOG_DEBUG, "%s: name=%s (%s)\n", __func__, name,
 	       (parentfd < 0) ? "ERROR bad parentfd" : "good parentfd");
 	newfd = openat(parentfd, name, O_PATH | O_NOFOLLOW, O_RDONLY);
 	if (newfd == -1) {
-		fuse_log(FUSE_LOG_ERR, "%s: open failed errno=%d\n",
+		famfs_log(FAMFS_LOG_ERR, "%s: open failed errno=%d\n",
 			 __func__, errno);
 		goto out_err;
 	}
@@ -453,13 +453,13 @@ famfs_do_lookup(
 
 	e->attr = st;
 	if (S_ISDIR(st.st_mode)) {
-		fuse_log(FUSE_LOG_DEBUG,
+		famfs_log(FAMFS_LOG_DEBUG,
 			 "               : inode=%d is a directory\n",
 			 e->attr.st_ino);
 	} else if (S_ISREG(st.st_mode)) {
 		if (lo->pass_yaml) {
 			/* This exposes the yaml files directly */
-			fuse_log(FUSE_LOG_ERR,
+			famfs_log(FAMFS_LOG_ERR,
 				 "%s: passing yaml file stat (size=%ld)\n",
 				 __func__, st.st_size);
 			e->attr = st;
@@ -480,7 +480,7 @@ famfs_do_lookup(
 			yaml_buf = famfs_read_fd_to_buf(newfd, FAMFS_YAML_MAX,
 							&yaml_size, 0);
 			if (!yaml_buf) {
-				fuse_log(FUSE_LOG_ERR,
+				famfs_log(FAMFS_LOG_ERR,
 					 "failed to read to yaml_buf\n");
 				goto out_err;
 			}
@@ -497,10 +497,10 @@ famfs_do_lookup(
 			st.st_ino = ino;
 		}
 
-		fuse_log(FUSE_LOG_DEBUG, "               : inode=%d is a file\n",
+		famfs_log(FAMFS_LOG_DEBUG, "               : inode=%d is a file\n",
 			e->attr.st_ino);
 	} else {
-		fuse_log(FUSE_LOG_DEBUG,
+		famfs_log(FAMFS_LOG_DEBUG,
 			 "               : inode=%d is neither file nor dir\n",
 			 e->attr.st_ino);
 		saverr = ENOENT;
@@ -511,7 +511,7 @@ famfs_do_lookup(
 	if (!inode) {
 		struct famfs_inode *inode2;
 
-		fuse_log(FUSE_LOG_DEBUG, "               : Caching inode %d\n",
+		famfs_log(FAMFS_LOG_DEBUG, "               : Caching inode %d\n",
 			e->attr.st_ino);
 		saverr = ENOMEM;
 
@@ -536,7 +536,7 @@ famfs_do_lookup(
 						  e->attr.st_ino);
 		if (inode2) {
 			pthread_mutex_unlock(&lo->icache.mutex);
-			fuse_log(FUSE_LOG_ERR, "%s: CAUGHT THE INODE RACE!\n",
+			famfs_log(FAMFS_LOG_ERR, "%s: CAUGHT THE INODE RACE!\n",
 				 __func__);
 			close(newfd);
 			free(inode);
@@ -550,7 +550,7 @@ famfs_do_lookup(
 found_inode:
 		int rc;
 
-		fuse_log(FUSE_LOG_DEBUG,
+		famfs_log(FAMFS_LOG_DEBUG,
 			 "               : inode=%d already cached\n",
 			e->attr.st_ino);
 		close(newfd);
@@ -564,7 +564,7 @@ found_inode:
 			}
 		}
 		if (!inode->fmeta && S_ISREG(st.st_mode)) {
-			fuse_log(FUSE_LOG_ERR,
+			famfs_log(FAMFS_LOG_ERR,
 				 "%s: null fmeta for ino=%ld; populating\n",
 				 __func__, e->attr.st_ino);
 			inode->fmeta = fmeta;
@@ -593,12 +593,12 @@ found_inode:
 	 * have been freed and/or reused. So we still have to look up the inode
 	 * in our cache...
 	 */
-	fuse_log(FUSE_LOG_NOTICE, "%s: nodeid=%lx i_ino=%ld ext_type=%d\n",
+	famfs_log(FAMFS_LOG_NOTICE, "%s: nodeid=%lx i_ino=%ld ext_type=%d\n",
 		 __func__, (long long)e->ino, e->attr.st_ino,
 		 (inode->fmeta) ? inode->fmeta->fm_fmap.fmap_ext_type : -1);
 
 	if (famfs_debug(req))
-		fuse_log(FUSE_LOG_DEBUG, "  %lli/%s -> %lli\n",
+		famfs_log(FAMFS_LOG_DEBUG, "  %lli/%s -> %lli\n",
 			(unsigned long long) parent, name, (unsigned long long) e->ino);
 
 	return 0;
@@ -623,7 +623,7 @@ famfs_lookup(
 	int err;
 
 	if (famfs_debug(req))
-		fuse_log(FUSE_LOG_DEBUG, "famfs_lookup(parent=%" PRIu64 ", name=%s)\n",
+		famfs_log(FAMFS_LOG_DEBUG, "famfs_lookup(parent=%" PRIu64 ", name=%s)\n",
 			parent, name);
 
 	err = famfs_do_lookup(req, parent, name, &e, &fmeta);
@@ -652,14 +652,14 @@ famfs_get_fmap(
 		goto out_err;
 	}
 	
-	fuse_log(FUSE_LOG_NOTICE, "%s: inode=%ld size=%ld\n",
+	famfs_log(FAMFS_LOG_NOTICE, "%s: inode=%ld size=%ld\n",
 		 __func__, nodeid, size);
 
 	/* The fuse v1 patch set uses the inode number as the nodeid, meaning
 	 * we have to search the list every time. */
 	inode = famfs_icache_find(&lo->icache, nodeid);
 	if (inode) /* XXX drop when first fuse patch set is deprecated */
-		fuse_log(FUSE_LOG_DEBUG, "%s: old kmod - found by i_ino\n",
+		famfs_log(FAMFS_LOG_DEBUG, "%s: old kmod - found by i_ino\n",
 			 __func__);
 
 	/* If it's the v2 or later kmod, the nodeid is the address of the
@@ -670,14 +670,14 @@ famfs_get_fmap(
 		inode = famfs_inode_from_nodeid(req, nodeid);
 
 	if (!inode) {
-		fuse_log(FUSE_LOG_ERR, "%s: inode 0x%ld not found\n",
+		famfs_log(FAMFS_LOG_ERR, "%s: inode 0x%ld not found\n",
 			 __func__, nodeid);
 		err = EINVAL;
 		goto out_err;
 	}
 
 	if (!inode->fmeta) {
-		fuse_log(FUSE_LOG_ERR, "%s: no fmap on inode\n", __func__);
+		famfs_log(FAMFS_LOG_ERR, "%s: no fmap on inode\n", __func__);
 		err = ENOENT;
 		goto out_err;
 	}
@@ -688,12 +688,12 @@ famfs_get_fmap(
 					       inode->fmeta);
 	if (fmap_size <= 0) {
 		/* Send reply without fmap */
-		fuse_log(FUSE_LOG_ERR, "%s: %ld error putting fmap in message\n",
+		famfs_log(FAMFS_LOG_ERR, "%s: %ld error putting fmap in message\n",
 			 __func__, fmap_size);
 		err = EINVAL;
 		goto out_err;
 	}
-	fuse_log(FUSE_LOG_NOTICE, "%s: sending fmap message len=%ld\n",
+	famfs_log(FAMFS_LOG_NOTICE, "%s: sending fmap message len=%ld\n",
 		 __func__, fmap_size);
 #if 1
 	/* XXX revertme
@@ -706,7 +706,7 @@ famfs_get_fmap(
 #endif
 	err = fuse_reply_buf(req, fmap_message, fmap_size /* FMAP_MSG_MAX */);
 	if (err)
-		fuse_log(FUSE_LOG_ERR, "%s: fuse_reply_buf returned err %d\n",
+		famfs_log(FAMFS_LOG_ERR, "%s: fuse_reply_buf returned err %d\n",
 			 __func__, err);
 	return;
 
@@ -723,18 +723,18 @@ famfs_get_daxdev(
 	struct fuse_daxdev_out daxdev;
 	int err = 0;
 
-	fuse_log(FUSE_LOG_NOTICE, "%s: daxdev_index=%d\n",
+	famfs_log(FAMFS_LOG_NOTICE, "%s: daxdev_index=%d\n",
 		 __func__, daxdev_index);
 	memset(&daxdev, 0, sizeof(daxdev));
 
 	/* Fill in daxdev struct */
 	if (daxdev_index != 0) {
-		fuse_log(FUSE_LOG_ERR, "%s: non-zero daxdev index\n", __func__);
+		famfs_log(FAMFS_LOG_ERR, "%s: non-zero daxdev index\n", __func__);
 		err = EINVAL;
 		goto out_err;
 	}
 	if (!fd->daxdev) {
-		fuse_log(FUSE_LOG_ERR, "%s: dax not enabled\n", __func__);
+		famfs_log(FAMFS_LOG_ERR, "%s: dax not enabled\n", __func__);
 		err = EOPNOTSUPP;
 		goto out_err;
 	}
@@ -747,7 +747,7 @@ famfs_get_daxdev(
 
 	err = fuse_reply_buf(req, (void *)&daxdev, sizeof(daxdev));
 	if (err)
-		fuse_log(FUSE_LOG_ERR, "%s: fuse_reply_buf returned err %d\n",
+		famfs_log(FAMFS_LOG_ERR, "%s: fuse_reply_buf returned err %d\n",
 			 __func__, err);
 	return;
 
@@ -763,7 +763,7 @@ famfs_mknod(
 	mode_t mode,
 	dev_t rdev)
 {
-	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
+	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
 
@@ -774,7 +774,7 @@ famfs_fuse_mkdir(
 	const char *name,
 	mode_t mode)
 {
-	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
+	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
 
@@ -785,7 +785,7 @@ famfs_symlink(
 	fuse_ino_t parent,
 	const char *name)
 {
-	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
+	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
 
@@ -796,7 +796,7 @@ famfs_link(
 	fuse_ino_t parent,
 	const char *name)
 {
-	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
+	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
 
@@ -806,7 +806,7 @@ famfs_rmdir(
 	fuse_ino_t parent,
 	const char *name)
 {
-	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
+	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
 
@@ -819,7 +819,7 @@ famfs_rename(
 	const char *newname,
 	unsigned int flags)
 {
-	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
+	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
 
@@ -829,7 +829,7 @@ famfs_unlink(
 	fuse_ino_t parent,
 	const char *name)
 {
-	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
+	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
 
@@ -843,7 +843,7 @@ famfs_forget_one(
 	struct famfs_inode *inode = famfs_inode_from_nodeid(req, nodeid);
 
 	if (famfs_debug(req)) {
-		fuse_log(FUSE_LOG_DEBUG, "  forget %lli %lli -%lli\n",
+		famfs_log(FAMFS_LOG_DEBUG, "  forget %lli %lli -%lli\n",
 			(unsigned long long) nodeid,
 			(unsigned long long) inode->refcount,
 			(unsigned long long) nlookup);
@@ -858,7 +858,7 @@ famfs_forget(
 	fuse_ino_t nodeid,
 	uint64_t nlookup)
 {
-	fuse_log(FUSE_LOG_DEBUG, "%s:\n", __func__);
+	famfs_log(FAMFS_LOG_DEBUG, "%s:\n", __func__);
 	famfs_forget_one(req, nodeid, nlookup);
 	fuse_reply_none(req);
 }
@@ -871,7 +871,7 @@ famfs_forget_multi(
 {
 	int i;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s:\n", __func__);
+	famfs_log(FAMFS_LOG_DEBUG, "%s:\n", __func__);
 
 	for (i = 0; i < count; i++)
 		famfs_forget_one(req, forgets[i].ino, forgets[i].nlookup);
@@ -883,7 +883,7 @@ famfs_readlink(
 	fuse_req_t req,
 	fuse_ino_t nodeid)
 {
-	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
+	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
 
@@ -910,7 +910,7 @@ famfs_opendir(
 	struct famfs_dirp *d;
 	int fd;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: inode=%ld (%jx)\n",
+	famfs_log(FAMFS_LOG_DEBUG, "%s: inode=%ld (%jx)\n",
 		 __func__, nodeid, nodeid);
 
 	d = calloc(1, sizeof(struct famfs_dirp));
@@ -969,7 +969,7 @@ famfs_do_readdir(
 
 	(void) nodeid;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%lx size=%ld ofs=%ld plus=%d\n",
+	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx size=%ld ofs=%ld plus=%d\n",
 		 __func__, nodeid, size, offset, plus);
 
 	buf = calloc(1, size);
@@ -1063,7 +1063,7 @@ famfs_readdir(
 	off_t offset,
 	struct fuse_file_info *fi)
 {
-	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%lx size=%ld offset=%ld\n",
+	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx size=%ld offset=%ld\n",
 		  __func__, nodeid, size, offset);
 	famfs_do_readdir(req, nodeid, size, offset, fi, 0);
 }
@@ -1089,7 +1089,7 @@ famfs_create(
 	mode_t mode,
 	struct fuse_file_info *fi)
 {
-	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
+	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
 
@@ -1120,10 +1120,10 @@ famfs_open(
 	char buf[64];
 	struct famfs_data *lo = famfs_data(req);
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
+	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
 
 	if (famfs_debug(req))
-		fuse_log(FUSE_LOG_DEBUG, "famfs_open(nodeid=%lx, flags=%d)\n",
+		famfs_log(FAMFS_LOG_DEBUG, "famfs_open(nodeid=%lx, flags=%d)\n",
 			nodeid, fi->flags);
 
 	/* With writeback cache, kernel may send read requests even
@@ -1175,7 +1175,7 @@ famfs_release(
 {
 	(void) nodeid;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
+	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
 
 	close(fi->fh);
 	fuse_reply_err(req, 0);
@@ -1190,7 +1190,7 @@ famfs_flush(
 	int res;
 	(void) nodeid;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
+	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
 
 	res = close(dup(fi->fh));
 	fuse_reply_err(req, res == -1 ? errno : 0);
@@ -1206,7 +1206,7 @@ famfs_fsync(
 	int res;
 	(void) nodeid;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
+	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
 
 	if (datasync)
 		res = fdatasync(fi->fh);
@@ -1226,7 +1226,7 @@ famfs_read(
 	struct fuse_bufvec buf = FUSE_BUFVEC_INIT(size);
 
 	if (famfs_debug(req))
-		fuse_log(FUSE_LOG_DEBUG, "%s(nodeid=%lx, size=%zd, off=%lu)\n",
+		famfs_log(FAMFS_LOG_DEBUG, "%s(nodeid=%lx, size=%zd, off=%lu)\n",
 			 __func__, nodeid, size, (unsigned long) offset);
 
 	buf.buf[0].flags = FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK;
@@ -1248,14 +1248,14 @@ famfs_write_buf(
 	ssize_t res;
 	struct fuse_bufvec out_buf = FUSE_BUFVEC_INIT(fuse_buf_size(in_buf));
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
+	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
 
 	out_buf.buf[0].flags = FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK;
 	out_buf.buf[0].fd = fi->fh;
 	out_buf.buf[0].pos = off;
 
 	if (famfs_debug(req))
-		fuse_log(FUSE_LOG_DEBUG,
+		famfs_log(FAMFS_LOG_DEBUG,
 			 "famfs_write(nodeid=%lx, size=%zd, off=%lu)\n",
 			 nodeid, out_buf.buf[0].size, (unsigned long) off);
 
@@ -1274,7 +1274,7 @@ famfs_statfs(
 	int res;
 	struct statvfs stbuf;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
+	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
 
 	res = fstatvfs(famfs_fd_from_nodeid(req, nodeid), &stbuf);
 	if (res == -1)
@@ -1292,7 +1292,7 @@ famfs_fallocate(
 	off_t length,
 	struct fuse_file_info *fi)
 {
-	fuse_log(FUSE_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
+	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, EOPNOTSUPP);
 }
 
@@ -1306,7 +1306,7 @@ famfs_flock(
 	int res;
 	(void) nodeid;
 
-	fuse_log(FUSE_LOG_DEBUG, "%s: nodeid=%lx op=%d\n",
+	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx op=%d\n",
 		 __func__, nodeid, op);
 
 	res = flock(fi->fh, op);
@@ -1330,7 +1330,7 @@ famfs_copy_file_range(
 	ssize_t res;
 
 	if (famfs_debug(req))
-		fuse_log(FUSE_LOG_DEBUG, "famfs_copy_file_range(ino=%" PRIu64 "/fd=%lu, "
+		famfs_log(FAMFS_LOG_DEBUG, "famfs_copy_file_range(ino=%" PRIu64 "/fd=%lu, "
 				"off=%lu, ino=%" PRIu64 "/fd=%lu, "
 				"off=%lu, size=%zd, flags=0x%x)\n",
 			ino_in, fi_in->fh, off_in, ino_out, fi_out->fh, off_out,
@@ -1428,7 +1428,7 @@ void jg_print_fuse_opts(struct fuse_cmdline_opts *opts)
 	       opts->singlethread, opts->foreground, opts->debug,
 	       opts->nodefault_subtype, opts->mountpoint,
 	       opts->clone_fd, opts->max_idle_threads, opts->max_threads);
-	fuse_log(FUSE_LOG_DEBUG, format_str,
+	famfs_log(FAMFS_LOG_DEBUG, format_str,
 		 opts->singlethread, opts->foreground, opts->debug,
 		 opts->nodefault_subtype, opts->mountpoint,
 		 opts->clone_fd, opts->max_idle_threads, opts->max_threads);
@@ -1472,9 +1472,9 @@ int main(int argc, char *argv[])
 	/*fuse_set_log_func(fused_syslog); */
 	fuse_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
 
-	fuse_log(FUSE_LOG_DEBUG,  "%s: this is debug(=%d)\n",
+	famfs_log(FAMFS_LOG_DEBUG,  "%s: this is debug(=%d)\n",
 		 PROGNAME, FUSE_LOG_DEBUG);
-	fuse_log(FUSE_LOG_ERR,    "%s: this is an err(=%d)\n",
+	famfs_log(FAMFS_LOG_ERR,    "%s: this is an err(=%d)\n",
 		 PROGNAME, FUSE_LOG_ERR);
 
 	/*
@@ -1519,7 +1519,7 @@ int main(int argc, char *argv[])
 	famfs_data.debug = opts.debug;
 	famfs_data.icache.root.refcount = 2;
 
-	fuse_log(FUSE_LOG_NOTICE, "famfs mount shadow=%s mpt=%s\n",
+	famfs_log(FAMFS_LOG_NOTICE, "famfs mount shadow=%s mpt=%s\n",
 		 famfs_data.source, opts.mountpoint);
 
 	famfs_dump_opts(&famfs_data);
@@ -1541,7 +1541,7 @@ int main(int argc, char *argv[])
 			fprintf(stderr,
 				"%s: failed to stat source (\"%s\"): %m\n",
 				PROGNAME, famfs_data.source);
-			fuse_log(FUSE_LOG_ERR,
+			famfs_log(FAMFS_LOG_ERR,
 				 "%s: failed to stat source (\"%s\"): %m\n",
 				 PROGNAME, famfs_data.source);
 			exit(1);
@@ -1549,7 +1549,7 @@ int main(int argc, char *argv[])
 		if (!S_ISDIR(stat.st_mode)) {
 			fprintf(stderr, "%s: source (%s) is not a directory\n",
 				PROGNAME, famfs_data.source);
-			fuse_log(FUSE_LOG_ERR,
+			famfs_log(FAMFS_LOG_ERR,
 				 "%s: source (%s) is not a directory\n",
 				 PROGNAME, famfs_data.source);
 			exit(1);
@@ -1561,7 +1561,7 @@ int main(int argc, char *argv[])
 		const char *fmt = "%s: must supply shadow fs path "
 			"as -o source=</shadow/path>\n";
 
-		fuse_log(FUSE_LOG_ERR, fmt, PROGNAME);
+		famfs_log(FAMFS_LOG_ERR, fmt, PROGNAME);
 		fprintf(stderr, fmt, PROGNAME);
 		exit(1);
 	}
@@ -1580,7 +1580,7 @@ int main(int argc, char *argv[])
 			break;
 		}
 	} else if (famfs_data.timeout < 0) {
-		fuse_log(FUSE_LOG_ERR, "timeout is negative (%lf)\n",
+		famfs_log(FAMFS_LOG_ERR, "timeout is negative (%lf)\n",
 			 famfs_data.timeout);
 		exit(1);
 	}
@@ -1589,7 +1589,7 @@ int main(int argc, char *argv[])
 	famfs_data.icache.root.fd = open(famfs_data.source, O_PATH);
 	printf("root=(%s) fd=%d\n", famfs_data.source, famfs_data.icache.root.fd);
 	if (famfs_data.icache.root.fd == -1) {
-		fuse_log(FUSE_LOG_ERR, "open(\"%s\", O_PATH): %m\n",
+		famfs_log(FAMFS_LOG_ERR, "open(\"%s\", O_PATH): %m\n",
 			 famfs_data.source);
 		exit(1);
 	}
@@ -1608,7 +1608,7 @@ int main(int argc, char *argv[])
 	/* Add shadow arg to kernel mount opts */
 	snprintf(shadow_opt, sizeof(shadow_opt), "shadow=%s", famfs_data.source);
 	if (fuse_add_kernel_mount_opt(se, shadow_opt))
-		fuse_log(FUSE_LOG_ERR,
+		famfs_log(FAMFS_LOG_ERR,
 			 "%s: failed to add kernel mount opt (%s)\n",
 			 __func__, shadow_opt);
 
@@ -1632,7 +1632,7 @@ int main(int argc, char *argv[])
 		config = NULL;
 	}
 
-	fuse_log(FUSE_LOG_NOTICE, "%s: umount %s\n", PROGNAME, opts.mountpoint);
+	famfs_log(FAMFS_LOG_NOTICE, "%s: umount %s\n", PROGNAME, opts.mountpoint);
 	fuse_session_unmount(se);
 err_out3:
 	fuse_remove_signal_handlers(se);
