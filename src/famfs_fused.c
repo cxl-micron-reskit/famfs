@@ -547,8 +547,8 @@ famfs_do_lookup(
 		}
 		pthread_mutex_unlock(&lo->icache.mutex);
 	} else {
-found_inode:
 		int rc;
+found_inode:
 
 		fuse_log(FUSE_LOG_DEBUG,
 			 "               : inode=%d already cached\n",
