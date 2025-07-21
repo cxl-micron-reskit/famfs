@@ -1277,10 +1277,13 @@ famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index)
 {
 	unsigned long crc;
 	int errors = 0;
+	int retries = 1;
 
+	/* XXX this mock_failure returns 0 which is success */
 	if (mock_failure == MOCK_FAIL_GENERIC)
 		return 0;
 
+retry_once:
 	if (le->famfs_log_entry_seqnum != index) {
 		fprintf(stderr, "%s: bad seqnum; expect %lld found %lld\n",
 			__func__, index, le->famfs_log_entry_seqnum);
@@ -1291,6 +1294,17 @@ famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index)
 		fprintf(stderr, "%s: bad crc at log index %lld\n",
 			__func__, index);
 		errors++;
+	}
+
+	/* If a client node recently played the log, and the processor cache
+	 * read ahead, and the master node recently appended the log,
+	 * we could be looking at a loaded cache line with stale data.
+	 * Invalidate the cache once and try again.
+	 */
+	if (errors && retries--) {
+		invalidate_processor_cache(le, sizeof(*le));
+		errors = 0;
+		goto retry_once;
 	}
 	return errors;
 }
@@ -1330,6 +1344,7 @@ __famfs_logplay(
 
 	struct famfs_log_stats ls = { 0 };
 	char *shadow_root = NULL;
+	int bad_entries = 0;
 	u64 i, j;
 	int rc;
 
@@ -1378,8 +1393,10 @@ __famfs_logplay(
 
 		if (famfs_validate_log_entry(&le, i)) {
 			fprintf(stderr,
-				"%s: invalid log entry at index %lld\n",
-				__func__, i);
+				"%s: Error: invalid log entry at index "
+				"%lld of %lld\n",
+				__func__, i, logp->famfs_log_next_index);
+			bad_entries = 1;
 			return -1;
 		}
 		ls.n_entries++;
@@ -1628,7 +1645,7 @@ bad_log_fmap:
 	famfs_print_log_stats(shadow ?
 			      "famfs_logplay(shadow)" : "famfs_logplay(v1)",
 			      &ls, verbose);
-	return (ls.f_errs + ls.d_errs + ls.yaml_errs);
+	return (bad_entries + ls.f_errs + ls.d_errs + ls.yaml_errs);
 }
 
 /**
