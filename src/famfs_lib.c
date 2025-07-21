@@ -511,7 +511,8 @@ famfs_fsck_scan(
 	/*
 	 * Build the log bitmap to scan for errors
 	 */
-	bitmap = famfs_build_bitmap(logp, alloc_unit, dev_capacity, &nbits, &errors,
+	bitmap = famfs_build_bitmap(logp, alloc_unit, dev_capacity,
+				    &nbits, &errors,
 				    &fsize_sum, &alloc_sum, &ls, verbose);
 	if (errors)
 		printf("ERROR: %lld ALLOCATION COLLISIONS FOUND\n", errors);
@@ -530,10 +531,14 @@ famfs_fsck_scan(
 			printf("  Allocated bytes:        %lld\n", alloc_sum);
 			printf("  Free space:             %lld\n", bitmap_capacity - alloc_sum);
 		} else {
-			printf("  Device capacity:        %0.2fG\n", (float)dev_capacity / agig);
-			printf("  Bitmap capacity:        %0.2fG\n", (float)bitmap_capacity / agig);
-			printf("  Sum of file sizes:      %0.2fG\n", (float)fsize_sum / agig);
-			printf("  Allocated space:        %.2fG\n", (float)alloc_sum / agig);
+			printf("  Device capacity:        %0.2fG\n",
+			       (float)dev_capacity / agig);
+			printf("  Bitmap capacity:        %0.2fG\n",
+			       (float)bitmap_capacity / agig);
+			printf("  Sum of file sizes:      %0.2fG\n",
+			       (float)fsize_sum / agig);
+			printf("  Allocated space:        %.2fG\n",
+			       (float)alloc_sum / agig);
 			printf("  Free space:             %.2fG\n",
 			       ((float)bitmap_capacity - (float)alloc_sum) / agig);
 		}
@@ -543,7 +548,9 @@ famfs_fsck_scan(
 
 	/* Log stats */
 	printf("Famfs log:\n");
-	printf("  %lld of %lld entries used\n", ls.n_entries, logp->famfs_log_last_index + 1);
+	printf("  %lld of %lld entries used\n",
+	       ls.n_entries, logp->famfs_log_last_index + 1);
+	printf("  %lld bad log entries detected\n", ls.bad_entries);
 	printf("  %lld files\n", ls.f_logged);
 	printf("  %lld directories\n\n", ls.d_logged);
 

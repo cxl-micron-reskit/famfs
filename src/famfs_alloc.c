@@ -165,13 +165,20 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 	if (!bitmap)
 		return NULL;
 
-	put_sb_log_into_bitmap(bitmap, alloc_unit, logp->famfs_log_len, &alloc_sum);
+	put_sb_log_into_bitmap(bitmap, alloc_unit, logp->famfs_log_len,
+			       &alloc_sum);
 
 	/* This loop is over all log entries */
 	for (i = 0; i < logp->famfs_log_next_index; i++) {
 		const struct famfs_log_entry *le = &logp->entries[i];
 
 		ls.n_entries++;
+
+		if (famfs_validate_log_entry(le, i)) {
+			ls.bad_entries++;
+			continue;
+		}
+
 
 		/* TODO: validate log sequence number */
 
@@ -186,10 +193,12 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 				ls.f_logged++;
 				fsize_sum += fm->fm_size;
 				if (verbose > 1)
-					printf("%s: file=%s size=%lld\n", __func__,
+					printf("%s: file=%s size=%lld\n",
+					       __func__,
 					       fm->fm_relpath, fm->fm_size);
 
-				/* For each extent in this log entry, mark the bitmap as allocated */
+				/* For each extent in this log entry,
+				 * mark the bitmap as allocated */
 				for (j = 0; j < fmap->fmap_nextents; j++) {
 					u64 ofs = ext->se[j].se_offset;
 					u64 len = ext->se[j].se_len;
@@ -197,8 +206,10 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 
 					assert(!(ofs % alloc_unit));
 
-					rc = set_extent_in_bitmap(bitmap, alloc_unit,
-								  ofs, len, &alloc_sum);
+					rc = set_extent_in_bitmap(bitmap,
+								  alloc_unit,
+								  ofs, len,
+								  &alloc_sum);
 					errors += rc;
 				}
 				break;
@@ -208,7 +219,8 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 				for (j = 0; j < nstripes; j++) {
 					const struct famfs_interleaved_ext *stripes = &fmap->ie[j];
 
-					for (k = 0; k < stripes[j].ie_nstrips; k++) {
+					for (k = 0; k < stripes[j].ie_nstrips;
+					     k++) {
 						const struct famfs_simple_extent *se =
 							&(stripes[j].ie_strips[k]);
 						u64 ofs = se->se_offset;
@@ -223,8 +235,11 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 				break;
 			}
 			default:
-				fprintf(stderr, "%s: unrecognized fmap_ext_type %d\n",
-					__func__, fmap->fmap_ext_type);
+				fprintf(stderr,
+					"%s: entry %lld of %lld: "
+					"bad fmap_ext_type %d\n",
+					__func__, i, logp->famfs_log_next_index,
+					fmap->fmap_ext_type);
 			}
 		}
 		case FAMFS_LOG_MKDIR:
@@ -233,7 +248,10 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 			break;
 
 		default:
-			printf("%s: invalid log entry\n", __func__);
+			fprintf(stderr,
+				"%s: log entry %lld of %lld: bad type (%d)\n",
+				__func__, i, logp->famfs_log_next_index,
+				le->famfs_log_entry_type);
 			break;
 		}
 	}
