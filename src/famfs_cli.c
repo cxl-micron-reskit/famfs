@@ -88,6 +88,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	int shadowtest = 0;
 	int client_mode = 0;
 	char *daxdev = NULL;
+	extern int mock_fstype;
 	char *shadowpath = NULL;
 
 	struct option logplay_options[] = {
@@ -100,6 +101,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 		{"shadowtest", no_argument,            0,  's'},
 		{"shadow",    required_argument,       0,  'S'},
 		{"daxdev",    required_argument,       0,  'd'},
+		{"mock",      no_argument,             0,  'M'},
 		{0, 0, 0, 0}
 	};
 
@@ -107,7 +109,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+vrcmnhSd:?",
+	while ((c = getopt_long(argc, argv, "+vrcmnhSd:?M",
 				logplay_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -148,6 +150,9 @@ do_famfs_cli_logplay(int argc, char *argv[])
 			break;
 		case 'd':
 			daxdev = optarg;
+			break;
+		case 'M':
+			mock_fstype = FAMFS_V1;
 			break;
 		}
 	}
@@ -526,7 +531,7 @@ int
 do_famfs_cli_fsck(int argc, char *argv[])
 {
 	int c;
-
+	extern int mock_fstype;
 	char *daxdev = NULL;
 	int use_mmap = 0;
 	int use_read = 0;
@@ -540,6 +545,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 		{"human",       no_argument,             0,  'h'},
 		{"verbose",     no_argument,             0,  'v'},
 		{"force",       no_argument,             0,  'f'},
+		{"mock",        no_argument,             0,  'M'},
 		{0, 0, 0, 0}
 	};
 
@@ -547,7 +553,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+vh?mrf",
+	while ((c = getopt_long(argc, argv, "+vh?mrfM",
 				fsck_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -556,7 +562,8 @@ do_famfs_cli_fsck(int argc, char *argv[])
 			break;
 		case 'r':
 			fprintf(stderr,
-				"%s: warning: the read option can cause cache coherency problems\n",
+				"%s: warning: the read option can cause "
+				"cache coherency problems\n",
 				__func__);
 			use_read = 1;
 			break;
@@ -567,8 +574,12 @@ do_famfs_cli_fsck(int argc, char *argv[])
 			verbose++;
 			break;
 		case 'f':
-			/* This "hidden" option tries to mmap devdax even when a fs is mounted */
+			/* This "hidden" option tries to mmap devdax
+			 * even when a fs is mounted */
 			force++;
+			break;
+		case 'M':
+			mock_fstype = FAMFS_V1;
 			break;
 		case '?':
 			famfs_fsck_usage(argc, argv);
@@ -578,7 +589,8 @@ do_famfs_cli_fsck(int argc, char *argv[])
 
 	if (use_mmap && use_read) {
 		fprintf(stderr,
-			"Error: The --mmap and --read arguments are mutually exclusive\n\n");
+			"Error: The --mmap and --read arguments "
+			"are mutually exclusive\n\n");
 		famfs_fsck_usage(argc, argv);
 		return -1;
 	} else if (!(use_mmap || use_read)) {
