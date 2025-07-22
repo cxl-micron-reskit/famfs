@@ -519,17 +519,21 @@ famfs_fsck_scan(
 	else {
 		u64 bitmap_capacity = nbits * alloc_unit;
 		float space_amp = (float)alloc_sum / (float)fsize_sum;
-		float percent_used = 100.0 * (float)alloc_sum /  (float)bitmap_capacity;
+		float percent_used = 100.0 * ((float)alloc_sum /
+					      (float)bitmap_capacity);
 		float agig = 1024 * 1024 * 1024;
 
 		printf("  No allocation errors found\n\n");
 		printf("Capacity:\n");
 		if (!human) {
-			printf("  Device capacity:        %lld\n", dev_capacity);
-			printf("  Bitmap capacity:        %lld\n", bitmap_capacity);
+			printf("  Device capacity:        %lld\n",
+			       dev_capacity);
+			printf("  Bitmap capacity:        %lld\n",
+			       bitmap_capacity);
 			printf("  Sum of file sizes:      %lld\n", fsize_sum);
 			printf("  Allocated bytes:        %lld\n", alloc_sum);
-			printf("  Free space:             %lld\n", bitmap_capacity - alloc_sum);
+			printf("  Free space:             %lld\n",
+			       bitmap_capacity - alloc_sum);
 		} else {
 			printf("  Device capacity:        %0.2fG\n",
 			       (float)dev_capacity / agig);
@@ -542,7 +546,7 @@ famfs_fsck_scan(
 			printf("  Free space:             %.2fG\n",
 			       ((float)bitmap_capacity - (float)alloc_sum) / agig);
 		}
-			printf("  Space amplification:     %0.2f\n", space_amp);
+		printf("  Space amplification:     %0.2f\n", space_amp);
 		printf("  Percent used:            %.1f%%\n\n", percent_used);
 	}
 
@@ -562,11 +566,16 @@ famfs_fsck_scan(
 		printf("  log_len:           %lld\n", sb->ts_log_len);
 
 		printf("  log_entry components:\n");
-		printf("      sizeof(log header) %ld\n", sizeof(struct famfs_log));
-		printf("      sizeof(log_entry)  %ld\n", sizeof(struct famfs_log_entry));
-		printf("          sizeof(mkdir)     %ld\n", sizeof(struct famfs_log_mkdir));
-		printf("          sizeof(file_meta) %ld\n", sizeof(struct famfs_log_file_meta));
-		printf("              sizeof(fmap)    %ld\n", sizeof(struct famfs_log_fmap));
+		printf("      sizeof(log header) %ld\n",
+		       sizeof(struct famfs_log));
+		printf("      sizeof(log_entry)  %ld\n",
+		       sizeof(struct famfs_log_entry));
+		printf("          sizeof(mkdir)     %ld\n",
+		       sizeof(struct famfs_log_mkdir));
+		printf("          sizeof(file_meta) %ld\n",
+		       sizeof(struct famfs_log_file_meta));
+		printf("              sizeof(fmap)    %ld\n",
+		       sizeof(struct famfs_log_fmap));
 
 		printf("                  sizeof(interleaved_ext[%d]): %ld\n",
 		       FAMFS_MAX_INTERLEAVED_EXTENTS,
@@ -575,9 +584,11 @@ famfs_fsck_scan(
 		       FAMFS_MAX_SIMPLE_EXTENTS,
 		       sizeof(struct famfs_simple_extent));
 
-		printf("  last_log_index:    %lld\n", logp->famfs_log_last_index);
+		printf("  last_log_index:    %lld\n",
+		       logp->famfs_log_last_index);
 		total_log_size = sizeof(struct famfs_log)
-			+ (sizeof(struct famfs_log_entry) * logp->famfs_log_last_index);
+			+ (sizeof(struct famfs_log_entry) *
+			   logp->famfs_log_last_index);
 		printf("  usable log size:   %ld\n", total_log_size);
 		printf("  sizeof(struct famfs_log_file_meta): %ld\n",
 		       sizeof(struct famfs_log_file_meta));
@@ -2822,13 +2833,15 @@ famfs_release_locked_log(struct famfs_locked_log *lp)
 /**
  * famfs_file_create_stub()
  *
- * Create a famfs v1 stub file but don't allocate dax space yet. File map will be added later.
+ * Create a famfs v1 stub file but don't allocate dax space yet. File map
+ * will be added later.
  *
  * @path:
  * @mode:
  * @uid:           used if both uid and gid are non-null
  * @gid:           used if both uid and gid are non-null
- * @disable_write: if this flag is non-zero, write permissions will be removed from the mode
+ * @disable_write: if this flag is non-zero, write permissions will be removed
+ *                 from the mode
  *                 (we default files to read-only on client systems)
  *
  * Returns a file descriptior or -EBADF if the path is not in a famfs file system
@@ -2886,9 +2899,9 @@ famfs_file_create_stub(
 /**
  * test_shadow_yaml()
  *
- * This function parses-back yaml file yaml, into a temporary struct famfs_log_file_meta,
- * and verifies that it exactly matches the original. This is only intended for testing
- * yaml generation and parsing.
+ * This function parses-back yaml file yaml, into a temporary struct
+ * famfs_log_file_meta, and verifies that it exactly matches the original.
+ * This is only intended for testing yaml generation and parsing.
  */
 static int
 famfs_test_shadow_yaml(FILE *fp, const struct famfs_log_file_meta *fc, int verbose)
@@ -2904,9 +2917,12 @@ famfs_test_shadow_yaml(FILE *fp, const struct famfs_log_file_meta *fc, int verbo
 
 		fprintf(stderr, "-----------------------------------------------------\n");
 		rewind(fp);
-		rc = famfs_parse_shadow_yaml(fp, &readback2, FAMFS_MAX_SIMPLE_EXTENTS,
-					     FAMFS_MAX_INTERLEAVED_EXTENTS, verbose + 4);
-		fprintf(stderr, "%s: failed to parse shadow file yaml\n", __func__);
+		rc = famfs_parse_shadow_yaml(fp, &readback2,
+					     FAMFS_MAX_SIMPLE_EXTENTS,
+					     FAMFS_MAX_INTERLEAVED_EXTENTS,
+					     verbose + 4);
+		fprintf(stderr, "%s: failed to parse shadow file yaml\n",
+			__func__);
 		assert(0);
 		return -1;
 	}
@@ -2964,7 +2980,7 @@ famfs_shadow_file_create(
 			fprintf(stderr,
 				"%s: directory where file %s expected\n",
 				__func__, shadow_fullpath);
-			if (ls) ls->f_errs++; /* file error because it should be a file */
+			if (ls) ls->f_errs++; /* Should be a file */
 			return -1;
 
 		case S_IFREG:
@@ -2980,11 +2996,14 @@ famfs_shadow_file_create(
 			if (!testmode)
 				return 0;
 
-			/* We're in testmode: open the existing yaml so we can test it */
+			/* We're in testmode: open the existing yaml so we
+			 * can test it */
 			fd = open(shadow_fullpath, O_RDONLY);
 			if (fd < 0) {
-				fprintf(stderr, "%s: open of %s failed, fd %d with %s\n",
-					__func__, shadow_fullpath, fd, strerror(errno));
+				fprintf(stderr,
+					"%s: open of %s failed, fd %d with %s\n",
+					__func__, shadow_fullpath, fd,
+					strerror(errno));
 				if (ls) ls->f_errs++;
 				return -1;
 			}
@@ -3010,7 +3029,8 @@ famfs_shadow_file_create(
 
 		fd = open(shadow_fullpath, O_RDWR | O_CREAT, 0644);
 		if (fd < 0) {
-			fprintf(stderr, "%s: open/creat of %s failed, fd %d with %s\n",
+			fprintf(stderr,
+				"%s: open/creat of %s failed, fd %d with %s\n",
 				__func__, shadow_fullpath, fd, strerror(errno));
 			if (ls) ls->f_errs++;
 			return -1;

@@ -57,7 +57,8 @@ int create_mock_famfs_instance(
 	int rc;
 
 	if (strstr(path, "/tmp/") != path) {
-		/* Don't allow a unit test running as root to blow away arbitrary file systems :D */
+		/* Don't allow a unit test running as root to
+		 * blow away arbitrary file systems :D */
 		printf("%s: path (%s) must begin with /tmp", __func__, path);
 		return -1;
 	}

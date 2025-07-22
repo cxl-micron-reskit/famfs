@@ -803,7 +803,7 @@ TEST(famfs, famfs_log)
 
 	/* This should fail due to shadow fs path being a file and not a directory */
 	system("rm -rf /tmp/famfs_shadow");
-	system("touch /tmp/famfs_shadow"); /* craete file where shadow dir should be */
+	system("touch /tmp/famfs_shadow"); /* create file where shadow dir should be */
 	rc = famfs_dax_shadow_logplay("/tmp/famfs_shadow", 0, 0,
 				      "/dev/bogo_dax", 1, 0);
 	ASSERT_NE(rc, 0);

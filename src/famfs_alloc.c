@@ -49,7 +49,8 @@ mu_print_bitmap(u8 *bitmap, int num_bits)
 		sum += val;
 
 		if (!(i%64)) {
-			/* New line; print previous line only is there was at least one '1' in it */
+			/* New line; print previous line only if
+			 * there was at least one '1' in it */
 			if (sum > 0) {
 				printf("%s", linebuf);
 				sum = 0;
@@ -60,7 +61,7 @@ mu_print_bitmap(u8 *bitmap, int num_bits)
 			sprintf(linebuf, "\n%4d: ", i); /* Put header in line */
 		}
 
-		strcat(linebuf, (val) ? "1" : "0");     /* Append a '1' or '0' */
+		strcat(linebuf, (val) ? "1" : "0");   /* Append a '1' or '0' */
 	}
 	if (sum > 0)
 		printf("%s", linebuf);
@@ -105,8 +106,9 @@ set_extent_in_bitmap(
 /**
  * put_sb_log_into_bitmap()
  *
- * The two files that are not in the log are the superblock and the log. So these
- * files need to be manually added to the allocation bitmap. This function does that.
+ * The two files that are not in the log are the superblock and the log.
+ * So these files need to be manually added to the allocation bitmap. This
+ * function does that.
  *
  * @bitmap:    The bitmap
  * @log_len:   Size of the log (superblock size is invariant)
@@ -119,7 +121,8 @@ put_sb_log_into_bitmap(
 	u64 log_len,
 	u64 *alloc_sum)
 {
-	set_extent_in_bitmap(bitmap, alloc_unit, 0, FAMFS_SUPERBLOCK_SIZE + log_len, alloc_sum);
+	set_extent_in_bitmap(bitmap, alloc_unit, 0,
+			     FAMFS_SUPERBLOCK_SIZE + log_len, alloc_sum);
 }
 
 /**
@@ -128,12 +131,15 @@ put_sb_log_into_bitmap(
  * @logp:
  * @size_in:          total size of allocation space in bytes
  * @bitmap_nbits_out: output: size of the bitmap
- * @alloc_errors_out: output: number of times a file referenced a bit that was already set
+ * @alloc_errors_out: output: number of times a file referenced a bit that was
+ *                    already set
  * @fsize_total_out:  output: if ptr non-null, this is the sum of the file sizes
- * @alloc_sum_out:    output: if ptr non-null, this is the sum of all allocation sizes
+ * @alloc_sum_out:    output: if ptr non-null, this is the sum of all
+ *                    allocation sizes
  *                    (excluding double-allocations; space amplification is
- *                     @alloc_sum / @size_total provided there are no double allocations,
- *                     b/c those will increase size_total but not alloc_sum)
+ *                    @alloc_sum / @size_total provided there are no double
+ *                    allocations, b/c those will increase size_total but not
+ *                    alloc_sum)
  * @log_stats_out:    Optional pointer to struct log_stats to be copied out
  * @verbose:
  */
@@ -150,12 +156,14 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 {
 	u64 nbits = (dev_size_in + alloc_unit - 1) / alloc_unit;
 	u64 bitmap_nbytes = mu_bitmap_size(nbits);
-	u8 *bitmap = calloc(1, bitmap_nbytes + 1); /* Note: mu_bitmap_foreach accesses
-						    * 1 bit past the end */
-	struct famfs_log_stats ls = { 0 }; /* We collect a subset of stats collected by logplay */
-	u64 errors = 0;
-	u64 alloc_sum = 0;
+	u8 *bitmap = calloc(1, bitmap_nbytes + 1); /* Note: mu_bitmap_foreach
+						    * accesses 1 bit past
+						    * the end */
+	struct famfs_log_stats ls = { 0 }; /* We collect a subset of stats
+					    * collected by logplay */
 	u64 fsize_sum  = 0;
+	u64 alloc_sum = 0;
+	u64 errors = 0;
 	u64 i, j;
 
 	if (verbose > 1)
@@ -178,9 +186,6 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 			ls.bad_entries++;
 			continue;
 		}
-
-
-		/* TODO: validate log sequence number */
 
 		switch (le->famfs_log_entry_type) {
 		case FAMFS_LOG_FILE: {
