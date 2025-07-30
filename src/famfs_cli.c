@@ -641,7 +641,7 @@ famfs_cp_usage(int   argc,
 	       "                        (nstrips && nbuckets) causes strided\n"
 	       "                        allocation within a single device.\n"
 	       "    -C|--chunksize <size>[kKmMgG] - Size of chunks for interleaved allocation\n"
-	       "                        (default=256M)\n"
+	       "                        (default=2M)\n"
 	       "\n"
 	       "NOTE 1: 'famfs cp' will never overwrite an existing file, which is a side-effect\n"
 	       "        of the facts that famfs never does delete, truncate or allocate-on-write\n"
@@ -675,13 +675,13 @@ do_famfs_cli_cp(int argc, char *argv[])
 	struct option cp_options[] = {
 		/* These options set a */
 		{"mode",        required_argument,    0,  'm'},
-		{"uid",         required_argument,             0,  'u'},
-		{"gid",         required_argument,             0,  'g'},
+		{"uid",         required_argument,    0,  'u'},
+		{"gid",         required_argument,    0,  'g'},
 		{"verbose",     no_argument,          0,  'v'},
 
-		{"chunksize",   required_argument,             0,  'C'},
-		{"mnstrips",    required_argument,             0,  'N'},
-		{"nbuckets",    required_argument,             0,  'B'},
+		{"chunksize",   required_argument,    0,  'C'},
+		{"nstrips",     required_argument,    0,  'N'},
+		{"nbuckets",    required_argument,    0,  'B'},
 		{0, 0, 0, 0}
 	};
 
@@ -1490,7 +1490,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 		{"multi",       required_argument,             0,  'M'},
 		{"threadct",    required_argument,             0,  't'},
 		{"chunksize",   required_argument,             0,  'C'},
-		{"mnstrips",    required_argument,             0,  'N'},
+		{"nstrips",     required_argument,             0,  'N'},
 		{"nbuckets",    required_argument,             0,  'B'},
 		{0, 0, 0, 0}
 	};
