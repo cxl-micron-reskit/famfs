@@ -3818,7 +3818,7 @@ famfs_cp(struct famfs_locked_log *lp,
 	/* Figure out what the destination is; possibilities:
 	 *
 	 * * A non-existing path whose parent directory is in famfs
-	 * * An existing path do a directory in famfs
+	 * * An existing path to a directory in famfs
 	 */
 	rc = stat(destfile, &deststat);
 	if (!rc) {
@@ -3943,7 +3943,8 @@ int famfs_cp_dir(
 
 		switch (src_stat.st_mode & S_IFMT) {
 		case S_IFREG:
-			rc = famfs_cp(lp, srcfullpath, dest, mode, uid, gid, verbose);
+			rc = famfs_cp(lp, srcfullpath, dest,
+				      mode, uid, gid, verbose);
 			if (rc < 0) {
 				err = rc;
 				goto bailout;
@@ -3956,12 +3957,14 @@ int famfs_cp_dir(
 			char newdirpath[PATH_MAX];
 			char *src_copy = strdup(srcfullpath);
 
-			snprintf(newdirpath, PATH_MAX - 1, "%s/%s", dest, basename(src_copy));
+			snprintf(newdirpath, PATH_MAX - 1, "%s/%s",
+				 dest, basename(src_copy));
 			/* Recurse :D
-			 * Parent of newdirpath is guaranteed to exist, because that's a property
-			 * of this recursion
+			 * Parent of newdirpath is guaranteed to exist, because
+			 * that's a property of this recursion
 			 */
-			rc = famfs_cp_dir(lp, srcfullpath, newdirpath, mode, uid, gid, verbose);
+			rc = famfs_cp_dir(lp, srcfullpath, newdirpath,
+					  mode, uid, gid, verbose);
 			free(src_copy);
 			break;
 		}
@@ -3993,11 +3996,11 @@ bailout:
  * Rules:
  * * non-recuraive
  *   * If there are more than 2 args, last arg must be a directory
- *   * In the 2 arg case, last arg can be either a directory or a non-existent file name
+ *   * In the 2 arg case, last arg can be either a directory or a non-existent
+ *     file name
  *   * Files will be copied to their basename in the last-arg directory
- *   * Any directories before the last arg will skipped (until we have 'cp -r' implemented
- *   * Everything that can be copied according to these rules will be copied (but the return
- *     value will be 1 if anything failed
+ *   * Everything that can be copied according to these rules will be copied
+ *     (but the return value will be 1 if anything failed
  *
  * * Recursive
  *   * Last arg must be a directory which need not already exist
@@ -4046,18 +4049,19 @@ famfs_cp_multi(
 		}
 	}
 	else {
-		/* dest does not exist; its parent is the parentdir (and must exist) */
+		/* dest nonexistent; its parent is the parentdir (must exist) */
 		dirdupe = strdup(dest);
 		parentdir = dirname(dirdupe);
 		dest_parent_path = realpath(parentdir, NULL);
 		if (!dest_parent_path) {
 			free(dirdupe);
-			fprintf(stderr, "%s: unable to get realpath for (%s)\n", __func__, dest);
+			fprintf(stderr, "%s: unable to get realpath for (%s)\n",
+				__func__, dest);
 			return -1;
 		}
 
-		/* Check to see if the parent of the destination (last arg) is a directory.
-		 * if not, error out
+		/* Check to see if the parent of the destination (last arg)
+		 * is a directory. if not, error out
 		 */
 		rc = stat(dest_parent_path, &st);
 		if (!rc) {
@@ -4076,9 +4080,9 @@ famfs_cp_multi(
 		}
 	}
 
-	/* If this is a recursive request, or if argc > 2, the destination must be a directory,
-	 * although it need not exist yet. But if the destination exists and is not a dir,
-	 * that's an error
+	/* If this is a recursive request, or if argc > 2, the destination must
+	 * be a directory, although it need not exist yet. But if the
+	 * destination exists and is not a dir, that's an error
 	 */
 	if (recursive || (argc > 2)) {
 		rc = stat(dest, &st);
@@ -4107,9 +4111,13 @@ famfs_cp_multi(
 
 	if (s) {
 		if (verbose)
-			printf("%s: overriding interleave_param defaults (nbuckets/nstrips/chunk)="
-			       "(%lld/%lld/%lld) with (%lld/%lld/%lld)\n", __func__,
-			       ll.interleave_param.nbuckets, ll.interleave_param.nstrips, ll.interleave_param.chunk_size,
+			printf("%s: overriding interleave_param defaults "
+			       "(nbuckets/nstrips/chunk)="
+			       "(%lld/%lld/%lld) with (%lld/%lld/%lld)\n",
+			       __func__,
+			       ll.interleave_param.nbuckets,
+			       ll.interleave_param.nstrips,
+			       ll.interleave_param.chunk_size,
 			       s->nbuckets, s->nstrips, s->chunk_size);
 
 		ll.interleave_param = *s;
@@ -4145,11 +4153,13 @@ famfs_cp_multi(
 
 		case S_IFDIR:
 			if (recursive) {
-				/* Parent is guaranteed to exist, we verified it above */
+				/* Parent is guaranteed to exist,
+				 * we verified it above */
 				rc = famfs_cp_dir(&ll, argv[i], dest, mode, uid,
 						  gid, verbose);
-				if (rc < 0) { /* rc < 0 is errors we abort after */
-					fprintf(stderr, "%s: aborting copy due to error\n",
+				if (rc < 0) { /* rc < 0 is abort errors */
+					fprintf(stderr,
+						"%s: aborting copy due to error\n",
 						__func__);
 					err = rc;
 					goto err_out;
@@ -4157,7 +4167,8 @@ famfs_cp_multi(
 				if (rc)  /* rc > 0 is errors that we continue after */
 					err = 1;
 			} else {
-				fprintf(stderr, "%s: -r not specified; omitting directory '%s'\n",
+				fprintf(stderr,
+					"%s: -r not specified; omitting directory '%s'\n",
 					__func__, argv[i]);
 				err = 1;
 			}
@@ -4185,8 +4196,8 @@ err_out:
  * famfs_clone()
  *
  *
- * This function is for generating cross-linked file errors, and should be compiled out
- * of the library when not needed for that purpose.
+ * This function is for generating cross-linked file errors, and should be
+ * compiled out of the library when not needed for that purpose.
  */
 int
 famfs_clone(const char *srcfile,
@@ -4220,29 +4231,34 @@ famfs_clone(const char *srcfile,
 	}
 	/* and srcfile must be in famfs... */
 	if (!file_is_famfs_v1(srcfullpath)) {
-		fprintf(stderr, "%s: source path (%s) not in a famfs v1 file system\n",
+		fprintf(stderr,
+			"%s: source path (%s) not in a famfs v1 file system\n",
 			__func__, srcfullpath);
 		return -1;
 	}
 	rc = stat(srcfullpath, &src_stat);
 	if (rc < 0 || mock_failure == MOCK_FAIL_GENERIC) {
-		fprintf(stderr, "%s: unable to stat srcfile %s\n", __func__, srcfullpath);
+		fprintf(stderr, "%s: unable to stat srcfile %s\n",
+			__func__, srcfullpath);
 		return -1;
 	}
 
 	/*
-	 * Need to confirm that both files are in the same file system. Otherwise,
-	 * the cloned extents will be double-invalid on the second file :(
+	 * Need to confirm that both files are in the same file system.
+	 * Otherwise, the cloned extents will be double-invalid on the
+	 * second file :(
 	 */
 	src_role = famfs_get_role_by_path(srcfile, &src_fs_uuid);
 	dest_role = famfs_get_role_by_path(destfile, &dest_fs_uuid);
 	if (src_role < 0 || mock_failure == MOCK_FAIL_SROLE) {
-		fprintf(stderr, "%s: Error: unable to check role for src file %s\n",
+		fprintf(stderr,
+			"%s: Error: unable to check role for src file %s\n",
 			__func__, srcfullpath);
 		return -1;
 	}
 	if (dest_role < 0 ) {
-		fprintf(stderr, "%s: Error: unable to check role for dest file %s\n",
+		fprintf(stderr,
+			"%s: Error: unable to check role for dest file %s\n",
 			__func__, destfile);
 		return -1;
 	}
@@ -4250,15 +4266,19 @@ famfs_clone(const char *srcfile,
 	    memcmp(&src_fs_uuid, &dest_fs_uuid, sizeof(src_fs_uuid)) != 0 ||
 	    mock_failure == MOCK_FAIL_ROLE) {
 		fprintf(stderr,
-			"%s: Error: source and destination must be in the same file system\n",
+			"%s: Error: source and destination "
+			"must be in the same file system\n",
 			__func__);
 		return -1;
 	}
 	if (src_role != FAMFS_MASTER) {
-		fprintf(stderr, "%s: file creation not allowed on client systems\n", __func__);
+		fprintf(stderr,
+			"%s: file creation not allowed on client systems\n",
+			__func__);
 		return -EPERM;
 	}
-	/* FAMFS_MASTER role now confirmed, and the src and destination are in the same famfs */
+	/* FAMFS_MASTER role now confirmed, and the src and destination
+	 * are in the same famfs */
 
 	/* Open source file */
 	sfd = open(srcfullpath, O_RDONLY, 0);
@@ -4280,7 +4300,8 @@ famfs_clone(const char *srcfile,
 	/* Get the map, which includes the extent count */
 	rc = ioctl(sfd, FAMFSIOC_MAP_GET, &filemap);
 	if (rc) {
-		fprintf(stderr, "%s: MAP_GET returned %d errno %d\n", __func__, rc, errno);
+		fprintf(stderr, "%s: MAP_GET returned %d errno %d\n",
+			__func__, rc, errno);
 		goto err_out;
 	}
 
@@ -4288,7 +4309,8 @@ famfs_clone(const char *srcfile,
 	ext_list = calloc(filemap.ext_list_count, sizeof(struct famfs_extent));
 	rc = ioctl(sfd, FAMFSIOC_MAP_GETEXT, ext_list);
 	if (rc) {
-		fprintf(stderr, "%s: GETEXT returned %d errno %d\n", __func__, rc, errno);
+		fprintf(stderr, "%s: GETEXT returned %d errno %d\n",
+			__func__, rc, errno);
 		goto err_out;
 	}
 
@@ -4306,15 +4328,17 @@ famfs_clone(const char *srcfile,
 	}
 	logp = (struct famfs_log *)addr;
 
-	/* Clone is only allowed on the master, so we don't need to invalidate the cache */
+	/* Clone is only allowed on the master, so we don't need to invalidate
+	 * the cache */
 
-	/* Create the destination file. This will be unlinked later if we don't get all
-	 * the way through the operation.
+	/* Create the destination file. This will be unlinked later if we
+	 * don't get all the way through the operation.
 	 */
 	dfd = famfs_file_create_stub(destfile, src_stat.st_mode,
 				     src_stat.st_uid, src_stat.st_gid, 0);
 	if (dfd < 0) {
-		fprintf(stderr, "%s: failed to create file %s\n", __func__, destfile);
+		fprintf(stderr, "%s: failed to create file %s\n",
+			__func__, destfile);
 		rc = -1;
 		goto err_out;
 	}
@@ -4329,7 +4353,8 @@ famfs_clone(const char *srcfile,
 		rc = -ENOMEM;
 		goto err_out;
 	}
-	rc = famfs_v1_set_file_map(dfd, filemap.file_size, filemap.ext_list_count,
+	rc = famfs_v1_set_file_map(dfd, filemap.file_size,
+				   filemap.ext_list_count,
 				   se, FAMFS_REG);
 	if (rc) {
 		fprintf(stderr, "%s: failed to create destination file %s\n",
@@ -4337,8 +4362,8 @@ famfs_clone(const char *srcfile,
 		goto err_out;
 	}
 
-	/* Now have created the destination file (and therefore we know it is in a famfs
-	 * mount, we need its relative path of
+	/* Now have created the destination file (and therefore we know it
+	 * is in a famfs mount, we need its relative path of
 	 */
 	assert(realpath(destfile, destfullpath));
 
@@ -4358,7 +4383,8 @@ famfs_clone(const char *srcfile,
 	}
 
 	rc = famfs_log_file_creation(logp, &fmap,
-				     relpath, src_stat.st_mode, src_stat.st_uid, src_stat.st_gid,
+				     relpath, src_stat.st_mode,
+				     src_stat.st_uid, src_stat.st_gid,
 				     filemap.file_size, 0);
 	if (rc) {
 		fprintf(stderr,
@@ -4390,8 +4416,8 @@ err_out:
  * __famfs_mkfs()
  *
  * This handller can be called by unit tests; the actual device open/mmap is
- * done by the caller, so an alternate caller can arrange for a superblock and log
- * to be written to alternate files/locations.
+ * done by the caller, so an alternate caller can arrange for a superblock
+ * and log to be written to alternate files/locations.
  */
 int
 __famfs_mkfs(const char              *daxdev,
@@ -4512,7 +4538,8 @@ famfs_mkfs(const char *daxdev,
 	}
 
 	if (kill && force) {
-		rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, NULL, 0, 0 /*read/write */);
+		rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, NULL,
+						       0, 0 /*read/write */);
 		if (rc) {
 			fprintf(stderr, "Failed to mmap superblock\n");
 			return -1;
@@ -4530,11 +4557,11 @@ famfs_mkfs(const char *daxdev,
 	}
 
 	/* If the role is FAMFS_CLIENT, there is a superblock already;
-	 * if the role is not FAMFS_CLIENT, its' either FAMFS_MASTER OR FAMFS_NOSUPER;
-	 * In either of those cases it's ok to mkfs.
+	 * if the role is not FAMFS_CLIENT, its' either FAMFS_MASTER or
+	 * FAMFS_NOSUPER; In either of those cases it's ok to mkfs.
 	 *
-	 * If the role is FAMFS_CLIENT, they'll have to manually blow away the superblock
-	 * if they want to do a new mkfs.
+	 * If the role is FAMFS_CLIENT, they'll have to manually blow away
+	 * the superblock if they want to do a new mkfs.
 	 */
 	if (rc == FAMFS_CLIENT) {
 		fprintf(stderr, "Error: Device %s has a superblock owned by"
@@ -4549,7 +4576,8 @@ famfs_mkfs(const char *daxdev,
 	printf("devsize: %ld\n", devsize);
 
 	if (devsize < min_devsize) {
-		fprintf(stderr, "%s: unsupported memory device size (<4GiB)\n", __func__);
+		fprintf(stderr, "%s: unsupported memory device size (<4GiB)\n",
+			__func__);
 		return -EINVAL;
 	}
 
@@ -4580,8 +4608,10 @@ famfs_recursive_check(const char *dirpath,
 
 	directory = opendir(dirpath);
 	if (directory == NULL) {
-		/* XXX is it possible to get here since we created the dir if it didn't exist? */
-		fprintf(stderr, "%s: failed to open src dir (%s)\n", __func__, dirpath);
+		/* XXX is it possible to get here since we created the dir
+		 * if it didn't exist? */
+		fprintf(stderr, "%s: failed to open src dir (%s)\n",
+			__func__, dirpath);
 		return -1;
 	}
 
@@ -4591,10 +4621,12 @@ famfs_recursive_check(const char *dirpath,
 		struct famfs_ioc_map filemap = {0};
 		int fd;
 
-		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+		if (strcmp(entry->d_name, ".") == 0 ||
+		    strcmp(entry->d_name, "..") == 0)
 			continue;
 
-		snprintf(fullpath, PATH_MAX - 1, "%s/%s", dirpath, entry->d_name);
+		snprintf(fullpath, PATH_MAX - 1, "%s/%s",
+			 dirpath, entry->d_name);
 		rc = stat(fullpath, &st);
 		if (rc) {
 			fprintf(stderr, "%s: failed to stat source path (%s)\n",
@@ -4617,7 +4649,8 @@ famfs_recursive_check(const char *dirpath,
 			}
 			rc = ioctl(fd, FAMFSIOC_MAP_GET, &filemap);
 			if (rc) {
-				fprintf(stderr, "%s: Error file not mapped: %s\n",
+				fprintf(stderr,
+					"%s: Error file not mapped: %s\n",
 					__func__, fullpath);
 				nerrs++;
 			}
@@ -4631,7 +4664,8 @@ famfs_recursive_check(const char *dirpath,
 
 			ndirs++;
 			/* Recurse :D */
-			rc = famfs_recursive_check(fullpath, &nfiles_out, &ndirs_out,
+			rc = famfs_recursive_check(fullpath, &nfiles_out,
+						   &ndirs_out,
 						   &nerrs_out, verbose);
 			nfiles += nfiles_out;
 			ndirs += ndirs_out;
@@ -4676,7 +4710,8 @@ famfs_check(const char *path,
 	int rc;
 
 	if (path[0] != '/') {
-		fprintf(stderr, "%s: must use absolute path of mount point\n", __func__);
+		fprintf(stderr, "%s: must use absolute path of mount point\n",
+			__func__);
 		return -1;
 	}
 
@@ -4691,14 +4726,16 @@ famfs_check(const char *path,
 	snprintf(logpath, PATH_MAX - 1, "%s/.meta/.log", path);
 	rc = stat(metadir, &st);
 	if (rc) {
-		fprintf(stderr, "%s: Need to run mkmeta on device %s for this file system\n",
+		fprintf(stderr,
+			"%s: Need to run mkmeta on device %s for this file system\n",
 			__func__, dev_out);
 		ndirs++;
 		return -1;
 	}
 	rc = stat(sbpath, &st);
 	if (rc) {
-		fprintf(stderr, "%s: superblock file not found for file system %s\n",
+		fprintf(stderr,
+			"%s: superblock file not found for file system %s\n",
 			__func__, path);
 		nerrs++;
 	}
@@ -4710,10 +4747,12 @@ famfs_check(const char *path,
 		nerrs++;
 	}
 
-	rc = famfs_recursive_check(path, &nfiles_out, &ndirs_out, &nerrs_out, verbose);
+	rc = famfs_recursive_check(path, &nfiles_out, &ndirs_out,
+				   &nerrs_out, verbose);
 	nfiles += nfiles_out;
 	ndirs += ndirs_out;
 	nerrs += nerrs_out;
-	printf("%s: %lld files, %lld directories, %lld errors\n", __func__, nfiles, ndirs, nerrs);
+	printf("%s: %lld files, %lld directories, %lld errors\n",
+	       __func__, nfiles, ndirs, nerrs);
 	return rc;
 }
