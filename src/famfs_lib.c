@@ -37,6 +37,7 @@
 #include "famfs_lib.h"
 #include "famfs_lib_internal.h"
 #include "mu_mem.h"
+#include "thpool.h"
 
 int mock_kmod = 0; /* unit tests can set this to avoid ioctl calls and whatnot */
 int mock_fstype = 0;
@@ -46,6 +47,7 @@ int mock_uuid = 0; /* for unit tests to simulate uuid related errors */
 int mock_path = 0; /* for unit tests to simulate path related errors */
 int mock_failure = 0; /* for unit tests to simulate a failure case */
 int mock_stripe = 0; /* relaxes stripe rules for unit tests */
+int mock_threadpool = 0; /* call threaded code rather than threading */
 
 static int
 famfs_dir_create(
@@ -2671,17 +2673,20 @@ retry:
  * famfs_init_locked_log()
  *
  * @lp:     locked_log structure (mandatory)
- * @fspath: The mount point full path, or any full path within a mounted famfs FS
+ * @fspath: The mount point full path, or any full path within a mounted
+ *          famfs FS
+ * @thread_ct: Threadpool count; 0=none
  * @verbose:
  */
 int
 famfs_init_locked_log(
 	struct famfs_locked_log *lp,
 	const char *fspath,
+	int thread_ct,
 	int verbose)
 {
-	char mpt[PATH_MAX];
 	char shadow[PATH_MAX];
+	char mpt[PATH_MAX];
 	size_t log_size;
 	void *addr;
 	int role;
@@ -2733,7 +2738,8 @@ famfs_init_locked_log(
 			rc = -1;
 			goto err_out;
 		} else {
-			lp->shadow_root = famfs_get_shadow_root(shadow, verbose);
+			lp->shadow_root = famfs_get_shadow_root(shadow,
+								verbose);
 		}
 
 		if (!lp->shadow_root) {
@@ -2744,13 +2750,18 @@ famfs_init_locked_log(
 		}
 	}
 
-	addr = mmap(0, log_size, PROT_READ | PROT_WRITE, MAP_SHARED, lp->lfd, 0);
+	addr = mmap(0, log_size, PROT_READ | PROT_WRITE, MAP_SHARED,
+		    lp->lfd, 0);
 	if (addr == MAP_FAILED) {
 		fprintf(stderr, "%s: Failed to mmap log file\n", __func__);
 		rc = -1;
 		goto err_out;
 	}
 	lp->logp = (struct famfs_log *)addr;
+
+	if (thread_ct > 0)
+		lp->thp = thpool_init(thread_ct);
+
 #if 1
 	/* Been occasionally hitting this assert; get more info */
 	if (lp->logp->famfs_log_len != log_size) {
@@ -2788,15 +2799,19 @@ famfs_init_locked_log(
 		fclose(fp);
 		close(cfd);
 		if (rc) {
-			fprintf(stderr, "%s: failed to parse alloc yaml\n", __func__);
+			fprintf(stderr, "%s: failed to parse alloc yaml\n",
+				__func__);
 			goto out;
 		}
 		rc = famfs_validate_interleave_param(&interleave_param,
-						     lp->alloc_unit, lp->devsize, verbose);
+						     lp->alloc_unit,
+						     lp->devsize, verbose);
 		if (rc == 0) {
 			if (verbose)
-				printf("%s: good interleave_param metadata!\n", __func__);
-			memcpy(&lp->interleave_param, &interleave_param, sizeof(interleave_param));
+				printf("%s: good interleave_param metadata!\n",
+				       __func__);
+			memcpy(&lp->interleave_param, &interleave_param,
+			       sizeof(interleave_param));
 		}
 	}
 out:
@@ -2810,7 +2825,7 @@ err_out:
 }
 
 int
-famfs_release_locked_log(struct famfs_locked_log *lp)
+famfs_release_locked_log(struct famfs_locked_log *lp, int verbose)
 {
 	int rc;
 
@@ -2827,6 +2842,16 @@ famfs_release_locked_log(struct famfs_locked_log *lp)
 		free(lp->mpt);
 	if (lp->shadow_root)
 		free(lp->shadow_root);
+	if (lp->thp) {
+		if (verbose)
+			printf("%s: waiting for threadpool to complete\n",
+			       __func__);
+		thpool_wait(lp->thp);
+		thpool_destroy(lp->thp);
+		if (verbose)
+			printf("%s: threadpool work complete\n",
+			       __func__);	
+	}
 	return rc;
 }
 
@@ -3306,7 +3331,7 @@ famfs_mkfile(
 		return -EINVAL;
 	}
 
-	rc = famfs_init_locked_log(&ll, filename, verbose);
+	rc = famfs_init_locked_log(&ll, filename, 0, verbose);
 	if (rc)
 		return rc;
 
@@ -3323,7 +3348,7 @@ famfs_mkfile(
 	}
 	rc  = __famfs_mkfile(&ll, filename, mode, uid, gid, size, verbose);
 
-	famfs_release_locked_log(&ll);
+	famfs_release_locked_log(&ll, verbose);
 	return rc;
 }
 
@@ -3512,7 +3537,7 @@ famfs_mkdir(
 	else
 		snprintf(abspath, PATH_MAX - 1, "%s/%s", cwd, dirpath);
 
-	rc = famfs_init_locked_log(&ll, abspath, verbose);
+	rc = famfs_init_locked_log(&ll, abspath, 0, verbose);
 	if (rc) {
 		free(cwd);
 		return rc;
@@ -3520,7 +3545,7 @@ famfs_mkdir(
 
 	rc = __famfs_mkdir(&ll, dirpath, mode, uid, gid, verbose);
 
-	famfs_release_locked_log(&ll);
+	famfs_release_locked_log(&ll, verbose);
 	free(cwd);
 	return rc;
 }
@@ -3623,7 +3648,7 @@ famfs_mkdir_parents(
 	}
 
 	/* OK, we know were in a FAMFS instance. get a locked log struct */
-	rc = famfs_init_locked_log(&ll, rpath, verbose);
+	rc = famfs_init_locked_log(&ll, rpath, 0, verbose);
 	if (rc) {
 		free(rpath);
 		return rc;
@@ -3634,7 +3659,7 @@ famfs_mkdir_parents(
 	rc = famfs_make_parent_dir(&ll, abspath, mode, uid, gid, 0, verbose);
 
 	/* Separate function should release ll and lock */
-	famfs_release_locked_log(&ll);
+	famfs_release_locked_log(&ll, verbose);
 	free(rpath);
 	if (cwd)
 		free(cwd);
@@ -3642,13 +3667,157 @@ famfs_mkdir_parents(
 	return rc;
 }
 
+struct copy_data {
+	int srcfd;
+	int destfd;
+	size_t offset;
+	size_t size;
+	int verbose;
+};
+
+static int
+__famfs_copy_file_data(struct copy_data *cp)
+{
+	size_t chunksize, remainder, offset;
+	char *destp;
+	pid_t pid = gettid();
+	ssize_t bytes;
+
+	/* Memory map the range we need */
+	destp = mmap(0, cp->size, PROT_READ | PROT_WRITE,
+		     MAP_SHARED, cp->destfd, cp->offset);
+	assert(destp != MAP_FAILED);
+
+	/* Copy the data */
+	chunksize = 0x100000; /* 1 MiB copy chunks */
+	offset = 0; /* cp->offset is at offset 0 of the mmap'd destp */
+	remainder = cp->size;
+
+	for ( ; remainder > 0; ) {
+		size_t cur_chunksize = MIN(chunksize, remainder);
+
+		if (cp->verbose > 1)
+			printf("%s: %d copy %ld bytes at base %lx offset %lx\n",
+			       __func__, pid,
+			       cur_chunksize, cp->offset, offset);
+
+		/* read into mmapped destination */
+		bytes = pread(cp->srcfd, &destp[offset], cur_chunksize,
+			      cp->offset + offset);
+		if (bytes < 0) {
+			fprintf(stderr, "%s: copy fail: "
+				"ofs %ld cur_chunksize %ld remainder %ld\n",
+				__func__, offset, cur_chunksize, remainder);
+			printf("rc=%ld errno=%d\n", bytes, errno);
+			munmap(destp, cp->size);
+			free(cp);
+			return -1;
+		}
+		if (bytes < cur_chunksize) {
+			fprintf(stderr, "%s: short read: "
+				"ofs %ld cur_chunksize %ld remainder %ld\n",
+				__func__, offset, cur_chunksize, remainder);
+		}
+
+		/* Update offset and remainder */
+		offset += bytes;
+		remainder -= bytes;
+	}
+	/* Flush the processor cache for the dest file */
+	flush_processor_cache(destp, cp->size);
+	munmap(destp, cp->size);
+	close(cp->srcfd);
+
+	free(cp);
+	return 0;
+}
+
+void
+__famfs_threaded_copy(void *arg)
+{
+	printf("%s:\n", __func__);
+	__famfs_copy_file_data((struct copy_data *)arg);
+}
+
+#define CP_CHUNKSIZE (128 * 0x100000) /* 128 MiB */
+
+static int
+famfs_copy_file_data(
+	struct famfs_locked_log *lp,
+	char *destp,
+	int srcfd,
+	int destfd,
+	size_t size,
+	int verbose)
+{
+	size_t chunk_size = (CP_CHUNKSIZE) ? CP_CHUNKSIZE : size;
+	size_t nchunks = (size + chunk_size - 1) / chunk_size;
+	struct copy_data *cp;
+	int rc;
+
+	/* if thpool_add_work returns an error, fall back */
+	if (lp->thp) {
+		size_t remainder, offset, this_chunk;
+
+		remainder = size;
+		offset = 0;
+
+		if (nchunks > 1)
+			printf("%s: %ld chunks in threaded copy\n",
+			       __func__, nchunks);
+
+		for (; remainder > 0; ) {
+			cp = calloc(1, sizeof(*cp));
+			assert(cp);
+
+			this_chunk = MIN(remainder, chunk_size);
+
+			cp->srcfd = dup(srcfd);
+			cp->destfd = dup(destfd);
+			cp->verbose = verbose;
+
+			cp->offset = offset;
+			cp->size = this_chunk;
+
+			/* cp is freed by __famfs_threaded_copy() */
+			if (mock_threadpool)
+				rc = __famfs_copy_file_data(cp);
+			else
+				rc = thpool_add_work(lp->thp,
+						     __famfs_threaded_copy,
+						     cp);
+
+			assert(rc == 0);
+
+			remainder -= this_chunk;
+			offset += this_chunk;
+		}
+		/* Close the input file descriptors; we dup()'d them for the
+		 * threaded work */
+		close(srcfd);
+		close(destfd);
+		return 0;
+	}
+
+	cp = calloc(1, sizeof(*cp));
+	assert(cp);
+
+	cp->srcfd = srcfd;
+	cp->destfd = destfd;
+	cp->offset = 0;
+	cp->size = size;
+	cp->verbose = verbose;
+
+	return __famfs_copy_file_data(cp);
+}
+
 /**
  * __famfs_cp()
  *
  * Inner file copy function
  *
- * Copy a file from any file system into famfs. A destination file is created and
- * allocated, and the data is copied info it.
+ * Copy a file from any file system into famfs. A destination file is created
+ * and allocated, and the data is copied info it.
  *
  * @lp       - famfs_locked_log struct
  * @srcfile  - must exist and be a regular file
@@ -3677,11 +3846,8 @@ __famfs_cp(
 	gid_t                     gid,
 	int                       verbose)
 {
-	size_t chunksize, remainder, offset;
 	int rc, srcfd, destfd;
 	struct stat srcstat;
-	ssize_t bytes;
-	char *destp;
 
 	assert(lp);
 
@@ -3742,50 +3908,10 @@ __famfs_cp(
 		return destfd;
 	}
 
-	destp = mmap(0, srcstat.st_size, PROT_READ | PROT_WRITE,
-		     MAP_SHARED, destfd, 0);
-	if (destp == MAP_FAILED ||
-			mock_failure == MOCK_FAIL_MMAP) {
-		fprintf(stderr, "%s: dest mmap failed (%s) size %ld\n",
-			__func__, destfile, srcstat.st_size);
-		unlink(destfile);
-		return -1; /* XXX */
-	}
-
-	/* Copy the data */
-	chunksize = 0x100000; /* 1 MiB copy chunks */
-	offset = 0;
-	remainder = srcstat.st_size;
-	for ( ; remainder > 0; ) {
-		size_t cur_chunksize = MIN(chunksize, remainder);
-
-		/* read into mmapped destination */
-		bytes = read(srcfd, &destp[offset], cur_chunksize);
-		if (bytes < 0) {
-			fprintf(stderr, "%s: copy fail: "
-				"ofs %ld cur_chunksize %ld remainder %ld\n",
-				__func__, offset, cur_chunksize, remainder);
-			printf("rc=%ld errno=%d\n", bytes, errno);
-			munmap(destp, srcstat.st_size);
-			return -1;
-		}
-		if (bytes < cur_chunksize) {
-			fprintf(stderr, "%s: short read: "
-				"ofs %ld cur_chunksize %ld remainder %ld\n",
-				__func__, offset, cur_chunksize, remainder);
-		}
-
-		/* Update offset and remainder */
-		offset += bytes;
-		remainder -= bytes;
-	}
-	/* Flush the processor cache for the dest file */
-	flush_processor_cache(destp, srcstat.st_size);
-
-	munmap(destp, srcstat.st_size);
-	close(srcfd);
-	close(destfd);
-	return 0;
+	/* famfs_copy_file_data will close the file descriptors and unmap
+	 * the destination when it finishes */
+	return famfs_copy_file_data(lp, NULL, srcfd, destfd,
+				    srcstat.st_size, verbose);
 }
 
 /**
@@ -4020,6 +4146,7 @@ famfs_cp_multi(
 	gid_t gid,
 	struct famfs_interleave_param *s,
 	int recursive,
+	int thread_ct,
 	int verbose)
 {
 	struct famfs_locked_log ll = { 0 };
@@ -4102,7 +4229,7 @@ famfs_cp_multi(
 		}
 	}
 
-	rc = famfs_init_locked_log(&ll, dest_parent_path, verbose);
+	rc = famfs_init_locked_log(&ll, dest_parent_path, thread_ct, verbose);
 	if (rc) {
 		free(dest_parent_path);
 		free(dirdupe);
@@ -4187,7 +4314,7 @@ famfs_cp_multi(
 err_out:
 	/* Separate function should release ll and lock */
 	free(dirdupe);
-	famfs_release_locked_log(&ll);
+	famfs_release_locked_log(&ll, verbose);
 	free(dest_parent_path);
 	return err;
 }

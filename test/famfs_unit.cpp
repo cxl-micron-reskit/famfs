@@ -406,7 +406,7 @@ TEST(famfs, __famfs_cp)
 	mock_fstype = FAMFS_V1;
 	rc = create_mock_famfs_instance("/tmp/famfs", device_size, &sb, &logp);
 	ASSERT_EQ(rc, 0);
-	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
+	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 0, 1);
 	ASSERT_EQ(rc, 0);
 	mock_kmod = 0;
 
@@ -499,7 +499,7 @@ TEST(famfs, famfs_alloc)
 	mock_fstype = FAMFS_V1;
 	rc = create_mock_famfs_instance(fspath, device_size, &sb, &logp);
 	ASSERT_EQ(rc, 0);
-	rc = famfs_init_locked_log(&ll, fspath, 1);
+	rc = famfs_init_locked_log(&ll, fspath, 0, 1);
 	ASSERT_EQ(rc, 0);
 	mock_kmod = 0;
 
@@ -660,7 +660,7 @@ TEST(famfs, famfs_alloc)
 	mock_kmod = 1;
 	rc = create_mock_famfs_instance(fspath, device_size, &sb, &logp);
 	ASSERT_EQ(rc, 0);
-	rc = famfs_init_locked_log(&ll, fspath, 1);
+	rc = famfs_init_locked_log(&ll, fspath, 0, 1);
 	ASSERT_EQ(rc, 0);
 
 	sprintf(bro_path, "%s/non-interleaved-file", fspath);
@@ -758,7 +758,7 @@ TEST(famfs, famfs_log)
 	rc = create_mock_famfs_instance("/tmp/famfs", device_size, &sb, &logp);
 	ASSERT_EQ(rc, 0);
 
-	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
+	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 0, 1);
 	ASSERT_EQ(rc, 0);
 
 	for (i = 0; i < 512; i++) {
@@ -948,17 +948,17 @@ TEST(famfs, famfs_log)
 	system("cp /tmp/famfs/.meta/.log.save /tmp/famfs/.meta/.log");
 	system("cp /tmp/famfs/.meta/.superblock.save /tmp/famfs/.meta/.superblock");
 
-	rc = famfs_release_locked_log(&ll);
+	rc = famfs_release_locked_log(&ll, 0);
 	ASSERT_EQ(rc, 0);
 
 	system("chmod 444 /tmp/famfs/.meta/.log"); /* log file not writable */
 
 	mock_role = FAMFS_CLIENT;
-	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
+	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 0, 1);
 	ASSERT_NE(rc, 0);
 
 	mock_role = FAMFS_CLIENT;
-	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
+	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 0, 1);
 	ASSERT_NE(rc, 0); /* init_locked_log should fail as client */
 
 	mock_role = 0;
@@ -1073,7 +1073,7 @@ TEST(famfs, famfs_clone) {
 	mock_kmod = 1;
 	rc = create_mock_famfs_instance("/tmp/famfs", device_size, &sb, &logp);
 	ASSERT_EQ(rc, 0);
-	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
+	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 0, 1);
 	ASSERT_EQ(rc, 0);
 	sprintf(filename, "/tmp/famfs/clonesrc");
 	fd = __famfs_mkfile(&ll, filename, 0, 0, 0, 2097152, 1);
@@ -1214,7 +1214,7 @@ TEST(famfs, famfs_cp) {
 	mock_kmod = 1;
 	rc = create_mock_famfs_instance("/tmp/famfs", device_size, &sb, &logp);
 	ASSERT_EQ(rc, 0);
-	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 1);
+	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 0, 1);
 	ASSERT_EQ(rc, 0);
 	mock_kmod = 0;
 

@@ -656,6 +656,7 @@ famfs_cp_usage(int   argc,
 	       "\n"
 	       "Arguments:\n"
 	       "    -h|-?           		- Print this message\n"
+	       "    -t|--threadct <nthreads>    - Number of copy threads\n"
 	       "    -m|--mode <mode> 		- Set mode (as in chmod) to octal value\n"
 	       "    -u|--uid <uid>   		- Specify uid (default is current user's uid)\n"
 	       "    -g|--gid <gid>   		- Specify uid (default is current user's gid)\n"
@@ -694,6 +695,7 @@ do_famfs_cli_cp(int argc, char *argv[])
 	int c;
 	int set_stripe = 0;
 	s64 mult;
+	int thread_ct = 16;
 
 	interleave_param.chunk_size = 0x200000; /* 2MiB default chunk */
 
@@ -703,6 +705,8 @@ do_famfs_cli_cp(int argc, char *argv[])
 		{"uid",         required_argument,    0,  'u'},
 		{"gid",         required_argument,    0,  'g'},
 		{"verbose",     no_argument,          0,  'v'},
+
+		{"threadct",    required_argument,    0,  't'},
 
 		{"chunksize",   required_argument,    0,  'C'},
 		{"nstrips",     required_argument,    0,  'N'},
@@ -714,7 +718,7 @@ do_famfs_cli_cp(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+rm:u:g:C:N:B:vh?",
+	while ((c = getopt_long(argc, argv, "+rm:u:g:C:N:B:vt:h?",
 				cp_options, &optind)) != EOF) {
 
 		char *endptr;
@@ -729,6 +733,10 @@ do_famfs_cli_cp(int argc, char *argv[])
 		case 'r':
 			recursive = 1;
 			break;
+		case 't':
+			thread_ct = strtol(optarg, 0, 0);
+			break;
+
 		case 'm':
 			mode = strtol(optarg, 0, 8); /* Must be valid octal */
 			break;
@@ -784,7 +792,7 @@ do_famfs_cli_cp(int argc, char *argv[])
 	mode &= ~(current_umask);
 
 	rc = famfs_cp_multi(argc - optind, &argv[optind], mode, uid, gid,
-			s, recursive, verbose);
+			    s, recursive, thread_ct, verbose);
 	return rc;
 }
 
