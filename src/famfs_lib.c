@@ -32,6 +32,7 @@
 #include <sys/statfs.h>
 #include <linux/famfs_ioctl.h>
 #include <linux/magic.h>
+#include <pthread.h>
 
 #include "famfs_meta.h"
 #include "famfs_lib.h"
@@ -3608,7 +3609,8 @@ famfs_make_parent_dir(
 		case S_IFDIR:
 			return 0;
 		default:
-			fprintf(stderr, "%s: path %s is not a directory\n", __func__, path);
+			fprintf(stderr, "%s: path %s is not a directory\n",
+				__func__, path);
 			return -1;
 		}
 	}
@@ -3616,9 +3618,11 @@ famfs_make_parent_dir(
 	/* get parent path */
 	parentdir = dirname(dirdupe);
 	 /* Recurse up :D */
-	rc = famfs_make_parent_dir(lp, parentdir, mode, uid, gid, depth + 1, verbose);
+	rc = famfs_make_parent_dir(lp, parentdir, mode, uid, gid,
+				   depth + 1, verbose);
 	if (rc) {
-		fprintf(stderr, "%s: bad path component above (%s)\n", __func__, path);
+		fprintf(stderr, "%s: bad path component above (%s)\n",
+			__func__, path);
 		free(dirdupe);
 		return -1;
 	}
@@ -3663,7 +3667,8 @@ famfs_mkdir_parents(
 
 	rpath = find_real_parent_path(abspath);
 	if (!rpath) {
-		fprintf(stderr, "%s: failed to find real parent dir\n", __func__);
+		fprintf(stderr, "%s: failed to find real parent dir\n",
+			__func__);
 		return -1;
 	}
 
@@ -3687,9 +3692,22 @@ famfs_mkdir_parents(
 	return rc;
 }
 
-struct copy_data {
+
+int fd_invalid(int fd) {
+	return (!(fcntl(fd, F_GETFD) != -1 || errno != EBADF));
+}
+
+
+struct copy_files {
 	int srcfd;
 	int destfd;
+	char *destp;
+	int refcount;
+	pthread_mutex_t mutex;
+};
+
+struct copy_data {
+	struct copy_files *cf;
 	size_t offset;
 	size_t size;
 	int verbose;
@@ -3702,41 +3720,52 @@ __famfs_copy_file_data(struct copy_data *cp)
 	char *destp;
 	pid_t pid = gettid();
 	ssize_t bytes;
+	int errs = 0;
+	int cleanup = 0;
+	int rc = 0;
+	
+	assert(cp);
+	assert(cp->cf);
 
-	/* Memory map the range we need */
-	destp = mmap(0, cp->size, PROT_READ | PROT_WRITE,
-		     MAP_SHARED, cp->destfd, cp->offset);
-	assert(destp != MAP_FAILED);
+	if (fd_invalid(cp->cf->srcfd)) {
+		fprintf(stderr, "%s: bad srcfd\n", __func__);
+		errs++;
+	}
+	if (fd_invalid(cp->cf->destfd)) {
+		fprintf(stderr, "%s: bad destfd\n", __func__);
+		errs++;
+	}
+	assert(!errs);
 
 	/* Copy the data */
 	chunksize = 0x100000; /* 1 MiB copy chunks */
-	offset = 0; /* cp->offset is at offset 0 of the mmap'd destp */
+	offset = cp->offset;
 	remainder = cp->size;
+	destp = cp->cf->destp;
 
 	for ( ; remainder > 0; ) {
 		size_t cur_chunksize = MIN(chunksize, remainder);
 
 		if (cp->verbose > 1)
-			printf("%s: %d copy %ld bytes at base %lx offset %lx\n",
-			       __func__, pid,
-			       cur_chunksize, cp->offset, offset);
+			printf("%s: %d copy %ld bytes at offset %lx\n",
+			       __func__, pid, cur_chunksize, offset);
 
 		/* read into mmapped destination */
-		bytes = pread(cp->srcfd, &destp[offset], cur_chunksize,
-			      cp->offset + offset);
+		bytes = pread(cp->cf->srcfd, &destp[offset], cur_chunksize,
+			      offset);
 		if (bytes < 0) {
 			fprintf(stderr, "%s: copy fail: "
 				"ofs %ld cur_chunksize %ld remainder %ld\n",
 				__func__, offset, cur_chunksize, remainder);
-			printf("rc=%ld errno=%d\n", bytes, errno);
-			munmap(destp, cp->size);
-			free(cp);
-			return -1;
+			fprintf(stderr, "rc=%ld errno=%d\n", bytes, errno);
+			rc = -1;
+			goto out;
 		}
 		if (bytes < cur_chunksize) {
 			fprintf(stderr, "%s: short read: "
 				"ofs %ld cur_chunksize %ld remainder %ld\n",
 				__func__, offset, cur_chunksize, remainder);
+			assert(bytes == cur_chunksize);
 		}
 
 		/* Update offset and remainder */
@@ -3745,11 +3774,24 @@ __famfs_copy_file_data(struct copy_data *cp)
 	}
 	/* Flush the processor cache for the dest file */
 	flush_processor_cache(destp, cp->size);
-	munmap(destp, cp->size);
-	close(cp->srcfd);
 
-	free(cp);
-	return 0;
+	pthread_mutex_lock(&cp->cf->mutex);
+	if (--cp->cf->refcount == 0)
+		cleanup++;
+	pthread_mutex_unlock(&cp->cf->mutex);
+
+out:
+	if (cleanup) {
+		/* cf is shared and can't be cleaned up until all threads
+		 * have finished with it */
+		munmap(destp, cp->size);
+		close(cp->cf->srcfd);
+		close(cp->cf->destfd);
+		pthread_mutex_destroy(&cp->cf->mutex);
+		free(cp->cf);
+	}
+	free(cp); /* cp is not shared */
+	return rc;
 }
 
 /* This void/void wrapper is needed by the thread pool */
@@ -3773,7 +3815,20 @@ famfs_copy_file_data(
 	size_t chunk_size = (CP_CHUNKSIZE) ? CP_CHUNKSIZE : size;
 	size_t nchunks = (size + chunk_size - 1) / chunk_size;
 	struct copy_data *cp;
+	struct copy_files *cf;
 	int rc;
+
+	cf = calloc(1, sizeof(*cf));
+	assert(cf);
+
+	cf->srcfd = srcfd;
+	cf->destfd = destfd;
+	pthread_mutex_init(&cf->mutex, NULL);
+
+	/* Memory map the range we need */
+	cf->destp = mmap(0, size, PROT_READ | PROT_WRITE,
+			 MAP_SHARED, destfd, 0);
+	assert(cf->destp != MAP_FAILED);
 
 	/* if thpool_add_work returns an error, fall back */
 	if (lp->thp) {
@@ -3781,6 +3836,7 @@ famfs_copy_file_data(
 
 		remainder = size;
 		offset = 0;
+		cf->refcount = nchunks;
 
 		if (nchunks > 1)
 			printf("%s: %ld chunks in threaded copy\n",
@@ -3792,8 +3848,7 @@ famfs_copy_file_data(
 
 			this_chunk = MIN(remainder, chunk_size);
 
-			cp->srcfd = dup(srcfd);
-			cp->destfd = dup(destfd);
+			cp->cf = cf;
 			cp->verbose = verbose;
 
 			cp->offset = offset;
@@ -3812,18 +3867,14 @@ famfs_copy_file_data(
 			remainder -= this_chunk;
 			offset += this_chunk;
 		}
-		/* Close the input file descriptors; we dup()'d them for the
-		 * threaded work */
-		close(srcfd);
-		close(destfd);
 		return 0;
 	}
 
 	cp = calloc(1, sizeof(*cp));
 	assert(cp);
 
-	cp->srcfd = srcfd;
-	cp->destfd = destfd;
+	cf->refcount = 1;
+	cp->cf = cf;
 	cp->offset = 0;
 	cp->size = size;
 	cp->verbose = verbose;

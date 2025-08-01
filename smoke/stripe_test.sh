@@ -61,7 +61,7 @@ while (( $# > 0)); do
 	    # Also: creat/cp multi threadct=1 to keep valgrind from crashing
 	    CREAT="creat -t 1"
 	    VERIFY="verify -t 1"
-	    CP="cp -t 1"
+	    CP="cp -t 0"
 	    ;;
 	(-n|--no-rmmod)
 	    RMMOD=0
@@ -112,13 +112,19 @@ stripe_test_cp () {
 
 	echo "Creating file $counter:$file_name"
 	# Try to create the file
-	${CLI} ${CREAT}  -C "$CHUNKSIZE" -N "$NSTRIPS" -B "$NBUCKETS" -s "$SIZE" "$file_name"
+	${CLI} ${CREAT}  -N "$NSTRIPS" -B "$NBUCKETS" -s "$SIZE" "$file_name"
 	# Assert if file creation failed
 	assert_equal $? 0 "Failed to create interleaved file $file_name"
 
+	# If we're not using valgrind, generate a random thread count
+	if [[ -z "${VG//[[:space:]]/}" ]]; then
+	    THREADCT=$(generate_random_int "1" "96")
+	    CP_ARGS="-t $THREADCT"
+	fi
+
 	dst_name="$file_name""_copy"
-	echo "Copying $file_name into $dst_name"
-	${CLI} ${CP}  -C "$CHUNKSIZE" -N "$NSTRIPS" -B "$NBUCKETS" "$file_name" "$dst_name" || fail "striped file cp of $dst_name failed"
+	echo "Copying $file_name into $dst_name ($CP_ARGS)"
+	${CLI} ${CP} ${CP_ARGS} -N "$NSTRIPS" -B "$NBUCKETS" "$file_name" "$dst_name" || fail "striped file cp of $dst_name failed"
 
 	# Add the file name to the array
 	files+=("$dst_name")
