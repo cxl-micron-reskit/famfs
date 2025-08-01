@@ -1894,7 +1894,7 @@ verify_multi(
 	int threadct,
 	int quiet)
 {
-	threadpool thp;
+	threadpool thp = NULL;
 	int errs = 0;
 	int i;
 

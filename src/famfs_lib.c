@@ -2821,6 +2821,8 @@ out:
 err_out:
 	if (lp->lfd)
 		close(lp->lfd);
+	if (lp->thp)
+		thpool_destroy(lp->thp);
 	return rc;
 }
 
@@ -3735,7 +3737,6 @@ __famfs_copy_file_data(struct copy_data *cp)
 void
 __famfs_threaded_copy(void *arg)
 {
-	printf("%s:\n", __func__);
 	__famfs_copy_file_data((struct copy_data *)arg);
 }
 
