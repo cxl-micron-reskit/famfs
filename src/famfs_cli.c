@@ -1460,7 +1460,7 @@ randomize_multi(
 	int errs = 0;
 	int i;
 
-	if (threadct <= 0 || threadct > 256) {
+	if (threadct < 0 || threadct > 256) {
 		fprintf(stderr, "%s: bad threadct: %d\n",
 			__func__, threadct);
 		return -1;
@@ -1468,12 +1468,20 @@ randomize_multi(
 
 	printf("%s: randomizing %d files via %d threads\n",
 	       __func__, multi_count, threadct);
-	thp = thpool_init(threadct);
-	for (i = 0; i < multi_count; i++)
-		thpool_add_work(thp, threaded_randomize, (void *)&mc[i]);
+	if (threadct)
+		thp = thpool_init(threadct);
+	for (i = 0; i < multi_count; i++) {
+		if (threadct)
+			thpool_add_work(thp, threaded_randomize,
+					(void *)&mc[i]);
+		else
+			threaded_randomize(&mc[i]);
+	}
 
-	thpool_wait(thp);
-	thpool_destroy(thp);
+	if (threadct) {
+		thpool_wait(thp);
+		thpool_destroy(thp);
+	}
 
 	for (i = 0; i < multi_count; i++) {
 		if (mc[i].seed)
@@ -1631,6 +1639,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 								0, 0);
 
 			free_string_list(strings, nstrings);
+
 			multi_count++;
 			break;
 		}
@@ -1889,7 +1898,7 @@ verify_multi(
 	int errs = 0;
 	int i;
 
-	if (threadct <= 0 || threadct > 256) {
+	if (threadct < 0 || threadct > 256) {
 		fprintf(stderr, "%s: bad threadct: %d\n",
 			__func__, threadct);
 		return -1;
@@ -1899,12 +1908,19 @@ verify_multi(
 		printf("%s: threads=%d nfiles=%d\n",
 		       __func__, threadct,multi_count);
 
-	thp = thpool_init(threadct);
-	for (i = 0; i < multi_count; i++)
-		thpool_add_work(thp, threaded_verify, (void *)&mv[i]);
+	if (threadct)
+		thp = thpool_init(threadct);
+	for (i = 0; i < multi_count; i++) {
+		if (threadct)
+			thpool_add_work(thp, threaded_verify, (void *)&mv[i]);
+		else
+			threaded_verify((void *)&mv[i]);
+	}
 
-	thpool_wait(thp);
-	thpool_destroy(thp);
+	if (threadct) {
+		thpool_wait(thp);
+		thpool_destroy(thp);
+	}
 
 	for (i = 0; i < multi_count; i++)
 		if (mv[i].rc)

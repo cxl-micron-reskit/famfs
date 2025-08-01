@@ -162,9 +162,9 @@ ${CLI} verify --multi "$MPT/test1,9" \
        --multi "$MPT/test2,2" --multi "$MPT/test3,3" \
     && fail "verify multi with any bad seeds should fail"
 #bad thread counts
-${CLI} verify --threadct 0 \
+${CLI} verify --threadct -1 \
        --multi "$MPT/test1,1" --multi "$MPT/test2,2" --multi "$MPT/test3,3" \
-    && fail "verify multi with good seeds and 0 thread should fail"
+    && fail "verify multi with good seeds and -1 thread should fail"
 ${CLI} verify --threadct 257 \
        --multi "$MPT/test1,1" --multi "$MPT/test2,2" --multi "$MPT/test3,3" \
     && fail "verify multi with good seeds and 257 thread should fail"

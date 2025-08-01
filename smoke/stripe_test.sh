@@ -180,11 +180,12 @@ stripe_test_cp () {
 }
 
 stripe_test () {
-    SIZE=$1
-    CHUNKSIZE=$2
-    NSTRIPS=$3
-    NBUCKETS=$4
-    BASE_SEED=$5
+    SIZE_MIN=$1
+    SIZE_MAX=$2
+    CHUNKSIZE=$3
+    NSTRIPS=$4
+    NBUCKETS=$5
+    BASE_SEED=$6
     counter=0;
 
     files=()
@@ -194,6 +195,9 @@ stripe_test () {
 	# Generate a file name
 	file_name=$(printf "${BASENAME}_%05d" "$counter")
 	#file_name="${BASENAME}_${counter}"
+
+	SIZE=$(generate_random_int "$SIZE_MIN" "$SIZE_MAX")
+	echo "SIZE $SIZE"
 
 	echo "Creating file $counter:$file_name"
 	# Try to create the file
@@ -236,12 +240,12 @@ stripe_test () {
 	(( seed = BASE_SEED + loopct ))
 
 	randomize_args+=("-M")
-	randomize_args+=("${file},${SIZE},${seed} ")
+	randomize_args+=("${file},0,${seed} ")
 
 	(( loopct++ ))
     done
     #set -x
-    ${CLI} ${CREAT} -v ${randomize_args[@]}
+    ${CLI} ${CREAT} -t0 -v ${randomize_args[@]}
     rc=$?
     if [[ $rc -eq 0 ]]; then
 	echo "...done"
@@ -341,13 +345,16 @@ fi
 echo "NBUCKETS: $NBUCKETS"
 echo "NSTRIPS: $NSTRIPS"
 
-(( SIZE = 256 * 1048576 ))
+(( SIZE_MAX = 256 * 1048576 ))
+(( SIZE_MIN = SIZE_MAX - (2 * 1048576) ))
 (( CHUNKSIZE= 2 * 1048576 ))
 
-stripe_test "$SIZE" "$CHUNKSIZE" "$NSTRIPS" "$NBUCKETS" 42
+stripe_test "$SIZE_MIN" "$SIZE_MAX" "$CHUNKSIZE" "$NSTRIPS" "$NBUCKETS" 42
 
 famfs_recreate "stripe_test.sh 2"
 (( NFILES = 8 ))
+(( SIZE = 256 * 1048576 ))
+
 stripe_test_cp "$SIZE" "$CHUNKSIZE" "$NSTRIPS" "$NBUCKETS" 42 "$NFILES"
 
 mkdir -p ~/smoke.shadow

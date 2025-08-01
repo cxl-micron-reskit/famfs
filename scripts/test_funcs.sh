@@ -184,3 +184,17 @@ famfs_v1_supported() {
 	fi
     fi
 }
+
+generate_random_int() {
+    local min=$1
+    local max=$2
+
+    if [[ -z "$min" || -z "$max" || "$min" -gt "$max" ]]; then
+	echo "Usage: generate_random_int <min> <max>"
+	return 1
+    fi
+
+    local range=$((max - min + 1))
+    local rand=$((RANDOM % range + min))
+    echo "$rand"
+}
