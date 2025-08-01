@@ -2626,7 +2626,7 @@ retry:
 #if 1
 	/* debug intermittent failures in long tests */
 	if (sb_size != FAMFS_SUPERBLOCK_SIZE) {
-		fprintf(stderr, "%s: bad superblock size for path %s:"
+		fprintf(stderr, ":== %s: bad superblock size for path %s:"
 			"fd=%d sb_size=%ld expected=%d\n",
 			__func__, path, sfd, sb_size, FAMFS_SUPERBLOCK_SIZE);
 		/* See if a retry also gets it wrong: */
@@ -2636,7 +2636,10 @@ retry:
 			goto retry;
 		}
 	}
-	assert(retries == 1); /* Need to know if this ever fixes it */
+	if (retries == 0)
+		fprintf(stderr,
+			":== %s: recovered from a bad superblock size\n",
+			__func__);
 #endif
 	assert(sb_size == FAMFS_SUPERBLOCK_SIZE);
 
