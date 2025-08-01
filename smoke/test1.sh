@@ -185,6 +185,11 @@ ${CLI} cp $MPT/$F $MPT/subdir/${F}_cp7      || fail "cp7 $F"
 ${CLI} cp -v $MPT/$F $MPT/subdir/${F}_cp8      || fail "cp8 $F"
 ${CLI} cp -v $MPT/$F $MPT/subdir/${F}_cp9      || fail "cp9 $F"
 
+# cp should succeed to existing file of the correct size
+${CLI} cp $MPT/$F $MPT/subdir/${F}_cp0     || fail "overcopy should work"
+${CLI} cp $MPT/test10 $MPT/subdir/${F}_cp0 && fail "overcopy wrong size should fail"
+
+
 #
 # Copy stuff that is invalid
 #

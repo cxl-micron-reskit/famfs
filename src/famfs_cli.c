@@ -695,7 +695,7 @@ do_famfs_cli_cp(int argc, char *argv[])
 	int c;
 	int set_stripe = 0;
 	s64 mult;
-	int thread_ct = 16;
+	int thread_ct = 0;
 
 	interleave_param.chunk_size = 0x200000; /* 2MiB default chunk */
 

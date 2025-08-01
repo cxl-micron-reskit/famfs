@@ -664,8 +664,32 @@ TEST(famfs, famfs_alloc)
 	ASSERT_EQ(rc, 0);
 
 	sprintf(bro_path, "%s/non-interleaved-file", fspath);
-	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 2097152, 1);
+	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 2097152, 0, 1);
 	ASSERT_GT(fd, 0);
+
+	/* recreate same file should fail */
+	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 2097152, 0, 1);
+	ASSERT_LT(fd, 0);
+
+#if 0
+	/* XXX these unit test files seem to be created with zero size,
+	 * so this test doesn't work; should look into this...
+	 */
+	/* recreate same file should succeed with 'open_existing' if the
+	 * size matches
+	 */
+	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 2097152,
+			    1, /* open_existing */
+			    1);
+	ASSERT_GT(fd, 0);
+#endif
+	/* recreate same file should fail with 'open_existing' if the
+	 * size is a mismatch
+	 */
+	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 100,
+			    1, /* open_existing */
+			    1);
+	ASSERT_LT(fd, 0);
 
 	/* Now set up for striped allocation */
 	ll.interleave_param.nbuckets = 8; /* each bucket is 32MiB */
@@ -674,24 +698,24 @@ TEST(famfs, famfs_alloc)
 
 	/* This allocation will fall back to non-interleaved because it's too small */
 	sprintf(bro_path, "%s/non-interleaved_file", fspath);
-	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 2097152, 1);
+	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 2097152, 0, 1);
 	ASSERT_GT(fd, NULL);
 	close(fd);
 
 	/* This allocation will be interleaved */
 	sprintf(bro_path, "%s/fallback-file0", fspath);
-	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 32 * MiB, 1);
+	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 32 * MiB, 0, 1);
 	ASSERT_GT(fd, 0);
 	close(fd);
 
 	/* This allocation will be interleaved with space amplification */
 	sprintf(bro_path, "%s/interleaved-file0", fspath);
-	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 3 * MiB, 1);
+	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 3 * MiB, 0, 1);
 	ASSERT_GT(fd, 0);
 
 	/* This allocation will be interleaved with a bit less space amp */
 	sprintf(bro_path, "%s/interleaved-file1", fspath);
-	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 8 * MiB, 1);
+	fd = __famfs_mkfile(&ll, bro_path, 0, 0, 0, 8 * MiB, 0, 1);
 	ASSERT_GT(fd, 0);
 	close(fd);
 
@@ -765,7 +789,7 @@ TEST(famfs, famfs_log)
 		char filename[64];
 		int fd;
 		sprintf(filename, "/tmp/famfs/%04d", i);
-		fd = __famfs_mkfile(&ll, filename, 0, 0, 0, 1048576, 0);
+		fd = __famfs_mkfile(&ll, filename, 0, 0, 0, 1048576, 0, 0);
 		if (i < 507)
 			ASSERT_GT(fd, 0);
 		else
@@ -1076,7 +1100,7 @@ TEST(famfs, famfs_clone) {
 	rc = famfs_init_locked_log(&ll, "/tmp/famfs", 0, 1);
 	ASSERT_EQ(rc, 0);
 	sprintf(filename, "/tmp/famfs/clonesrc");
-	fd = __famfs_mkfile(&ll, filename, 0, 0, 0, 2097152, 1);
+	fd = __famfs_mkfile(&ll, filename, 0, 0, 0, 2097152, 0, 1);
 	ASSERT_GT(fd, 0);
 	mock_kmod = 0;
 

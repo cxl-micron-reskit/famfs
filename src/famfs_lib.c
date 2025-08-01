@@ -3104,13 +3104,16 @@ famfs_shadow_file_create(
  * @uid
  * @gid
  * @size
+ * @open_existing: If true, and the file already exists and is the right size,
+ *                 a file descriptor for the file will be returned. This is
+ *                 useful for restarting failed __famfs_cp()
  * @verbose
  *
  * Returns an open file descriptor if successful.
  * On failure, returns:
  *  0 - The operation failed but it's not fatal to a multi-file operationn
- * <0 - The operation failed due to a fatal condition like log full or out of space, so
- *      multi-file operations should abort
+ * <0 - The operation failed due to a fatal condition like log full or out
+ *      of space, so multi-file operations should abort
  */
 int
 __famfs_mkfile(
@@ -3120,6 +3123,7 @@ __famfs_mkfile(
 	uid_t                    uid,
 	gid_t                    gid,
 	size_t                   size,
+	int                      open_existing,
 	int                      verbose)
 {
 	struct famfs_log_fmap *fmap = NULL;
@@ -3163,6 +3167,16 @@ __famfs_mkfile(
 	 * Otherwise fail
 	 */
 	if (stat(target_fullpath, &st) == 0) {
+		if (open_existing &&
+		    S_ISREG(st.st_mode) && st.st_size == size) {
+			fd = open(target_fullpath, O_RDWR, mode);
+			if (fd < 0) {
+				fprintf(stderr,
+					"%s: existing open failed %s\n",
+					__func__, target_fullpath);
+			}
+			goto out;
+		}
 		fprintf(stderr, "%s: Error: file %s already exists\n", __func__,
 			target_fullpath);
 		fd = -1;
@@ -3174,7 +3188,8 @@ __famfs_mkfile(
 		rc = stat(parent_path, &st);
 		free(tmp_path);
 		if (rc != 0) {
-			fprintf(stderr, "%s: Error %s parent dir does not exist\n",
+			fprintf(stderr,
+				"%s: Error %s parent dir does not exist\n",
 				__func__, target_fullpath);
 			fd = -1;
 			goto out;
@@ -3348,7 +3363,7 @@ famfs_mkfile(
 
 		ll.interleave_param = *interleave_param;
 	}
-	rc  = __famfs_mkfile(&ll, filename, mode, uid, gid, size, verbose);
+	rc  = __famfs_mkfile(&ll, filename, mode, uid, gid, size, 0, verbose);
 
 	famfs_release_locked_log(&ll, verbose);
 	return rc;
@@ -3734,6 +3749,7 @@ __famfs_copy_file_data(struct copy_data *cp)
 	return 0;
 }
 
+/* This void/void wrapper is needed by the thread pool */
 void
 __famfs_threaded_copy(void *arg)
 {
@@ -3898,16 +3914,16 @@ __famfs_cp(
 		return 1;
 	}
 
-	/* XXX famfs_mkfile() calls famfs_file_alloc()
-	 * famfs_file_alloc() allocates and logs the file
-	 * under log lock */
+	/* Create the destination file; if it exists and is the right size,
+	 * go ahead and copy into it...
+	 */
 	destfd = __famfs_mkfile(lp, destfile,
 				(mode == 0) ? srcstat.st_mode : mode,
-				uid, gid, srcstat.st_size, verbose);
-	if (destfd <= 0) {
-		fprintf(stderr, "%s: failed in __famfs_mkfile\n", __func__);
+				uid, gid, srcstat.st_size,
+				1, /* accept existing file if size is right */
+				verbose);
+	if (destfd <= 0)
 		return destfd;
-	}
 
 	/* famfs_copy_file_data will close the file descriptors and unmap
 	 * the destination when it finishes */
@@ -3975,10 +3991,13 @@ famfs_cp(struct famfs_locked_log *lp,
 			break;
 		}
 		default:
+		strncpy(actual_destfile, destfile, PATH_MAX - 1);
+#if 0
 			fprintf(stderr, "%s: error: dest file (%s) exists "
 				"and is not a directory\n",
 				__func__, destfile);
 			return -EEXIST;
+#endif
 		}
 	} else {
 		/* File does not exist;
@@ -4170,8 +4189,26 @@ famfs_cp_multi(
 			dest_parent_path = realpath(dest, NULL);
 			break;
 		default:
+			if (argc == 2) {
+				/* Special case: destination can be an
+				 * existing file if argc == 2
+				 */
+				dirdupe = strdup(dest);
+				parentdir = dirname(dirdupe);
+				dest_parent_path = realpath(parentdir, NULL);
+				if (!dest_parent_path) {
+					free(dirdupe);
+					fprintf(stderr,
+						"%s: unable to get realpath for (%s)\n",
+						__func__, dest);
+					return -1;
+				}
+
+				break;
+			}
 			fprintf(stderr,
-				"%s: Error: destination (%s) exists and is not a directory\n",
+				"%s: Error: destination (%s) "
+				"exists and is not a directory\n",
 				__func__, dest);
 			return -1;
 		}
@@ -4199,7 +4236,8 @@ famfs_cp_multi(
 				break;
 			default:
 				fprintf(stderr,
-					"%s: Error: dest parent (%s) exists and is not a directory\n",
+					"%s: Error: dest parent (%s) "
+					"exists and is not a directory\n",
 					__func__, dest_parent_path);
 				free(dest_parent_path);
 				free(dirdupe);
@@ -4221,7 +4259,8 @@ famfs_cp_multi(
 				break;
 			default:
 				fprintf(stderr,
-					"%s: Error: destination (%s) exists and is not a directory\n",
+					"%s: Error: destination (%s) "
+					"exists and is not a directory\n",
 					__func__, dest_parent_path);
 				free(dest_parent_path);
 				free(dirdupe);
@@ -4257,7 +4296,8 @@ famfs_cp_multi(
 		/* Need to handle source files and directries differently */
 		rc = stat(argv[i], &src_stat);
 		if (rc) {
-			fprintf(stderr, "famfs cp: cannot stat '%s': ", argv[i]);
+			fprintf(stderr, "famfs cp: cannot stat '%s': ",
+				argv[i]);
 			perror("");
 			err = 1;
 			goto err_out;
@@ -4268,7 +4308,8 @@ famfs_cp_multi(
 		switch (src_stat.st_mode & S_IFMT) {
 		case S_IFREG:
 			/* Dest is a directory and files will be copied into it */
-			rc = famfs_cp(&ll, argv[i], dest, mode, uid, gid, verbose);
+			rc = famfs_cp(&ll, argv[i], dest, mode,
+				      uid, gid, verbose);
 			if (rc < 0) { /* rc < 0 is errors we abort after */
 				fprintf(stderr, "%s: aborting copy due to error\n",
 					__func__);
