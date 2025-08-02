@@ -50,6 +50,8 @@ int mock_failure = 0; /* for unit tests to simulate a failure case */
 int mock_stripe = 0; /* relaxes stripe rules for unit tests */
 int mock_threadpool = 0; /* call threaded code rather than threading */
 
+int cp_compare = 0;
+
 static int
 famfs_dir_create(
 	const char *mpt,
@@ -3733,6 +3735,7 @@ struct copy_files {
 	char *destp;
 	int nchunks;
 	int refcount;
+	int compare; /* rather than copying, compare src and dest */
 	pthread_mutex_t mutex;
 };
 
@@ -3747,12 +3750,14 @@ static int
 __famfs_copy_file_data(struct copy_data *cp)
 {
 	size_t chunksize, remainder, offset;
-	char *destp;
+	char *readbuf = NULL;
 	pid_t pid = gettid();
-	ssize_t bytes;
 	int cleanup = 0;
+	ssize_t bytes;
+	char *destp;
 	int rc = 0;
-	
+	int i;
+
 	assert(cp);
 	assert(cp->cf);
 
@@ -3772,6 +3777,7 @@ __famfs_copy_file_data(struct copy_data *cp)
 			goto out_locked;
 		}
 	}
+#if 0
 	if (!cp->cf->destfd) {
 		cp->cf->destfd = open(cp->cf->destname, O_RDWR, 0);
 		if (cp->cf->destfd < 0) {
@@ -3781,6 +3787,7 @@ __famfs_copy_file_data(struct copy_data *cp)
 			goto out_locked;
 		}
 	}
+#endif
 	pthread_mutex_unlock(&cp->cf->mutex);
 
 files_are_open:
@@ -3790,15 +3797,25 @@ files_are_open:
 	remainder = cp->size;
 	destp = cp->cf->destp;
 
-	for ( ; remainder > 0; ) {
+	if (cp->cf->compare) {
+		readbuf = malloc(chunksize);
+		assert(readbuf);
+	}
+
+	for (i = 0 ; remainder > 0; i++) {
 		size_t cur_chunksize = MIN(chunksize, remainder);
+		char *tmp_readbuf = &destp[offset];
 
 		if (cp->verbose > 1)
 			printf("%s: %d copy %ld bytes at offset %lx\n",
 			       __func__, pid, cur_chunksize, offset);
 
-		/* read into mmapped destination */
-		bytes = pread(cp->cf->srcfd, &destp[offset], cur_chunksize,
+		if (cp->cf->compare)
+			tmp_readbuf = readbuf;
+
+		/* Read into mmapped destination for copy, or to a
+		 * local buffer for compare */
+		bytes = pread(cp->cf->srcfd, tmp_readbuf, cur_chunksize,
 			      offset);
 		if (bytes < 0) {
 			fprintf(stderr, "%s: copy fail: "
@@ -3815,21 +3832,38 @@ files_are_open:
 			assert(bytes == cur_chunksize);
 		}
 
+		if (cp->cf->compare) {
+			if (memcmp(&destp[offset], tmp_readbuf,
+				   cur_chunksize)) {
+				fprintf(stderr,
+					"%s: %s: miscompare in chunk %d\n",
+					__func__, cp->cf->destname, i);
+				rc = -1;
+				goto out;
+			}
+					
+		}
+			
+
 		/* Update offset and remainder */
 		offset += bytes;
 		remainder -= bytes;
 	}
-	/* Flush the processor cache for the dest file */
-	flush_processor_cache(destp, cp->size);
-
+	if (!cp->cf->compare) {
+		/* Flush the processor cache for the dest file */
+		flush_processor_cache(destp, cp->size);
+	}
 out:
 	pthread_mutex_lock(&cp->cf->mutex);
 out_locked:
 	if (--cp->cf->refcount == 0) {
 		if (!rc)
-			printf("famfs cp: 100%%: %s\n", cp->cf->destname);
+			printf("famfs %s: 100%%: %s\n",
+			       (cp->cf->compare) ? "compare" : "cp",
+			       cp->cf->destname);
 		else
-			fprintf(stderr, "famfs cp: error: %s\n",
+			fprintf(stderr, "famfs %s: error: %s\n",
+				(cp->cf->compare) ? "compare" : "cp",
 				cp->cf->destname);
 		cleanup++;
 	} else if (cp->verbose) {
@@ -3841,7 +3875,9 @@ out_locked:
 	pthread_mutex_unlock(&cp->cf->mutex);
 
 	if (rc)
-		fprintf(stderr, "famfs cp: error: %s\n", cp->cf->destname);
+		fprintf(stderr, "famfs %s: error: %s\n",
+			(cp->cf->compare) ? "compare" : "cp",
+			cp->cf->destname);
 
 	if (cleanup) {
 		/* cf is shared and can't be cleaned up until all threads
@@ -3851,13 +3887,16 @@ out_locked:
 		munmap(destp, cp->size);
 		if (cp->cf->srcfd > 0)
 			close(cp->cf->srcfd);
+#if 0
 		if (cp->cf->destfd > 0)
 			close(cp->cf->destfd);
+#endif
 		pthread_mutex_destroy(&cp->cf->mutex);
 		free(cp->cf);
 	}
 	free(cp); /* cp is not shared */
-
+	if (readbuf)
+		free(readbuf);
 	return rc;
 }
 
@@ -3893,9 +3932,19 @@ famfs_copy_file_data(
 	cf->destname = strdup(destname);
 	cf->srcfd = srcfd;
 	cf->destfd = destfd;
+	cf->compare = (cp_compare) ? 1 : 0; /* compare mode... */
 	pthread_mutex_init(&cf->mutex, NULL);
 
-	/* Memory map the range we need */
+	/* Memory map the entire file, to be used by the threadpool
+	 *
+	 * If it ever turns out that we can map all the files at once,
+	 * the mmap could happen lazily in the __famfs_copy_file_data()
+	 * (which runs under the threadpool when we're using it), like the open
+	 * of the source file.
+	 *
+	 * But for the time being, it's fun to see processes with terabytes
+	 * of VIRT via 'top'
+	 */
 	cf->destp = mmap(0, size, PROT_READ | PROT_WRITE,
 			 MAP_SHARED, destfd, 0);
 	assert(cf->destp != MAP_FAILED);

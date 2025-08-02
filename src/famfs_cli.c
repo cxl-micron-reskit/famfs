@@ -697,6 +697,8 @@ do_famfs_cli_cp(int argc, char *argv[])
 	s64 mult;
 	int thread_ct = 0;
 
+	extern int cp_compare;
+
 	interleave_param.chunk_size = 0x200000; /* 2MiB default chunk */
 
 	struct option cp_options[] = {
@@ -707,6 +709,7 @@ do_famfs_cli_cp(int argc, char *argv[])
 		{"verbose",     no_argument,          0,  'v'},
 
 		{"threadct",    required_argument,    0,  't'},
+		{"compare",     no_argument,          0,  'c'},
 
 		{"chunksize",   required_argument,    0,  'C'},
 		{"nstrips",     required_argument,    0,  'N'},
@@ -718,7 +721,7 @@ do_famfs_cli_cp(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+rm:u:g:C:N:B:vt:h?",
+	while ((c = getopt_long(argc, argv, "+rm:u:g:C:N:B:vt:ch?",
 				cp_options, &optind)) != EOF) {
 
 		char *endptr;
@@ -735,6 +738,9 @@ do_famfs_cli_cp(int argc, char *argv[])
 			break;
 		case 't':
 			thread_ct = strtol(optarg, 0, 0);
+			break;
+		case 'c':
+			cp_compare = 1;
 			break;
 
 		case 'm':
