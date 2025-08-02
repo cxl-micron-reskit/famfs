@@ -4113,7 +4113,7 @@ __famfs_cp(
 	 * go ahead and copy into it...
 	 */
 	destfd = __famfs_mkfile(lp, destfile,
-				(mode == 0) ? srcstat.st_mode : mode,
+				(mode == 0) ? (srcstat.st_mode & 0777) : mode,
 				uid, gid, srcstat.st_size,
 				1, /* accept existing file if size is right */
 				verbose);
@@ -4305,7 +4305,8 @@ int famfs_cp_dir(
 			 * that's a property of this recursion
 			 */
 			rc = famfs_cp_dir(lp, srcfullpath, newdirpath,
-					  mode, uid, gid, verbose);
+					  src_stat.st_mode & 0777,
+					  uid, gid, verbose);
 			free(src_copy);
 			break;
 		}
@@ -4521,8 +4522,9 @@ famfs_cp_multi(
 			if (recursive) {
 				/* Parent is guaranteed to exist,
 				 * we verified it above */
-				rc = famfs_cp_dir(&ll, argv[i], dest, mode, uid,
-						  gid, verbose);
+				rc = famfs_cp_dir(&ll, argv[i], dest,
+						  src_stat.st_mode & 0777,
+						  uid, gid, verbose);
 				if (rc < 0) { /* rc < 0 is abort errors */
 					fprintf(stderr,
 						"%s/: aborting copy due to error\n",
@@ -4700,7 +4702,7 @@ famfs_clone(const char *srcfile,
 	/* Create the destination file. This will be unlinked later if we
 	 * don't get all the way through the operation.
 	 */
-	dfd = famfs_file_create_stub(destfile, src_stat.st_mode,
+	dfd = famfs_file_create_stub(destfile, src_stat.st_mode & 0777,
 				     src_stat.st_uid, src_stat.st_gid, 0);
 	if (dfd < 0) {
 		fprintf(stderr, "%s: failed to create file %s\n",
@@ -4749,7 +4751,7 @@ famfs_clone(const char *srcfile,
 	}
 
 	rc = famfs_log_file_creation(logp, &fmap,
-				     relpath, src_stat.st_mode,
+				     relpath, src_stat.st_mode & 0777,
 				     src_stat.st_uid, src_stat.st_gid,
 				     filemap.file_size, 0);
 	if (rc) {
