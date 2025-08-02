@@ -117,14 +117,14 @@ F_SMALL=test10
 ${CLI} creat -r -s 8192 -S 10 $MPT/$F_SMALL   || fail "creat $F_SMALL"
 ${CLI} verify -S 10 -f $MPT/$F_SMALL || fail "verify $F_SMALL after replay"
 
-F_8G=bigtest0
-${CLI} creat -v -r -S 42 -s 0x800000 $MPT/${F_8G}   || fail "creat ${F_8G}"
-${CLI} verify -S 42 -f $MPT/${F_8G}                 || fail "${F_8G} mismatch"
+F_8M=bigtest0
+${CLI} creat -v -r -S 42 -s 0x800000 $MPT/${F_8M}   || fail "creat ${F_8M}"
+${CLI} verify -S 42 -f $MPT/${F_8M}                 || fail "${F_8M} mismatch"
 
 ${CLI} cp -h                        || fail "cp -h should succeed"
 
-${CLI} cp -vvv $MPT/${F_8G} $MPT/${F_8G}_cp      || fail "cp ${F_8G}"
-${CLI} verify -S 42 -f $MPT/${F_8G}_cp || fail "verify ${F_8G}_cp"
+${CLI} cp -vvv $MPT/${F_8M} $MPT/${F_8M}_cp      || fail "cp ${F_8M}"
+${CLI} verify -S 42 -f $MPT/${F_8M}_cp || fail "verify ${F_8M}_cp"
 
 ${CLI} cp --gid=-1 && fail "cp should fail with negative gid"
 ${CLI} cp --uid=-1 && fail "cp should fail with negative uid"
@@ -135,7 +135,7 @@ ${CLI} cp --uid=-1 && fail "cp should fail with negative uid"
 ${CLI} mkdir -h           || fail "mkdir -h should succeed"
 ${CLI} mkdir $MPT/subdir || fail "failed to create subdir"
 ${CLI} mkdir $MPT/subdir && fail "creating existing subdir should fail"
-${CLI} mkdir $MPT/${F_8G} && fail "mkdir that collides with existing file should fail"
+${CLI} mkdir $MPT/${F_8M} && fail "mkdir that collides with existing file should fail"
 
 #
 # mkdir to relpath
@@ -168,26 +168,26 @@ ${CLI} mkdir -p $PFX/A/x/y/z               || fail "mkdir -p 4"
 ${CLI} mkdir -p $PFX/./A/x/y/z               || fail "mkdir -p 5"
 cd -
 
-${CLI} mkdir -pv $MPT/${F_8G}/foo/bar/baz/bing && fail "mkdir -p with a file in path should fail"
+${CLI} mkdir -pv $MPT/${F_8M}/foo/bar/baz/bing && fail "mkdir -p with a file in path should fail"
 ${CLI} mkdir -pvvv $MPT/a/y/../../../.. && fail "mkdir -p ../../../.. ascended out of famfs"
 
 # Cause some eviction and re-reading
 echo 2 | sudo tee /proc/sys/vm/drop_caches
 
-${CLI} cp $MPT/${F_8G} $MPT/subdir/${F_8G}_cp0      || fail "cp0 ${F_8G}"
-${CLI} cp $MPT/${F_8G} $MPT/subdir/${F_8G}_cp1      || fail "cp1 ${F_8G}"
-${CLI} cp $MPT/${F_8G} $MPT/subdir/${F_8G}_cp2      || fail "cp2 ${F_8G}"
-${CLI} cp $MPT/${F_8G} $MPT/subdir/${F_8G}_cp3      || fail "cp3 ${F_8G}"
-${CLI} cp $MPT/${F_8G} $MPT/subdir/${F_8G}_cp4      || fail "cp4 ${F_8G}"
-${CLI} cp $MPT/${F_8G} $MPT/subdir/${F_8G}_cp5      || fail "cp5 ${F_8G}"
-${CLI} cp $MPT/${F_8G} $MPT/subdir/${F_8G}_cp6      || fail "cp6 ${F_8G}"
-${CLI} cp $MPT/${F_8G} $MPT/subdir/${F_8G}_cp7      || fail "cp7 ${F_8G}"
-${CLI} cp -v $MPT/${F_8G} $MPT/subdir/${F_8G}_cp8      || fail "cp8 ${F_8G}"
-${CLI} cp -v $MPT/${F_8G} $MPT/subdir/${F_8G}_cp9      || fail "cp9 ${F_8G}"
+${CLI} cp $MPT/${F_8M} $MPT/subdir/${F_8M}_cp0      || fail "cp0 ${F_8M}"
+${CLI} cp $MPT/${F_8M} $MPT/subdir/${F_8M}_cp1      || fail "cp1 ${F_8M}"
+${CLI} cp $MPT/${F_8M} $MPT/subdir/${F_8M}_cp2      || fail "cp2 ${F_8M}"
+${CLI} cp $MPT/${F_8M} $MPT/subdir/${F_8M}_cp3      || fail "cp3 ${F_8M}"
+${CLI} cp $MPT/${F_8M} $MPT/subdir/${F_8M}_cp4      || fail "cp4 ${F_8M}"
+${CLI} cp $MPT/${F_8M} $MPT/subdir/${F_8M}_cp5      || fail "cp5 ${F_8M}"
+${CLI} cp $MPT/${F_8M} $MPT/subdir/${F_8M}_cp6      || fail "cp6 ${F_8M}"
+${CLI} cp $MPT/${F_8M} $MPT/subdir/${F_8M}_cp7      || fail "cp7 ${F_8M}"
+${CLI} cp -v $MPT/${F_8M} $MPT/subdir/${F_8M}_cp8      || fail "cp8 ${F_8M}"
+${CLI} cp -v $MPT/${F_8M} $MPT/subdir/${F_8M}_cp9      || fail "cp9 ${F_8M}"
 
 # cp should succeed to existing file of the correct size
-${CLI} cp $MPT/${F_8G} $MPT/subdir/${F_8G}_cp0     || fail "overcopy should work"
-${CLI} cp $MPT/test10 $MPT/subdir/${F_8G}_cp0 && fail "overcopy wrong size should fail"
+${CLI} cp $MPT/${F_8M} $MPT/subdir/${F_8M}_cp0     || fail "overcopy should work"
+${CLI} cp $MPT/test10 $MPT/subdir/${F_8M}_cp0 && fail "overcopy wrong size should fail"
 
 
 #
@@ -201,24 +201,24 @@ ${CLI} cp /dev/zero $MPT/             && fail "cp /dev/zero (cardev) should fail
 #
 ${CLI} mkdir $MPT/dirtarg || fail "failed to create subdir dirtarg"
 # cp file to directory (name should be basename of source file)
-${CLI} cp $MPT/${F_8G} $MPT/dirtarg      || fail "cp to dir ${F_8G}"
-${CLI} verify -S 42 -f $MPT/dirtarg/${F_8G} || fail "verify dirtarg/${F_8G}"
+${CLI} cp $MPT/${F_8M} $MPT/dirtarg      || fail "cp to dir ${F_8M}"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F_8M} || fail "verify dirtarg/${F_8M}"
 
 ${CLI} logplay -n $MPT
 
 # Cause some eviction and re-reading
 echo 2 | sudo tee /proc/sys/vm/drop_caches
 
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp0 || fail "verify ${F_8G}_cp0"
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp1 || fail "verify ${F_8G}_cp1"
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp2 || fail "verify ${F_8G}_cp2"
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp3 || fail "verify ${F_8G}_cp3"
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp4 || fail "verify ${F_8G}_cp4"
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp5 || fail "verify ${F_8G}_cp5"
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp6 || fail "verify ${F_8G}_cp6"
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp7 || fail "verify ${F_8G}_cp7"
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp8 || fail "verify ${F_8G}_cp8"
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp9 || fail "verify ${F_8G}_cp9"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp0 || fail "verify ${F_8M}_cp0"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp1 || fail "verify ${F_8M}_cp1"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp2 || fail "verify ${F_8M}_cp2"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp3 || fail "verify ${F_8M}_cp3"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp4 || fail "verify ${F_8M}_cp4"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp5 || fail "verify ${F_8M}_cp5"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp6 || fail "verify ${F_8M}_cp6"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp7 || fail "verify ${F_8M}_cp7"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp8 || fail "verify ${F_8M}_cp8"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp9 || fail "verify ${F_8M}_cp9"
 
 #
 # Cp wildcard to directory from mkdir -p, and verify
@@ -231,21 +231,21 @@ cd ${MPT}/..
 DEST=A/B/C/w/x/y/z
 ${CLI} cp -m $FMODE -u $UID -g $GID  $MPT/subdir/* $MPT/${DEST} || fail "cp wildcard set to directory should succeed"
 # Verify files from wildcard cp, in a deep directory
-${CLI} verify -S 42 -f $PFX/${DEST}/${F_8G}_cp0 || fail "verify relpath ${F_8G}_cp0"
-${CLI} verify -S 42 -f $PFX/${DEST}/${F_8G}_cp1 || fail "verify relpath ${F_8G}_cp1"
-${CLI} verify -S 42 -f $PFX/${DEST}/${F_8G}_cp2 || fail "verify relpath ${F_8G}_cp2"
-${CLI} verify -S 42 -f $PFX/${DEST}/${F_8G}_cp3 || fail "verify relpath ${F_8G}_cp3"
-${CLI} verify -S 42 -f $PFX/${DEST}/${F_8G}_cp4 || fail "verify relpath ${F_8G}_cp4"
-${CLI} verify -S 42 -f $PFX/${DEST}/${F_8G}_cp5 || fail "verify relpath ${F_8G}_cp5"
-${CLI} verify -S 42 -f $PFX/${DEST}/${F_8G}_cp6 || fail "verify relpath ${F_8G}_cp6"
-${CLI} verify -S 42 -f $PFX/${DEST}/${F_8G}_cp7 || fail "verify relpath ${F_8G}_cp7"
-${CLI} verify -S 42 -f $PFX/${DEST}/${F_8G}_cp8 || fail "verify relpath ${F_8G}_cp8"
-${CLI} verify -S 42 -f $PFX/${DEST}/${F_8G}_cp9 || fail "verify relpath ${F_8G}_cp9"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F_8M}_cp0 || fail "verify relpath ${F_8M}_cp0"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F_8M}_cp1 || fail "verify relpath ${F_8M}_cp1"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F_8M}_cp2 || fail "verify relpath ${F_8M}_cp2"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F_8M}_cp3 || fail "verify relpath ${F_8M}_cp3"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F_8M}_cp4 || fail "verify relpath ${F_8M}_cp4"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F_8M}_cp5 || fail "verify relpath ${F_8M}_cp5"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F_8M}_cp6 || fail "verify relpath ${F_8M}_cp6"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F_8M}_cp7 || fail "verify relpath ${F_8M}_cp7"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F_8M}_cp8 || fail "verify relpath ${F_8M}_cp8"
+${CLI} verify -S 42 -f $PFX/${DEST}/${F_8M}_cp9 || fail "verify relpath ${F_8M}_cp9"
 cd -
 
 
 # Check the custom cp mode/uid/gid on one of the files
-FILE="$MPT/${DEST}/${F_8G}_cp0"
+FILE="$MPT/${DEST}/${F_8M}_cp0"
 FMODE_OUT="$(sudo stat --format='%a' ${FILE})"
 if [[ $FMODE != $FMODE_OUT ]]; then
     fail "cp -m err $FMODE ${FMODE_OUT}"
@@ -278,50 +278,50 @@ if [[ $GID != $GID_OUT ]]; then
     fail "cp -g err $GID ${GID_OUT} after remount"
 fi
 
-${CLI} verify -S 42 -f $MPT/${F_8G}_cp || fail "verify ${F_8G}_cp"
+${CLI} verify -S 42 -f $MPT/${F_8M}_cp || fail "verify ${F_8M}_cp"
 
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp0 || fail "verify ${F_8G}_cp0"
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp1 || fail "verify ${F_8G}_cp1"
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp2 || fail "verify ${F_8G}_cp2"
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp3 || fail "verify ${F_8G}_cp3"
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp4 || fail "verify ${F_8G}_cp4"
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp5 || fail "verify ${F_8G}_cp5"
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp6 || fail "verify ${F_8G}_cp6"
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp7 || fail "verify ${F_8G}_cp7"
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp8 || fail "verify ${F_8G}_cp8"
-${CLI} verify -S 42 -f $MPT/subdir/${F_8G}_cp9 || fail "verify ${F_8G}_cp9"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp0 || fail "verify ${F_8M}_cp0"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp1 || fail "verify ${F_8M}_cp1"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp2 || fail "verify ${F_8M}_cp2"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp3 || fail "verify ${F_8M}_cp3"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp4 || fail "verify ${F_8M}_cp4"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp5 || fail "verify ${F_8M}_cp5"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp6 || fail "verify ${F_8M}_cp6"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp7 || fail "verify ${F_8M}_cp7"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp8 || fail "verify ${F_8M}_cp8"
+${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp9 || fail "verify ${F_8M}_cp9"
 
 #
 # Cp wildcard to directory
 #
 ${CLI} cp $MPT/subdir/* $MPT/dirtarg || fail "cp wildcard set to directory should succeed"
 # Verify files from wildcard cp
-${CLI} verify -S 42 -f $MPT/dirtarg/${F_8G}_cp0 || fail "verify wildcard ${F_8G}_cp0"
-${CLI} verify -S 42 -f $MPT/dirtarg/${F_8G}_cp1 || fail "verify wildcard ${F_8G}_cp1"
-${CLI} verify -S 42 -f $MPT/dirtarg/${F_8G}_cp2 || fail "verify wildcard ${F_8G}_cp2"
-${CLI} verify -S 42 -f $MPT/dirtarg/${F_8G}_cp3 || fail "verify wildcard ${F_8G}_cp3"
-${CLI} verify -S 42 -f $MPT/dirtarg/${F_8G}_cp4 || fail "verify wildcard ${F_8G}_cp4"
-${CLI} verify -S 42 -f $MPT/dirtarg/${F_8G}_cp5 || fail "verify wildcard ${F_8G}_cp5"
-${CLI} verify -S 42 -f $MPT/dirtarg/${F_8G}_cp6 || fail "verify wildcard ${F_8G}_cp6"
-${CLI} verify -S 42 -f $MPT/dirtarg/${F_8G}_cp7 || fail "verify wildcard ${F_8G}_cp7"
-${CLI} verify -S 42 -f $MPT/dirtarg/${F_8G}_cp8 || fail "verify wildcard ${F_8G}_cp8"
-${CLI} verify -S 42 -f $MPT/dirtarg/${F_8G}_cp9 || fail "verify wildcard ${F_8G}_cp9"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F_8M}_cp0 || fail "verify wildcard ${F_8M}_cp0"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F_8M}_cp1 || fail "verify wildcard ${F_8M}_cp1"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F_8M}_cp2 || fail "verify wildcard ${F_8M}_cp2"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F_8M}_cp3 || fail "verify wildcard ${F_8M}_cp3"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F_8M}_cp4 || fail "verify wildcard ${F_8M}_cp4"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F_8M}_cp5 || fail "verify wildcard ${F_8M}_cp5"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F_8M}_cp6 || fail "verify wildcard ${F_8M}_cp6"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F_8M}_cp7 || fail "verify wildcard ${F_8M}_cp7"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F_8M}_cp8 || fail "verify wildcard ${F_8M}_cp8"
+${CLI} verify -S 42 -f $MPT/dirtarg/${F_8M}_cp9 || fail "verify wildcard ${F_8M}_cp9"
 
 
 #
 # Verify files after remount, from wildcard cp, in a deep directory
 #
 cd $MPT
-${CLI} verify -S 42 -f ${DEST}/${F_8G}_cp0 || fail "verify relpath ${F_8G}_cp0"
-${CLI} verify -S 42 -f ${DEST}/${F_8G}_cp1 || fail "verify relpath ${F_8G}_cp1"
-${CLI} verify -S 42 -f ${DEST}/${F_8G}_cp2 || fail "verify relpath ${F_8G}_cp2"
-${CLI} verify -S 42 -f ${DEST}/${F_8G}_cp3 || fail "verify relpath ${F_8G}_cp3"
-${CLI} verify -S 42 -f ${DEST}/${F_8G}_cp4 || fail "verify relpath ${F_8G}_cp4"
-${CLI} verify -S 42 -f ${DEST}/${F_8G}_cp5 || fail "verify relpath ${F_8G}_cp5"
-${CLI} verify -S 42 -f ${DEST}/${F_8G}_cp6 || fail "verify relpath ${F_8G}_cp6"
-${CLI} verify -S 42 -f ${DEST}/${F_8G}_cp7 || fail "verify relpath ${F_8G}_cp7"
-${CLI} verify -S 42 -f ${DEST}/${F_8G}_cp8 || fail "verify relpath ${F_8G}_cp8"
-${CLI} verify -S 42 -f ${DEST}/${F_8G}_cp9 || fail "verify relpath ${F_8G}_cp9"
+${CLI} verify -S 42 -f ${DEST}/${F_8M}_cp0 || fail "verify relpath ${F_8M}_cp0"
+${CLI} verify -S 42 -f ${DEST}/${F_8M}_cp1 || fail "verify relpath ${F_8M}_cp1"
+${CLI} verify -S 42 -f ${DEST}/${F_8M}_cp2 || fail "verify relpath ${F_8M}_cp2"
+${CLI} verify -S 42 -f ${DEST}/${F_8M}_cp3 || fail "verify relpath ${F_8M}_cp3"
+${CLI} verify -S 42 -f ${DEST}/${F_8M}_cp4 || fail "verify relpath ${F_8M}_cp4"
+${CLI} verify -S 42 -f ${DEST}/${F_8M}_cp5 || fail "verify relpath ${F_8M}_cp5"
+${CLI} verify -S 42 -f ${DEST}/${F_8M}_cp6 || fail "verify relpath ${F_8M}_cp6"
+${CLI} verify -S 42 -f ${DEST}/${F_8M}_cp7 || fail "verify relpath ${F_8M}_cp7"
+${CLI} verify -S 42 -f ${DEST}/${F_8M}_cp8 || fail "verify relpath ${F_8M}_cp8"
+${CLI} verify -S 42 -f ${DEST}/${F_8M}_cp9 || fail "verify relpath ${F_8M}_cp9"
 cd -
 
 ${CLI} mkdir $MPT/dirtarg2 || fail "failed to create dirtarg2"
@@ -342,24 +342,24 @@ cd -
 # a wildcard, but not --recursive
 
 # Should still be able to verify the files in dirtarg2
-${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8G}_cp0 || fail "verify wildcard 2 ${F_8G}_cp0"
-${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8G}_cp1 || fail "verify wildcard 2 ${F_8G}_cp1"
-${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8G}_cp2 || fail "verify wildcard 2 ${F_8G}_cp2"
-${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8G}_cp3 || fail "verify wildcard 2 ${F_8G}_cp3"
-${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8G}_cp4 || fail "verify wildcard 2 ${F_8G}_cp4"
-${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8G}_cp5 || fail "verify wildcard 2 ${F_8G}_cp5"
-${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8G}_cp6 || fail "verify wildcard 2 ${F_8G}_cp6"
-${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8G}_cp7 || fail "verify wildcard 2 ${F_8G}_cp7"
-${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8G}_cp8 || fail "verify wildcard 2 ${F_8G}_cp8"
-${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8G}_cp9 || fail "verify wildcard 2 ${F_8G}_cp9"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8M}_cp0 || fail "verify wildcard 2 ${F_8M}_cp0"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8M}_cp1 || fail "verify wildcard 2 ${F_8M}_cp1"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8M}_cp2 || fail "verify wildcard 2 ${F_8M}_cp2"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8M}_cp3 || fail "verify wildcard 2 ${F_8M}_cp3"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8M}_cp4 || fail "verify wildcard 2 ${F_8M}_cp4"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8M}_cp5 || fail "verify wildcard 2 ${F_8M}_cp5"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8M}_cp6 || fail "verify wildcard 2 ${F_8M}_cp6"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8M}_cp7 || fail "verify wildcard 2 ${F_8M}_cp7"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8M}_cp8 || fail "verify wildcard 2 ${F_8M}_cp8"
+${CLI} verify -S 42 -f $MPT/dirtarg2/${F_8M}_cp9 || fail "verify wildcard 2 ${F_8M}_cp9"
 
 ${CLI} mkdir $MPT/smalldir || fail "failed to create smalldir"
-${CLI} cp $MPT/dirtarg/${F_8G}_cp0 $MPT/smalldir || fail "cp to smalldir 0"
-${CLI} cp $MPT/dirtarg/${F_8G}_cp1 $MPT/smalldir || fail "cp to smalldir 0"
+${CLI} cp $MPT/dirtarg/${F_8M}_cp0 $MPT/smalldir || fail "cp to smalldir 0"
+${CLI} cp $MPT/dirtarg/${F_8M}_cp1 $MPT/smalldir || fail "cp to smalldir 0"
 ${CLI} mkdir $MPT/smalldir2 || fail "failed to create smalldir2"
 
-${CLI} cp -r $MPT/smalldir $MPT/${F_8G} && fail "recursive copy to file destination should fail"
-${CLI} cp $MPT/smalldir/* $MPT/${F_8G}  && fail "wildcard multi-file copy to file destination should fail"
+${CLI} cp -r $MPT/smalldir $MPT/${F_8M} && fail "recursive copy to file destination should fail"
+${CLI} cp $MPT/smalldir/* $MPT/${F_8M}  && fail "wildcard multi-file copy to file destination should fail"
 
 #
 # cp -r with absolute paths
@@ -379,8 +379,8 @@ cd -
 
 # Bad cp -r
 ${CLI} cp -r $MPT/A $MPT/bar/foo     && fail "cp -r to bogus path should fail"
-${CLI} cp -r $MPT/A $MPT/${F_8G}        && fail "cp -r to file"
-${CLI} cp -r $MPT/A $MPT/${F_8G}/foo    && fail "cp -r to path that uses file as dir"
+${CLI} cp -r $MPT/A $MPT/${F_8M}        && fail "cp -r to file"
+${CLI} cp -r $MPT/A $MPT/${F_8M}/foo    && fail "cp -r to path that uses file as dir"
 
 
 ${CLI} cp $MPT/A/B/C/w/x/y/z/* $MPT || fail "cp valid wildcard to mount pt dir should succeed"
