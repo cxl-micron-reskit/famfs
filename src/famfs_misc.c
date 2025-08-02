@@ -453,6 +453,25 @@ int check_file_exists(
 	return -1;
 }
 
+xint count_open_fds(void)
+{
+	int count = 0;
+	DIR *dir = opendir("/proc/self/fd");
+
+	if (dir == NULL) {
+		perror("opendir");
+		return -1;
+	}
+
+	while (readdir(dir) != NULL)
+		count++;
+
+	closedir(dir);
+
+	/* Subtract 2 for "." and ".." entries */
+	return count - 2;
+}
+
 void free_string_list(char **strings, int nstrings)
 {
 	int i;

@@ -133,6 +133,7 @@ int check_file_exists(const char *basepath, const char *relpath,
 		      int timeout, int verbose);
 int kernel_symbol_exists(const char *symbol_name, const char *mod_name,
 			 const int verbose);
+int count_open_fds(void);
 
 /* famfs_debug.c */
 int famfs_compare_log_file_meta(const struct famfs_log_file_meta *m1,
