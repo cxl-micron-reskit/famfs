@@ -2689,8 +2689,8 @@ retry:
  * @thread_ct: Threadpool count; 0=none
  * @verbose:
  */
-int
-famfs_init_locked_log(
+static int
+__famfs_init_locked_log(
 	struct famfs_locked_log *lp,
 	const char *fspath,
 	int thread_ct,
@@ -2698,8 +2698,8 @@ famfs_init_locked_log(
 {
 	char shadow[PATH_MAX];
 	char mpt[PATH_MAX];
+	void *addr = NULL;
 	size_t log_size;
-	void *addr;
 	int role;
 	int rc;
 
@@ -2776,12 +2776,12 @@ famfs_init_locked_log(
 #if 1
 	/* Been occasionally hitting this assert; get more info */
 	if (lp->logp->famfs_log_len != log_size) {
-		fprintf(stderr, "%s: *****************************************\n",
+		fprintf(stderr, "%s: ****************************************\n",
 			__func__);
 		fprintf(stderr, "%s: log size mismatch log hdr %lld != %ld\n",
 			__func__, lp->logp->famfs_log_len, log_size);
 		//famfs_fsck_scan(sb, lp->logp, 0, 1);
-		rc = -1;
+		rc = -66;
 		goto err_out;
 	}
 #endif
@@ -2834,6 +2834,28 @@ err_out:
 		close(lp->lfd);
 	if (lp->thp)
 		thpool_destroy(lp->thp);
+	if (addr)
+		munmap(addr, log_size);
+	return rc;
+}
+
+int
+famfs_init_locked_log(
+	struct famfs_locked_log *lp,
+	const char *fspath,
+	int thread_ct,
+	int verbose)
+{
+	int retries = 1;
+	int rc;
+
+retry:
+	rc = __famfs_init_locked_log(lp, fspath, thread_ct, verbose);
+	if (rc == -66 && --retries) {
+		fprintf(stderr, ":== %s: bad log size; retrying\n",
+			__func__);
+		goto retry;
+	}
 	return rc;
 }
 
