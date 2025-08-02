@@ -453,7 +453,7 @@ int check_file_exists(
 	return -1;
 }
 
-xint count_open_fds(void)
+int count_open_fds(void)
 {
 	int count = 0;
 	DIR *dir = opendir("/proc/self/fd");

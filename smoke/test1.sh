@@ -365,7 +365,13 @@ ${CLI} cp $MPT/smalldir/* $MPT/${F_8M}  && fail "wildcard multi-file copy to fil
 # cp -r with absolute paths
 #
 ${CLI} cp -rv $MPT/smalldir/* $MPT/smalldir2 || fail "recursive copy 0"
+${CLI} cp -c -rv $MPT/smalldir/* $MPT/smalldir2 || fail "recursive compare 0"
 sudo diff -r $MPT/smalldir $MPT/smalldir2 || fail "diff -r smalldir smalldir2"
+
+# deface one of the files and re-compare: should be error
+overwrite_page $MPT/smalldir2/bigtest0_cp1 0
+sudo diff -r $MPT/smalldir $MPT/smalldir2 && fail "cp -cr smalldir smalldir2"
+${CLI} cp -c -r $MPT/smalldir/* $MPT/smalldir2 && fail "recursive compare 1"
 
 ${CLI} cp -r $MPT/A $MPT/A-prime || fail "cp -r A A-prime"
 sudo diff -r $MPT/A $MPT/A-prime || fail "diff -r A A-prime"

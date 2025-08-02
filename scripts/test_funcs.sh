@@ -198,3 +198,10 @@ generate_random_int() {
     local rand=$((RANDOM % range + min))
     echo "$rand"
 }
+
+overwrite_page () {
+    local file=$1
+    local pgnum=$2
+
+    dd if=/dev/urandom of=$file bs=4096 count=1 seek=$pgnum conv=notrunc
+}

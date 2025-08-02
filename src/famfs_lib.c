@@ -4509,8 +4509,8 @@ famfs_cp_multi(
 				      uid, gid, verbose);
 			if (rc < 0) { /* rc < 0 is errors we abort after */
 				fprintf(stderr,
-					"%s: aborting copy due to error\n",
-					argv[i]);
+					"%s: aborting %s due to error\n",
+					argv[i], cp_compare ? "compare" : "cp");
 				err = rc;
 				goto err_out;
 			}
@@ -4527,8 +4527,9 @@ famfs_cp_multi(
 						  uid, gid, verbose);
 				if (rc < 0) { /* rc < 0 is abort errors */
 					fprintf(stderr,
-						"%s/: aborting copy due to error\n",
-						argv[i]);
+						"%s/: aborting %s due to error\n",
+						argv[i],
+						cp_compare ? "compare" : "cp");
 					err = rc;
 					goto err_out;
 				}
