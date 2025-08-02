@@ -3750,23 +3750,40 @@ __famfs_copy_file_data(struct copy_data *cp)
 	char *destp;
 	pid_t pid = gettid();
 	ssize_t bytes;
-	int errs = 0;
 	int cleanup = 0;
 	int rc = 0;
 	
 	assert(cp);
 	assert(cp->cf);
 
-	if (fd_invalid(cp->cf->srcfd)) {
-		fprintf(stderr, "%s: bad srcfd\n", __func__);
-		errs++;
-	}
-	if (fd_invalid(cp->cf->destfd)) {
-		fprintf(stderr, "%s: bad destfd\n", __func__);
-		errs++;
-	}
-	assert(!errs);
+	if (cp->cf->srcfd > 0 && cp->cf->destfd > 0)
+		goto files_are_open;
 
+	/* If this is the first thread to work on this file pair, the files
+	 * will not be open yet. Take care of that...
+	 */
+	pthread_mutex_lock(&cp->cf->mutex);
+	if (!cp->cf->srcfd) {
+		cp->cf->srcfd = open(cp->cf->srcname, O_RDONLY, 0);
+		if (cp->cf->srcfd < 0) {
+			fprintf(stderr, "%s: failed to open source file %s\n",
+				__func__, cp->cf->srcname);
+			/* XXX post the error somehow? */
+			goto out_locked;
+		}
+	}
+	if (!cp->cf->destfd) {
+		cp->cf->destfd = open(cp->cf->destname, O_RDWR, 0);
+		if (cp->cf->destfd < 0) {
+			fprintf(stderr, "%s: failed to open dest file %s\n",
+				__func__, cp->cf->destname);
+			/* XXX post the error somehow? */
+			goto out_locked;
+		}
+	}
+	pthread_mutex_unlock(&cp->cf->mutex);
+
+files_are_open:
 	/* Copy the data */
 	chunksize = 0x100000; /* 1 MiB copy chunks */
 	offset = cp->offset;
@@ -3805,9 +3822,15 @@ __famfs_copy_file_data(struct copy_data *cp)
 	/* Flush the processor cache for the dest file */
 	flush_processor_cache(destp, cp->size);
 
+out:
 	pthread_mutex_lock(&cp->cf->mutex);
+out_locked:
 	if (--cp->cf->refcount == 0) {
-		printf("famfs cp: 100%%: %s\n", cp->cf->destname);
+		if (!rc)
+			printf("famfs cp: 100%%: %s\n", cp->cf->destname);
+		else
+			fprintf(stderr, "famfs cp: error: %s\n",
+				cp->cf->destname);
 		cleanup++;
 	} else if (cp->verbose) {
 		int percent = ((cp->cf->nchunks - cp->cf->refcount) * 100) /
@@ -3817,19 +3840,24 @@ __famfs_copy_file_data(struct copy_data *cp)
 	}
 	pthread_mutex_unlock(&cp->cf->mutex);
 
-out:
+	if (rc)
+		fprintf(stderr, "famfs cp: error: %s\n", cp->cf->destname);
+
 	if (cleanup) {
 		/* cf is shared and can't be cleaned up until all threads
 		 * have finished with it */
 		free(cp->cf->srcname);
 		free(cp->cf->destname);
 		munmap(destp, cp->size);
-		close(cp->cf->srcfd);
-		close(cp->cf->destfd);
+		if (cp->cf->srcfd > 0)
+			close(cp->cf->srcfd);
+		if (cp->cf->destfd > 0)
+			close(cp->cf->destfd);
 		pthread_mutex_destroy(&cp->cf->mutex);
 		free(cp->cf);
 	}
 	free(cp); /* cp is not shared */
+
 	return rc;
 }
 
@@ -3880,6 +3908,22 @@ famfs_copy_file_data(
 		offset = 0;
 		cf->refcount = nchunks;
 		cf->nchunks = nchunks;
+
+		/* With threaded cp, we can have hundreds or thousands of
+		 * source/destination pairs queued to be copied by the
+		 * threadpool. This runs us out of file descriptors. The
+		 * solution is to close the files when they get queued
+		 * to the threadpool; the first thread to start work on a
+		 * file pair will reopen them.
+		 * XXX could this still fail when copying a bazillion tiny
+		 * files? Perhaps...If that's what you're doing, use
+		 * 'famfs cp -t0' for now...
+		 */
+
+		close(cf->srcfd);
+		close(cf->destfd);
+		cf->srcfd = 0;
+		cf->destfd = 0;
 
 		if (verbose && nchunks > 1)
 			printf("famfs cp: %s: "
