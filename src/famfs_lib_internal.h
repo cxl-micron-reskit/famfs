@@ -109,7 +109,8 @@ int __famfs_mkdir(struct famfs_locked_log *lp, const char *dirpath, mode_t mode,
 		  uid_t uid, gid_t gid, int verbose);
 int famfs_init_locked_log(struct famfs_locked_log *lp, const char *fspath,
 			  int thread_ct, int verbose);
-int famfs_release_locked_log(struct famfs_locked_log *lp, int verbose);
+int famfs_release_locked_log(struct famfs_locked_log *lp, int abort,
+			     int verbose);
 int
 __famfs_logplay(
 	const char *mpt, const struct famfs_superblock *sb, const struct famfs_log *logp,

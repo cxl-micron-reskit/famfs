@@ -2835,8 +2835,16 @@ err_out:
 	return rc;
 }
 
+/**
+ * famfs_release_locked_log()
+ *
+ * Unlock the famfs metadata, free locked_log resources, 
+ * @lp:
+ * @abort: Abort thread pool operations if true
+ * @verbose:
+ */
 int
-famfs_release_locked_log(struct famfs_locked_log *lp, int verbose)
+famfs_release_locked_log(struct famfs_locked_log *lp, int abort, int verbose)
 {
 	int rc;
 
@@ -2854,10 +2862,16 @@ famfs_release_locked_log(struct famfs_locked_log *lp, int verbose)
 	if (lp->shadow_root)
 		free(lp->shadow_root);
 	if (lp->thp) {
-		if (verbose)
+		if (abort)
+			fprintf(stderr,
+				"%s: aborting thread pool due to error(s)\n",
+			       __func__);
+		else if (verbose)
 			printf("%s: waiting for threadpool to complete\n",
 			       __func__);
-		thpool_wait(lp->thp);
+
+		if (!abort)
+			thpool_wait(lp->thp);
 		thpool_destroy(lp->thp);
 		if (verbose)
 			printf("%s: threadpool work complete\n",
@@ -3181,8 +3195,8 @@ __famfs_mkfile(
 			fd = open(target_fullpath, O_RDWR, mode);
 			if (fd < 0) {
 				fprintf(stderr,
-					"%s: existing open failed %s\n",
-					__func__, target_fullpath);
+					"%s: existing open failed %s\nerrno=%d",
+					__func__, target_fullpath, errno);
 			}
 			goto out;
 		}
@@ -3375,7 +3389,7 @@ famfs_mkfile(
 	}
 	rc  = __famfs_mkfile(&ll, filename, mode, uid, gid, size, 0, verbose);
 
-	famfs_release_locked_log(&ll, verbose);
+	famfs_release_locked_log(&ll, 0, verbose);
 	return rc;
 }
 
@@ -3572,7 +3586,7 @@ famfs_mkdir(
 
 	rc = __famfs_mkdir(&ll, dirpath, mode, uid, gid, verbose);
 
-	famfs_release_locked_log(&ll, verbose);
+	famfs_release_locked_log(&ll, 0, verbose);
 	free(cwd);
 	return rc;
 }
@@ -3690,7 +3704,7 @@ famfs_mkdir_parents(
 	rc = famfs_make_parent_dir(&ll, abspath, mode, uid, gid, 0, verbose);
 
 	/* Separate function should release ll and lock */
-	famfs_release_locked_log(&ll, verbose);
+	famfs_release_locked_log(&ll, 0, verbose);
 	free(rpath);
 	if (cwd)
 		free(cwd);
@@ -4432,9 +4446,9 @@ famfs_cp_multi(
 	}
 
 err_out:
-	/* Separate function should release ll and lock */
 	free(dirdupe);
-	famfs_release_locked_log(&ll, verbose);
+	famfs_release_locked_log(&ll, (err < 0) ? 1 : 0, /* abort on err < 0 */
+				 verbose);
 	free(dest_parent_path);
 	return err;
 }

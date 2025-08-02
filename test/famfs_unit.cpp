@@ -972,7 +972,7 @@ TEST(famfs, famfs_log)
 	system("cp /tmp/famfs/.meta/.log.save /tmp/famfs/.meta/.log");
 	system("cp /tmp/famfs/.meta/.superblock.save /tmp/famfs/.meta/.superblock");
 
-	rc = famfs_release_locked_log(&ll, 0);
+	rc = famfs_release_locked_log(&ll, 0, 0);
 	ASSERT_EQ(rc, 0);
 
 	system("chmod 444 /tmp/famfs/.meta/.log"); /* log file not writable */
