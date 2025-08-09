@@ -87,6 +87,18 @@ char *famfs_get_mpt_by_dev(const char *mtdev);
 int famfs_path_is_mount_pt(const char *path, char *dev_out, char *shadow_out);
 char *find_mount_point(const char *path);
 
+/* famfs_alloc.c */
+struct famfs_bitmap_stats {
+	u64 size;
+	u64 bits_inuse;
+	u64 bits_free;
+	u64 fragments_free;
+	u64 largest_free_section;
+	u64 smallest_free_section;
+};
+void mu_bitmap_range_stats(u8 *bitmap, u64 start, u64 end, /* exclusive */
+			   struct famfs_bitmap_stats *bs);
+
 /*
  * Only exported for unit tests
  */
@@ -119,8 +131,9 @@ __famfs_logplay(
 int famfs_dax_shadow_logplay(
 	const char *shadowpath, int dry_run, int client_mode, const char *daxdev,
 	int testmode, int verbose);
-int famfs_fsck_scan(const struct famfs_superblock *sb, const struct famfs_log *logp,
-		    int human, int verbose);
+int famfs_fsck_scan(const struct famfs_superblock *sb,
+		    const struct famfs_log *logp,
+		    int human, int nbuckets, int verbose);
 int famfs_create_sys_uuid_file(char *sys_uuid_file);
 int famfs_get_system_uuid(uuid_le *uuid_out);
 void famfs_print_role_string(int role);

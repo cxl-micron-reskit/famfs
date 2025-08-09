@@ -60,7 +60,8 @@ void *famfs_mmap_whole_file(const char *fname, int read_only, size_t *sizep);
 
 extern int famfs_get_device_size(const char *fname, size_t *size, enum famfs_extent_type *type);
 int famfs_check_super(const struct famfs_superblock *sb);
-int famfs_fsck(const char *devname, int use_mmap, int human, int force, int verbose);
+int famfs_fsck(const char *devname, int use_mmap, int human, int force, 
+		int nbuckets, int verbose);
 
 int famfs_mkmeta(const char *devname, const char*shadowpath, int verbose);
 int famfs_logplay(

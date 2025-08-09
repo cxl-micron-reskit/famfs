@@ -737,3 +737,60 @@ famfs_file_alloc(
 
 	return famfs_file_strided_alloc(lp, size, fmap_out, verbose);
 }
+
+void
+mu_bitmap_range_stats(
+	u8 *bitmap,
+	u64 start,
+	u64 end, /* exclusive */
+	struct famfs_bitmap_stats *bs)
+{
+	u64 i;
+	int prev_bit_free = 0;
+	u64 free_ct = 0;
+
+	assert(bs);
+	memset(bs, 0, sizeof(*bs));
+	bs->size = end - start;
+	for (i = start; i < end; i++) {
+		switch (mu_bitmap_test(bitmap, i)) {
+		case 1:
+		/* Skip bits that are set... */
+		if (prev_bit_free) {
+			/* previous bit was free - last of a free
+			 * fragment */
+			bs->smallest_free_section =
+				MIN(free_ct, bs->smallest_free_section);
+			bs->largest_free_section =
+				MAX(free_ct, bs->largest_free_section);
+		}
+		bs->bits_inuse++;
+		prev_bit_free = 0;
+		bs->bits_inuse++;
+		break;
+
+		case 0:
+		if (!prev_bit_free) {
+			prev_bit_free = 1;
+			bs->fragments_free++;
+		}
+		free_ct++;
+		bs->bits_free++;
+		break;
+
+		default:
+			assert(0);
+		}
+	}
+
+	/* if the last bit was free, finish up */
+	if (prev_bit_free) {
+			/* previous bit was free - last of a free
+			 * fragment */
+			bs->smallest_free_section =
+				MIN(free_ct, bs->smallest_free_section);
+			bs->largest_free_section =
+				MAX(free_ct, bs->largest_free_section);	
+	}
+}
+

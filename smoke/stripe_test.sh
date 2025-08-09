@@ -181,6 +181,11 @@ stripe_test_cp () {
     fi
     echo "rc=$rc"
     
+    ${CLI} fsck -h -B ${NBUCKETS} ${MPT}
+    ${CLI} fsck -h -B 1 ${MPT}
+    ${CLI} fsck -B ${NBUCKETS} ${MPT}
+    ${CLI} fsck -B $(( NBUCKETS - 1 )) ${MPT}
+    ${CLI} fsck -B $(( NBUCKETS - 2 )) ${MPT}
     echo "Created and copied $counter files"
     echo "Processed all successfully copied files."
 }
@@ -320,6 +325,7 @@ stripe_test () {
 	fail "Failed to verify $rc files (seed=$seed)"
     fi
 
+    ${CLI} fsck -h -B ${NBUCKETS} ${MPT}
     echo "Processed all successfully created files."
 }
 

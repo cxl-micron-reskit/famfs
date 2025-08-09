@@ -448,6 +448,61 @@ famfs_gen_log_entry_crc(const struct famfs_log_entry *le)
 	return crc;
 }
 
+void
+famfs_fsck_bucket_info(
+	u8 *bitmap,
+	u64 nbits,
+	u64 dev_capacity,
+	u64 alloc_unit,
+	int human,
+	u64 nbuckets)
+{
+	u64 overhang_bytes = dev_capacity % nbuckets;
+	struct famfs_bitmap_stats bstats;
+	float agig = 1024 * 1024 * 1024;
+	u64 bucket_bits = dev_capacity / (nbuckets * alloc_unit);
+	u64 i;
+
+	printf("Stripe bucket info:\n");
+	printf("  Wasted overhang: %lld bytes (%lld au)\n",
+	       overhang_bytes, overhang_bytes / alloc_unit);
+	for (i = 0; i < nbuckets; i++) {
+		u64 pos = i * bucket_bits;
+		u64 nextpos = (i + 1) * bucket_bits;
+
+		mu_bitmap_range_stats(bitmap, pos, nextpos, &bstats);
+		printf("  Bitmap range %lld\n", i);
+		if (human) {
+			printf("    Size:   %0.2fG\n",
+			       (float)(bstats.size * alloc_unit) / agig);
+			printf("    In use: %0.2fg\n",
+			       (float)(bstats.bits_inuse * alloc_unit) / agig);
+			printf("    Free:   %0.2fG\n",
+			       (float)(bstats.bits_free * alloc_unit) / agig);
+			printf("    Free fragments: %lld\n",
+			       bstats.fragments_free);
+			printf("    Largest frag:   %0.2fG\n",
+			       (float)(bstats.largest_free_section * alloc_unit)
+			       / agig);
+			printf("    Smallest frag:  %0.2fG\n",
+			       (float)(bstats.smallest_free_section * alloc_unit)
+			       / agig);
+		} else {
+			printf("    Size:   %lld\n", bstats.size * alloc_unit);
+			printf("    In use: %lld\n",
+			       bstats.bits_inuse * alloc_unit);
+			printf("    Free:   %lld\n",
+			       bstats.bits_free * alloc_unit);
+			printf("    Free fragments: %lld\n",
+			       bstats.fragments_free);
+			printf("    Largest frag:   %lld\n",
+			       bstats.largest_free_section * alloc_unit);
+			printf("    Smallest frag:  %lld\n",
+			       bstats.smallest_free_section * alloc_unit);
+		}
+	}
+}
+
 /**
  * famfs_fsck_scan()
  *
@@ -460,6 +515,7 @@ famfs_fsck_scan(
 	const struct famfs_superblock *sb,
 	const struct famfs_log        *logp,
 	int                            human,
+	int                            nbuckets,
 	int                            verbose)
 {
 	size_t effective_log_size;
@@ -562,6 +618,12 @@ famfs_fsck_scan(
 	printf("  %lld bad log entries detected\n", ls.bad_entries);
 	printf("  %lld files\n", ls.f_logged);
 	printf("  %lld directories\n\n", ls.d_logged);
+
+	if (nbuckets) {
+		assert(nbuckets > 0);
+		famfs_fsck_bucket_info(bitmap, nbits, dev_capacity, alloc_unit,
+				       human, nbuckets);
+	}
 
 	free(bitmap);
 
@@ -2416,6 +2478,7 @@ famfs_fsck(
 	int use_mmap,
 	int human,
 	int force,
+	int nbuckets,
 	int verbose)
 {
 	struct famfs_superblock *sb = NULL;
@@ -2599,7 +2662,7 @@ famfs_fsck(
 			__func__, path);
 		return -1;
 	}
-	rc = famfs_fsck_scan(sb, logp, human, verbose);
+	rc = famfs_fsck_scan(sb, logp, human, nbuckets, verbose);
 err_out:
 	if (!use_mmap && sb)
 		free(sb);
@@ -4898,7 +4961,7 @@ __famfs_mkfs(const char              *daxdev,
 				      / sizeof(struct famfs_log_entry)) - 1);
 
 	logp->famfs_log_crc = famfs_gen_log_header_crc(logp);
-	famfs_fsck_scan(sb, logp, 1, 0);
+	famfs_fsck_scan(sb, logp, 1, 0, 0);
 
 	/* Force a writeback of the log followed by the superblock */
 	flush_processor_cache(logp, logp->famfs_log_len);

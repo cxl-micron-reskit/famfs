@@ -558,6 +558,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	int c;
 	extern int mock_fstype;
 	char *daxdev = NULL;
+	int nbuckets = 0;
 	int use_mmap = 0;
 	int use_read = 0;
 	int verbose = 0;
@@ -571,6 +572,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 		{"verbose",     no_argument,             0,  'v'},
 		{"force",       no_argument,             0,  'f'},
 		{"mock",        no_argument,             0,  'M'},
+		{"nbuckets",    required_argument,       0,  'B'},
 		{0, 0, 0, 0}
 	};
 
@@ -578,7 +580,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+vh?mrfM",
+	while ((c = getopt_long(argc, argv, "+vh?mrfMB:",
 				fsck_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -606,6 +608,9 @@ do_famfs_cli_fsck(int argc, char *argv[])
 		case 'M':
 			mock_fstype = FAMFS_V1;
 			break;
+		case 'B':
+			nbuckets = strtoul(optarg, 0, 0);
+			break;
 		case '?':
 			famfs_fsck_usage(argc, argv);
 			return 0;
@@ -630,7 +635,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	}
 
 	daxdev = argv[optind++];
-	return famfs_fsck(daxdev, use_mmap, human, force, verbose);
+	return famfs_fsck(daxdev, use_mmap, human, force, nbuckets, verbose);
 }
 
 
