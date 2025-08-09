@@ -6,6 +6,7 @@
 #ifndef _H_FAMFS_LIB
 #define _H_FAMFS_LIB
 
+#include <unistd.h>
 #include <linux/uuid.h> /* Our preferred UUID format */
 #include <uuid/uuid.h>  /* for uuid_generate / libuuid */
 #include <linux/famfs_ioctl.h>
@@ -14,6 +15,7 @@
 #include "famfs.h"
 #include "famfs_meta.h"
 #include "famfs_log.h"
+#include "thpool.h"
 
 #define FAMFS_YAML_MAX 16384
 
@@ -95,7 +97,7 @@ void famfs_print_uuid(const uuid_le *uuid);
 enum famfs_type famfs_get_kernel_type(int verbose);
 void free_string_list(char **strings, int nstrings);
 char **tokenize_string(const char *input, const char *delimiter, int *out_count);
-
+void famfs_thpool_destroy(threadpool thp, useconds_t usec);
 
 /* famfs_yaml.c */
 #include <yaml.h>

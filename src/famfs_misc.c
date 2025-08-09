@@ -36,6 +36,7 @@
 #include "famfs_lib_internal.h"
 #include "bitmap.h"
 #include "mu_mem.h"
+#include "thpool.h"
 
 extern int mock_uuid;
 /**
@@ -542,4 +543,10 @@ char **tokenize_string(const char *input, const char *delimiter, int *out_count)
 	free(copy);
 	*out_count = i;
 	return result;
+}
+
+void famfs_thpool_destroy(threadpool thp, useconds_t sleep_us)
+{
+	thpool_destroy(thp);
+	usleep(sleep_us);
 }

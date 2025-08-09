@@ -2833,7 +2833,7 @@ err_out:
 	if (lp->lfd)
 		close(lp->lfd);
 	if (lp->thp)
-		thpool_destroy(lp->thp);
+		famfs_thpool_destroy(lp->thp, 100000 /* 100ms */);
 	if (addr)
 		munmap(addr, log_size);
 	return rc;
@@ -2896,7 +2896,7 @@ famfs_release_locked_log(struct famfs_locked_log *lp, int abort, int verbose)
 
 		if (!abort)
 			thpool_wait(lp->thp);
-		thpool_destroy(lp->thp);
+		famfs_thpool_destroy(lp->thp, 100000);
 		if (verbose)
 			printf("%s: threadpool work complete\n",
 			       __func__);	

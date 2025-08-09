@@ -1486,7 +1486,7 @@ randomize_multi(
 
 	if (threadct) {
 		thpool_wait(thp);
-		thpool_destroy(thp);
+		famfs_thpool_destroy(thp, 100000 /* 100ms */);
 	}
 
 	for (i = 0; i < multi_count; i++) {
@@ -1925,7 +1925,7 @@ verify_multi(
 
 	if (threadct) {
 		thpool_wait(thp);
-		thpool_destroy(thp);
+		famfs_thpool_destroy(thp, 100000 /* 100ms */);
 	}
 
 	for (i = 0; i < multi_count; i++)
