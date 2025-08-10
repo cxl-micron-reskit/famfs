@@ -127,9 +127,29 @@ smoke:	debug
 	make smoke_nofuse
 	make smoke_fuse
 
-smoke_dual:	debug
+
+
+
+
+
+smoke_sanitize_dual:	sanitize
 	make smoke_nofuse
 	make smoke_fuse
+
+smoke_sanitize_nofuse:	sanitize
+	script -e -c "./run_smoke.sh --nofuse --sanitize" -O "smoke.$(HOSTNAME).nofuse.log"
+
+smoke_sanitize_fuse:	sanitize
+	script -e -c "./run_smoke.sh --fuse --sanitize" -O "smoke.$(HOSTNAME).fuse.log"
+
+# Run the smoke tests
+smoke_sanitize:	sanitize
+	make smoke_sanitize_nofuse
+	make smoke_sanitize_fuse
+
+smoke_sanitize_dual:	debug
+	make smoke_sanitize_nofuse
+	make smoke_sanitize_fuse
 
 smoke_valgrind_nofuse:	debug
 	script -e -c "./run_smoke.sh --valgrind --nofuse" \
