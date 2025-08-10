@@ -450,6 +450,7 @@ init_bucket_series(
 	struct bucket_series *bs,
 	int nbuckets)
 {
+	static int seeded = 0;
 	int i;
 
 	assert(bs);
@@ -459,8 +460,14 @@ init_bucket_series(
 		bs->buckets[i] = i;
 	}
 
-	/* Randomize the order of the bucket values */
-	srand(time(NULL));
+	/* Seed the random generator only once */
+	if (!seeded) {
+		seeded++;
+		srand(time(NULL));
+	}
+
+	/* Randomize the order of the bucket values
+	 * (the old Fisher-Yates/Knuth shuffle) */
 	for (i = nbuckets - 1; i > 0; i--) {
 		int j = rand() % (i + 1);
 		int tmp;
