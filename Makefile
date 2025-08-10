@@ -116,25 +116,23 @@ test:
 	sudo rm -rf /tmp/famfs
 	cd debug; sudo ctest --output-on-failure
 
+# Baseline smoke ***
+
 smoke_nofuse:	debug
 	script -e -c "./run_smoke.sh --nofuse" -O "smoke.$(HOSTNAME).nofuse.log"
 
 smoke_fuse:	debug
 	script -e -c "./run_smoke.sh --fuse" -O "smoke.$(HOSTNAME).fuse.log"
 
-# Run the smoke tests
 smoke:	debug
 	make smoke_nofuse
 	make smoke_fuse
 
-
-
-
-
-
-smoke_sanitize_dual:	sanitize
+smoke_dual:	debug
 	make smoke_nofuse
 	make smoke_fuse
+
+# Sanitize ***
 
 smoke_sanitize_nofuse:	sanitize
 	script -e -c "./run_smoke.sh --nofuse --sanitize" -O "smoke.$(HOSTNAME).nofuse.log"
@@ -142,14 +140,15 @@ smoke_sanitize_nofuse:	sanitize
 smoke_sanitize_fuse:	sanitize
 	script -e -c "./run_smoke.sh --fuse --sanitize" -O "smoke.$(HOSTNAME).fuse.log"
 
-# Run the smoke tests
 smoke_sanitize:	sanitize
 	make smoke_sanitize_nofuse
 	make smoke_sanitize_fuse
 
-smoke_sanitize_dual:	debug
+smoke_sanitize_dual:	sanitize
 	make smoke_sanitize_nofuse
 	make smoke_sanitize_fuse
+
+# Valgrind ***
 
 smoke_valgrind_nofuse:	debug
 	script -e -c "./run_smoke.sh --valgrind --nofuse" \
