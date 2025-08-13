@@ -3,6 +3,7 @@ build/
 debug/
 release/
 coverage/
+sanitize/
 *.log
 Module.symvers
 modules.order

@@ -115,6 +115,11 @@ while (( $# > 0)); do
 	    BIN="$CWD/coverage"
 	    echo "hello coverage BIN=$BIN"
 	    ;;
+	(-s|--sanitize)
+	    COVERAGE=1
+	    BIN="$CWD/sanitize"
+	    echo "hello coverage BIN=$BIN"
+	    ;;
 	(-v|--valgrind)
 	    echo "run_smoke: valgrind mode"
 	    VGARG="--valgrind"
