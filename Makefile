@@ -37,6 +37,15 @@ libfuse:
 	meson setup -Dexamples=false $(BDIR)/libfuse ./libfuse
 	meson compile -C $(BDIR)/libfuse
 
+sanitize: cmake-modules threadpool
+	mkdir -p sanitize;
+	$(MAKE) libfuse BDIR="sanitize"
+	cd sanitize; cmake -DCMAKE_BUILD_TYPE=Debug \
+        -DCMAKE_C_FLAGS="-fsanitize=address,undefined,leak -static-libasan -g -O1" \
+        -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -static-libasan -g -O1" ..; \
+	$(MAKE)
+
+
 debug:	cmake-modules threadpool
 	export BDIR="debug"
 	mkdir -p debug;
@@ -96,7 +105,7 @@ release:	cmake-modules threadpool
 all:	debug
 
 clean:
-	sudo rm -rf debug release coverage
+	sudo rm -rf debug release coverage sanitize
 
 install:
 	cd debug; sudo $(MAKE) install
@@ -150,4 +159,4 @@ teardown:
 	pwd
 	@./scripts/teardown.sh
 
-.PHONY:	test smoke debug release coverage chk_include libfuse libfuse_install
+.PHONY:	test smoke debug release coverage chk_include libfuse libfuse_install sanitize
