@@ -351,6 +351,9 @@ do_famfs_cli_mount(int argc, char *argv[])
 			return -1;
 		}
 	}
+	if (timeout == -1)
+		timeout = 3600 * 24 * 365;
+
 	remaining_args = argc - optind;
 
 	if (remaining_args != 2) {
