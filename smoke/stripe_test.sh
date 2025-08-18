@@ -124,7 +124,7 @@ stripe_test_cp () {
 
 	dst_name="$file_name""_copy"
 	echo "Copying $file_name into $dst_name ($CP_ARGS)"
-	${CLI} ${CP} ${CP_ARGS} -N "$NSTRIPS" -B "$NBUCKETS" "$file_name" "$dst_name" || fail "striped file cp of $dst_name failed"
+	${CLI} ${CP} ${CP_ARGS} -N "$NSTRIPS" -B "$NBUCKETS" "$file_name" "$dst_name" || fail_fsck "striped file cp of $dst_name failed" "$B $NBUCKETS"
 
 	# Add the file name to the array
 	files+=("$dst_name")
@@ -150,7 +150,7 @@ stripe_test_cp () {
     if [[ $rc -eq 0 ]]; then
 	echo "...done"
     else
-	fail "$rc initialization failures"
+	fail_fsck "$rc initialization failures" "-B $NBUCKETS"
     fi
 
     # TODO: if the the FAMFS_KABI_VERSION >= 43, verify that the files are striped
@@ -177,7 +177,7 @@ stripe_test_cp () {
     if [[ $rc -eq 0 ]]; then
 	echo "...good"
     else
-	fail "Failed to verify $rc files (seed=$seed)"
+	fail_fsck "Failed to verify $rc files (seed=$seed)" "-B $NBUCKETS"
     fi
     echo "rc=$rc"
     
@@ -261,7 +261,7 @@ stripe_test () {
     if [[ $rc -eq 0 ]]; then
 	echo "...done"
     else
-	fail "$rc failures from initialization"
+	fail_fsck "$rc failures from initialization" "-B $NBUCKETS"
     fi
 
     # TODO: if the the FAMFS_KABI_VERSION >= 43, verify that the files are striped
@@ -289,7 +289,9 @@ stripe_test () {
     if [[ $rc -eq 0 ]]; then
 	echo "...good"
     else
-	fail "Failed to verify $rc files (seed=$seed)"
+	echo "Failed to verify $rc files (seed=$seed) ***********************"
+	${CLI} fsck -hv $MPT
+	fail_fsck "Failed to verify $rc files (seed=$seed) ***********************" "-B $NBUCKETS"
     fi
 
     echo

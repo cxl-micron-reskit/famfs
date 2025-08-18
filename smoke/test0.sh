@@ -347,7 +347,7 @@ ${CLI} flush -vv $(sudo find $MPT -print)     && fail "this flush should report 
 
 ${CLI} fsck      && fail "fsck with no args should fail"
 ${CLI} fsck -?   || fail "fsck -h should succeed"x
-${CLI} fsck $MPT || fail "fsck should succeed"
+${CLI} fsck $MPT || fail_fsck "fsck should succeed" "-vv"
 ${CLI} fsck --human $MPT || fail "fsck --human should succeed"
 
 mkdir -p ~/smoke.shadow

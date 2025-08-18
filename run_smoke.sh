@@ -93,10 +93,6 @@ while (( $# > 0)); do
 	(--stripe)
 	    # Just test0 and test_shadow_yaml
 	    #SKIP_TEST0=1
-	    SKIP_TEST1=1
-	    SKIP_TEST2=1
-	    SKIP_TEST3=1
-	    SKIP_TEST4=1
 	    SKIP_PCQ=1
 	    SKIP_FIO=1
 	    SKIP_ERRS=1

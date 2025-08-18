@@ -10,6 +10,20 @@ fail () {
     exit 1
 }
 
+fail_fsck () {
+    set +x
+    echo
+    echo ":==*** Fail with fsck ***"
+    echo ":==$TEST: $1"
+    # $2, if provided, is fsck args (e.g. -B 21)
+    ${CLI} fsck -v $2 $MPT
+    echo ":==$TEST: $1"
+    echo ":==*** Fail with fsck ***"
+    echo
+    exit 1
+}
+
+
 # Function to assert the exit code of a command
 assert_equal() {
     local a="$1"
