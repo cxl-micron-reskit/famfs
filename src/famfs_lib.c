@@ -2893,12 +2893,16 @@ out:
 	return 0;
 
 err_out:
+	if (lp->mpt)
+		free(lp->mpt);
 	if (lp->lfd)
 		close(lp->lfd);
 	if (lp->thp)
 		famfs_thpool_destroy(lp->thp, 100000 /* 100ms */);
 	if (addr)
 		munmap(addr, log_size);
+	if (lp->shadow_root)
+		free(lp->shadow_root);
 	return rc;
 }
 
