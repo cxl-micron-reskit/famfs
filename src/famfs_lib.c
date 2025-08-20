@@ -60,12 +60,15 @@ famfs_dir_create(
 	uid_t       uid,
 	gid_t       gid);
 
-static struct famfs_superblock *famfs_map_superblock_by_path(const char *path, int read_only);
-static int famfs_file_create_stub(const char *path, mode_t mode, uid_t uid, gid_t gid,
-			     int disable_write);
+static struct famfs_superblock *famfs_map_superblock_by_path(const char *path,
+							     int read_only);
+static int famfs_file_create_stub(const char *path, mode_t mode, uid_t uid,
+				  gid_t gid,
+				  int disable_write);
 static int famfs_shadow_file_create(const char *path,
 				    const struct famfs_log_file_meta *fc,
-				    struct famfs_log_stats *ls, int disable_write, int dry_run,
+				    struct famfs_log_stats *ls,
+				    int disable_write, int dry_run,
 				    int testmode, int verbose);
 static int open_log_file_read_only(const char *path, size_t *sizep,
 				   ssize_t size_in,
@@ -75,7 +78,8 @@ static int famfs_mmap_superblock_and_log_raw(const char *devname,
 					     struct famfs_log **logp,
 					     u64 log_len,
 					     int read_only);
-static int open_superblock_file_read_only(const char *path, size_t  *sizep, char *mpt_out);
+static int open_superblock_file_read_only(const char *path, size_t  *sizep,
+					  char *mpt_out);
 static char *famfs_relpath_from_fullpath(const char *mpt, char *fullpath);
 
 /* famfs v2 stuff (dual standalone / fuse) */
@@ -328,7 +332,8 @@ famfs_get_role_by_path(
 	sb = famfs_map_superblock_by_path(path, 1 /* read only */);
 	if (!sb) {
 		fprintf(stderr,
-			"%s: unable to find famfs superblock for path %s\n", __func__, path);
+			"%s: unable to find famfs superblock for path %s\n",
+			__func__, path);
 		return -1;
 	}
 	role = famfs_get_role(sb);
@@ -737,6 +742,8 @@ famfs_mmap_superblock_and_log_raw(
 	if (sbp)
 		*sbp = sb;
 
+	invalidate_processor_cache(sb, FAMFS_SUPERBLOCK_SIZE);
+
 	/* Map the log if requested.
 	 * * If log_size is nonzero, we mmap that size.
 	 * * If log_size == 0, we get the log size from the superblock, and
@@ -750,7 +757,6 @@ famfs_mmap_superblock_and_log_raw(
 		 * log size from the superblock, which first requires validating
 		 * the superblock */
 		if (lsize == 0) {
-			invalidate_processor_cache(sb, FAMFS_SUPERBLOCK_SIZE);
 			if (famfs_check_super(sb)) {
 				/* No valid superblock, and no log_size -
 				 * don't map log */
@@ -2417,6 +2423,16 @@ famfs_map_superblock_by_path(
 			__func__, read_only ? "read-only" : "writable",	path);
 		return NULL;
 	}
+
+	/* debug intermittent failures in long tests */
+	if (sb_size != FAMFS_SUPERBLOCK_SIZE) {
+		fprintf(stderr, ":== %s: bad superblock size for path %s:"
+			"fd=%d sb_size=%ld expected=%d\n",
+			__func__, path, fd, sb_size, FAMFS_SUPERBLOCK_SIZE);
+		close(fd);
+		return NULL;
+	}
+
 	addr = mmap(0, sb_size, prot, MAP_SHARED, fd, 0);
 	close(fd);
 	if (addr == MAP_FAILED) {
@@ -2426,6 +2442,13 @@ famfs_map_superblock_by_path(
 	}
 	sb = (struct famfs_superblock *)addr;
 	flush_processor_cache(sb, sb_size); /* invalidate processor cache */
+
+	if (famfs_check_super(sb)) {
+		munmap(sb, sb_size);
+		fprintf(stderr, "%s: invalid superblock\n", __func__);
+		return NULL;
+	}
+
 	return sb;
 }
 
@@ -2463,12 +2486,19 @@ famfs_map_log_by_path(
 	 * that is allowed to write the log */
 	logp = (struct famfs_log *)addr;
 	if (log_size != logp->famfs_log_len) {
-		fprintf(stderr, "%s: log file length is invalid (%lld / %lld)\n",
+		fprintf(stderr,
+			"%s: log file length is invalid (%lld / %lld)\n",
 			__func__, (s64)log_size, logp->famfs_log_len);
 		munmap(addr, log_size);
 		return NULL;
 	}
 	flush_processor_cache(logp, log_size);  /* invalidate processor cache */
+
+	if (famfs_validate_log_header(logp)) {
+		munmap(addr, log_size);
+		return NULL;
+	}
+
 	return logp;
 }
 
@@ -2680,6 +2710,24 @@ err_out:
  * Validate the superblock and return the dax device size, or -1 if sb or size
  * invalid
  */
+#if 1
+static ssize_t
+famfs_validate_superblock_by_path(const char *path, u64 *alloc_unit)
+{
+	struct famfs_superblock *sb;
+	ssize_t daxdevsize = -1;
+
+	sb = famfs_map_superblock_by_path(path, 1);
+	if (sb) {
+		if (alloc_unit)
+			*alloc_unit = sb->ts_alloc_unit;
+
+		daxdevsize = sb->ts_daxdev.dd_size;
+		munmap(sb, FAMFS_SUPERBLOCK_SIZE);
+	}
+	return daxdevsize;
+}
+#else
 static ssize_t
 famfs_validate_superblock_by_path(const char *path, u64 *alloc_unit)
 {
@@ -2738,7 +2786,7 @@ retry:
 	close(sfd);
 	return daxdevsize;
 }
-
+#endif
 /******************************************************************************
  * Locked Log Abstraction
  */
@@ -4902,7 +4950,7 @@ __famfs_mkfs(const char              *daxdev,
 	if (kill && force) {
 		printf("Famfs superblock killed\n");
 		sb->ts_magic = 0;
-		flush_processor_cache(sb, sb->ts_log_offset);
+		flush_processor_cache(sb, FAMFS_SUPERBLOCK_SIZE);
 		return 0;
 	}
 
@@ -4919,12 +4967,14 @@ __famfs_mkfs(const char              *daxdev,
 		 */
 		fprintf(stderr,
 			"Device %s already has a famfs superblock\n", daxdev);
+		invalidate_processor_cache(sb, FAMFS_SUPERBLOCK_SIZE);
 		return -1;
 	}
 
 	rc = famfs_get_system_uuid(&sb->ts_system_uuid);
 	if (rc) {
 		fprintf(stderr, "mkfs.famfs: unable to get system uuid");
+		invalidate_processor_cache(sb, FAMFS_SUPERBLOCK_SIZE);
 		return -1;
 	}
 	sb->ts_magic      = FAMFS_SUPER_MAGIC;
@@ -4941,6 +4991,7 @@ __famfs_mkfs(const char              *daxdev,
 		fprintf(stderr,
 			"%s: Error: primary daxdev (%s) is not writable\n",
 			__func__, daxdev);
+		invalidate_processor_cache(sb, FAMFS_SUPERBLOCK_SIZE);
 		return -1;
 	}
 
@@ -4961,10 +5012,13 @@ __famfs_mkfs(const char              *daxdev,
 	logp->famfs_log_len        = log_len;
 	logp->famfs_log_next_seqnum = 0;
 	logp->famfs_log_next_index = 0;
-	logp->famfs_log_last_index = (((log_len - offsetof(struct famfs_log, entries))
+	logp->famfs_log_last_index = (((log_len - offsetof(struct famfs_log,
+							   entries))
 				      / sizeof(struct famfs_log_entry)) - 1);
 
 	logp->famfs_log_crc = famfs_gen_log_header_crc(logp);
+
+	/* Could call mprotect() to switch to PROT_READ since writing is done */
 	famfs_fsck_scan(sb, logp, 1, 0, 0);
 
 	/* Force a writeback of the log followed by the superblock */

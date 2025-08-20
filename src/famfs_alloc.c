@@ -154,17 +154,25 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 		   struct famfs_log_stats   *log_stats_out,
 		   int                       verbose)
 {
-	u64 nbits = (dev_size_in + alloc_unit - 1) / alloc_unit;
-	u64 bitmap_nbytes = mu_bitmap_size(nbits);
-	u8 *bitmap = calloc(1, bitmap_nbytes + 1); /* Note: mu_bitmap_foreach
-						    * accesses 1 bit past
-						    * the end */
+	u64 bitmap_nbytes;
+	u8 *bitmap;
+	u64 nbits;
+
 	struct famfs_log_stats ls = { 0 }; /* We collect a subset of stats
 					    * collected by logplay */
 	u64 fsize_sum  = 0;
 	u64 alloc_sum = 0;
 	u64 errors = 0;
 	u64 i, j;
+
+	assert (alloc_unit);
+	assert((alloc_unit & (alloc_unit - 1)) == 0);
+
+	nbits = (dev_size_in + alloc_unit - 1) / alloc_unit;
+	bitmap_nbytes = mu_bitmap_size(nbits);
+	bitmap = calloc(1, bitmap_nbytes + 1); /* Note: mu_bitmap_foreach
+						* accesses 1 bit past
+						* the end */
 
 	if (verbose > 1)
 		printf("%s: dev_size %lld nbits %lld bitmap_nbytes %lld\n",
