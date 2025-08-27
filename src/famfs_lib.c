@@ -721,12 +721,20 @@ famfs_mmap_superblock_and_log_raw(
 	}
 	fd = open(devname, openmode, 0);
 	if (fd < 0) {
-		if (errno == ENOENT)
+		switch (errno) {
+		case ENOENT:
 			fprintf(stderr, "%s: device %s not found\n",
 				__func__, devname);
-		else
+			break;
+		case ENXIO:
+			fprintf(stderr, "%s: device %s appears to be disabled\n",
+				__func__, devname);
+			break;
+		default:
 			fprintf(stderr, "%s: open %s failed; rc %d errno %d\n",
 				__func__, devname, rc, errno);
+			break;
+		}
 		rc = -errno;
 		goto err_out;
 	}
@@ -2573,6 +2581,8 @@ famfs_fsck(
 		rc = famfs_mmap_superblock_and_log_raw(path, &sb, &logp,
 						       0 /* figure out log size */,
 						       1 /* read-only */);
+		if (rc)
+			return rc;
 
 		break;
 	}

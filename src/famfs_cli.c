@@ -395,7 +395,12 @@ do_famfs_cli_mount(int argc, char *argv[])
 				      debug, verbose);
 		goto out;
 	}
-	else if (!famfs_module_loaded(1)) {
+
+	/*
+	 * From here down, it's a standalone famfs mount
+	 */
+
+	if (!famfs_module_loaded(1)) {
 		fprintf(stderr,
 			"famfs mount: famfs kernel module is not loaded!\n");
 		fprintf(stderr, "famfs mount: try 'sudo modprobe famfs'\n");

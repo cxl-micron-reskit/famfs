@@ -93,6 +93,7 @@ enum famfs_system_role {
 	FAMFS_MASTER=1,/* System is the master, and can write the log */
 	FAMFS_CLIENT,  /* System is a client - cannot write the log or sb */
 	FAMFS_NOSUPER, /* No valid superblock, so role is ambiguous */
+	FAMFS_NODEV,   /* No daxdev, or daxdev disabled */
 };
 
 /* Extent types */

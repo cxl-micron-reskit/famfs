@@ -677,7 +677,6 @@ famfs_mount_fuse(
 		goto out;
 	}
 
-
 	rc = famfs_mkmeta(realdaxdev, shadow_root, verbose);
 	if (rc) {
 		fprintf(stderr, "%s: err mkmeta failed for shadow %s\n",
