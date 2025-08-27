@@ -684,6 +684,14 @@ famfs_mount_fuse(
 		goto out;
 	}
 
+	/* Not more access allowed to the raw daxdev after mkmeta! */
+	rc = famfs_bounce_daxdev(realdaxdev, verbose);
+	if (rc) {
+		fprintf(stderr, "%s: failed to bounce daxdev %s\n",
+			__func__, realdaxdev);
+		return rc;
+	}
+
 	/* Start the fuse daemon, which mounts the FS */
 	rc = famfs_start_fuse_daemon(realmpt, realdaxdev, local_shadow, timeout,
 				     debug, verbose);
@@ -702,7 +710,7 @@ famfs_mount_fuse(
 		goto out;
 	}
 
-	rc = famfs_logplay(realmpt, 0, 0, 0, local_shadow, 0, realdaxdev,
+	rc = famfs_logplay(realmpt, 0, 0, 0, local_shadow, 0, NULL,
 			   verbose);
 	if (rc < 0) {
 		fprintf(stderr, "%s: failed to play the log\n", __func__);

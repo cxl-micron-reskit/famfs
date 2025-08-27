@@ -109,4 +109,7 @@ int famfs_parse_shadow_yaml(FILE *fp, struct famfs_log_file_meta *fm, int max_ex
 int famfs_parse_alloc_yaml(FILE *fp, struct famfs_interleave_param *interleave_param, int verbose);
 const char *yaml_event_str(int event_type);
 
+/* famfs_dax.c */
+int famfs_bounce_daxdev(const char *devname, int verbose);
+
 #endif /* _H_FAMFS_LIB */

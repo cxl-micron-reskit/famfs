@@ -419,6 +419,18 @@ do_famfs_cli_mount(int argc, char *argv[])
 		rc = -1;
 		goto err_out;
 	}
+
+ 	/*
+ 	 * No more access allowed to the raw daxdev after mkmeta!
+ 	 */
+
+	rc = famfs_bounce_daxdev(realdaxdev, verbose);
+	if (rc) {
+		fprintf(stderr, "%s: failed to bounce daxdev %s\n",
+			__func__, realdaxdev);
+		return rc;
+	}
+
 	rc = mount(realdaxdev, realmpt, "famfs", mflags, "");
 	if (rc) {
 		fprintf(stderr,

@@ -57,7 +57,16 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   endif()
 endif()
 
-add_library(libfamfs src/famfs_lib.c src/famfs_alloc.c src/famfs_misc.c src/famfs_yaml.c src/famfs_fmap.c src/famfs_mount.c src/famfs_debug.c src/famfs_log.c C-Thread-Pool/thpool.c )
+add_library(libfamfs src/famfs_lib.c
+	src/famfs_alloc.c
+	src/famfs_misc.c
+	src/famfs_yaml.c
+	src/famfs_fmap.c
+	src/famfs_mount.c
+	src/famfs_debug.c
+	src/famfs_log.c
+	src/famfs_dax.c
+	C-Thread-Pool/thpool.c )
 add_library(libpcq src/pcq_lib.c  )
 
 add_executable(famfs src/famfs_cli.c )
@@ -65,9 +74,16 @@ add_executable(mkfs.famfs src/mkfs.famfs.c )
 add_executable(pcq src/pcq.c )
 add_executable(famfs_fused src/famfs_fused.c src/famfs_fused_icache.c)
 
+find_package(PkgConfig REQUIRED)
+if (NOT PKG_CONFIG_FOUND)
+    message(FATAL_ERROR "pkg-config not found. Install it (Fedora: pkgconf-pkg-config; Debian/Ubuntu: pkg-config).")
+endif()
+
+pkg_check_modules(DAXCTL REQUIRED libdaxctl)
+
+target_link_libraries(libfamfs  uuid z yaml ${DAXCTL_LIBRARIES})
 target_link_libraries(famfs libfamfs famfstest uuid z yaml)
 target_link_libraries(mkfs.famfs libfamfs uuid z yaml)
-target_link_libraries(libfamfs  uuid z yaml)
 target_link_libraries(pcq libpcq libfamfs uuid z famfstest yaml)
 target_link_libraries(famfs_fused libfamfs )
 

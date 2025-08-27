@@ -102,7 +102,7 @@ ${MKFS} /tmp/nonexistent && fail "mkfs on nonexistent dev should fail"
 # in case there is not a file system, make one
 ${MKFS} $DEV # no error check; if there is not a fs already this will create it
 ${MKFS} -k $DEV       && fail "mkfs/kill should fail without --force"
-${MKFS} -f -k $DEV    || fail "mkfs/kill should succeed wtih --force"
+${MKFS} -f -k $DEV    || fail "mkfs/kill should succeed with --force"
 ${MKFS}  $DEV         || fail "mkfs"
 ${MKFS} -f $DEV       || fail "redo mkfs with -f should succeed"
 
@@ -180,8 +180,8 @@ ${MKFS}  $DEV         && fail "mkfs while mounted should fail"
 sudo umount $MPT       || fail "umount $MPT should succeed"
 verify_not_mounted $DEV $MPT "umount failed?"
 # We don't know for certain whether there is a valid file system, so create one...
-${MKFS} -f $DEV        || fail "mkfs should succeed wtih --force"
-${MKFS} -f -k $DEV     || fail "mkfs/kill should succeed wtih --force"
+${MKFS} -f $DEV        || fail "mkfs should succeed with --force"
+${MKFS} -f -k $DEV     || fail "mkfs/kill should succeed with --force (2)"
 # Now there is not a valid file system because we killed the superblock...
 ${MOUNT} $DEV $MPT     && fail "famfs mount should fail with invalid superblock"
 ${MKFS} $DEV           || fail "clean mkfs should succeed"
