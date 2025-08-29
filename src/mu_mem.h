@@ -32,7 +32,8 @@ __flush_processor_cache(const void *addr, size_t len)
 
 /**
  * hard_flush_processor_cache()
- * flush/invalidate the cache when we don't know whether the host is writing or reading
+ * flush/invalidate the cache when we don't know whether the host is
+ * writing or reading
  */
 static inline void
 hard_flush_processor_cache(const void *addr, size_t len)
@@ -46,7 +47,8 @@ hard_flush_processor_cache(const void *addr, size_t len)
 }
 
 /**
- * flush_processor_cache() - flush data that this host has written to memory
+ * flush_processor_cache()
+ * flush data that this host has written to memory
  */
 static inline void
 flush_processor_cache(const void *addr, size_t len)
@@ -54,13 +56,15 @@ flush_processor_cache(const void *addr, size_t len)
 	if (mock_flush)
 		return;
 
-	/* Barier before clflush to guaranntee all prior memory mutations are flushed */
+	/* Barier before clflush to guarantee all prior memory mutations
+	 * are flushed */
 	__sync_synchronize();
 	__flush_processor_cache(addr, len);
 }
 
 /**
- * invalidate_processor_cache() - invalidate the cache so we can see data written from elsewhere
+ * invalidate_processor_cache()
+ * invalidate the cache so we can see data written from elsewhere
  */
 static inline void
 invalidate_processor_cache(const void *addr, size_t len)
@@ -70,8 +74,8 @@ invalidate_processor_cache(const void *addr, size_t len)
 
 	__flush_processor_cache(addr, len);
 	__sync_synchronize();
-	/* Barrier after the flush to guarantee all subsequent memory accesses happen
-	 * after the cache is invalidated
+	/* Barrier after the flush to guarantee all subsequent memory accesses
+	 * happen after the cache is invalidated
 	 */
 }
 

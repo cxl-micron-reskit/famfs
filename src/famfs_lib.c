@@ -3914,17 +3914,6 @@ __famfs_copy_file_data(struct copy_data *cp)
 			goto out_locked;
 		}
 	}
-#if 0
-	if (!cp->cf->destfd) {
-		cp->cf->destfd = open(cp->cf->destname, O_RDWR, 0);
-		if (cp->cf->destfd < 0) {
-			fprintf(stderr, "%s: failed to open dest file %s\n",
-				__func__, cp->cf->destname);
-			/* XXX post the error somehow? */
-			goto out_locked;
-		}
-	}
-#endif
 	pthread_mutex_unlock(&cp->cf->mutex);
 
 files_are_open:
@@ -4019,15 +4008,14 @@ out_locked:
 	if (cleanup) {
 		/* cf is shared and can't be cleaned up until all threads
 		 * have finished with it */
+
+		flush_processor_cache(destp, cp->size);
+
 		free(cp->cf->srcname);
 		free(cp->cf->destname);
 		munmap(destp, cp->size);
 		if (cp->cf->srcfd > 0)
 			close(cp->cf->srcfd);
-#if 0
-		if (cp->cf->destfd > 0)
-			close(cp->cf->destfd);
-#endif
 		pthread_mutex_destroy(&cp->cf->mutex);
 		free(cp->cf);
 	}
