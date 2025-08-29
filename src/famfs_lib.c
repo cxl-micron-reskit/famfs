@@ -1204,7 +1204,7 @@ famfs_mkmeta(
 	enum famfs_system_role role;
 	struct famfs_log *logp;
 	char *mpt = NULL;
-	int rc;
+	int rc = 0;
 
 	rc = famfs_mmap_superblock_and_log_raw(devname, &sb, &logp,
 					       0 /* figure out log size */,
@@ -1217,7 +1217,8 @@ famfs_mkmeta(
 	if (famfs_check_super(sb)) {
 		fprintf(stderr, "%s: no valid superblock on device %s\n",
 			__func__, devname);
-		return -1;
+		rc = -1;
+		goto out;
 	}
 
 	role = famfs_get_role(sb);
@@ -1239,7 +1240,13 @@ famfs_mkmeta(
 				    0 /* not shadow */, verbose);
 	}
 
-	free(mpt);
+out:
+	if (logp)
+	munmap(logp, sb->ts_log_len);
+	munmap(sb, FAMFS_SUPERBLOCK_SIZE);
+
+	if (mpt)
+		free(mpt);
 	return rc;
 }
 
