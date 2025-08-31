@@ -1202,7 +1202,7 @@ famfs_mkmeta(
 {
 	struct famfs_superblock *sb;
 	enum famfs_system_role role;
-	struct famfs_log *logp;
+	struct famfs_log *logp = NULL;
 	char *mpt = NULL;
 	int rc = 0;
 
@@ -1242,7 +1242,7 @@ famfs_mkmeta(
 
 out:
 	if (logp)
-	munmap(logp, sb->ts_log_len);
+		munmap(logp, sb->ts_log_len);
 	munmap(sb, FAMFS_SUPERBLOCK_SIZE);
 
 	if (mpt)
