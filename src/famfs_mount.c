@@ -613,6 +613,7 @@ famfs_mount_fuse(
 	const char *realmpt,
 	const char *realshadow,
 	ssize_t timeout,
+	int logplay_use_mmap,
 	int debug,
 	int verbose)
 {
@@ -710,8 +711,8 @@ famfs_mount_fuse(
 		goto out;
 	}
 
-	rc = famfs_logplay(realmpt, 0, 0, 0, local_shadow, 0, NULL,
-			   verbose);
+	rc = famfs_logplay(realmpt, logplay_use_mmap,
+			   0, 0, local_shadow, 0, verbose);
 	if (rc < 0) {
 		fprintf(stderr, "%s: failed to play the log\n", __func__);
 		return rc;

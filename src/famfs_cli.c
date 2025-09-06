@@ -181,7 +181,8 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	}
 
 	if (daxdev && !shadowpath) {
-		fprintf(stderr, "Error: daxdev only used with shadow logplay\n");
+		fprintf(stderr,
+			"Error: daxdev only used with shadow logplay\n");
 		return -1;
 	}
 	if (shadowpath)
@@ -190,16 +191,23 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	/* If there is no --daxdev, the mount point is required */
 	if (!daxdev && optind > (argc - 1)) {
 		fprintf(stderr, "Must specify mount_point "
-			"(actually any path within a famfs file system will work)\n");
+			"(actually any path within a famfs file system "
+			"will work)\n");
 		famfs_logplay_usage(argc, argv);
 		return -1;
 	}
 	fspath = argv[optind++];
 
-	rc = famfs_logplay(fspath, use_mmap, dry_run, client_mode,
-			     shadowpath, shadowtest, daxdev, verbose);
+	if (daxdev)
+		rc = famfs_dax_shadow_logplay(shadowpath, dry_run,
+					      client_mode, daxdev,
+					      shadowtest, verbose);
+	else
+		rc = famfs_logplay(fspath, use_mmap, dry_run, client_mode,
+				   shadowpath, shadowtest, verbose);
 	if (rc == 0)
-		famfs_log(FAMFS_LOG_NOTICE, "famfs logplay completed successfully on %s", fspath);
+		famfs_log(FAMFS_LOG_NOTICE,
+			  "famfs logplay completed successfully on %s", fspath);
 	else
 		famfs_log(FAMFS_LOG_ERR, "famfs logplay failed on %s", fspath);
 
@@ -327,7 +335,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	if (use_mmap && use_read) {
 		fprintf(stderr,
 			"Error: The --mmap and --read arguments are mutually exclusive\n\n");
-		famfs_logplay_usage(argc, argv);
+		famfs_mount_usage(argc, argv);
 		return -1;
 	} else if (!(use_mmap || use_read)) {
 		/* If neither method was explicitly requested, default to mmap */
@@ -392,7 +400,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	if (fuse_mode == FAMFS_FUSE) {
 		printf("daxdev=%s, mpt=%s\n", realdaxdev, realmpt);
 		rc = famfs_mount_fuse(realdaxdev, realmpt, NULL, timeout,
-				      debug, verbose);
+				      use_mmap, debug, verbose);
 		goto out;
 	}
 
@@ -434,7 +442,8 @@ do_famfs_cli_mount(int argc, char *argv[])
 	rc = mount(realdaxdev, realmpt, "famfs", mflags, "");
 	if (rc) {
 		fprintf(stderr,
-			"famfs mount: mount returned %d; errno %d\n", rc, errno);
+			"famfs mount: mount returned %d; errno %d\n",
+			rc, errno);
 		perror("mount fail\n");
 		goto err_out;
 	}
@@ -448,13 +457,14 @@ do_famfs_cli_mount(int argc, char *argv[])
 	}
 
 	rc = famfs_logplay(realmpt, use_mmap,
-			   0 /* not dry-run */,
-			   0 /* not client-mode */,
+			   0    /* not dry-run */,
+			   0    /* not client-mode */,
 			   NULL /* no shadow path */,
-			   0 /* not shadow-test */,
-			   NULL, verbose);
+			   0    /* not shadow-test */,
+			   verbose);
 	if (rc == 0)
-		famfs_log(FAMFS_LOG_NOTICE, "famfs mount completed successfully on %s", realmpt);
+		famfs_log(FAMFS_LOG_NOTICE,
+			  "famfs mount completed successfully on %s", realmpt);
 	else
 		famfs_log(FAMFS_LOG_ERR, "famfs mount failed on %s", realmpt);
 

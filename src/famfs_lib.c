@@ -1828,7 +1828,6 @@ famfs_dax_shadow_logplay(
  *               even on master
  * @shadowpath:  Play yaml files into a shadow file system at this path
  * @shadowtest:  Enable shadow test mode
- * @daxdev:      If it's a shadow logplay, get SB and log from this daxdev
  * @verbose:     verbose flag
  */
 int
@@ -1839,28 +1838,23 @@ famfs_logplay(
 	int                     client_mode,
 	const char             *shadowpath,
 	int                     shadowtest,
-	const char             *daxdev,
 	int                     verbose)
 {
-	struct famfs_superblock *sb;
+	struct famfs_superblock *sb = NULL;
+	struct famfs_log *logp = NULL;
 	char mpt_out[PATH_MAX];
 	char shadow[PATH_MAX];
-	struct famfs_log *logp;
 	size_t log_size;
 	size_t sb_size;
 	int role;
 	int lfd, sfd;
 	int rc;
 
-	if (shadowpath && daxdev)
-		return famfs_dax_shadow_logplay(shadowpath, dry_run,
-						client_mode, daxdev,
-						shadowtest, verbose);
-
 	/* Open log from meta file */
 	lfd = open_log_file_read_only(fspath, &log_size, -1, mpt_out, NO_LOCK);
 	if (lfd < 0) {
-		fprintf(stderr, "%s: failed to open log file for filesystem %s\n",
+		fprintf(stderr,
+			"%s: failed to open log file for filesystem %s\n",
 			__func__, fspath);
 		return -1;
 	}
@@ -1961,8 +1955,10 @@ err_out:
 		munmap(logp, log_size);
 		munmap(sb, FAMFS_SUPERBLOCK_SIZE);
 	} else {
-		free(logp);
-		free(sb);
+		if (logp)
+			free(logp);
+		if (sb)
+			free(sb);
 	}
 	close(lfd);
 	return rc;

@@ -47,7 +47,7 @@ enum famfs_type {
 char *famfs_get_shadow_root(const char *shadow_path, int verbose);
 int famfs_mount_fuse(const char *realdaxdev, const char *realmpt,
 		     const char *realshadow, ssize_t timeout,
-		     int debug, int verbose);
+		     int logplay_use_fuse, int debug, int verbose);
 
 /* famfs_lib dual v1/v2 functions */
 int file_is_famfs_v1(const char *fname);
@@ -66,7 +66,10 @@ int famfs_fsck(const char *devname, int use_mmap, int human, int force,
 int famfs_mkmeta(const char *devname, const char*shadowpath, int verbose);
 int famfs_logplay(
 	const char *mpt, int use_mmap, int dry_run, int client_mode,
-	const char *shadowpath, int shadowtest, const char *daxdev, int verbose);
+	const char *shadowpath, int shadowtest, int verbose);
+int famfs_dax_shadow_logplay(
+	const char *shadowpath, int dry_run, int client_mode, const char *daxdev,
+	int testmode, int verbose);
 
 int famfs_mkfile(const char *filename, mode_t mode,
 		 uid_t uid, gid_t gid, size_t size,
