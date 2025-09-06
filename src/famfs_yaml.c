@@ -134,7 +134,8 @@ __famfs_emit_yaml_striped_ext_list(
 	const struct famfs_log_fmap  *fmap)
 {
 	char strbuf[160];
-	int i, rc;
+	u32 i;
+	int rc;
 	int line;
 
 	/* The extent list */
@@ -699,7 +700,7 @@ famfs_parse_file_striped_ext_list(
 					goto err_out;
 				}
 
-				if (nparsed != fm->fm_fmap.ie[ext_index].ie_nstrips) {
+				if ((u64)nparsed != fm->fm_fmap.ie[ext_index].ie_nstrips) {
 					fprintf(stderr,
 						"%s: chunk_size=0x%llx idx=%d\n",
 						__func__,
@@ -859,7 +860,7 @@ famfs_parse_file_yaml(
 						__func__);
 					goto err_out;
 				}
-				if (nparsed != fm->fm_fmap.fmap_nextents) {
+				if ((u64)nparsed != fm->fm_fmap.fmap_nextents) {
 					fprintf(stderr,
 						"%s: expect %d extents, found %d\n",
 						__func__, fm->fm_fmap.fmap_nextents,

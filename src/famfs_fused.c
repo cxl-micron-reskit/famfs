@@ -280,6 +280,10 @@ famfs_setattr(
 	int valid,
 	struct fuse_file_info *fi)
 {
+	(void)nodeid;
+	(void)attr;
+	(void)valid;
+	(void)fi;
 	/*
 	 * Setattr makes ephemeral changes to famfs. The authority is the
 	 * metadata log.
@@ -295,7 +299,7 @@ famfs_setattr(
 
 
 void *
-famfs_read_fd_to_buf(int fd, ssize_t max_size, ssize_t *size_out, int verbose)
+famfs_read_fd_to_buf(int fd, ssize_t max_size, ssize_t *size_out)
 {
 	char *buf;
 	ssize_t n;
@@ -400,6 +404,9 @@ famfs_check_inode(
 	struct famfs_log_file_meta *fmeta,
 	struct fuse_entry_param *e)
 {
+	(void)inode;
+	(void)fmeta;
+	(void)e;
 	/* e->attr is struct stat */
 
 	/* XXX make sure the inode and stat match as to the following:
@@ -478,7 +485,7 @@ famfs_do_lookup(
 			}
 		
 			yaml_buf = famfs_read_fd_to_buf(newfd, FAMFS_YAML_MAX,
-							&yaml_size, 0);
+							&yaml_size);
 			if (!yaml_buf) {
 				famfs_log(FAMFS_LOG_ERR,
 					 "failed to read to yaml_buf\n");
@@ -595,7 +602,7 @@ found_inode:
 	 */
 	famfs_log(FAMFS_LOG_NOTICE, "%s: nodeid=%lx i_ino=%ld ext_type=%d\n",
 		 __func__, (long long)e->ino, e->attr.st_ino,
-		 (inode->fmeta) ? inode->fmeta->fm_fmap.fmap_ext_type : -1);
+		  (inode->fmeta) ? (int)inode->fmeta->fm_fmap.fmap_ext_type : -1);
 
 	if (famfs_debug(req))
 		famfs_log(FAMFS_LOG_DEBUG, "  %lli/%s -> %lli\n",
@@ -763,6 +770,12 @@ famfs_mknod(
 	mode_t mode,
 	dev_t rdev)
 {
+	(void)req;
+	(void)parent;
+	(void)name;
+	(void)mode;
+	(void)rdev;
+
 	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
@@ -774,6 +787,10 @@ famfs_fuse_mkdir(
 	const char *name,
 	mode_t mode)
 {
+	(void)parent;
+	(void)name;
+	(void)mode;
+
 	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
@@ -785,6 +802,10 @@ famfs_symlink(
 	fuse_ino_t parent,
 	const char *name)
 {
+	(void)link;
+	(void)parent;
+	(void)name;
+
 	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
@@ -796,6 +817,10 @@ famfs_link(
 	fuse_ino_t parent,
 	const char *name)
 {
+	(void)nodeid;
+	(void)parent;
+	(void)name;
+
 	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
@@ -806,6 +831,9 @@ famfs_rmdir(
 	fuse_ino_t parent,
 	const char *name)
 {
+	(void)parent;
+	(void)name;
+
 	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
@@ -819,6 +847,12 @@ famfs_rename(
 	const char *newname,
 	unsigned int flags)
 {
+	(void)parent;
+	(void)name;
+	(void)newparent;
+	(void)newname;
+	(void)flags;
+
 	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
@@ -829,6 +863,9 @@ famfs_unlink(
 	fuse_ino_t parent,
 	const char *name)
 {
+	(void)parent;
+	(void)name;
+
 	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
@@ -869,7 +906,7 @@ famfs_forget_multi(
 	size_t count,
 	struct fuse_forget_data *forgets)
 {
-	int i;
+	size_t i;
 
 	famfs_log(FAMFS_LOG_DEBUG, "%s:\n", __func__);
 
@@ -883,6 +920,8 @@ famfs_readlink(
 	fuse_req_t req,
 	fuse_ino_t nodeid)
 {
+	(void)nodeid;
+
 	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
@@ -1089,6 +1128,11 @@ famfs_create(
 	mode_t mode,
 	struct fuse_file_info *fi)
 {
+	(void)parent;
+	(void)name;
+	(void)mode;
+	(void)fi;
+
 	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, ENOTSUP);
 }
@@ -1292,6 +1336,11 @@ famfs_fallocate(
 	off_t length,
 	struct fuse_file_info *fi)
 {
+	(void)nodeid;
+	(void)mode;
+	(void)offset;
+	(void)length;
+	(void)fi;
 	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
 	fuse_reply_err(req, EOPNOTSUPP);
 }

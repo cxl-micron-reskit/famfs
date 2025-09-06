@@ -60,6 +60,7 @@ int famfs_bounce_daxdev(const char *name, int verbose)
 	char *devbasename = basename(devname);
 	const char *realdevname;
 	int rc = 0;
+	(void)verbose;
 
 	rc = daxctl_new(&ctx);
 	if (rc) {

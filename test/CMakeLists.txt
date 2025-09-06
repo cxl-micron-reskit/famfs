@@ -1,5 +1,5 @@
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10...3.28)
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake-modules)
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -18,10 +18,13 @@ include_directories("${PROJECT_SOURCE_DIR}/../kmod")
 include_directories("${PROJECT_SOURCE_DIR}/testlib")
 
 add_library(famfs_unit_testlib famfs_unit.c)
-
-#file(GLOB sources "${PROJECT_SOURCE_DIR}/src/test/*.c")
-#list(REMOVE_ITEM sources "${PROJECT_SOURCE_DIR}/src/main.c")
-
+#
+# Make sure famfs_unit_testlib can see famfs headers (e.g., src/famfs_lib.h)
+# via libfamfs' PUBLIC include directories.
+#
+target_link_libraries(famfs_unit_testlib PRIVATE libfamfs)
+target_include_directories(famfs_unit_testlib PRIVATE ${LINUX_INCLUDE_BASE})
+ 
 file(GLOB tests "${PROJECT_SOURCE_DIR}/test/*.cpp")
 #list(REMOVE_ITEM tests "${PROJECT_SOURCE_DIR}/test/main.cpp")
 
@@ -36,7 +39,8 @@ foreach(file ${tests})
     ${file}
     )
 #    "${PROJECT_SOURCE_DIR}/test/main.cpp")
-  target_link_libraries("${name}_tests" gtest_main libfamfs famfstest uuid famfs_unit_testlib )
+  target_link_libraries("${name}_tests" gtest_main libfamfs famfstest uuid famfs_unit_testlib)
+
   message(STATUS "name=${name}")
   add_test(NAME ${name} COMMAND "${name}_tests")
 

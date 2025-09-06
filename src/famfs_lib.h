@@ -11,6 +11,7 @@
 #include <uuid/uuid.h>  /* for uuid_generate / libuuid */
 #include <linux/famfs_ioctl.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 
 #include "famfs.h"
 #include "famfs_meta.h"
@@ -58,7 +59,7 @@ int famfs_module_loaded(int verbose);
 int famfs_get_role_by_dev(const char *daxdev);
 void *famfs_mmap_whole_file(const char *fname, int read_only, size_t *sizep);
 
-extern int famfs_get_device_size(const char *fname, size_t *size, enum famfs_extent_type *type);
+extern int famfs_get_device_size(const char *fname, size_t *size);
 int famfs_check_super(const struct famfs_superblock *sb);
 int famfs_fsck(const char *devname, int use_mmap, int human, int force, 
 		int nbuckets, int verbose);
@@ -78,7 +79,7 @@ int famfs_mkfile(const char *filename, mode_t mode,
 int famfs_cp_multi(int argc, char *argv[], mode_t mode, uid_t uid, gid_t gid,
 		   struct famfs_interleave_param *s, int recursive,
 		   int thread_ct, int verbose);
-int famfs_clone(const char *srcfile, const char *destfile, int verbose);
+int famfs_clone(const char *srcfile, const char *destfile);
 
 int famfs_mkdir(const char *dirpath, mode_t mode, uid_t uid, gid_t gid, int verbose);
 int famfs_mkdir_parents(const char *dirpath, mode_t mode, uid_t uid, gid_t gid, int verbose);

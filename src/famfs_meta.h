@@ -16,6 +16,7 @@
 #include <linux/types.h>
 #include <linux/uuid.h>
 #include <linux/famfs_ioctl.h>
+#include <sys/types.h>
 #include <assert.h>
 
 #include "famfs.h"

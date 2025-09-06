@@ -54,6 +54,7 @@ famfs_inode_alloc(
 	struct famfs_log_file_meta *fmeta)
 {
 	struct famfs_inode *inode;
+	(void)icache;
 
 	inode = calloc(1, sizeof(*inode));
 	if (!inode)

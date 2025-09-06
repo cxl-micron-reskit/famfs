@@ -68,7 +68,7 @@ static int famfs_file_create_stub(const char *path, mode_t mode, uid_t uid,
 static int famfs_shadow_file_create(const char *path,
 				    const struct famfs_log_file_meta *fc,
 				    struct famfs_log_stats *ls,
-				    int disable_write, int dry_run,
+				    int dry_run,
 				    int testmode, int verbose);
 static int open_log_file_read_only(const char *path, size_t *sizep,
 				   ssize_t size_in,
@@ -347,11 +347,9 @@ famfs_get_role_by_path(
 int
 famfs_get_device_size(
 	const char       *fname,
-	size_t           *size,
-	enum famfs_extent_type *type)
+	size_t           *size)
 {
 	char spath[PATH_MAX];
-	//char *base_name;
 	FILE *sfile;
 	u_int64_t size_i;
 	struct stat st;
@@ -456,7 +454,6 @@ famfs_gen_log_entry_crc(const struct famfs_log_entry *le)
 void
 famfs_fsck_bucket_info(
 	u8 *bitmap,
-	u64 nbits,
 	u64 dev_capacity,
 	u64 alloc_unit,
 	int human,
@@ -626,7 +623,7 @@ famfs_fsck_scan(
 
 	if (nbuckets) {
 		assert(nbuckets > 0);
-		famfs_fsck_bucket_info(bitmap, nbits, dev_capacity, alloc_unit,
+		famfs_fsck_bucket_info(bitmap, dev_capacity, alloc_unit,
 				       human, nbuckets);
 	}
 
@@ -844,7 +841,7 @@ famfs_ext_to_simple_ext(
 	size_t               ext_count)
 {
 	struct famfs_simple_extent *se = calloc(ext_count, sizeof(*se));
-	int i;
+	size_t i;
 
 	assert(te_list);
 	if (!se)
@@ -926,7 +923,7 @@ famfs_v2_set_file_map(
 	struct famfs_ioc_fmap ioc_fmap = { 0 };
 	struct famfs_ioc_interleaved_ext kie[FAMFS_MAX_INTERLEAVED_EXTENTS] = { 0 };
 	int rc;
-	int i;
+	u32 i;
 
 	assert(fd > 0);
 
@@ -958,7 +955,7 @@ famfs_v2_set_file_map(
 		break;
 	}
 	case FAMFS_EXT_INTERLEAVE: {
-		int j;
+		u64 j;
 
 		ioc_fmap.fioc_niext = fm->fmap_nextents;
 		for (i = 0; i < fm->fmap_nextents; i++) {
@@ -1087,7 +1084,7 @@ __famfs_mkmeta(
 		fm.fm_fmap.se[0].se_offset = 0;
 		fm.fm_fmap.se[0].se_len = FAMFS_SUPERBLOCK_SIZE;
 
-		famfs_shadow_file_create(sb_file, &fm, &ls, 0, 0, 0, verbose);
+		famfs_shadow_file_create(sb_file, &fm, &ls, 0, 0, verbose);
 	} else {
 		/* Create and provide mapping for Superblock file */
 		sbfd = open(sb_file, O_RDWR|O_CREAT,
@@ -1124,7 +1121,7 @@ __famfs_mkmeta(
 	if (rc == 0) {
 		if ((st.st_mode & S_IFMT) == S_IFREG) {
 			/* Log file exists; is it the right size? */
-			if (st.st_size != sb->ts_log_len) {
+			if (st.st_size != (long int)sb->ts_log_len) {
 				if (!shadow) {
 					/* Shadow files are not "actual size" */
 					fprintf(stderr,
@@ -1159,7 +1156,7 @@ __famfs_mkmeta(
 		fm.fm_fmap.se[0].se_offset = sb->ts_log_offset;;
 		fm.fm_fmap.se[0].se_len = sb->ts_log_len;
 
-		famfs_shadow_file_create(log_file, &fm, &ls, 0, 0, 0, verbose);
+		famfs_shadow_file_create(log_file, &fm, &ls, 0, 0, verbose);
 	} else {
 		/* Create and provide mapping for log file
 		 * Log is only writable on the master node
@@ -1445,7 +1442,6 @@ __famfs_logplay(
 	const struct famfs_superblock *sb,
 	const struct famfs_log	*logp,
 	int                     dry_run,
-	int                     client_mode,
 	int                     shadow,
 	int                     shadowtest,
 	enum famfs_system_role  role,
@@ -1563,7 +1559,7 @@ __famfs_logplay(
 					 fm->fm_relpath);
 				realpath(fullpath, rpath);
 
-				famfs_shadow_file_create(rpath, fm, &ls, 0,
+				famfs_shadow_file_create(rpath, fm, &ls,
 							 dry_run,
 							 shadowtest, verbose);
 				continue;
@@ -1802,7 +1798,7 @@ famfs_dax_shadow_logplay(
 	}
 	role = (client_mode) ? FAMFS_CLIENT : famfs_get_role(sb);
 
-	rc = __famfs_logplay(shadowpath, sb, logp, dry_run, client_mode,
+	rc = __famfs_logplay(shadowpath, sb, logp, dry_run,
 			     1 /* shadow mode */,
 			     1 + testmode /* shadow */,
 			     role, verbose);
@@ -1942,12 +1938,12 @@ famfs_logplay(
 
 	if (strlen(shadow) > 0)
 		rc = __famfs_logplay(shadow, sb, logp, dry_run,
-				     client_mode, 1 /* Shadow mode */,
+				     1 /* Shadow mode */,
 				     shadowtest,
 				     role, verbose);
 	else
 		rc = __famfs_logplay(mpt_out, sb, logp, dry_run,
-				     client_mode, 0 /* not shadow mode */,
+				     0 /* not shadow mode */,
 				     0 /* not shadowtest mode */,
 				     role, verbose);
 err_out:
@@ -2333,8 +2329,7 @@ __open_log_file(
 			      mpt_out, lockopt, 0);
 }
 
-int
-static open_log_file_read_only(
+static int open_log_file_read_only(
 	const char *path,
 	size_t     *sizep,
 	ssize_t     size_in,
@@ -2369,8 +2364,7 @@ __open_cfg_file(
 			      sizep, -1, NULL, NO_LOCK, 0);
 }
 
-int
-static open_cfg_file_read_only(
+static int open_cfg_file_read_only(
 	const char *path,
 	size_t     *sizep)
 {
@@ -2570,7 +2564,7 @@ famfs_fsck(
 
 		/* If it's a device, we'll try to mmap superblock and log
 		 * from the device */
-		rc = famfs_get_device_size(path, &size, NULL);
+		rc = famfs_get_device_size(path, &size);
 		if (rc < 0)
 			return -1;
 
@@ -3157,7 +3151,6 @@ famfs_shadow_file_create(
 	const char                       *shadow_fullpath,
 	const struct famfs_log_file_meta *fc,
 	struct famfs_log_stats           *ls,
-	int 	                          disable_write,
 	int                               dry_run,
 	int                               testmode,
 	int                               verbose)
@@ -3168,7 +3161,7 @@ famfs_shadow_file_create(
 	int fd;
 
 	assert(fc);
-	//assert(ls);
+
 	if (verbose)
 		famfs_emit_file_yaml(fc, stdout);
 
@@ -3345,7 +3338,7 @@ __famfs_mkfile(
 	 */
 	if (stat(target_fullpath, &st) == 0) {
 		if (open_existing &&
-		    S_ISREG(st.st_mode) && st.st_size == size) {
+		    S_ISREG(st.st_mode) && st.st_size == (long int)size) {
 			fd = open(target_fullpath, O_RDWR, mode);
 			if (fd < 0) {
 				if (errno == EMFILE)
@@ -3427,7 +3420,7 @@ __famfs_mkfile(
 		strncpy(fmeta.fm_relpath, relpath, sizeof(fmeta.fm_relpath) - 1);
 
 		rc = famfs_shadow_file_create(shadowpath, &fmeta, NULL,
-					      0, 0, 0, verbose);
+					      0, 0, verbose);
 		if (rc)
 			goto out;
 
@@ -3942,7 +3935,7 @@ files_are_open:
 	}
 
 	for (i = 0 ; remainder > 0; i++) {
-		size_t cur_chunksize = MIN(chunksize, remainder);
+		ssize_t cur_chunksize = MIN(chunksize, remainder);
 		char *tmp_readbuf = &destp[offset];
 
 		if (cp->verbose > 1)
@@ -4708,8 +4701,7 @@ err_out:
  */
 int
 famfs_clone(const char *srcfile,
-	    const char *destfile,
-	    int   verbose)
+	    const char *destfile)
 {
 	struct famfs_simple_extent *se = NULL;
 	struct famfs_ioc_map filemap = {0};
@@ -4729,7 +4721,7 @@ famfs_clone(const char *srcfile,
 	int dfd = 0;
 	void *addr;
 	int rc;
-	int i;
+	u64 i;
 
 	/* srcfile must already exist; Go ahead and check that first */
 	if (realpath(srcfile, srcfullpath) == NULL) {
@@ -5036,7 +5028,6 @@ famfs_mkfs(const char *daxdev,
 {
 	int rc;
 	size_t devsize;
-	enum famfs_extent_type type = SIMPLE_DAX_EXTENT;
 	struct famfs_superblock *sb;
 	struct famfs_log *logp;
 	u64 min_devsize = 4ll * 1024ll * 1024ll * 1024ll;
@@ -5082,7 +5073,7 @@ famfs_mkfs(const char *daxdev,
 		return rc;
 	}
 
-	rc = famfs_get_device_size(daxdev, &devsize, &type);
+	rc = famfs_get_device_size(daxdev, &devsize);
 	if (rc)
 		return -1;
 

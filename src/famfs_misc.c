@@ -80,7 +80,7 @@ famfs_dump_logentry(
 	const char *prefix,
 	int verbose)
 {
-	int i;
+	u32 i;
 
 	if (!verbose)
 		return;
@@ -104,7 +104,7 @@ famfs_dump_logentry(
 			break;
 
 		case FAMFS_EXT_INTERLEAVE: {
-			int j;
+			u64 j;
 
 			printf("\tniext=%d\n", fmap->fmap_niext);
 			for (i = 0; i < fmap->fmap_niext; i++) {

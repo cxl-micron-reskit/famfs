@@ -198,14 +198,14 @@ out_free:
 ssize_t
 famfs_log_file_meta_to_msg(
 	char *msg,
-	int msg_size,
+	uint msg_size,
 	int file_type,
 	const struct famfs_log_file_meta *fmeta)
 {
 	struct fuse_famfs_fmap_header *flh = (struct fuse_famfs_fmap_header *)msg;
 	const struct famfs_log_fmap *log_fmap = &fmeta->fm_fmap;
-	int cursor = 0;
-	int i, j;
+	uint cursor = 0;
+	uint i, j;
 
 	if (msg_size < sizeof(*flh))
 		return -EINVAL;

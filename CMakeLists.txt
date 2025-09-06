@@ -1,26 +1,30 @@
 
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10...3.28)
+
+project(famfs C CXX )
 
 # Uncomment for clang - which detects different issues than gcc...
-#set(CMAKE_C_COMPILER clang)
+# set(CMAKE_C_COMPILER clang)
 
-set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+# Require a modern C standard
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
 
-set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -ggdb -Wall ")
+# ...and a modern C++ standard for unit tests / googletest
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-project(famfs)
+# Global warning flags
+add_compile_options(-Wall -Wextra)
 
+# Debug flags
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -ggdb")
 
-include_directories("${PROJECT_SOURCE_DIR}/src")
-include_directories("${PROJECT_SOURCE_DIR}/C-Thread-Pool")
-include_directories("${PROJECT_SOURCE_DIR}/testlib")
-include_directories("${PROJECT_SOURCE_DIR}/libfuse/include")
-include_directories("${PROJECT_SOURCE_DIR}/libfuse/lib")
-include_directories("${CMAKE_CURRENT_BINARY_DIR}/libfuse")
-
-# Make the build work regardless of whether /usr/include/linux/famfs_ioctl.h
-# exists. This is for the transition from standalone to fuse-based famfs
-# Look for a directory that contains a 'linux/foo.h' path
+#
+# Locate famfs ioctl headers
+#
 find_path(LINUX_INCLUDE_BASE
     NAMES linux/famfs_ioctl.h
     PATHS /usr/include "${PROJECT_SOURCE_DIR}/linux_include"
@@ -31,9 +35,7 @@ if (NOT LINUX_INCLUDE_BASE)
     message(FATAL_ERROR "Could not find linux/famfs_ioctl.h in either system or fallback path (${PROJECT_SOURCE_DIR}/linux_include)")
 endif()
 
-# Add base path — the one that contains the 'linux/' subdir
-include_directories(${LINUX_INCLUDE_BASE})
-
+add_compile_definitions(_DEFAULT_SOURCE _XOPEN_SOURCE=700)
 
 # Don't build against installed libfuse...
 # include_directories("/usr/local/include/fuse3")
@@ -57,21 +59,68 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   endif()
 endif()
 
-add_library(libfamfs src/famfs_lib.c
-	src/famfs_alloc.c
-	src/famfs_misc.c
-	src/famfs_yaml.c
-	src/famfs_fmap.c
-	src/famfs_mount.c
-	src/famfs_debug.c
-	src/famfs_log.c
-	src/famfs_dax.c
-	C-Thread-Pool/thpool.c )
-add_library(libpcq src/pcq_lib.c  )
+include(CheckIncludeFile)
+check_include_file("linux/famfs_ioctl.h" HAVE_LINUX_FAMFS_IOCTL_H)
+if (NOT HAVE_LINUX_FAMFS_IOCTL_H)
+    message(STATUS "Using bundled famfs_ioctl.h from linux_include/")
+    set(LINUX_INCLUDE_BASE "${CMAKE_SOURCE_DIR}/linux_include")
+endif()
 
-add_executable(famfs src/famfs_cli.c )
-add_executable(mkfs.famfs src/mkfs.famfs.c )
-add_executable(pcq src/pcq.c )
+add_library(libfamfs
+    src/famfs_lib.c
+    src/famfs_alloc.c
+    src/famfs_misc.c
+    src/famfs_yaml.c
+    src/famfs_fmap.c
+    src/famfs_mount.c
+    src/famfs_debug.c
+    src/famfs_log.c
+    src/famfs_dax.c
+)
+
+target_include_directories(libfamfs
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/testlib
+        ${PROJECT_SOURCE_DIR}/libfuse/include
+        ${PROJECT_SOURCE_DIR}/libfuse/lib
+        ${CMAKE_CURRENT_BINARY_DIR}/libfuse
+        ${LINUX_INCLUDE_BASE}
+)
+
+#
+# Thread pool library (from C-Thread-Pool)
+#
+add_library(cthreadpool STATIC
+    C-Thread-Pool/thpool.c
+)
+target_include_directories(cthreadpool PUBLIC
+    ${PROJECT_SOURCE_DIR}/C-Thread-Pool
+)
+target_link_libraries(cthreadpool PUBLIC pthread)
+
+#
+# libfamfs now depends on the thread pool library
+#
+target_link_libraries(libfamfs PUBLIC cthreadpool)
+
+add_library(libpcq src/pcq_lib.c)
+
+target_include_directories(libpcq
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/C-Thread-Pool
+        ${PROJECT_SOURCE_DIR}/testlib
+        ${LINUX_INCLUDE_BASE}
+)
+target_include_directories(libpcq PUBLIC
+    ${PROJECT_SOURCE_DIR}/C-Thread-Pool
+)
+
+target_link_libraries(libpcq PUBLIC cthreadpool)
+
+add_executable(famfs src/famfs_cli.c)
+add_executable(mkfs.famfs src/mkfs.famfs.c)
+add_executable(pcq src/pcq.c)
 add_executable(famfs_fused src/famfs_fused.c src/famfs_fused_icache.c)
 
 find_package(PkgConfig REQUIRED)
@@ -81,20 +130,21 @@ endif()
 
 pkg_check_modules(DAXCTL REQUIRED libdaxctl)
 
-target_link_libraries(libfamfs  uuid z yaml ${DAXCTL_LIBRARIES})
+target_link_libraries(libfamfs PRIVATE uuid z yaml ${DAXCTL_LIBRARIES})
+target_include_directories(libfamfs PRIVATE ${DAXCTL_INCLUDE_DIRS})
+
 target_link_libraries(famfs libfamfs famfstest uuid z yaml)
 target_link_libraries(mkfs.famfs libfamfs uuid z yaml)
 target_link_libraries(pcq libpcq libfamfs uuid z famfstest yaml)
-target_link_libraries(famfs_fused libfamfs )
 
-link_directories("${CMAKE_CURRENT_BINARY_DIR}/libfuse/lib")
-target_link_libraries(famfs_fused "${CMAKE_CURRENT_BINARY_DIR}/libfuse/lib/libfuse3.so"  pthread dl rt systemd )
-#target_link_libraries(passthrough_hp "${CMAKE_CURRENT_BINARY_DIR}/libfuse/lib/libfuse3.so"  pthread dl rt)
+target_link_libraries(famfs_fused libfamfs
+    "${CMAKE_CURRENT_BINARY_DIR}/libfuse/lib/libfuse3.so"
+    pthread dl rt systemd
+)
 
 #
 ## Test definitions ###
 #
-
 configure_file(CMakeLists.txt.in
         googletest-download/CMakeLists.txt)
 execute_process(COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .

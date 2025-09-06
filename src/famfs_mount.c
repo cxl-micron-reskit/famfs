@@ -135,7 +135,7 @@ shadow_path_from_opts(
 				end++;
 
 			/* Check if the segment starts with "shadow=" */
-			if ((end - start) >= keyword_len
+			if ((end - start) >= (long int)keyword_len
 			    && strncmp(start, keyword, keyword_len) == 0) {
 				const char *value_start = start + keyword_len;
 				size_t value_length = end - value_start;

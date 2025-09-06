@@ -18,7 +18,7 @@ extern int mock_flush;
 static inline void
 __flush_processor_cache(const void *addr, size_t len)
 {
-	int64_t i;
+	uint64_t i;
 	const char *buffer = (const char *)addr;
 
 	if (mock_flush)

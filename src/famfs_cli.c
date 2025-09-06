@@ -66,10 +66,10 @@ static void famfs_set_default_log_level(int verbose)
 /********************************************************************/
 
 void
-famfs_logplay_usage(int   argc,
-	    char *argv[])
+famfs_logplay_usage(int argc, char *argv[])
 {
 	char *progname = argv[0];
+	(void)argc;
 
 	printf("\n"
 	       "famfs logplay: Play the log of a mounted famfs file system\n"
@@ -220,6 +220,7 @@ famfs_mount_usage(int   argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
+	(void)argc;
 
 	printf("\n"
 	       "famfs mount: mount a famfs file system and make it ready to use\n"
@@ -478,10 +479,11 @@ err_out:
 /********************************************************************/
 
 void
-famfs_mkmeta_usage(int   argc,
+famfs_mkmeta_usage(int argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
+	(void)argc;
 
 	printf("\n"
 	       "famfs mkmeta:\n"
@@ -555,10 +557,11 @@ do_famfs_cli_mkmeta(int argc, char *argv[])
 /********************************************************************/
 
 void
-famfs_fsck_usage(int   argc,
+famfs_fsck_usage(int argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
+	(void)argc;
 
 	printf("\n"
 	       "famfs fsck: check a famfs file system\n"
@@ -672,10 +675,11 @@ do_famfs_cli_fsck(int argc, char *argv[])
 /********************************************************************/
 
 void
-famfs_cp_usage(int   argc,
+famfs_cp_usage(int argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
+	(void)argc;
 
 	printf("\n"
 	       "famfs cp: Copy one or more files and directories into a famfs file system\n"
@@ -841,10 +845,11 @@ do_famfs_cli_cp(int argc, char *argv[])
 /********************************************************************/
 
 void
-famfs_check_usage(int   argc,
+famfs_check_usage(int argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
+	(void)argc;
 
 	printf("\n"
 	       "famfs check: check the contents of a famfs file system.\n"
@@ -937,10 +942,11 @@ do_famfs_cli_check(int argc, char *argv[])
 /********************************************************************/
 
 void
-famfs_getmap_usage(int   argc,
+famfs_getmap_usage(int argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
+	(void)argc;
 
 	printf("\n"
 	       "famfs getmap: check the validity of a famfs file, and optionally get the\n"
@@ -977,7 +983,8 @@ do_famfs_cli_getmap(int argc, char *argv[])
 	int quiet = 0;
 	int fd = 0;
 	int rc = 0;
-	int c, i;
+	int c;
+	u32 i;
 
 	struct option getmap_options[] = {
 		/* These options set a */
@@ -1168,10 +1175,11 @@ err_out:
 
 
 void
-famfs_clone_usage(int   argc,
+famfs_clone_usage(int argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
+	(void)argc;
 
 	printf("\n"
 	       "famfs clone: Clone a file within a famfs file system\n"
@@ -1235,16 +1243,17 @@ do_famfs_cli_clone(int argc, char *argv[])
 		return -1;
 	}
 
-	return famfs_clone(srcfile, destfile, verbose);
+	return famfs_clone(srcfile, destfile);
 }
 
 /********************************************************************/
 
 void
-famfs_creat_usage(int   argc,
+famfs_creat_usage(int argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
+	(void)argc;
 
 	printf("\n"
 	       "famfs creat: Create a file in a famfs file system\n"
@@ -1328,8 +1337,7 @@ static int
 randomize_one(
 	const char *filename,
 	size_t fsize,
-	s64 seed,
-	int verbose)
+	s64 seed)
 {
 	size_t fsize_out;
 	void *addr;
@@ -1396,7 +1404,7 @@ creat_one(
 		/* If the file exists and it's the right size, this
 		 * becomes a nop; if the file is the wrong size, it's a fail
 		 */
-		if (fsize && st.st_size != fsize) {
+		if (fsize && (size_t)st.st_size != fsize) {
 			fprintf(stderr, "%s: Error: file %s exists "
 				"and is not the same size\n",
 				__func__, filename);
@@ -1485,7 +1493,7 @@ threaded_randomize(void *arg)
 	struct multi_creat *mc = arg;
 
 	assert(mc);
-	mc->rc = randomize_one(mc->fname, mc->fsize, mc->seed, mc->verbose);
+	mc->rc = randomize_one(mc->fname, mc->fsize, mc->seed);
 }
 
 
@@ -1493,8 +1501,7 @@ static int
 randomize_multi(
 	struct multi_creat *mc,
 	int multi_count,
-	int threadct,
-	int verbose)
+	int threadct)
 {
 	int randomize_ct = 0;
 	threadpool thp;
@@ -1718,14 +1725,13 @@ do_famfs_cli_creat(int argc, char *argv[])
 			       (set_stripe) ? & interleave_param : NULL,
 			       mode, uid, gid, verbose, NULL);
 		if (!rc)
-			rc = randomize_one(filename, fsize, seed, verbose);
+			rc = randomize_one(filename, fsize, seed);
 	} else {
 		rc = creat_multi(mc, multi_count,
 				 (set_stripe) ? & interleave_param : NULL,
 				 mode, uid, gid, verbose);
 		if (!rc)
-			rc = randomize_multi(mc, multi_count,
-					     threadct, verbose);
+			rc = randomize_multi(mc, multi_count, threadct);
 
 	}
 
@@ -1737,10 +1743,11 @@ multi_err:
 /********************************************************************/
 
 void
-famfs_mkdir_usage(int   argc,
+famfs_mkdir_usage(int argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
+	(void)argc;
 
 	printf("\n"
 	       "famfs mkdir: Create a directory in a famfs file system:\n"
@@ -1833,10 +1840,11 @@ do_famfs_cli_mkdir(int argc, char *argv[])
 
 /********************************************************************/
 void
-famfs_verify_usage(int   argc,
+famfs_verify_usage(int argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
+	(void)argc;
 
 	printf("\n"
 	       "famfs verify: Verify the contents of a file that was created with 'famfs creat':\n"
@@ -2084,10 +2092,11 @@ multi_err:
 
 /********************************************************************/
 void
-famfs_flush_usage(int   argc,
+famfs_flush_usage(int argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
+	(void)argc;
 
 	printf("\n"
 	       "famfs flush: Flush or invalidate the processor cache for an entire file\n"
@@ -2177,10 +2186,10 @@ void hex_dump(const u8 *adr, size_t len, const char *str)
 	ctr = 0;
 
 	printf("%s\n", str);
-	while (ctr < len) {
+	while ((size_t)ctr < len) {
 		/*      printf("%8x - ",ptr); */
 		for (i = 0; i < 16; i++, ctr++) {
-			if (ctr >= len)
+			if ((size_t)ctr >= len)
 				break;
 
 			printf("%02x ", adr[ctr]);
@@ -2191,10 +2200,11 @@ void hex_dump(const u8 *adr, size_t len, const char *str)
 
 
 void
-famfs_chkread_usage(int   argc,
+famfs_chkread_usage(int argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
+	(void)argc;
 
 	printf("\n"
 	       "famfs chkread: verify that the contents of a file match via read and mmap\n\n"
@@ -2224,7 +2234,7 @@ do_famfs_cli_chkread(int argc, char *argv[])
 	size_t fsize = 0;
 	void *addr;
 	char *buf;
-	int rc = 0;
+	ssize_t rc = 0;
 	char *readbuf = NULL;
 	struct stat st;
 
@@ -2288,7 +2298,7 @@ do_famfs_cli_chkread(int argc, char *argv[])
 	printf("readbuf: %p\n", readbuf);
 
 	rc = read(fd, readbuf, fsize);
-	assert(rc == fsize);
+	assert((size_t)rc == fsize);
 
 	printf("read tried=%d got=%d\n", (int)fsize, (int)rc);
 	if (is_superblock) {

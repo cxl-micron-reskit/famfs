@@ -28,6 +28,7 @@ print_usage(int   argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
+	(void)argc;
 
 	printf("\n"
 	       "Create a famfs file system:\n"

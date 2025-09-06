@@ -92,7 +92,7 @@ famfs_compare_log_file_meta(
 	char *msgbuf = calloc(1, 8192);
 	char *tmpbuf = calloc(1, PATH_MAX);
 	int errs = 0;
-	int j;
+	u32 j;
 
 	if (m1->fm_size != m2->fm_size) {
 		snprintf(tmpbuf, PATH_MAX - 1, "fm_size mismatch %lld / %lld",

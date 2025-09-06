@@ -42,10 +42,11 @@
 extern int mock_flush;
 
 void
-pcq_usage(int   argc,
+pcq_usage(int argc,
 	    char *argv[])
 {
 	char *progname = argv[0];
+	(void)argc;
 
 	printf("\n"
 	       "pcq: Run a producer/consumer queue test\n"

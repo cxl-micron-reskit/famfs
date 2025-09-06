@@ -229,7 +229,9 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 				break;
 			case FAMFS_EXT_INTERLEAVE: {
 				int nstripes = fmap->fmap_niext;
-				int j, k;
+				int j;
+				u64 k;
+
 				for (j = 0; j < nstripes; j++) {
 					const struct famfs_interleaved_ext *stripes = &fmap->ie[j];
 
@@ -256,6 +258,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 					fmap->fmap_ext_type);
 			}
 		}
+		  break;
 		case FAMFS_LOG_MKDIR:
 			ls.d_logged++;
 			/* Ignore directory log entries - no space is used */
@@ -377,8 +380,7 @@ static s64
 famfs_alloc_contiguous(
 	struct famfs_locked_log *lp,
 	u64 size,
-	u64 range_size,
-	int verbose)
+	u64 range_size)
 {
 	return bitmap_alloc_contiguous(lp->bitmap, lp->nbits, lp->alloc_unit,
 				       size, &lp->cur_pos, range_size);
@@ -408,8 +410,7 @@ int
 famfs_file_alloc_contiguous(
 	struct famfs_locked_log     *lp,
 	u64                          size,
-	struct famfs_log_fmap      **fmap_out,
-	int                          verbose)
+	struct famfs_log_fmap      **fmap_out)
 {
 	struct famfs_log_fmap *fmap = calloc(1, sizeof(*fmap));
 	s64 offset;
@@ -418,8 +419,7 @@ famfs_file_alloc_contiguous(
 	assert(fmap_out);
 	assert(fmap);
 
-	offset = famfs_alloc_contiguous(lp, size, 0 /* No range limit */,
-					verbose);
+	offset = famfs_alloc_contiguous(lp, size, 0 /* No range limit */);
 	if (offset < 0) {
 		rc = -ENOMEM;
 		fprintf(stderr, "%s: Out of space!\n", __func__);
@@ -576,11 +576,11 @@ famfs_file_strided_alloc(
 	struct bucket_series bs = { 0 };
 	u64 nstrips_allocated = 0;
 	int nstripes;
-	u64 tmp;
+	s64 tmp;
 	/* Quantities in units of alloc_unit (au) */
 	u64 alloc_size_au, devsize_au, bucket_size_au;
 	u64 stripe_size_au, strip_size_au, chunk_size_au;
-	int i, j;
+	u64 i, j;
 	int rc;
 
 	rc = famfs_validate_interleave_param(&lp->interleave_param,
@@ -596,7 +596,7 @@ famfs_file_strided_alloc(
 		 */
 
 		lp->cur_pos = 0;
-		return famfs_file_alloc_contiguous(lp, size, fmap_out, verbose);
+		return famfs_file_alloc_contiguous(lp, size, fmap_out);
 	}
 
 	alloc_size_au = (size + lp->alloc_unit - 1) / lp->alloc_unit;
@@ -663,7 +663,7 @@ famfs_file_strided_alloc(
 			strips[nstrips_allocated].se_len = strip_size_au * lp->alloc_unit;
 
 			if (verbose)
-				printf("%s: strip %d bucket %d ofs 0x%llx len %lld\n",
+				printf("%s: strip %lld bucket %d ofs 0x%llx len %lld\n",
 				       __func__, i, bucket_num, ofs,
 				       strip_size_au * lp->alloc_unit);
 
@@ -748,7 +748,7 @@ famfs_file_alloc(
 		return -1;
 	}
 	if (!alloc_is_interleaved(lp))
-		return famfs_file_alloc_contiguous(lp, size, fmap_out, verbose);
+		return famfs_file_alloc_contiguous(lp, size, fmap_out);
 
 	return famfs_file_strided_alloc(lp, size, fmap_out, verbose);
 }
