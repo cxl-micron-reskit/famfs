@@ -29,20 +29,29 @@ The steps to test famfs are as follows:
 
 ## Known Prerequisites
 
-### Fedora 39 Prerequisites
+### Fedora 42 Prerequisites
 On fedora, you probably need to install the following, at minimum
 ```
-sudo dnf groupinstall "Development Tools"
-sudo dnf install kernel-devel
-sudo dnf install cmake
-sudo dnf install g++
-sudo dnf install libuuid-devel
-sudo dnf install daxctl ndctl
-sudo dnf install gcovr
-sudo dnf install valgrind
-sudo dnf install systemd-devel
-sudo dnf install meson
-sudo dnf install libyaml-devel
+sudo dnf5 group install -y c-development
+```
+On older fedora that might be:
+```
+sudo dnf groupinstall -y "Development Tools"
+```
+And here are the rest (that we can remember just now - send corrections
+please)
+```
+sudo dnf install -y kernel-devel
+sudo dnf install -y cmake
+sudo dnf install -y g++
+sudo dnf install -y libuuid-devel
+sudo dnf install -y daxctl ndctl
+sudo dnf install -y gcovr
+sudo dnf install -y valgrind
+sudo dnf install -y systemd-devel
+sudo dnf install -y meson
+sudo dnf install -y libyaml-devel
+sudo dnf install -y daxctl-devel
 ```
 Pay attention to error messages when you build, new dependencies may arise later, and
 different kernel installations may have different missing dependencies.
@@ -60,6 +69,7 @@ sudo apt install valgrind
 sudo apt install libsystemd-dev
 sudo apt install meson
 sudo apt install libyaml-dev
+sudo apt install libdaxctl-dev libndctl-dev
 ```
 Pay attention to error messages when you build, new dependencies may arise later, and
 different kernel installations may have different missing dependencies.
