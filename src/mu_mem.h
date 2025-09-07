@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/user.h>
 #include <sys/param.h>
+#include <stdint.h>
 
 extern int mock_flush;
 
@@ -18,14 +19,14 @@ extern int mock_flush;
 static inline void
 __flush_processor_cache(const void *addr, size_t len)
 {
-	uint64_t i;
+	size_t i;
 	const char *buffer = (const char *)addr;
 
 	if (mock_flush)
 		return;
 
 	/* Flush the processor cache for the target range */
-	for (i=0; i<len; i+=CL_SIZE)
+	for (i=0; i < len; i+=CL_SIZE)
 		__builtin_ia32_clflush(&buffer[i]);
 
 }
