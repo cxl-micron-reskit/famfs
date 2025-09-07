@@ -712,7 +712,11 @@ famfs_mount_fuse(
 	}
 
 	rc = famfs_logplay(realmpt, logplay_use_mmap,
-			   0, 0, local_shadow, 0, verbose);
+			   0 /* dry_run */,
+			   0 /* client_mode */,
+			   local_shadow,
+			   0 /* shadow_test */,
+			   verbose);
 	if (rc < 0) {
 		fprintf(stderr, "%s: failed to play the log\n", __func__);
 		return rc;

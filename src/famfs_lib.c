@@ -1761,11 +1761,13 @@ bad_log_fmap:
  * Play the log into a shadow famfs file system directly from a daxdev
  * (Note this is NOT how the log gets played for famfs/fuse file systems -
  * in those, the log is played via the meta files into the shadow directory)
+ * Playing via read() is not an option from raw devdax, which only supports mmap.
  *
  * @shadowpath:  Root path of shadow file system
  * @dry_run:     Parse and print but don't create shadow files / directories
  * @client_mode: Logplay as client, not master
  * @daxdev:      Dax device to map the superblock and log from
+ * @testmode:    Verify generated yaml
  * @verbose:
  */
 int
@@ -1923,7 +1925,8 @@ famfs_logplay(
 		if (!sb) {
 			close(sfd);
 			close(lfd);
-			fprintf(stderr, "%s: malloc %ld failed for superblock\n",
+			fprintf(stderr,
+				"%s: malloc %ld failed for superblock\n",
 				__func__, log_size);
 			return -ENOMEM;
 		}
