@@ -51,7 +51,8 @@ TEST(famfs, famfs_misc)
 	char **strings;
 	int rc;
 
-	rc = check_file_exists("/tmp", "this-file-should-not-exist", 1, 1);
+	rc = check_file_exists("/tmp", "this-file-should-not-exist", 1,
+			       0, NULL, 1);
 	ASSERT_EQ(rc, -1);
 	rc = famfs_flush_file("/tmp/this-file-should-not-exist", 1);
 	ASSERT_EQ(rc, 3);
@@ -131,14 +132,14 @@ TEST(famfs, famfs_mkfs)
 	rc = create_mock_famfs_instance("/tmp/famfs", device_size, &sb, &logp);
 	ASSERT_EQ(rc, 0);
 
-	rc = famfs_check_super(sb);
+	rc = famfs_check_super(sb, NULL, NULL);
 	ASSERT_EQ(rc, 0);
 
 	/* Try a bad mkfs - invalid log length */
 	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, 1, device_size, 0, 0);
 	ASSERT_NE(rc, 0);
 
-	rc = famfs_check_super(sb);
+	rc = famfs_check_super(sb, NULL, NULL);
 	ASSERT_EQ(rc, 0);
 
 	/* Repeat should fail because there is a valid superblock */
@@ -176,7 +177,7 @@ TEST(famfs, famfs_super_test)
 	mock_flush = 1;
 
 	/* null superblock should fail */
-	rc = famfs_check_super(sb);
+	rc = famfs_check_super(sb, NULL, NULL);
 	ASSERT_EQ(rc, -1);
 
 	sb = (struct famfs_superblock *)calloc(1, sizeof(*sb));
@@ -186,31 +187,31 @@ TEST(famfs, famfs_super_test)
 	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, FAMFS_LOG_LEN, device_size, 0, 0);
 	ASSERT_EQ(rc, 0);
 
-	rc = famfs_check_super(sb);
+	rc = famfs_check_super(sb, NULL, NULL);
 	ASSERT_EQ(rc, 0);
 
 	sb->ts_magic--; /* bad magic number */
-	rc = famfs_check_super(sb);
+	rc = famfs_check_super(sb, NULL, NULL);
 	ASSERT_EQ(rc, -1);
 
 	sb->ts_magic++; /* good magic number */
-	rc = famfs_check_super(sb);
+	rc = famfs_check_super(sb, NULL, NULL);
 	ASSERT_EQ(rc, 0);
 
 	sb->ts_version++;  /* unrecognized version */
-	rc = famfs_check_super(sb);
+	rc = famfs_check_super(sb, NULL, NULL);
 	ASSERT_EQ(rc, 1); /* new: bad version returns 1 - distinguishable */
 
 	sb->ts_version = FAMFS_CURRENT_VERSION;  /* version good again */
-	rc = famfs_check_super(sb);
+	rc = famfs_check_super(sb, NULL, NULL);
 	ASSERT_EQ(rc, 0);
 
 	sb->ts_crc++; /* bad crc */
-	rc = famfs_check_super(sb);
+	rc = famfs_check_super(sb, NULL, NULL);
 	ASSERT_EQ(rc, -1);
 
 	sb->ts_crc = famfs_gen_superblock_crc(sb);
-	rc = famfs_check_super(sb);
+	rc = famfs_check_super(sb, NULL, NULL);
 	ASSERT_EQ(rc, 0); /* good crc */
 
 	logp->famfs_log_magic++;
@@ -368,7 +369,7 @@ TEST(famfs, famfs_mkmeta)
 {
 	int rc;
 
-	rc = famfs_mkmeta("/dev/bogusdev", NULL, 1);
+	rc = famfs_mkmeta_standalone("/dev/bogusdev", 1);
 	ASSERT_NE(rc, 0);
 }
 
@@ -719,7 +720,7 @@ TEST(famfs, famfs_alloc)
 	close(fd);
 
 	/* Do a dry_run shadow log play */
-	rc = __famfs_logplay(fspath, sb, ll.logp,
+	rc = __famfs_logplay(fspath, ll.logp,
 			     1 /* dry_run */,
 			     1 /* shadow */,
 			     1 /* shadowtest */,
@@ -728,7 +729,7 @@ TEST(famfs, famfs_alloc)
 	ASSERT_EQ(rc, 0);
 
 	/* Do a full shadow log play */
-	rc = __famfs_logplay(fspath, sb, ll.logp,
+	rc = __famfs_logplay(fspath, ll.logp,
 			     1 /* dry_run */,
 			     1 /* shadow */,
 			     1 /* shadowtest */,
@@ -801,7 +802,7 @@ TEST(famfs, famfs_log)
 		rc = __famfs_mkdir(&ll, dirname, 0, 0, 0, 0);
 		ASSERT_EQ(rc, 0);
 	}
-	rc = __famfs_logplay("/tmp/famfs",sb, logp, 0, 0, 0, FAMFS_MASTER, 3);
+	rc = __famfs_logplay("/tmp/famfs", logp, 0, 0, 0, FAMFS_MASTER, 3);
 	ASSERT_EQ(rc, 0);
 
 	/*
@@ -840,7 +841,7 @@ TEST(famfs, famfs_log)
 	 * Test shadow logplay with mocked logp
 	 */
 	/* Do a dry_run shadow log play */
-	rc = __famfs_logplay("/tmp/famfs_shadow", sb, logp,
+	rc = __famfs_logplay("/tmp/famfs_shadow", logp,
 			     1 /* dry_run */,
 			     1 /* shadow */,
 			     0 /* shadowtest */,
@@ -854,7 +855,7 @@ TEST(famfs, famfs_log)
 	system("sudo mkdir -p /tmp/famfs_shadow2/root");
 	/* Do a shadow log play; shadow==2 will cause the yaml to be
 	 * re-parsed and verified */
-	rc = __famfs_logplay("/tmp/famfs_shadow2", sb, logp, 0 /* dry_run */,
+	rc = __famfs_logplay("/tmp/famfs_shadow2", logp, 0 /* dry_run */,
 			     1 /* shadow */, 1 /* shadowtest */,
 			     FAMFS_MASTER, 1);
 	ASSERT_EQ(rc, 0);
@@ -862,7 +863,7 @@ TEST(famfs, famfs_log)
 	/* Re-do shadow logplay when the files already exist */
 	/* Do a shadow log play; shadow==2 will cause the yaml to be
 	 * re-parsed and verified */
-	rc = __famfs_logplay("/tmp/famfs_shadow2", sb, logp, 1 /* dry_run */,
+	rc = __famfs_logplay("/tmp/famfs_shadow2", logp, 1 /* dry_run */,
 			     1 /* shadow */, 1 /* shadowtest */,
 			     FAMFS_MASTER, 1);
 	ASSERT_EQ(rc, 0);
@@ -872,7 +873,7 @@ TEST(famfs, famfs_log)
 	 */
 	/* fail FAMFS_LOG_MAGIC check */
 	logp->famfs_log_magic = 420;
-	rc = __famfs_logplay("/tmp/famfs", sb, logp, 0, 0, 0,
+	rc = __famfs_logplay("/tmp/famfs", logp, 0, 0, 0,
 			     FAMFS_MASTER, 4);
 	ASSERT_NE(rc, 0);
 	logp->famfs_log_magic = FAMFS_LOG_MAGIC;
@@ -880,7 +881,7 @@ TEST(famfs, famfs_log)
 	/* fail famfs_validate_log_entry() */
 	tmp = logp->entries[0].famfs_log_entry_seqnum;
 	logp->entries[0].famfs_log_entry_seqnum = 420;
-	rc = __famfs_logplay("/tmp/famfs", sb, logp, 0, 0, 0,
+	rc = __famfs_logplay("/tmp/famfs", logp, 0, 0, 0,
 			     FAMFS_MASTER, 4);
 	ASSERT_NE(rc, 0);
 	logp->entries[0].famfs_log_entry_seqnum = tmp;
@@ -889,7 +890,7 @@ TEST(famfs, famfs_log)
 	mock_path = 1;
 	tmp = logp->entries[0].famfs_log_entry_type;
 	logp->entries[0].famfs_log_entry_type = FAMFS_LOG_FILE;
-	rc = __famfs_logplay("/tmp/famfs", sb, logp, 0, 0, 0,
+	rc = __famfs_logplay("/tmp/famfs", logp, 0, 0, 0,
 			     FAMFS_MASTER, 0);
 	ASSERT_NE(rc, 0);
 	mock_path = 0;
@@ -899,7 +900,7 @@ TEST(famfs, famfs_log)
 	mock_failure = MOCK_FAIL_GENERIC;
 	tmp = logp->entries[0].famfs_log_entry_type;
 	logp->entries[0].famfs_log_entry_type = FAMFS_LOG_INVALID;
-	rc = __famfs_logplay("/tmp/famfs", sb, logp, 0, 0, 0,
+	rc = __famfs_logplay("/tmp/famfs", logp, 0, 0, 0,
 			     FAMFS_MASTER, 1);
 	ASSERT_EQ(rc, 0);
 	mock_failure = MOCK_FAIL_NONE;
@@ -910,7 +911,7 @@ TEST(famfs, famfs_log)
 	mock_failure = MOCK_FAIL_LOG_MKDIR;
 	tmp = logp->entries[0].famfs_log_entry_type;
 	logp->entries[0].famfs_log_entry_type = FAMFS_LOG_MKDIR;
-	rc = __famfs_logplay("/tmp/famfs", sb, logp, 0, 0, 0,
+	rc = __famfs_logplay("/tmp/famfs", logp, 0, 0, 0,
 			     FAMFS_MASTER, 0);
 	ASSERT_NE(rc, 0);
 	mock_failure = MOCK_FAIL_NONE;
@@ -1069,7 +1070,7 @@ TEST(famfs, famfs_log_overflow_mkdir_p)
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 0, 0, 1);
 	ASSERT_EQ(rc, 0);
 
-	rc = __famfs_logplay("/tmp/famfs", sb, logp, 0, 0, 0, FAMFS_MASTER, 0);
+	rc = __famfs_logplay("/tmp/famfs", logp, 0, 0, 0, FAMFS_MASTER, 0);
 	ASSERT_EQ(rc, 0);
 	//famfs_print_log_stats("famfs_log test", )
 
@@ -1212,7 +1213,7 @@ TEST(famfs, famfs_log_overflow_files)
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", 0 /* read */, 1, 0, 0, 1);
 	ASSERT_EQ(rc, 0);
 
-	rc = __famfs_logplay("/tmp/famfs", sb, logp, 0, 0, 0, FAMFS_MASTER, 0);
+	rc = __famfs_logplay("/tmp/famfs", logp, 0, 0, 0, FAMFS_MASTER, 0);
 	ASSERT_EQ(rc, 0);
 
 	rc = famfs_fsck_scan(sb, logp, 1, 0, 3);

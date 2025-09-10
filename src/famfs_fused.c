@@ -504,8 +504,9 @@ famfs_do_lookup(
 			st.st_ino = ino;
 		}
 
-		famfs_log(FAMFS_LOG_DEBUG, "               : inode=%d is a file\n",
-			e->attr.st_ino);
+		famfs_log(FAMFS_LOG_DEBUG, "               :"
+			  "inode=%d size=%ld is a file\n",
+			  e->attr.st_ino, e->attr.st_size);
 	} else {
 		famfs_log(FAMFS_LOG_DEBUG,
 			 "               : inode=%d is neither file nor dir\n",

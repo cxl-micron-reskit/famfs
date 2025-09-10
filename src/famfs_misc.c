@@ -142,7 +142,7 @@ void famfs_dump_super(struct famfs_superblock *sb)
 	int rc;
 
 	assert(sb);
-	rc = famfs_check_super(sb);
+	rc = famfs_check_super(sb, NULL, NULL);
 	if (rc)
 		fprintf(stderr, "invalid superblock\n");
 
@@ -426,6 +426,8 @@ int check_file_exists(
 	const char *basepath,
 	const char *relpath,
 	int timeout,
+	size_t expected_size,
+	size_t *size_out,
 	int verbose)
 {
 	char fullpath[4096];
@@ -437,15 +439,37 @@ int check_file_exists(
 	/* Build full path */
 	snprintf(fullpath, sizeof(fullpath), "%s/%s", basepath, relpath);
 
+	if (verbose)
+		printf("%s: checking for path: %s\n", __func__, fullpath);
+
 	/* Loop until timeout */
 	while (waited_us < timeout_us) {
-		if (stat(fullpath, &st) == 0) {
-			/* File exists */
-			if (verbose)
-				printf("%s: waited %dms\n", __func__,
-				       waited_us / 1000);
-			return 0;
+		int fd = open(fullpath, O_RDONLY);
+		if (fd > 0) {
+			if (fstat(fd, &st) == 0) {
+				/* File exists */
+				if (verbose)
+					printf("%s: waited %dms\n", __func__,
+					       waited_us / 1000);
+				if (expected_size
+				    && (size_t)st.st_size != expected_size) {
+					close(fd);
+					fprintf(stderr,
+						"%s: bad size %ld, retry\n",
+						__func__, st.st_size);
+					goto retry;
+				}
+
+				printf("%s: good size\n", __func__);
+
+				if (size_out)
+					*size_out = st.st_size;
+
+				close(fd);
+				return 0;
+			}
 		}
+	retry:
 		usleep(wait_us);
 		waited_us += wait_us;
 	}

@@ -153,7 +153,7 @@ if [[ "$FAMFS_MODE" == "v1" ]]; then
     grep $DEV /proc/mounts              || fail "dev=$DEV not in /proc/mounts~"
 else
     # In fuse mode, we don't support manual mount...
-    ${MOUNT} $DEV $MPT || fail "famfs fuse mount should work"
+    ${MOUNT} -vv $DEV $MPT || fail "famfs fuse mount should work"
 fi
 
 grep famfs /proc/mounts             || fail "No famfs mounted"
@@ -187,7 +187,7 @@ ${MOUNT} $DEV $MPT     && fail "famfs mount should fail with invalid superblock"
 ${MKFS} $DEV           || fail "clean mkfs should succeed"
 
 # Mount without specifying fuse or otherwise; famfs should figure it out
-${CLI} mount -v $DEV $MPT || fail "mount with unspecified type should work"
+${CLI} mount -v $MOUNT_OPTS $DEV $MPT || fail "mount with unspecified type should work"
 sudo umount $MPT       || fail "umount $MPT should succeed"
 verify_not_mounted $DEV $MPT "umount failed?"
 

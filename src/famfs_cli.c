@@ -449,7 +449,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 		goto err_out;
 	}
 
-	rc = famfs_mkmeta(realdaxdev, NULL, verbose);
+	rc = famfs_mkmeta_standalone(realdaxdev, verbose);
 	if (rc) {
 		fprintf(stderr,
 			"famfs mount: err %d from mkmeta; unmounting\n", rc);
@@ -549,7 +549,7 @@ do_famfs_cli_mkmeta(int argc, char *argv[])
 		free(realdaxdev);
 		return -1;
 	}
-	famfs_mkmeta(realdaxdev, NULL, verbose);
+	famfs_mkmeta_standalone(realdaxdev, verbose);
 	free(realdaxdev);
 	return 0;
 }

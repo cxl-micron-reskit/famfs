@@ -125,7 +125,7 @@ int famfs_release_locked_log(struct famfs_locked_log *lp, int abort,
 			     int verbose);
 int
 __famfs_logplay(
-	const char *mpt, const struct famfs_superblock *sb,
+	const char *mpt,
 	const struct famfs_log *logp,
 	int dry_run, int shadow, int shadowtest,
 	enum famfs_system_role role, int verbose);
@@ -141,7 +141,8 @@ int famfs_cp(struct famfs_locked_log *lp, const char *srcfile, const char *destf
 
 /* famfs_misc.c */
 int check_file_exists(const char *basepath, const char *relpath,
-		      int timeout, int verbose);
+		      int timeout, size_t expected_size, size_t *size_out,
+		      int verbose);
 int kernel_symbol_exists(const char *symbol_name, const char *mod_name,
 			 const int verbose);
 int count_open_fds(void);

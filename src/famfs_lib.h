@@ -60,11 +60,22 @@ int famfs_get_role_by_dev(const char *daxdev);
 void *famfs_mmap_whole_file(const char *fname, int read_only, size_t *sizep);
 
 extern int famfs_get_device_size(const char *fname, size_t *size);
-int famfs_check_super(const struct famfs_superblock *sb);
+int famfs_check_super(const struct famfs_superblock *sb,
+		      u64 *log_offset, u64 *log_size);
+enum famfs_system_role __famfs_get_role_and_logstats(
+	const struct famfs_superblock *sb, u64 *log_offsetp,
+	u64 *log_sizep);
+enum famfs_system_role
+famfs_get_role_and_logstats(const struct famfs_superblock *sb,
+			    u64 *log_offsetp, u64 *log_sizep);
 int famfs_fsck(const char *devname, int use_mmap, int human, int force, 
 		int nbuckets, int verbose);
 
-int famfs_mkmeta(const char *devname, const char*shadowpath, int verbose);
+int famfs_mkmeta_standalone(const char *devname, int verbose);
+int __famfs_mkmeta_superblock(const char *mpt, int shadow, int verbose);
+int __famfs_mkmeta_log(const char *mpt, u64 log_offset, u64 log_size,
+		   enum famfs_system_role role, int shadow, int verbose);
+
 int famfs_logplay(
 	const char *mpt, int use_mmap, int dry_run, int client_mode,
 	const char *shadowpath, int shadowtest, int verbose);
