@@ -471,7 +471,7 @@ famfs_do_lookup(
 				 __func__, st.st_size);
 			e->attr = st;
 		} else {
-			void *yaml_buf;
+			void *yaml_buf = NULL;
 			ssize_t yaml_size;
 			ino_t ino = st.st_ino; /* Inode number from file, not yaml */
 
@@ -483,6 +483,10 @@ famfs_do_lookup(
 			if (newfd == -1) {
 				goto out_err;
 			}
+
+			fmeta = calloc(1, sizeof(*fmeta));
+			if (!fmeta)
+				goto out_err;
 		
 			yaml_buf = famfs_read_fd_to_buf(newfd, FAMFS_YAML_MAX,
 							&yaml_size);
@@ -492,16 +496,15 @@ famfs_do_lookup(
 				goto out_err;
 			}
 
-			fmeta = calloc(1, sizeof(*fmeta));
-			if (!fmeta)
-				goto out_err;
-
 			/* Famfs gets the stat struct from the shadow yaml */
 			res = famfs_shadow_to_stat(yaml_buf, yaml_size, &st,
 						   &e->attr, fmeta, 0);
 			if (res)
 				goto out_err;
 			st.st_ino = ino;
+
+			if (yaml_buf)
+				free(yaml_buf);
 		}
 
 		famfs_log(FAMFS_LOG_DEBUG, "               :"
