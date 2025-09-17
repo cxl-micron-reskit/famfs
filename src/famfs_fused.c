@@ -653,7 +653,7 @@ famfs_get_fmap(
 	struct famfs_data *lo = famfs_data(req);
 	ssize_t fmap_bufsize = FMAP_MSG_MAX;
 	struct famfs_inode *inode;
-	char *fmap_message;
+	char *fmap_message = NULL;
 	ssize_t fmap_size;
 	int err = 0;
 
@@ -719,9 +719,16 @@ famfs_get_fmap(
 	if (err)
 		famfs_log(FAMFS_LOG_ERR, "%s: fuse_reply_buf returned err %d\n",
 			 __func__, err);
+
+	if (fmap_message)
+		free(fmap_message);
+
 	return;
 
 out_err:
+	if (fmap_message)
+		free(fmap_message);
+
 	fuse_reply_err(req, err);
 }
 
