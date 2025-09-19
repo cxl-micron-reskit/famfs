@@ -1695,6 +1695,9 @@ err_out1:
 	if (famfs_data.icache.root.fd >= 0)
 		close(famfs_data.icache.root.fd);
 
+    if (famfs_data.daxdev_table)
+		free(famfs_data.daxdev_table);
+
 	free(famfs_data.source);
 	return ret ? 1 : 0;
 }
