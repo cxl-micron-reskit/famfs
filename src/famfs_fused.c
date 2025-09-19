@@ -1574,8 +1574,10 @@ int main(int argc, char *argv[])
 	/*
 	 * This parses famfs_data from the -o opts
 	 */
-	if (fuse_opt_parse(&args, &famfs_data, famfs_opts, NULL)== -1)
+	if (fuse_opt_parse(&args, &famfs_data, famfs_opts, NULL)== -1) {
+		ret = -1;
 		goto err_out1;
+	}
 
 	famfs_data.debug = opts.debug;
 	famfs_data.icache.root.refcount = 2;
