@@ -93,6 +93,37 @@ fs-dax file systems use write-back metadata (as pretty much all conventional fil
 Write-back metadata is not compatible with scale-out shared memory access, because two or more hosts
 have no way to agree on the definitive state of metadata (not to mention space allocation).
 
+## Comparison: xfs/ext4 DAX vs famfs for Multi-host Persistent Memory
+
+### How fs-dax works in xfs/ext4
+
+With DAX, file data is accessed directly from persistent memory (PMEM) without page cache.  
+However, metadata (inodes, free space bitmaps, journals, etc.) is still managed in the traditional write-back way:
+- Each host caches metadata updates independently.
+- Changes are later written back to disk (or PMEM).
+
+**Single-host Example:**  
+On Host A, running `touch file1` causes ext4 to update inode/bitmap metadata in memory, flushing to storage later.
+
+**Multi-host Issue:**  
+If Host B mounts the same PMEM volume, it won’t see file1 until Host A flushes metadata. If both hosts modify metadata concurrently, this can lead to corruption or inconsistency, since both think they “own” the allocation.
+
+---
+
+### Why famfs is different
+
+Famfs is designed for multi-host, shared memory access:
+- Metadata changes are coordinated by a Master (no per-host write-back races).
+- Clients mount the filesystem read-only by default (safe concurrent reads from shared memory).
+- Clients can get write access only under strict coordination, keeping metadata consistent.
+
+**Famfs Example:**
+Host A (Master) creates `file1`.
+Host B (Client) immediately sees `file1` because metadata is managed centrally, not cached independently.
+Multiple hosts can safely read/write the same shared memory region without corrupting allocation tables or inodes.
+
+---
+
 ## What is dax?
 In Linux, special purpose memory is exposed as a dax device (e.g. ```/dev/dax0.0```).
 Applications can memory map dax memory by opening a dax device calling the mmap() system call
