@@ -544,6 +544,7 @@ famfs_start_fuse_daemon(
 	char exe_path[PATH_MAX] = { 0 };
 	char opts[PATH_MAX] = { 0 };
 	char *argv[NARGV] = { 0 };
+	char asan_log_path[PATH_MAX];
 	int argc = 0;
 	ssize_t len;
 	char *dir;
@@ -565,6 +566,16 @@ famfs_start_fuse_daemon(
 	dir = dirname(exe_path);
 	snprintf(target_path, sizeof(target_path) - 1, "%s/%s",
 		 dir, "famfs_fused");
+
+	/*
+	 * Set addr sanitizer env option to capture any any sanitizer errors
+	 * into a log file. This is needed as famfs_fused becomes a daemon
+	 * and loses access to stderr, this creates a log in shadow dir if
+	 * asan related errors are encountered.
+	 */
+	snprintf(asan_log_path, sizeof(asan_log_path),
+					"log_path=%s/asan_famfs_fused.log", shadow);
+	setenv("ASAN_OPTIONS", asan_log_path, 1);
 
 	/* fsname=/dev/dax1.0 sets the string in column 1 of /proc/mounts */
 	snprintf(opts, sizeof(opts),
