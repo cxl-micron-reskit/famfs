@@ -247,7 +247,7 @@ famfs_mount_usage(int   argc,
 	       "                     daemon single-threaded, and may enable more\n"
 	       "                     verbose logging\n"
 	       "    -v|--verbose   - Print verbose output\n"
-	       "    -u|--useraccess  - Allow non-root access\n"
+	       "    -u|--nouseraccess  - Allow non-root access\n"
 	       "    -S|--shadow=path - Path to root of shadow filesystem\n"
 	       "\n", progname);
 }
@@ -260,7 +260,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	int debug = 0;
 	int verbose = 0;
 	int use_read = 0;
-	int useraccess = 0;
+	int useraccess = 1;
 	char *shadowpath = NULL;
 	int use_mmap = 0;
 	char *mpt = NULL;
@@ -285,7 +285,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 		{"timeout",    required_argument,      0,  't'},
 		{"cache",      required_argument,      0,  'c'},
 		{"verbose",    no_argument,            0,  'v'},
-		{"useraccess", no_argument,            0,  'u'},
+		{"nouseraccess", no_argument,            0,  'u'},
 		{"shadow",     required_argument,      0,  'S'},
 		{0, 0, 0, 0}
 	};
@@ -331,7 +331,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 			fuse_mode = FAMFS_V1;
 			break;
 		case 'u':
-			useraccess = 1;
+			useraccess = 0;
 			break;
 		case 'S':
 			if (shadowpath) {
@@ -419,7 +419,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	if (fuse_mode == FAMFS_FUSE) {
 		printf("daxdev=%s, mpt=%s\n", realdaxdev, realmpt);
 		rc = famfs_mount_fuse(realdaxdev, realmpt, shadowpath, timeout,
-				      use_mmap, debug, verbose, useraccess);
+				      use_mmap, useraccess, debug, verbose);
 		goto out;
 	}
 

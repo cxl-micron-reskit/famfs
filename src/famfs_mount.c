@@ -532,9 +532,9 @@ famfs_start_fuse_daemon(
 	const char *daxdev,
 	const char *shadow,
 	ssize_t timeout,
+	int useraccess,
 	int debug,
-	int verbose,
-	int useraccess)
+	int verbose)
 {
 	char target_path[PATH_MAX] = { 0 };
 	char exe_path[PATH_MAX] = { 0 };
@@ -623,9 +623,9 @@ famfs_mount_fuse(
 	const char *realshadow,
 	ssize_t timeout,
 	int logplay_use_mmap,
+	int useraccess,
 	int debug,
-	int verbose,
-	int useraccess)
+	int verbose)
 {
 	u64 log_offset, log_size;
 	char superblock_path[PATH_MAX] = {0};
@@ -716,7 +716,7 @@ famfs_mount_fuse(
 
 	/* Start the fuse daemon, which mounts the FS */
 	rc = famfs_start_fuse_daemon(realmpt, realdaxdev, local_shadow, timeout,
-				     debug, verbose, useraccess);
+				     useraccess, debug, verbose);
 	if (rc < 0) {
 		fprintf(stderr, "%s: failed to start fuse daemon\n", __func__);
 		return rc;
