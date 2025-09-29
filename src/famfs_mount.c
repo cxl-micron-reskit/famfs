@@ -231,11 +231,15 @@ famfs_path_is_mount_pt(
 				fprintf(stderr,
 					"input path realpath(%s) errno %d\n",
 					path, errno);
+				free(xpath);
 				free(xmpt);
 				continue;
 			}
-			if (strcmp(xpath, xmpt) != 0)
+			if (strcmp(xpath, xmpt) != 0) {
+				free(xpath);
+				free(xmpt);
 				continue;
+			}
 
 			/* Path matches the mount point of this entry */
 
