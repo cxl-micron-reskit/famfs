@@ -247,6 +247,8 @@ famfs_mount_usage(int   argc,
 	       "                     daemon single-threaded, and may enable more\n"
 	       "                     verbose logging\n"
 	       "    -v|--verbose   - Print verbose output\n"
+	       "    -u|--useraccess  - Allow non-root access\n"
+	       "    -S|--shadow=path - Path to root of shadow filesystem\n"
 	       "\n", progname);
 }
 
@@ -258,6 +260,8 @@ do_famfs_cli_mount(int argc, char *argv[])
 	int debug = 0;
 	int verbose = 0;
 	int use_read = 0;
+	int useraccess = 0;
+	char *shadowpath = NULL;
 	int use_mmap = 0;
 	char *mpt = NULL;
 	int fuse_mode = 0;
@@ -281,6 +285,8 @@ do_famfs_cli_mount(int argc, char *argv[])
 		{"timeout",    required_argument,      0,  't'},
 		{"cache",      required_argument,      0,  'c'},
 		{"verbose",    no_argument,            0,  'v'},
+		{"useraccess", no_argument,            0,  'u'},
+		{"shadow",     required_argument,      0,  'S'},
 		{0, 0, 0, 0}
 	};
 
@@ -291,7 +297,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+h?RrfFmvdt:c:",
+	while ((c = getopt_long(argc, argv, "+h?RrfFmvudt:c:S:",
 				mount_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -323,6 +329,18 @@ do_famfs_cli_mount(int argc, char *argv[])
 			break;
 		case 'F':
 			fuse_mode = FAMFS_V1;
+			break;
+		case 'u':
+			useraccess = 1;
+			break;
+		case 'S':
+			if (shadowpath) {
+				fprintf(stderr,
+					"%s: don't specify more than one shadowpath\n",
+					__func__);
+				return -EINVAL;
+			}
+			shadowpath = optarg;
 			break;
 		case 't':
 			timeout = strtoul(optarg, 0, 0);
@@ -400,8 +418,8 @@ do_famfs_cli_mount(int argc, char *argv[])
 
 	if (fuse_mode == FAMFS_FUSE) {
 		printf("daxdev=%s, mpt=%s\n", realdaxdev, realmpt);
-		rc = famfs_mount_fuse(realdaxdev, realmpt, NULL, timeout,
-				      use_mmap, debug, verbose);
+		rc = famfs_mount_fuse(realdaxdev, realmpt, shadowpath, timeout,
+				      use_mmap, debug, verbose, useraccess);
 		goto out;
 	}
 
@@ -695,6 +713,7 @@ famfs_cp_usage(int argc,
 	       "\n"
 	       "Arguments:\n"
 	       "    -h|-?           		- Print this message\n"
+	       "    -r              		- Recursive\n"
 	       "    -t|--threadct <nthreads>    - Number of copy threads\n"
 	       "    -m|--mode <mode> 		- Set mode (as in chmod) to octal value\n"
 	       "    -u|--uid <uid>   		- Specify uid (default is current user's uid)\n"
@@ -746,6 +765,7 @@ do_famfs_cli_cp(int argc, char *argv[])
 		{"uid",         required_argument,    0,  'u'},
 		{"gid",         required_argument,    0,  'g'},
 		{"verbose",     no_argument,          0,  'v'},
+		{"recursive",   no_argument,          0,  'r'},
 
 		{"threadct",    required_argument,    0,  't'},
 		{"compare",     no_argument,          0,  'c'},

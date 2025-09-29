@@ -206,7 +206,7 @@ famfs_path_is_mount_pt(
 		if (!line || strlen(line) < 10) /* No line or too short */
 			continue;
 
-		if (strstr(line, "famfs")) { /* lazy test on whole line */
+		if (strstr(line, "famfs") || strstr(line, "fuse")) { /* lazy test on whole line */
 			opts[0] = 0;
 			rc = sscanf(line, "%s %s %s %s %d %d",
 				    dev, mpt, fstype, opts, &x0, &x1);
@@ -214,7 +214,7 @@ famfs_path_is_mount_pt(
 				goto out;
 
 			/* check for famfs in the actual fstype field */
-			if (!strstr(fstype, "famfs") && !strstr(opts, "famfs"))
+			if (!strstr(fstype, "famfs") && !strstr(opts, "famfs") && !strstr(fstype, "fuse") && !strstr(opts, "shadow")) 
 				continue;
 
 			if (strlen(opts) <= strlen("shadow="))
@@ -506,7 +506,7 @@ int shadow_path_valid(const char *path)
 		return 0;
 
 	/* Check if the path already exists */
-	if (access(path, F_OK) == 0)
+	if (access(path, F_OK) != 0)
 		return 0;
 
 	/* Duplicate path to safely use dirname() */
@@ -533,7 +533,8 @@ famfs_start_fuse_daemon(
 	const char *shadow,
 	ssize_t timeout,
 	int debug,
-	int verbose)
+	int verbose,
+	int useraccess)
 {
 	char target_path[PATH_MAX] = { 0 };
 	char exe_path[PATH_MAX] = { 0 };
@@ -575,6 +576,12 @@ famfs_start_fuse_daemon(
 			sizeof(opts) - strlen(opts) - 1);
 	}
 
+	if (useraccess) {
+		char useraccess_arg[PATH_MAX] = ",allow_other";
+		strncat(opts, useraccess_arg,
+			sizeof(opts) - strlen(opts) - 1);
+	}
+	
 	if (verbose)
 		printf("%s: opts: %s\n", __func__, opts);
 
@@ -617,7 +624,8 @@ famfs_mount_fuse(
 	ssize_t timeout,
 	int logplay_use_mmap,
 	int debug,
-	int verbose)
+	int verbose,
+	int useraccess)
 {
 	u64 log_offset, log_size;
 	char superblock_path[PATH_MAX] = {0};
@@ -640,12 +648,23 @@ famfs_mount_fuse(
 		return -1;
 	}
 
-	if (realshadow)
+	if (realshadow) {
 		local_shadow = strdup(realshadow);
+		shadow_created = 1;
+	}
 	else {
 		local_shadow = gen_shadow_dir();
 		if (local_shadow)
 			shadow_created = 1;
+		if (useraccess) {
+			rc = chmod(local_shadow, 0755);
+			if (rc) {
+				fprintf(stderr, "%s: failed to chmod shadow path %s\n",
+					__func__, local_shadow);
+				rc = -1;
+				goto out;
+			}
+		}
 	}
 
 	if (shadow_path_in_use(local_shadow)) {
@@ -697,7 +716,7 @@ famfs_mount_fuse(
 
 	/* Start the fuse daemon, which mounts the FS */
 	rc = famfs_start_fuse_daemon(realmpt, realdaxdev, local_shadow, timeout,
-				     debug, verbose);
+				     debug, verbose, useraccess);
 	if (rc < 0) {
 		fprintf(stderr, "%s: failed to start fuse daemon\n", __func__);
 		return rc;
