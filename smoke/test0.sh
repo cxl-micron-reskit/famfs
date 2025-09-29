@@ -332,8 +332,6 @@ if [[ ${FAMFS_MODE} == "v1" ]]; then
     ${CLI} check -v $MPT          || fail "famfs check should succeed after removing unmapped file"
 
     ${CLI_NOSUDO} fsck -hv $MPT || fail "fsck without sudo should succeed"
-else
-    ${CLI_NOSUDO} fsck -hv $MPT && fail "fsck without sudo fails on fuse; can we fix?"
 fi
 
 
