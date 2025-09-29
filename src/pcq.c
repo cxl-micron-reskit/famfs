@@ -138,6 +138,8 @@ main(int argc, char **argv)
 	int wait = true;
 	int runtime = 0;
 	int verbose = 0;
+	uid_t uid = 0;
+	gid_t gid = 0;
 	s64 seed = 0;
 	int c, rc;
 	s64 mult;
@@ -152,6 +154,8 @@ main(int argc, char **argv)
 		{"time",        required_argument,        0,  't'},
 		{"status",      required_argument,        0,  's'},
 		{"setperm",     required_argument,        0,  'P'},
+		{"uid",         required_argument,        0,  'u'},
+		{"gid",         required_argument,        0,  'g'},
 
 		{"create",      no_argument,              0,  'C'},
 		{"producer",    no_argument,              0,  'p'},
@@ -170,7 +174,7 @@ main(int argc, char **argv)
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+b:s:S:n:N:f:t:s:CdpcwDiPh?v",
+	while ((c = getopt_long(argc, argv, "+b:s:S:n:N:f:t:s:u:g:CdpcwDiPh?v",
 				pcq_options, &optind)) != EOF) {
 		char *endptr;
 
@@ -226,6 +230,14 @@ main(int argc, char **argv)
 			wait = false;
 			break;
 
+		case 'u':
+			uid = strtol(optarg, 0, 0);
+			break;
+
+		case 'g':
+			gid = strtol(optarg, 0, 0);
+			break;
+
 		case 'v':
 			verbose++;
 			break;
@@ -271,15 +283,29 @@ main(int argc, char **argv)
 	}
 
 	if (info && (create || producer || consumer || drain)) {
-		fprintf(stderr, "%s: info not compatible with operating on a pcq\n\n",
+		fprintf(stderr,
+			"%s: info not compatible with operating on a pcq\n\n",
 			argv[0]);
 		pcq_usage(argc, argv);
 		return -1;
 	}
 	if (create && (bucket_size == 0 || nbuckets == 0)) {
-		fprintf(stderr, "%s: create requires bsize and nbuckets\n\n", argv[0]);
+		fprintf(stderr,
+			"%s: create requires bsize and nbuckets\n\n", argv[0]);
 		pcq_usage(argc, argv);
 		return -1;
+	}
+	if (!create && (uid || gid)) {
+		fprintf(stderr, "%s: uid/gid only apply with --create\n",
+			__func__);
+		pcq_usage(argc, argv);
+		return -1;
+	}
+	if (create) {
+		if (!uid)
+			uid = geteuid();
+		if (!gid)
+			gid = getegid();
 	}
 	if (drain && (wait || producer || nmessages || runtime)) {
 		fprintf(stderr,
@@ -317,7 +343,8 @@ main(int argc, char **argv)
 		return pcq_set_perm(filename, role);
 
 	if (create)
-		return pcq_create(filename, nbuckets, bucket_size, verbose);
+		return pcq_create(filename, nbuckets, bucket_size,
+				  uid, gid,  verbose);
 
 	if (info)
 		return get_queue_info(filename, statusfile, verbose);

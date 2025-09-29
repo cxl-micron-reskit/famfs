@@ -94,6 +94,10 @@ set -x
 # Start with a clean, empty file systeem
 famfs_recreate "test_pcq"
 
+id=$(id -un)
+grp=$(id -gn)
+uarg="-u $id -g $grp"
+
 # Test some bogus command line combinations
 ${PCQ} -? || fail "pcq help should work"
 ${PCQ} --info --create           && fail "pcq should fail with --info and --create"
@@ -104,17 +108,15 @@ ${PCQ} --create -D -v --bsize 1024 --nbuckets 1024 && fail "should fail with mis
 ${PCQ} --create -D -v --bsize 1024 --nbuckets 1024 && fail "Create should fail with no file"
 
 # Create some queues
-${PCQ} --create -D -v --bsize 1024 --nbuckets 1024 $MPT/q0 || fail "basic pcq create 0"
-${PCQ} --create -v --bsize 64   --nbuckets 1K   $MPT/q1 || fail "basic pcq create 1"
-${PCQ} --create -v --bsize 64K  --nbuckets 512  $MPT/q2 || fail "basic pcq create 2"
-${PCQ} --create -v --bsize 512K --nbuckets 1k   $MPT/q3 || fail "basic pcq create 3"
-${PCQ} --create -v --bsize 256K --nbuckets 256  $MPT/q4 || fail "basic pcq create 4"
+${PCQ} --create $uarg -D -v --bsize 1024 --nbuckets 1024 $MPT/q0 || fail "basic pcq create 0"
+${PCQ} --create $uarg -v --bsize 64   --nbuckets 1K   $MPT/q1 || fail "basic pcq create 1"
+${PCQ} --create $uarg -v --bsize 64K  --nbuckets 512  $MPT/q2 || fail "basic pcq create 2"
+${PCQ} --create $uarg -v --bsize 512K --nbuckets 1k   $MPT/q3 || fail "basic pcq create 3"
+${PCQ} --create $uarg -v --bsize 256K --nbuckets 256  $MPT/q4 || fail "basic pcq create 4"
 
 # Set ownership to the non-privileged caller of this script, so tests run a non-root
 # This is important because root can write even without write permissions and we
 # want to enforce producer/consumer roles via appropriate file permissions
-id=$(id -un)
-grp=$(id -gn)
 sudo chown $id:$grp $MPT/q0
 sudo chown $id:$grp $MPT/q1
 sudo chown $id:$grp $MPT/q2
@@ -126,16 +128,6 @@ sudo chown $id:$grp $MPT/q2.consumer
 sudo chown $id:$grp $MPT/q3.consumer
 sudo chown $id:$grp $MPT/q4.consumer
 
-if [[ "${FAMFS_MODE}" == "fuse" ]]; then
-    set +x
-    echo "======================================================================"
-    echo " test_pcq.sh: WARNING SKIPPING PCQ TESTS FOR FUSE MODE: FIX THIS!!!"
-    echo "======================================================================"
-    echo ""
-    sleep 4
-    exit 0
-fi
-
 # From here on we run the non-sudo ${pcq} rather than the sudo ${PCQ}
 
 # Coverage tests leave some root cruft after running pcq as root; clean that up...
@@ -143,35 +135,40 @@ sudo chown -R ${id}:${grp} $BIN
 
 
 # Test setperm
-# XXX review these tests to see if they make sense; setperm was broken until this commit
-# Consumer permission
-${pcq} --setperm c $MPT/q0        || fail "setperm c should work"
-test -w $MPT/q0                   && fail "setperm c should remove write permission on q0"
-test -w $MPT/q0.consumer          || fail "setperm c should restore write permission on q0.consumer"
-${pcq} --info -v $MPT/q0          || fail "pcq info perm c should work"
-${pcq} --producer -v -N 1 $MPT/q0 && fail "producer should fail with c permission on q0"
+# XXX: --setperm not working yet on fuse as of 9/2025
+# because 'chmod' is not yet implemented; fix this...
+if [[ "${FAMFS_MODE}" == "v1" ]]; then
+    # XXX review these tests to see if they make sense;
+    # setperm was broken until this commit
+    # Consumer permission
+    ${pcq} --setperm c $MPT/q0        || fail "setperm c should work"
+    test -w $MPT/q0                   && fail "setperm c should remove write permission on q0"
+    test -w $MPT/q0.consumer          || fail "setperm c should restore write permission on q0.consumer"
+    ${pcq} --info -v $MPT/q0          || fail "pcq info perm c should work"
+    ${pcq} --producer -v -N 1 $MPT/q0 && fail "producer should fail with c permission on q0"
 
-# Producer permission
-${pcq} --setperm p $MPT/q0        || fail "setperm p should work"
-test -w $MPT/q0                   || fail "setperm p should restore write permission on q0"
-test -w $MPT/q0.consumer          && fail "setperm p should remove write permission on q0.consumer"
-${pcq} --info -v $MPT/q0          || fail "pcq info perm p should work"
-${pcq} --consumer -N 1 -v $MPT/q0 && fail "consumer should fail with p permission on q0"
-${pcq} --drain -v $MPT/q0         && fail "drain should fail with p permission on q0"
+    # Producer permission
+    ${pcq} --setperm p $MPT/q0        || fail "setperm p should work"
+    test -w $MPT/q0                   || fail "setperm p should restore write permission on q0"
+    test -w $MPT/q0.consumer          && fail "setperm p should remove write permission on q0.consumer"
+    ${pcq} --info -v $MPT/q0          || fail "pcq info perm p should work"
+    ${pcq} --consumer -N 1 -v $MPT/q0 && fail "consumer should fail with p permission on q0"
+    ${pcq} --drain -v $MPT/q0         && fail "drain should fail with p permission on q0"
 
-# Neither permission (read-only on both files)
-${pcq} --setperm n $MPT/q0        || fail "setperm n should work"
-test -w $MPT/q0                   && fail "setperm n should remove write permission on q0"
-test -w $MPT/q0.consumer          && fail "setperm n should remove write permission on q0.consumer"
-${pcq} --info -v $MPT/q0          || fail "pcq info perm n should work"
-${pcq} --producer -v -N 1 $MPT/q0 && fail "producer should fail with n permission on q0"
-${pcq} --consumer -N 1 -v $MPT/q0 && fail "consumer should fail with n permission on q0"
+    # Neither permission (read-only on both files)
+    ${pcq} --setperm n $MPT/q0        || fail "setperm n should work"
+    test -w $MPT/q0                   && fail "setperm n should remove write permission on q0"
+    test -w $MPT/q0.consumer          && fail "setperm n should remove write permission on q0.consumer"
+    ${pcq} --info -v $MPT/q0          || fail "pcq info perm n should work"
+    ${pcq} --producer -v -N 1 $MPT/q0 && fail "producer should fail with n permission on q0"
+    ${pcq} --consumer -N 1 -v $MPT/q0 && fail "consumer should fail with n permission on q0"
 
-# Producer and consumer permission (both files writable)
-${pcq} --setperm b $MPT/q0  || fail "setperm b should work"
-test -w $MPT/q0             || fail "setperm b should restore write permission on q0"
-test -w $MPT/q0.consumer    || fail "setperm b should restore write permission on q0.consumer"
-${pcq} --info -v $MPT/q0    || fail "pcq info perm n should work"
+    # Producer and consumer permission (both files writable)
+    ${pcq} --setperm b $MPT/q0  || fail "setperm b should work"
+    test -w $MPT/q0             || fail "setperm b should restore write permission on q0"
+    test -w $MPT/q0.consumer    || fail "setperm b should restore write permission on q0.consumer"
+    ${pcq} --info -v $MPT/q0    || fail "pcq info perm n should work"
+fi
 
 ${pcq} --info -v $MPT/q0    || fail "basic pcq info 0"
 ${pcq} --info -v $MPT/q1    || fail "basic pcq info 1"

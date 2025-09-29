@@ -116,7 +116,8 @@ enum pcq_perm {
 };
 
 int pcq_set_perm(const char *filename, enum pcq_perm role);
-int pcq_create(char *fname, u64 nbuckets, u64 bucket_size, int verbose);
+int pcq_create(char *fname, u64 nbuckets, u64 bucket_size,
+	       uid_t uid, gid_t gid, int verbose);
 int get_queue_info(const char *fname, FILE *statusfile, int verbose);
 int run_producer(struct pcq_thread_arg *a);
 void *pcq_worker(void *arg);

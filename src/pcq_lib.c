@@ -135,6 +135,8 @@ pcq_create(
 	char *fname,
 	u64 nbuckets,
 	u64 bucket_size,
+	uid_t uid,
+	gid_t gid,
 	int verbose)
 {
 	int two_mb = 2 * 1024 * 1024;
@@ -176,7 +178,7 @@ pcq_create(
 	/*
 	 * Create the consumer file
 	 */
-	fd = famfs_mkfile(consumer_fname, 0644, 0, 0, two_mb, NULL, 1);
+	fd = famfs_mkfile(consumer_fname, 0644, uid, gid, two_mb, NULL, 1);
 	if (fd < 0) {
 		fprintf(stderr, "%s: failed to create consumer file\n", __func__);
 		rc = -1;

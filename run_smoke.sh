@@ -342,8 +342,7 @@ echo ":==run_smoke completed successfully ($(date))"
 echo ":==-------------------------------------------------------------------"
 if [[ "${FAMFS_MODE}" == "fuse" ]]; then
     echo "WARNING TEST DISABLED IN FUSE MODE: test_errs.sh"
-    echo "WARNING TEST DISABLED IN FUSE MODE: test_pcq.sh"
-    echo "FIX THESE!!"
+    echo "WARNING: test_pcq.sh does not test --setmode under fuse"
 fi
 exit 0
 #sleep 4
