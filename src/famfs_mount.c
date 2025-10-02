@@ -761,7 +761,7 @@ famfs_mount_fuse(
 	 * (famfs_fused) has discovered the superblock meta file)
 	 */
 	if (check_file_exists(realmpt, ".meta/.superblock",
-			      10 /* timeout */,
+			      1000 /* timeout */,
 			      FAMFS_SUPERBLOCK_SIZE, &sb_size, verbose + 1)) {
 		fprintf(stderr, "%s: superblock file failed to appear\n",
 			__func__);
@@ -816,7 +816,7 @@ famfs_mount_fuse(
 	/* Wait for the log file to appear before playing the log
 	 */
 	if (check_file_exists(realmpt, ".meta/.log",
-			      10 /* timeout */,
+			      1000 /* timeout */,
 			      sb->ts_log_len, &log_size_out, verbose)) {
 		fprintf(stderr, "%s: superblock file failed to appear\n",
 			__func__);

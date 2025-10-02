@@ -172,35 +172,6 @@ static struct famfs_data *famfs_data(fuse_req_t req)
 	return (struct famfs_data *) fuse_req_userdata(req);
 }
 
-static struct famfs_inode *
-famfs_inode_from_nodeid(
-	fuse_req_t req,
-	fuse_ino_t nodeid)
-{
-
-	struct famfs_inode *inode = (struct famfs_inode *)(uintptr_t)nodeid;
-
-	/* XXX Note this applies the assumption that nodeid is the address
-	 * of the famfs_inode. I don't think this is safe without verifying
-	 * that it is *still* the address of the famfs_inode, which would
-	 * require looking for it via the inode cache */
-	if (nodeid == FUSE_ROOT_ID)
-		return &famfs_data(req)->icache.root;
-	else if (inode->owner != famfs_data(req)) {
-		famfs_log(FAMFS_LOG_ERR, "%s: bad nodeid %p ref=%lld\n",
-			 __func__, nodeid, inode->refcount);
-		return NULL;
-	}
-
-	return inode;
-}
-
-static int
-famfs_fd_from_nodeid(fuse_req_t req, fuse_ino_t nodeid)
-{
-	return famfs_inode_from_nodeid(req, nodeid)->fd;
-}
-
 static bool famfs_debug(fuse_req_t req)
 {
 	return famfs_data(req)->debug != 0;
@@ -258,17 +229,31 @@ famfs_getattr(
 	fuse_ino_t nodeid,
 	struct fuse_file_info *fi)
 {
-	int res;
-	struct stat buf;
 	struct famfs_data *lo = famfs_data(req);
+	struct famfs_inode *inode = famfs_get_inode_from_nodeid(lo, nodeid);
+	struct stat buf;
+	int res;
 
 	(void) fi;
 
-	res = fstatat(famfs_fd_from_nodeid(req, nodeid), "", &buf,
-		      AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
-	if (res == -1)
-		return (void) fuse_reply_err(req, errno);
-
+	/*
+	 * Root inode is a special case that is not looked up before getattr.
+	 * All other indes have been looked up, and therefore already know
+	 * their attrs
+	 */
+	if (nodeid == FUSE_ROOT_ID) {
+		famfs_log(FAMFS_LOG_NOTICE, "%s: root inode\n", __func__);
+		res = fstatat(inode->fd, "", &buf,
+			      AT_EMPTY_PATH | AT_SYMLINK_NOFOLLOW);
+		if (res == -1) {
+			famfs_inode_putref(inode);
+			return (void) fuse_reply_err(req, errno);
+		}
+		inode->attr = buf;
+	}
+	
+	buf = inode->attr;
+	famfs_inode_putref(inode);
 	fuse_reply_attr(req, &buf, lo->timeout);
 }
 
@@ -425,9 +410,12 @@ famfs_do_lookup(
 	struct fuse_entry_param *e,
 	struct famfs_log_file_meta **fmeta_out)
 {
+	enum famfs_fuse_ftype ftype = FAMFS_FINVALID;
 	struct famfs_log_file_meta *fmeta = NULL;
 	struct famfs_data *lo = famfs_data(req);
-	struct famfs_inode *inode;
+	struct famfs_inode *parent_inode = famfs_get_inode_from_nodeid(lo,
+								       parent);
+	struct famfs_inode *inode = NULL;
 	struct stat st;
 	int parentfd;
 	int saverr;
@@ -442,10 +430,16 @@ famfs_do_lookup(
 	e->attr_timeout = lo->timeout;
 	e->entry_timeout = lo->timeout;
 
-	parentfd = famfs_fd_from_nodeid(req, parent);
+	/* Note: this accesses the parent inode in our icache without looking
+	 * it up. 'parent' is a pointer directly to the famfs_inode.
+	 */
+	parentfd = parent_inode->fd;
 
 	famfs_log(FAMFS_LOG_DEBUG, "%s: name=%s (%s)\n", __func__, name,
 	       (parentfd < 0) ? "ERROR bad parentfd" : "good parentfd");
+	if (parentfd < 0)
+		goto out_err;
+
 	newfd = openat(parentfd, name, O_PATH | O_NOFOLLOW, O_RDONLY);
 	if (newfd == -1) {
 		famfs_log(FAMFS_LOG_ERR, "%s: open failed errno=%d\n",
@@ -463,7 +457,10 @@ famfs_do_lookup(
 		famfs_log(FAMFS_LOG_DEBUG,
 			 "               : inode=%d is a directory\n",
 			 e->attr.st_ino);
+		ftype = FAMFS_FDIR;
 	} else if (S_ISREG(st.st_mode)) {
+		ftype = FAMFS_FREG;
+
 		if (lo->pass_yaml) {
 			/* This exposes the yaml files directly */
 			famfs_log(FAMFS_LOG_ERR,
@@ -496,6 +493,10 @@ famfs_do_lookup(
 				goto out_err;
 			}
 
+			/* Don't keep regular files open - only directories */
+			close(newfd);
+			newfd = -1;
+
 			/* Famfs gets the stat struct from the shadow yaml */
 			res = famfs_shadow_to_stat(yaml_buf, yaml_size, &st,
 						   &e->attr, fmeta, 0);
@@ -518,7 +519,7 @@ famfs_do_lookup(
 		goto out_err;
 	}
 
-	inode = famfs_icache_find(&lo->icache, e->attr.st_ino);
+	inode = famfs_get_inode_from_nodeid(lo, e->attr.st_ino);
 	if (!inode) {
 		struct famfs_inode *inode2;
 
@@ -526,31 +527,27 @@ famfs_do_lookup(
 			e->attr.st_ino);
 		saverr = ENOMEM;
 
-		inode = famfs_inode_alloc(&lo->icache, lo, newfd,
+		inode = famfs_inode_alloc(&lo->icache, lo, newfd, name,
 					  e->attr.st_ino,
-					  e->attr.st_dev, fmeta);
+					  e->attr.st_dev, fmeta, &e->attr,
+					  ftype, parent_inode);
 
 		if (!inode)
 			goto out_err;
 
-		/* XXX
-		 * OK, this is racy. We're inserting an inode into the list
-		 * because we checked and it wasn't there. But we releasd the
-		 * mutex after that check, meaning it could have been inserted.
-		 * after we released it.
+		/* We have an inode initialized. Need to take the lock and
+		 * look one more time for (newly-inserted) existing inode
+		 * to close a race. After we have the lock, if we find the
+		 * inode in the cache, we'll discard the one we just allocated
 		 */
 		pthread_mutex_lock(&lo->icache.mutex);
-		/* Close the race by checking the inode cache one more time
-		 * under the lock
-		 */
-		inode2 = famfs_icache_find_locked(&lo->icache,
-						  e->attr.st_ino);
+		inode2 = famfs_get_inode_from_nodeid_locked(lo, e->attr.st_ino);
 		if (inode2) {
 			pthread_mutex_unlock(&lo->icache.mutex);
 			famfs_log(FAMFS_LOG_ERR, "%s: CAUGHT THE INODE RACE!\n",
 				 __func__);
-			close(newfd);
-			free(inode);
+			/* free inode, not put, it's not in the cache */
+			famfs_inode_free(inode); 
 			inode = inode2;
 			goto found_inode;
 		} else {
@@ -612,9 +609,16 @@ found_inode:
 		famfs_log(FAMFS_LOG_DEBUG, "  %lli/%s -> %lli\n",
 			(unsigned long long) parent, name, (unsigned long long) e->ino);
 
+	/* TODO: a vectorized famfs_inode_putref would be nice */
+	if (parent_inode)
+		famfs_inode_putref(parent_inode);
+	if (inode)
+		famfs_inode_putref(inode);
 	return 0;
 
 out_err:
+	if (parent_inode)
+		famfs_inode_putref(parent_inode);
 	saverr = errno;
 	if (newfd != -1)
 		close(newfd);
@@ -652,7 +656,7 @@ famfs_get_fmap(
 {
 	struct famfs_data *lo = famfs_data(req);
 	ssize_t fmap_bufsize = FMAP_MSG_MAX;
-	struct famfs_inode *inode;
+	struct famfs_inode *inode = NULL;
 	char *fmap_message = NULL;
 	ssize_t fmap_size;
 	int err = 0;
@@ -668,7 +672,7 @@ famfs_get_fmap(
 
 	/* The fuse v1 patch set uses the inode number as the nodeid, meaning
 	 * we have to search the list every time. */
-	inode = famfs_icache_find(&lo->icache, nodeid);
+	inode = famfs_get_inode_from_nodeid(lo, nodeid);
 	if (inode) /* XXX drop when first fuse patch set is deprecated */
 		famfs_log(FAMFS_LOG_DEBUG, "%s: old kmod - found by i_ino\n",
 			 __func__);
@@ -678,7 +682,7 @@ famfs_get_fmap(
 	 * an inode at that address.
 	 */
 	if (!inode)
-		inode = famfs_inode_from_nodeid(req, nodeid);
+		inode = famfs_get_inode_from_nodeid(famfs_data(req), nodeid);
 
 	if (!inode) {
 		famfs_log(FAMFS_LOG_ERR, "%s: inode 0x%ld not found\n",
@@ -699,7 +703,8 @@ famfs_get_fmap(
 					       inode->fmeta);
 	if (fmap_size <= 0) {
 		/* Send reply without fmap */
-		famfs_log(FAMFS_LOG_ERR, "%s: %ld error putting fmap in message\n",
+		famfs_log(FAMFS_LOG_ERR,
+			  "%s: %ld error putting fmap in message\n",
 			 __func__, fmap_size);
 		err = EINVAL;
 		goto out_err;
@@ -723,9 +728,13 @@ famfs_get_fmap(
 	if (fmap_message)
 		free(fmap_message);
 
+	famfs_inode_putref(inode);
 	return;
 
 out_err:
+	if (inode)
+		famfs_inode_putref(inode);
+
 	if (fmap_message)
 		free(fmap_message);
 
@@ -888,7 +897,8 @@ famfs_forget_one(
 	uint64_t nlookup)
 {
 	struct famfs_data *lo = famfs_data(req);
-	struct famfs_inode *inode = famfs_inode_from_nodeid(req, nodeid);
+	struct famfs_inode *inode = famfs_get_inode_from_nodeid(famfs_data(req),
+							    nodeid);
 
 	if (famfs_debug(req)) {
 		famfs_log(FAMFS_LOG_DEBUG, "  forget %lli %lli -%lli\n",
@@ -897,7 +907,8 @@ famfs_forget_one(
 			(unsigned long long) nlookup);
 	}
 
-	famfs_icache_unref_inode(&lo->icache, inode, lo, nlookup);
+	/* +1 because we got a ref when we looked it up here */
+	famfs_icache_unref_inode(&lo->icache, inode, lo, nlookup + 1);
 }
 
 static void
@@ -957,6 +968,7 @@ famfs_opendir(
 {
 	int error = ENOMEM;
 	struct famfs_data *lo = famfs_data(req);
+	struct famfs_inode *inode = famfs_get_inode_from_nodeid(lo, nodeid);
 	struct famfs_dirp *d;
 	int fd;
 
@@ -967,7 +979,7 @@ famfs_opendir(
 	if (d == NULL)
 		goto out_err;
 
-	fd = openat(famfs_fd_from_nodeid(req, nodeid), ".", O_RDONLY);
+	fd = openat(inode->fd, ".", O_RDONLY);
 	if (fd == -1)
 		goto out_errno;
 
@@ -982,11 +994,13 @@ famfs_opendir(
 	if (lo->cache == CACHE_ALWAYS)
 		fi->cache_readdir = 1;
 	fuse_reply_open(req, fi);
+	famfs_inode_putref(inode);
 	return;
 
 out_errno:
 	error = errno;
 out_err:
+	famfs_inode_putref(inode);
 	if (d) {
 		if (fd != -1)
 			close(fd);
@@ -1172,8 +1186,9 @@ famfs_open(
 	struct fuse_file_info *fi)
 {
 	int fd;
-	char buf[64];
 	struct famfs_data *lo = famfs_data(req);
+	struct famfs_inode *inode = famfs_get_inode_from_nodeid(lo, nodeid);
+	struct famfs_inode *parent_inode = inode->parent;
 
 	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
 
@@ -1196,11 +1211,21 @@ famfs_open(
 	   to return an error here */
 	if (lo->writeback && (fi->flags & O_APPEND))
 		fi->flags &= ~O_APPEND;
-
-	sprintf(buf, "/proc/self/fd/%i", famfs_fd_from_nodeid(req, nodeid));
+#if 0
+	sprintf(buf, "/proc/self/fd/%i", inode->fd);
 	fd = open(buf, fi->flags & ~O_NOFOLLOW);
-	if (fd == -1)
+#else
+	/* Note we're opening the shadow yaml, not the actual file. The
+	 * the data for the actual file is accessed by the kernel component
+	 * via the fmap. Might not need to actually open anything here...
+	 */
+	fd = openat(parent_inode->fd, inode->name, fi->flags & ~O_NOFOLLOW,
+		    O_RDONLY /* don't make yaml writable in any case */);
+#endif
+	if (fd == -1) {
+		famfs_inode_putref(inode);
 		return (void) fuse_reply_err(req, errno);
+	}
 
 	fi->fh = fd;
 	if (lo->cache == CACHE_NEVER)
@@ -1219,6 +1244,7 @@ famfs_open(
 	   in current function. */
 	fi->parallel_direct_writes = 1;
 
+	famfs_inode_putref(inode);
 	fuse_reply_open(req, fi);
 }
 
@@ -1258,15 +1284,18 @@ famfs_fsync(
 	int datasync,
 	struct fuse_file_info *fi)
 {
-	int res;
+	int res = 0;
 	(void) nodeid;
+	(void) datasync;
+	(void) fi;
 
 	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
-
+#if 0
 	if (datasync)
 		res = fdatasync(fi->fh);
 	else
 		res = fsync(fi->fh);
+#endif
 	fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
@@ -1328,14 +1357,18 @@ famfs_statfs(
 {
 	int res;
 	struct statvfs stbuf;
+	struct famfs_data *lo = famfs_data(req);
+	struct famfs_inode *inode = famfs_get_inode_from_nodeid(lo, nodeid);
 
 	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
 
-	res = fstatvfs(famfs_fd_from_nodeid(req, nodeid), &stbuf);
+	res = fstatvfs(inode->fd, &stbuf);
+	famfs_inode_putref(inode);
 	if (res == -1)
 		fuse_reply_err(req, errno);
 	else
 		fuse_reply_statfs(req, &stbuf);
+	
 }
 
 static void
@@ -1520,8 +1553,6 @@ int main(int argc, char *argv[])
 	/* Don't mask creation mode, kernel already did that */
 	umask(0);
 
-	famfs_icache_init(&famfs_data.icache);
-	
 	/* Default options */
 	famfs_data.debug = 1; /* Temporary */
 	famfs_data.writeback = 0;
@@ -1532,7 +1563,8 @@ int main(int argc, char *argv[])
 
 	/*fuse_set_log_func(fused_syslog); */
 	fuse_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
-
+	famfs_log_set_default_log_level(FAMFS_LOG_DEBUG);
+	
 	famfs_log(FAMFS_LOG_DEBUG,  "%s: this is debug(=%d)\n",
 		 PROGNAME, FUSE_LOG_DEBUG);
 	famfs_log(FAMFS_LOG_ERR,    "%s: this is an err(=%d)\n",
@@ -1580,7 +1612,6 @@ int main(int argc, char *argv[])
 	}
 
 	famfs_data.debug = opts.debug;
-	famfs_data.icache.root.refcount = 2;
 
 	famfs_log(FAMFS_LOG_NOTICE, "famfs mount shadow=%s mpt=%s\n",
 		 famfs_data.source, opts.mountpoint);
@@ -1634,11 +1665,8 @@ int main(int argc, char *argv[])
 	}
 	printf("timeout=%f\n", famfs_data.timeout);
 
-	famfs_data.icache.root.fd = open(shadow_root, O_PATH);
-	printf("root=(%s) fd=%d\n", shadow_root, famfs_data.icache.root.fd);
-	if (famfs_data.icache.root.fd == -1) {
-		famfs_log(FAMFS_LOG_ERR, "open(\"%s\", O_PATH): %m\n",
-			 shadow_root);
+	ret = famfs_icache_init(&famfs_data, &famfs_data.icache, shadow_root);
+	if (ret) {
 		free(shadow_root);
 		ret = 1;
 		goto err_out1;
@@ -1694,10 +1722,9 @@ err_out1:
 	free(opts.mountpoint);
 	fuse_opt_free_args(&args);
 
-	if (famfs_data.icache.root.fd >= 0)
-		close(famfs_data.icache.root.fd);
+	famfs_icache_destroy(&famfs_data.icache);
 
-    if (famfs_data.daxdev_table)
+	if (famfs_data.daxdev_table)
 		free(famfs_data.daxdev_table);
 
 	free(famfs_data.source);
