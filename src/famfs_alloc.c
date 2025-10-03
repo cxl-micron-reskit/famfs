@@ -445,27 +445,34 @@ out:
  * Strided allocator stuff
  */
 
-#define BUCKET_SERIES_MAX 64
-
-struct bucket_series {
-	int nbuckets;
-	int current;
-	int buckets[BUCKET_SERIES_MAX];
-};
-
-static void
-init_bucket_series(
-	struct bucket_series *bs,
-	int nbuckets)
+void bucket_series_destroy(struct bucket_series *bs)
 {
+	assert(bs);
+	if (bs->buckets)
+		free(bs->buckets);
+	free(bs);
+}
+
+void
+bucket_series_alloc(
+	struct bucket_series **bs,
+	u64 nbuckets,
+	u64 start)
+{
+	struct bucket_series *local_bs;
 	static int seeded = 0;
 	int i;
 
 	assert(bs);
-	bs->nbuckets = nbuckets;
+	local_bs = calloc(1, sizeof(*local_bs));
+	assert(local_bs);
 
-	for (int i = 0; i < nbuckets; i++) {
-		bs->buckets[i] = i;
+	local_bs->buckets = calloc(nbuckets, sizeof(*local_bs->buckets));
+	assert(local_bs->buckets);
+	local_bs->nbuckets = nbuckets;
+
+	for (u64 i = 0; i < nbuckets; i++) {
+		local_bs->buckets[i] = i + start;
 	}
 
 	/* Seed the random generator only once */
@@ -477,23 +484,29 @@ init_bucket_series(
 	/* Randomize the order of the bucket values
 	 * (the old Fisher-Yates/Knuth shuffle) */
 	for (i = nbuckets - 1; i > 0; i--) {
-		int j = rand() % (i + 1);
+		u64 j = rand() % (i + 1);
 		int tmp;
 
-		tmp = bs->buckets[i];
-		bs->buckets[i] = bs->buckets[j];
-		bs->buckets[j] = tmp;
+		tmp = local_bs->buckets[i];
+		local_bs->buckets[i] = local_bs->buckets[j];
+		local_bs->buckets[j] = tmp;
 	}
 
-	bs->current = 0;
+	local_bs->current = 0;
+	*bs = local_bs;
 }
 
-static int next_bucket(struct bucket_series *bs)
+s64 bucket_series_next(struct bucket_series *bs)
 {
 	if (bs->current >= bs->nbuckets)
 		return -1;
 
 	return(bs->buckets[bs->current++]);
+}
+
+void bucket_series_rewind(struct bucket_series *bs)
+{
+	bs->current = 0;
 }
 
 int
@@ -573,7 +586,7 @@ famfs_file_strided_alloc(
 {
 	struct famfs_simple_extent *strips;
 	struct famfs_log_fmap *fmap;
-	struct bucket_series bs = { 0 };
+	struct bucket_series *bs = NULL;
 	u64 nstrips_allocated = 0;
 	int nstripes;
 	s64 tmp;
@@ -629,12 +642,12 @@ famfs_file_strided_alloc(
 		       stripe_size_au * lp->alloc_unit,
 		       strip_size_au * lp->alloc_unit);
 
-	/* Bucketize the stride regions in random order */
-	init_bucket_series(&bs, lp->interleave_param.nbuckets);
-
 	fmap = calloc(1, sizeof(*fmap));
 	if (!fmap)
 		return -ENOMEM;
+
+	/* Bucketize the stride regions in random order */
+	bucket_series_alloc(&bs, lp->interleave_param.nbuckets, 0);
 
 	fmap->fmap_ext_type = FAMFS_EXT_INTERLEAVE;
 
@@ -646,7 +659,7 @@ famfs_file_strided_alloc(
 	/* Allocate our strips. If nstrips is <  nbuckets,
 	 * we can tolerate some failures */
 	for (i = 0; i < lp->interleave_param.nbuckets; i++) {
-		int bucket_num = next_bucket(&bs);
+		int bucket_num = bucket_series_next(bs);
 		s64 ofs;
 		u64 pos = bucket_num * bucket_size_au * lp->alloc_unit;
 
@@ -703,6 +716,9 @@ famfs_file_strided_alloc(
 	/* We only support single-interleaved-extent (but multi-strip) alloc: */
 	fmap->fmap_niext = 1;
 	*fmap_out = fmap;
+
+	if (bs)
+		bucket_series_destroy(bs);
 
 	if (verbose > 1)
 		mu_print_bitmap(lp->bitmap, lp->nbits);

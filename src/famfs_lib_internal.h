@@ -73,15 +73,29 @@ struct famfs_log_stats {
 /*
  * Exported for internal use
  */
-u8 *famfs_build_bitmap(const struct famfs_log *logp, const u64 alloc_unit, u64 dev_size_in,
-		   u64 *bitmap_nbits_out, u64 *alloc_errors_out, u64 *size_total_out,
-		   u64 *alloc_total_out, struct famfs_log_stats *log_stats_out,
-		   int verbose);
+/* famfs_alloc.c */
+u8 *famfs_build_bitmap(
+	const struct famfs_log *logp, const u64 alloc_unit, u64 dev_size_in,
+	u64 *bitmap_nbits_out, u64 *alloc_errors_out, u64 *size_total_out,
+	u64 *alloc_total_out, struct famfs_log_stats *log_stats_out,
+	int verbose);
 int famfs_file_alloc(struct famfs_locked_log *lp, u64 size,
 		     struct famfs_log_fmap **fmap_out, int verbose);
 void mu_print_bitmap(u8 *bitmap, int num_bits);
-int famfs_validate_interleave_param(struct famfs_interleave_param *interleave_param,
-				    const u64 alloc_unit, u64 devsize, int verbose);
+int famfs_validate_interleave_param(
+		struct famfs_interleave_param *interleave_param,
+		const u64 alloc_unit, u64 devsize, int verbose);
+
+struct bucket_series {
+	u64 nbuckets;
+	u64 current;
+	u64 *buckets;
+};
+void bucket_series_alloc(struct bucket_series **bs, u64 nbuckets, u64 start);
+void bucket_series_destroy(struct bucket_series *bs);
+s64 bucket_series_next(struct bucket_series *bs);
+void bucket_series_rewind(struct bucket_series *bs);
+
 /* famfs_mount.c */
 char *famfs_get_mpt_by_dev(const char *mtdev);
 int famfs_path_is_mount_pt(const char *path, char *dev_out, char *shadow_out);
