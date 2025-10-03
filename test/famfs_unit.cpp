@@ -24,6 +24,13 @@ extern "C" {
 #include "xrand.h"
 #include "random_buffer.h"
 #include "famfs_unit.h"
+
+//#define _GNU_SOURCE
+#define FUSE_USE_VERSION FUSE_MAKE_VERSION(3, 12)
+
+#include <fuse_lowlevel.h>
+#include "famfs_fused_icache.h"
+#include "famfs_fused.h"
 }
 
 /****+++++++++++++++++++++++++++++++++++++++++++++
@@ -1636,4 +1643,144 @@ TEST(famfs, famfs_fmap_alloc_verify) {
 	rc = validate_mem_fmap(fm, 1, 1);
 	ASSERT_EQ(rc, -1);
 	free_mem_fmap(fm);
+}
+
+TEST(famfs, famfs_icache_test) {
+	struct famfs_inode *inode, *prev_inode = NULL;
+	struct famfs_inode *root_inode;
+	struct bucket_series *bs = NULL;
+	struct stat st;
+	famfs_icache icache;
+	s64 inode_num;
+	u64 num_in_icache = 0;
+#define NBUCKETS 10000
+
+	memset(&st, 0, sizeof(st));
+	memset(&icache, 0, sizeof(icache));
+	
+	famfs_icache_init(NULL, &icache, NULL);
+	ASSERT_EQ(icache.root.next, icache.root.prev);
+	ASSERT_EQ(icache.count, 0);
+
+	bucket_series_alloc(&bs, NBUCKETS, 2); /* inode #1 is reserved for root */
+
+	/* Get the root inode */
+	root_inode = famfs_icache_find_get_from_ino_locked(&icache, 1);
+	ASSERT_EQ(root_inode->ino, 1);
+	ASSERT_EQ(root_inode->flags, 1);
+	ASSERT_EQ(root_inode->ftype, FAMFS_FDIR);
+	prev_inode = root_inode;
+
+	/* Depth: Each next inode is child of previous */
+	while ((inode_num = bucket_series_next(bs)) != -1) {
+		inode = famfs_inode_alloc(&icache,
+					  -1 /* fd */,
+					  "bogusname",
+					  inode_num,
+					  0           /* dev */,
+					  NULL        /* fmeta */,
+					  &st         /* attr / stat */,
+					  FAMFS_FDIR  /* ftype */,
+					  prev_inode  /* parent */);
+		ASSERT_EQ(inode->ino, inode_num);
+		num_in_icache++;
+		famfs_icache_insert_locked(&icache, inode);
+		ASSERT_EQ(num_in_icache, icache.count);
+
+		if (num_in_icache > 1) {
+			/* refcount of root_inode should be 3 or 4... */
+			ASSERT_EQ(prev_inode->refcount, 2);
+		}
+
+		/* Put the holder ref on the inode we inserted */
+		famfs_inode_putref_locked(inode);
+		prev_inode = inode;
+	}
+	ASSERT_EQ(icache.count, NBUCKETS);
+
+	ASSERT_EQ(bs->current, NBUCKETS);
+	bucket_series_rewind(bs);
+
+	/* Delete all nodes from the cache in insert order */
+	u64 loopct = 0;
+	while ((inode_num = bucket_series_next(bs)) != -1) {
+		struct famfs_inode *inode =
+			famfs_icache_find_get_from_ino_locked(&icache, inode_num);
+
+		ASSERT_NE(inode, (struct famfs_inode *)NULL);
+		ASSERT_EQ(inode_num, inode->ino);
+
+		num_in_icache--;
+		loopct++;
+
+		/* Put one ref for the find above, and one to "free" the inode */
+		famfs_inode_putref_locked(inode);
+		famfs_inode_putref_locked(inode);
+
+		/* Cache should not shrink because all but last have refs */
+		if (num_in_icache > 0) {
+			ASSERT_EQ(num_in_icache + loopct, NBUCKETS);
+		}
+	}
+
+	bucket_series_rewind(bs);
+
+	/* Breadth: each new inode is child of root */
+	while ((inode_num = bucket_series_next(bs)) != -1) {
+		char name[PATH_MAX];
+
+		snprintf(name, PATH_MAX - 1, "file%lld", inode_num);
+		inode = famfs_inode_alloc(&icache,
+					  -1         /* fd */,
+					  name,
+					  inode_num,
+					  0          /* dev */,
+					  NULL       /* fmap */,
+					  &st        /* attr / stat */,
+					  FAMFS_FDIR /* file type */,
+					  root_inode /* parent */);
+		ASSERT_EQ(inode->ino, inode_num);
+		num_in_icache++;
+		famfs_icache_insert_locked(&icache, inode);
+		ASSERT_EQ(num_in_icache, icache.count);
+
+		ASSERT_EQ(root_inode->refcount, 3 + num_in_icache);
+	}
+	ASSERT_EQ(icache.count, NBUCKETS);
+
+	ASSERT_EQ(bs->current, NBUCKETS);
+	bucket_series_rewind(bs);
+
+
+	/* Delete all nodes from the cache in insert order */
+	loopct = 0;
+	while ((inode_num = bucket_series_next(bs)) != -1) {
+		struct famfs_inode *inode =
+			famfs_icache_find_get_from_ino_locked(&icache, inode_num);
+
+		ASSERT_NE(inode, (struct famfs_inode *)NULL);
+		ASSERT_EQ(inode_num, inode->ino);
+
+		num_in_icache--;
+		loopct++;
+
+		/* Put one ref for the find above, and one to "free" the inode */
+		famfs_inode_putref_locked(inode);
+		famfs_inode_putref_locked(inode);
+
+		/* Cache should not shrink because all but last have refs */
+		if (num_in_icache > 0) {
+			ASSERT_EQ(num_in_icache + loopct, NBUCKETS);
+		}
+		/* Put the holder ref on the inode we inserted */
+		famfs_inode_putref_locked(inode);
+	}
+	
+	/* Put the root inode to go back to refcount=2 */
+	famfs_inode_putref(root_inode);
+
+	bucket_series_destroy(bs);
+	
+	/* That last put should have caused a cascading putref */
+	ASSERT_EQ(icache.count, 0);
 }
