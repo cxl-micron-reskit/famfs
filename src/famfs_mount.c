@@ -556,8 +556,14 @@ famfs_start_fuse_daemon(
 		fprintf(stderr, "%s: failed to fork\n", __func__);
 		return -1;
 	}
-	if (pid > 0)
+	  
+	if (pid > 0) {
+		famfs_log(FAMFS_LOG_DEBUG, "%s: pid=%d\n", __func__, pid);
+		if (debug)
+			printf("%s: pid=%d\n", __func__, pid);
+
 		return 0;
+	}
 
 	len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
 	if (len < 0)
@@ -574,13 +580,12 @@ famfs_start_fuse_daemon(
 	 * asan related errors are encountered.
 	 */
 	snprintf(asan_log_path, sizeof(asan_log_path),
-					"log_path=%s/asan_famfs_fused.log", shadow);
+		 "log_path=%s/asan_famfs_fused.log", shadow);
 	setenv("ASAN_OPTIONS", asan_log_path, 1);
 
 	/* fsname=/dev/dax1.0 sets the string in column 1 of /proc/mounts */
 	snprintf(opts, sizeof(opts),
 		 "daxdev=%s,shadow=%s,fsname=%s",
-		 //"daxdev=%s,shadow=%s,fsname=%s,cache=always",
 		 daxdev, shadow, daxdev);
 	if (timeout >= 0) {
 		char timeout_arg[PATH_MAX];
@@ -601,8 +606,10 @@ famfs_start_fuse_daemon(
 		printf("%s: opts: %s\n", __func__, opts);
 
 	argv[argc++] = strdup(daxdev);
-	if (debug)
+	if (debug) {
 		argv[argc++] = "-s"; /* single-threaded */
+		argv[argc++] = "-d"; /* debug (and no daemonize) */
+	}
 	argv[argc++] = "-o";
 	argv[argc++] = strdup(opts);
 	argv[argc++] = strdup(mpt);
