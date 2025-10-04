@@ -11,22 +11,22 @@
 #include "famfs_fused.h"
 
 int famfs_icache_init(
-	struct famfs_ctx *lo,
+	void *owner,
 	struct famfs_icache *icache,
 	const char *shadow_root)
 {
 	memset(icache, 0, sizeof(*icache));
 	pthread_mutex_init(&icache->mutex, NULL);
+	icache->owner = owner;
+	
+	/* Root inode setup */
 	icache->root.next = icache->root.prev = &icache->root;
-
 	icache->root.flags = FAMFS_ROOTDIR;
 	icache->root.ftype = FAMFS_FDIR;
 	icache->root.ino = FUSE_ROOT_ID;
 	icache->root.name = strdup(".");
 	icache->root.icache = icache;
 	icache->root.refcount = 2;
-	icache->root.owner = (void *)lo;
-
 	icache->root.fd = -1;
 
 	if (shadow_root) {
@@ -49,10 +49,15 @@ void famfs_icache_destroy(struct famfs_icache *icache)
 		struct famfs_inode* next = icache->root.next;
 
 		icache->root.next = next->next;
-		close(next->fd);
-		if (next->name)
-			free(next->name);
-		free(next);
+		if (next && next != &icache->root) {
+			if (next->fd > 0)
+				close(next->fd);
+			if (next->name)
+				free(next->name);
+			if (next->fmeta)
+				free(next->fmeta);
+			free(next);
+		}
 	}
 	if (icache->shadow_root)
 		free(icache->shadow_root);
@@ -60,9 +65,14 @@ void famfs_icache_destroy(struct famfs_icache *icache)
 
 void dump_inode(struct famfs_inode *inode)
 {
-	printf("ino=%ld flags=%d refcount=%ld ftype=%d Parent=%ld\n",
-	       inode->ino, inode->flags, inode->refcount, inode->ftype,
-	       (inode->parent) ? inode->parent->ino : 0);
+	famfs_log(FAMFS_LOG_NOTICE,
+		  "ino=%ld nodeid=%llx flags=%d refcount=%ld ftype=%d "
+		  "icache=%llx Parent=%ld name=(%s)\n",
+		  inode->ino, (u64)inode, inode->flags,
+		  inode->refcount, inode->ftype,
+		  (u64)(inode->icache),
+		  (inode->parent) ? inode->parent->ino : 0,
+		  inode->name);
 }
 
 void dump_icache(struct famfs_icache *icache)
@@ -71,7 +81,7 @@ void dump_icache(struct famfs_icache *icache)
 	size_t nino = 0;
 
 	pthread_mutex_lock(&icache->mutex);
-	printf("%s: count=%ld\n",
+	famfs_log(FAMFS_LOG_NOTICE, "%s: count=%ld\n",
 	       __func__, icache->count);
 
 	dump_inode(&icache->root);
@@ -91,7 +101,6 @@ void dump_icache(struct famfs_icache *icache)
 struct famfs_inode *
 famfs_inode_alloc(
 	struct famfs_icache *icache,
-	struct famfs_ctx *lo,
 	int fd,
 	const char *name,
 	ino_t inode_num,
@@ -102,13 +111,12 @@ famfs_inode_alloc(
 	struct famfs_inode *parent)
 {
 	struct famfs_inode *inode;
-	(void)icache;
 
 	inode = calloc(1, sizeof(*inode));
 	if (!inode)
 		return NULL;
 
-	inode->owner = (void *)lo;
+	inode->icache = (void *)icache;
 	inode->refcount = 1;
 
 	inode->fd = fd;
@@ -125,22 +133,27 @@ famfs_inode_alloc(
 	return inode;
 }
 
-#if 0
 /**
  * famfs_find_inode_locked(): find a cached famfs_inode
  *
  * Caller must hold the mutex
  */
-static struct famfs_inode *
-famfs_icache_find_locked(struct famfs_icache *icache, uint64_t nodeid)
+struct famfs_inode *
+famfs_icache_find_get_from_ino_locked(struct famfs_icache *icache, uint64_t ino)
 {
 	/* TODO: replace this lookup mechanism with Bernd's wbtree lookup code */
 	struct famfs_inode *p;
 	struct famfs_inode *inode = NULL;
 
+	if (ino == 1) {
+		inode = &icache->root;
+		inode->refcount++;
+		return inode;
+	}
+
 	for (p = icache->root.next; p != &icache->root; p = p->next) {
 		/* Nodeid is the address of the entry we're looking for */
-		if (p->ino == nodeid) {
+		if (p->ino == ino) {
 			assert(p->refcount > 0);
 			inode = p;
 			inode->refcount++;
@@ -148,29 +161,21 @@ famfs_icache_find_locked(struct famfs_icache *icache, uint64_t nodeid)
 		}
 	}
 
-	if (!inode) {
-		if (nodeid == 1) {
-			inode = &icache->root;
-			inode->refcount++;
-		}
-	}
-
 	return inode;
 }
 
-static struct famfs_inode *
-famfs_icache_find(struct famfs_icache *icache, uint64_t nodeid)
+struct famfs_inode *
+famfs_icache_find_get_from_ino(struct famfs_icache *icache, uint64_t ino)
 {
 	struct famfs_inode *ret = NULL;
 
 	pthread_mutex_lock(&icache->mutex);
 
-	ret = famfs_icache_find_locked(icache, nodeid);
+	ret = famfs_icache_find_get_from_ino_locked(icache, ino);
 
 	pthread_mutex_unlock(&icache->mutex);
 	return ret;
 }
-#endif
 
 void
 famfs_icache_insert_locked(
@@ -186,6 +191,10 @@ famfs_icache_insert_locked(
 
 	assert(icache);
 	assert(inode);
+
+	/* When inserted, there is a base+1 refcount. Must call putref
+	 * if you don't want to keep using it */
+	inode->refcount = 2;
 
 	/* for now: unconditional insert */
 	prev = &icache->root;
@@ -231,7 +240,7 @@ void famfs_inode_putref_locked(struct famfs_inode *inode)
 		next->prev = prev;
 		prev->next = next;
 		inode->icache->count--;
-		inode->owner = NULL;
+		inode->icache = NULL;
 
 		if (inode->name)
 			free(inode->name);
@@ -259,7 +268,6 @@ void
 famfs_icache_unref_inode(
 	struct famfs_icache *icache,
 	struct famfs_inode *inode,
-	void *owner,
 	uint64_t n)
 {
 	if (!inode)
@@ -267,7 +275,7 @@ famfs_icache_unref_inode(
 
 	pthread_mutex_lock(&icache->mutex);
 	assert(inode->refcount >= n);
-	assert(inode->owner == owner);
+	assert(inode->icache == icache);
 	inode->refcount -= n;
 	if (!inode->refcount) {
 		struct famfs_inode *prev, *next;
@@ -289,15 +297,7 @@ famfs_icache_unref_inode(
 			 "%s: icache_count=%ld i_ino=%d nodeid=%lx dropped\n",
 			 __func__, icache_count, inode->ino, inode);
 
-#if 1
 		famfs_inode_free(inode);
-#else
-		if (inode->fd > 0)
-			close(inode->fd);
-		if (inode->fmeta)
-			free(inode->fmeta);
-		free(inode);
-#endif
 	} else {
 		uint64_t refcount = inode->refcount;
 		uint64_t icache_count = icache->count;
@@ -313,19 +313,17 @@ famfs_icache_unref_inode(
 
 struct famfs_inode *
 famfs_get_inode_from_nodeid_locked(
-	struct famfs_ctx *lo,
+	struct famfs_icache *icache,
 	fuse_ino_t nodeid)
 {
 	struct famfs_inode *inode;
 
 	if (nodeid == FUSE_ROOT_ID)
-		inode = &lo->icache.root;
+		inode = &icache->root;
 	else
 		inode = (struct famfs_inode *)(uintptr_t)nodeid;
 
-	if ((inode->owner != lo) ||
-	    (inode->icache != &lo->icache) ||
-	    (inode->refcount < 1)) {
+	if ((inode->icache != icache) || (inode->refcount < 1)) {
 		inode = NULL;
 		goto unlock_out;
 	}
@@ -341,7 +339,7 @@ unlock_out:
  */
 struct famfs_inode *
 famfs_get_inode_from_nodeid(
-	struct famfs_ctx *lo,
+	struct famfs_icache *icache,
 	fuse_ino_t nodeid)
 {
 
@@ -352,18 +350,9 @@ famfs_get_inode_from_nodeid(
 	 * that it is *still* the address of the famfs_inode, which would
 	 * require looking for it via the inode cache */
 
-	pthread_mutex_lock(&lo->icache.mutex);
-	inode = famfs_get_inode_from_nodeid_locked(lo, nodeid);
-	pthread_mutex_unlock(&lo->icache.mutex);
+	pthread_mutex_lock(&icache->mutex);
+	inode = famfs_get_inode_from_nodeid_locked(icache, nodeid);
+	pthread_mutex_unlock(&icache->mutex);
 
 	return inode;
 }
-
-#if 0
-int
-famfs_fd_from_nodeid(struct famfs_ctx *lo, fuse_ino_t nodeid)
-{
-	struct famfs_inode *inode = famfs_inode_
-	return famfs_inode_from_nodeid(lo, nodeid)->fd;
-}
-#endif

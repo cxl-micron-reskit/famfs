@@ -28,6 +28,7 @@
 #include <sys/file.h>
 #include <sys/xattr.h>
 #include <systemd/sd-journal.h>
+#include <signal.h>
 
 //#include "../fuse/passthrough_helpers.h"
 #include "famfs_lib.h"
@@ -48,6 +49,49 @@ struct _uintptr_to_must_hold_fuse_ino_t_dummy_struct \
 	{ unsigned _uintptr_to_must_hold_fuse_ino_t:
 			((sizeof(fuse_ino_t) >= sizeof(uintptr_t)) ? 1 : -1); };
 #endif
+
+/*
+ * About famfs_inodes, inode numbers (usually ino) and nodeid's
+ *
+ * * a famfs_inode has the known context of a file.
+ * * An inode number (ino) is the assigned inode number of a file. This is
+ *   currently the inode number from the shadow file system, but that may
+ *   change to something assigned when files and dirs are created via the
+ *   metadata log.
+ * * A nodeid is an "opaque" way of doing a fast lookup of a file. The fuse
+ *   kernel module knows about inos and node_ids. In our current implementation,
+ *   a nodeid can be cast as a pointer to a famfs_inode, but you must do this
+ *   via an accessor (e.g. famfs_get_inode_from_nodeid())
+ * * Using nodeids is safe, provided:
+ *   1) We don't uncache inodes except in response to a "forget" from the kernel
+ *   2) The kernel never asks for an inode by nodeid after sending a "forget"
+ *      for that inode
+ *   3) We get them via our accessors (famfs_get_inode_from_nodeid[_locked]()),
+ *      which get a ref on the inode, and we only release the ref after we're
+ *      finished accessing the inode.
+ *
+ * We use the famfs_icache subsystem for caching inodes.
+ *
+ * * At fuse LOOKUP time (famfs_do_lookup), an inode allocated and cached
+ *   * Attributes and fmaps are cached in the famfs_inode in the icache
+ *   * Directories remain open as long as their famfs_inode is cached,
+ *     but files are closed. This means we can always do openat() if we know
+ *     the parent directory and the name.
+ *   * Cached famfs_inodes are refcounted, and each holds a ref on its
+ *     parent directory famfs_inode
+ *   * Each famfs_inode stores the nodeid of its parent inode. This  offers
+ *     a fast way to resolve full paths, as nodeids are directly resolve to
+ *     pointers to famfs_inodes. (Said path resolution is currently not
+ *     implemented.
+ *   * famfs_get_inode_from_nodeid[_locked]() gets a ref which must be put
+ *     with famfs_inode_putref[_locked]() or famfs_icache_unref_inode()
+ *   * famfs_icache_find_get_from_ino[_locked]() also gets a ref
+ *   * Note that the current flavor of this scheme is dentry-cache-like, but
+ *     it doesn't separate dentries from inodes. As such, it does not support
+ *     hard links. But if we ever need to support hard links, having the icache
+ *     hold dentries that reference possibly-shared inodes is not a super-heavy
+ *     lift.
+ */
 
 enum {
 	CACHE_NEVER,
@@ -230,7 +274,8 @@ famfs_getattr(
 	struct fuse_file_info *fi)
 {
 	struct famfs_ctx *lo = famfs_ctx_from_req(req);
-	struct famfs_inode *inode = famfs_get_inode_from_nodeid(lo, nodeid);
+	struct famfs_inode *inode = famfs_get_inode_from_nodeid(&lo->icache,
+								nodeid);
 	struct stat buf;
 	int res;
 
@@ -413,7 +458,7 @@ famfs_do_lookup(
 	enum famfs_fuse_ftype ftype = FAMFS_FINVALID;
 	struct famfs_log_file_meta *fmeta = NULL;
 	struct famfs_ctx *lo = famfs_ctx_from_req(req);
-	struct famfs_inode *parent_inode = famfs_get_inode_from_nodeid(lo,
+	struct famfs_inode *parent_inode = famfs_get_inode_from_nodeid(&lo->icache,
 								       parent);
 	struct famfs_inode *inode = NULL;
 	struct stat st;
@@ -519,38 +564,40 @@ famfs_do_lookup(
 		goto out_err;
 	}
 
-	inode = famfs_get_inode_from_nodeid(lo, e->attr.st_ino);
+	/* We don't have the nodeid of the file being looked up - if it was
+	 * in our cache, the kernel probably would not need to look it up.
+	 * But we need to check, which is a search by inode number (ino)
+	 * This is an actual search of the icache
+	 */
+	inode = NULL;
 	if (!inode) {
-		struct famfs_inode *inode2;
-
-		famfs_log(FAMFS_LOG_DEBUG, "               : Caching inode %d\n",
-			e->attr.st_ino);
-		saverr = ENOMEM;
-
-		inode = famfs_inode_alloc(&lo->icache, lo, newfd, name,
-					  e->attr.st_ino,
-					  e->attr.st_dev, fmeta, &e->attr,
-					  ftype, parent_inode);
-
-		if (!inode)
-			goto out_err;
-
-		/* We have an inode initialized. Need to take the lock and
-		 * look one more time for (newly-inserted) existing inode
-		 * to close a race. After we have the lock, if we find the
-		 * inode in the cache, we'll discard the one we just allocated
-		 */
 		pthread_mutex_lock(&lo->icache.mutex);
-		inode2 = famfs_get_inode_from_nodeid_locked(lo, e->attr.st_ino);
-		if (inode2) {
+		inode = famfs_icache_find_get_from_ino_locked(&lo->icache,
+							    e->attr.st_ino);
+		if (inode) {
 			pthread_mutex_unlock(&lo->icache.mutex);
-			famfs_log(FAMFS_LOG_ERR, "%s: CAUGHT THE INODE RACE!\n",
-				 __func__);
-			/* free inode, not put, it's not in the cache */
-			famfs_inode_free(inode); 
-			inode = inode2;
 			goto found_inode;
 		} else {
+			saverr = ENOMEM;
+
+			inode = famfs_inode_alloc(
+					&lo->icache,
+					newfd /* valid for dirs, -1 for files */,
+					name,
+					e->attr.st_ino /* inode number */,
+					e->attr.st_dev,
+					fmeta,         /* valid only for files */
+					&e->attr,
+					ftype,
+					parent_inode);
+
+			if (!inode) {
+				pthread_mutex_unlock(&lo->icache.mutex);
+				goto out_err;
+			}
+			famfs_log(FAMFS_LOG_DEBUG,
+				  "               : Caching inode %d\n",
+				  e->attr.st_ino);
 			famfs_icache_insert_locked(&lo->icache, inode);
 		}
 		pthread_mutex_unlock(&lo->icache.mutex);
@@ -614,6 +661,9 @@ found_inode:
 		famfs_inode_putref(parent_inode);
 	if (inode)
 		famfs_inode_putref(inode);
+
+	dump_icache(&lo->icache);
+
 	return 0;
 
 out_err:
@@ -624,6 +674,8 @@ out_err:
 		close(newfd);
 	if (fmeta)
 		free(fmeta);
+
+	dump_icache(&lo->icache);
 	return saverr;
 }
 
@@ -672,7 +724,7 @@ famfs_get_fmap(
 
 	/* The fuse v1 patch set uses the inode number as the nodeid, meaning
 	 * we have to search the list every time. */
-	inode = famfs_get_inode_from_nodeid(lo, nodeid);
+	inode = famfs_get_inode_from_nodeid(&lo->icache, nodeid);
 	if (inode) /* XXX drop when first fuse patch set is deprecated */
 		famfs_log(FAMFS_LOG_DEBUG, "%s: old kmod - found by i_ino\n",
 			 __func__);
@@ -682,7 +734,7 @@ famfs_get_fmap(
 	 * an inode at that address.
 	 */
 	if (!inode)
-		inode = famfs_get_inode_from_nodeid(famfs_ctx_from_req(req), nodeid);
+		inode = famfs_get_inode_from_nodeid(&lo->icache, nodeid);
 
 	if (!inode) {
 		famfs_log(FAMFS_LOG_ERR, "%s: inode 0x%ld not found\n",
@@ -897,7 +949,7 @@ famfs_forget_one(
 	uint64_t nlookup)
 {
 	struct famfs_ctx *lo = famfs_ctx_from_req(req);
-	struct famfs_inode *inode = famfs_get_inode_from_nodeid(famfs_ctx_from_req(req),
+	struct famfs_inode *inode = famfs_get_inode_from_nodeid(&lo->icache,
 							    nodeid);
 
 	if (famfs_debug(req)) {
@@ -908,7 +960,7 @@ famfs_forget_one(
 	}
 
 	/* +1 because we got a ref when we looked it up here */
-	famfs_icache_unref_inode(&lo->icache, inode, lo, nlookup + 1);
+	famfs_icache_unref_inode(&lo->icache, inode, nlookup + 1);
 }
 
 static void
@@ -968,7 +1020,8 @@ famfs_opendir(
 {
 	int error = ENOMEM;
 	struct famfs_ctx *lo = famfs_ctx_from_req(req);
-	struct famfs_inode *inode = famfs_get_inode_from_nodeid(lo, nodeid);
+	struct famfs_inode *inode = famfs_get_inode_from_nodeid(&lo->icache,
+								nodeid);
 	struct famfs_dirp *d;
 	int fd;
 
@@ -1187,7 +1240,8 @@ famfs_open(
 {
 	int fd;
 	struct famfs_ctx *lo = famfs_ctx_from_req(req);
-	struct famfs_inode *inode = famfs_get_inode_from_nodeid(lo, nodeid);
+	struct famfs_inode *inode = famfs_get_inode_from_nodeid(&lo->icache,
+								nodeid);
 	struct famfs_inode *parent_inode = inode->parent;
 
 	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
@@ -1211,17 +1265,14 @@ famfs_open(
 	   to return an error here */
 	if (lo->writeback && (fi->flags & O_APPEND))
 		fi->flags &= ~O_APPEND;
-#if 0
-	sprintf(buf, "/proc/self/fd/%i", inode->fd);
-	fd = open(buf, fi->flags & ~O_NOFOLLOW);
-#else
+
 	/* Note we're opening the shadow yaml, not the actual file. The
 	 * the data for the actual file is accessed by the kernel component
 	 * via the fmap. Might not need to actually open anything here...
 	 */
 	fd = openat(parent_inode->fd, inode->name, fi->flags & ~O_NOFOLLOW,
 		    O_RDONLY /* don't make yaml writable in any case */);
-#endif
+
 	if (fd == -1) {
 		famfs_inode_putref(inode);
 		return (void) fuse_reply_err(req, errno);
@@ -1290,12 +1341,7 @@ famfs_fsync(
 	(void) fi;
 
 	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
-#if 0
-	if (datasync)
-		res = fdatasync(fi->fh);
-	else
-		res = fsync(fi->fh);
-#endif
+
 	fuse_reply_err(req, res == -1 ? errno : 0);
 }
 
@@ -1358,7 +1404,8 @@ famfs_statfs(
 	int res;
 	struct statvfs stbuf;
 	struct famfs_ctx *lo = famfs_ctx_from_req(req);
-	struct famfs_inode *inode = famfs_get_inode_from_nodeid(lo, nodeid);
+	struct famfs_inode *inode = famfs_get_inode_from_nodeid(&lo->icache,
+								nodeid);
 
 	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
 
@@ -1608,7 +1655,7 @@ int main(int argc, char *argv[])
 	/*
 	 * This parses famfs_context from the -o opts
 	 */
-	if (fuse_opt_parse(&args, &famfs_data, famfs_opts, NULL)== -1) {
+	if (fuse_opt_parse(&args, lo, famfs_opts, NULL)== -1) {
 		ret = -1;
 		goto err_out1;
 	}
@@ -1667,7 +1714,7 @@ int main(int argc, char *argv[])
 	}
 	printf("timeout=%f\n", lo->timeout);
 
-	ret = famfs_icache_init(&famfs_context, &lo->icache, shadow_root);
+	ret = famfs_icache_init((void *)lo, &lo->icache, shadow_root);
 	if (ret) {
 		free(shadow_root);
 		ret = 1;
@@ -1714,6 +1761,9 @@ int main(int argc, char *argv[])
 
 	famfs_log(FAMFS_LOG_NOTICE, "%s: umount %s\n", PROGNAME, opts.mountpoint);
 	fuse_session_unmount(se);
+
+	famfs_icache_destroy(&lo->icache);
+
 err_out3:
 	fuse_remove_signal_handlers(se);
 err_out2:
@@ -1723,8 +1773,6 @@ err_out1:
 		free(shadow_root);
 	free(opts.mountpoint);
 	fuse_opt_free_args(&args);
-
-	famfs_icache_destroy(&lo->icache);
 
 	if (lo->daxdev_table)
 		free(lo->daxdev_table);
