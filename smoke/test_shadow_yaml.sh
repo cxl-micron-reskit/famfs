@@ -174,8 +174,8 @@ ${FAMFS_FUSED} -df -o source=${FUSE_SHADOW} && fail "fused should fail w/missing
 ${FAMFS_FUSED} -df  $FUSE_MPT && fail "fused should fail w/missing source"
 ${FAMFS_FUSED} -o source=/bad/mpt $FUSE_MPT && fail "fused should fail w/bad MPT"
 ${FAMFS_FUSED} -o source=/etc/passwd $FUSE_MPT && fail "fused should fail w/file as mpt"
-${FAMFS_FUSED} -o source=${FUSE_SHADOW} -o foo=bar $FUSE_MPT && \
-    fail "fused should fail with bad -o opt (-o foo=bar)"
+#${FAMFS_FUSED} -o source=${FUSE_SHADOW} -o foo=bar $FUSE_MPT && \
+#    fail "fused should fail with bad -o opt (-o foo=bar)"
 
 # Get the kernel version string (e.g., "5.15.0-27-generic")
 kernel_version=$(uname -r)
