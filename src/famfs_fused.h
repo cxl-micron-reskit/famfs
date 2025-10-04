@@ -12,7 +12,7 @@ enum {
 	CACHE_ALWAYS,
 };
 
-struct famfs_data {
+struct famfs_ctx {
 	int debug;
 	int writeback;
 	int flock;

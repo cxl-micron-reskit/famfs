@@ -11,7 +11,7 @@
 #include "famfs_fused.h"
 
 int famfs_icache_init(
-	struct famfs_data *lo,
+	struct famfs_ctx *lo,
 	struct famfs_icache *icache,
 	const char *shadow_root)
 {
@@ -91,7 +91,7 @@ void dump_icache(struct famfs_icache *icache)
 struct famfs_inode *
 famfs_inode_alloc(
 	struct famfs_icache *icache,
-	struct famfs_data *lo,
+	struct famfs_ctx *lo,
 	int fd,
 	const char *name,
 	ino_t inode_num,
@@ -313,7 +313,7 @@ famfs_icache_unref_inode(
 
 struct famfs_inode *
 famfs_get_inode_from_nodeid_locked(
-	struct famfs_data *lo,
+	struct famfs_ctx *lo,
 	fuse_ino_t nodeid)
 {
 	struct famfs_inode *inode;
@@ -341,7 +341,7 @@ unlock_out:
  */
 struct famfs_inode *
 famfs_get_inode_from_nodeid(
-	struct famfs_data *lo,
+	struct famfs_ctx *lo,
 	fuse_ino_t nodeid)
 {
 
@@ -361,7 +361,7 @@ famfs_get_inode_from_nodeid(
 
 #if 0
 int
-famfs_fd_from_nodeid(struct famfs_data *lo, fuse_ino_t nodeid)
+famfs_fd_from_nodeid(struct famfs_ctx *lo, fuse_ino_t nodeid)
 {
 	struct famfs_inode *inode = famfs_inode_
 	return famfs_inode_from_nodeid(lo, nodeid)->fd;

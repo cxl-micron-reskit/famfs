@@ -47,7 +47,7 @@ struct famfs_inode {
 	uint64_t refcount;                 /* protected by lo->mutex */
 	struct famfs_icache *icache;
 	struct famfs_log_file_meta *fmeta; /* fmeta must be freed */
-	struct famfs_data *owner;
+	struct famfs_ctx *owner;
 	struct stat attr;
 	enum famfs_fuse_ftype ftype;
 	struct famfs_inode *parent;        /* parent ref must be dropped */
@@ -68,11 +68,11 @@ famfs_icache_count(struct famfs_icache *icache)
 }
 
 int famfs_icache_init(
-	struct famfs_data *lo, struct famfs_icache *icache,
+	struct famfs_ctx *lo, struct famfs_icache *icache,
 	const char *shadow_root);
 void famfs_icache_destroy(struct famfs_icache *icache);
 struct famfs_inode *famfs_inode_alloc(struct famfs_icache *icache,
-				      struct famfs_data *owner, int fd,
+				      struct famfs_ctx *owner, int fd,
 				      const char *name,
 				      ino_t inode_num, dev_t dev,
 				      struct famfs_log_file_meta *fmeta,
@@ -93,10 +93,9 @@ famfs_icache_unref_inode(struct famfs_icache *icache, struct famfs_inode *inode,
 void dump_icache(struct famfs_icache *icache);
 
 struct famfs_inode *famfs_get_inode_from_nodeid(
-	struct famfs_data *lo, fuse_ino_t nodeid);
+	struct famfs_ctx *lo, fuse_ino_t nodeid);
 struct famfs_inode *famfs_get_inode_from_nodeid_locked(
-	struct famfs_data *lo, fuse_ino_t nodeid);
-//int famfs_fd_from_nodeid(struct famfs_data *lo, fuse_ino_t nodeid);
+	struct famfs_ctx *lo, fuse_ino_t nodeid);
 
 static inline void famfs_inode_getref_locked(struct famfs_inode *inode)
 {
