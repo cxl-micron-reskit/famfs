@@ -19,6 +19,8 @@ threadpool:
 		git clone -b master https://github.com/jagalactic/C-Thread-Pool.git; \
 	fi
 
+mongoose:
+	git clone -b famfs-7.19 https://github.com/jagalactic/mongoose.git
 
 LIBFUSE_REPO := https://github.com/jagalactic/libfuse.git;
 LIBFUSE_BRANCH := famfs-6.14
@@ -37,7 +39,7 @@ libfuse:
 	meson setup -Dexamples=false $(BDIR)/libfuse ./libfuse
 	meson compile -C $(BDIR)/libfuse
 
-sanitize: cmake-modules threadpool
+sanitize: cmake-modules threadpool mongoose
 	mkdir -p sanitize;
 	$(MAKE) libfuse BDIR="sanitize"
 	cd sanitize; cmake -DCMAKE_BUILD_TYPE=Debug \
@@ -46,7 +48,7 @@ sanitize: cmake-modules threadpool
 	$(MAKE)
 
 
-debug:	cmake-modules threadpool
+debug:	cmake-modules threadpool mongoose
 	export BDIR="debug"
 	mkdir -p debug;
 	$(MAKE) libfuse BDIR="debug"
@@ -61,7 +63,7 @@ debug:	cmake-modules threadpool
 #
 # The comand above will direct you to html files detailing the measured coverage
 #
-coverage:	cmake-modules threadpool
+coverage:	cmake-modules threadpool mongoose
 	mkdir -p coverage;
 	$(MAKE) libfuse BDIR="coverage"
 	cd coverage; cmake -DCMAKE_BUILD_TYPE=Debug -DFAMFS_TEST_COVERAGE="yes" ..; $(MAKE)
@@ -97,7 +99,7 @@ coverage_nofuse: coverage
 
 coverage_dual:	coverage_test
 
-release:	cmake-modules threadpool
+release:	cmake-modules threadpool mongoose
 	mkdir -p release;
 	$(MAKE) libfuse BDIR="release"
 	cd release; cmake ..; $(MAKE)

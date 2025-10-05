@@ -124,12 +124,24 @@ target_include_directories(libicache
     PUBLIC
         ${PROJECT_SOURCE_DIR}/src
         ${PROJECT_SOURCE_DIR}/C-Thread-Pool
+        ${PROJECT_SOURCE_DIR}/mongoose
         ${PROJECT_SOURCE_DIR}/libfuse/include
         ${PROJECT_SOURCE_DIR}/libfuse/lib
         ${CMAKE_CURRENT_BINARY_DIR}/libfuse
         ${LINUX_INCLUDE_BASE}
 )
 
+add_library(libmongoose mongoose/mongoose.c)
+
+target_include_directories(libmongoose
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/mongoose
+        ${LINUX_INCLUDE_BASE}
+)
+
+target_compile_definitions(libmongoose
+    PUBLIC MG_ENABLE_UNIX=1
+)
 
 add_executable(famfs src/famfs_cli.c)
 add_executable(mkfs.famfs src/mkfs.famfs.c)
