@@ -31,8 +31,6 @@ int famfs_icache_init(
 
 	if (shadow_root) {
 		icache->root.fd = open(shadow_root, O_PATH);
-		printf("root=(%s) fd=%d\n",
-		       shadow_root, icache->root.fd);
 		if (icache->root.fd == -1) {
 			famfs_log(FAMFS_LOG_ERR, "open(\"%s\", O_PATH): %m\n",
 				  shadow_root);
@@ -63,9 +61,9 @@ void famfs_icache_destroy(struct famfs_icache *icache)
 		free(icache->shadow_root);
 }
 
-void dump_inode(struct famfs_inode *inode)
+void dump_inode(struct famfs_inode *inode, int loglevel)
 {
-	famfs_log(FAMFS_LOG_NOTICE,
+	famfs_log(loglevel,
 		  "ino=%ld nodeid=%llx flags=%d refcount=%ld ftype=%d "
 		  "icache=%llx Parent=%ld name=(%s)\n",
 		  inode->ino, (u64)inode, inode->flags,
@@ -75,23 +73,22 @@ void dump_inode(struct famfs_inode *inode)
 		  inode->name);
 }
 
-void dump_icache(struct famfs_icache *icache)
+void dump_icache(struct famfs_icache *icache, int loglevel)
 {
 	struct famfs_inode *p;
 	size_t nino = 0;
 
 	pthread_mutex_lock(&icache->mutex);
-	famfs_log(FAMFS_LOG_NOTICE, "%s: count=%ld\n",
+	famfs_log(loglevel, "%s: count=%ld\n",
 	       __func__, icache->count);
 
-	dump_inode(&icache->root);
+	dump_inode(&icache->root, loglevel);
 	for (p = icache->root.next; p != &icache->root; p = p->next) {
-		dump_inode(p);
+		dump_inode(p, loglevel);
 		nino++;
 	}
 	pthread_mutex_unlock(&icache->mutex);
-	famfs_log(FAMFS_LOG_DEBUG, "   %ld inodes cached\n", nino);
-	printf("\n");
+	famfs_log(loglevel, "   %ld inodes cached\n", nino);
 }
 
 /*
@@ -208,9 +205,6 @@ famfs_icache_insert_locked(
 	famfs_inode_getref_locked(inode->parent);
 
 	icache->count++;
-	printf("%s: ino=%ld/ref=%ld parent_ino=%ld/ref=%ld\n",
-	       __func__, inode->ino, inode->refcount,
-	       inode->parent->ino, inode->parent->refcount);
 }
 
 void

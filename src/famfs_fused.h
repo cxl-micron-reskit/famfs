@@ -6,6 +6,8 @@
 #ifndef FAMFS_FUSED_H
 #define FAMFS_FUSED_H
 
+#include "famfs_fused_icache.h"
+
 enum {
 	CACHE_NEVER,
 	CACHE_NORMAL,

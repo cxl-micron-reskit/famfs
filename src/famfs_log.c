@@ -14,6 +14,17 @@ static unsigned int famfs_log_level = FAMFS_LOG_NOTICE;
 
 static bool to_syslog = true;
 
+char *famfs_log_level_strings[] = {
+	"FAMFS_LOG_EMERG",
+	"FAMFS_LOG_ALERT",
+	"FAMFS_LOG_CRIT",
+	"FAMFS_LOG_ERR",
+	"FAMFS_LOG_WARNING",
+	"FAMFS_LOG_NOTICE",
+	"FAMFS_LOG_INFO",
+	"FAMFS_LOG_DEBUG",
+};
+
 static void default_log_func(
 	enum famfs_log_level level,
 	const char *fmt, va_list ap)
@@ -41,9 +52,37 @@ void famfs_log(enum famfs_log_level level, const char *fmt, ...)
 	va_end(ap);
 }
 
-void famfs_log_set_level(unsigned int def_level)
+static int
+log_level_valid(int level)
 {
-	famfs_log_level = def_level;
+	if (level < FAMFS_LOG_EMERG || level > FAMFS_LOG_DEBUG)
+		return false;
+	return true;
+}
+			
+
+void famfs_log_set_level(int level)
+{
+	if (!log_level_valid(level)) {
+		famfs_log(FAMFS_LOG_ERR, "%s: invalid log level %d\n",
+			  __func__);
+		return;
+	}
+	famfs_log_level = level;
+}
+
+int famfs_log_get_level(void)
+{
+	return famfs_log_level;
+}
+
+const char *
+famfs_log_level_string(int level)
+{
+	if (log_level_valid(level))
+		return famfs_log_level_strings[level];
+
+	return "invalid log level";
 }
 
 void famfs_log_enable_syslog(const char *ident, int option, int facility)

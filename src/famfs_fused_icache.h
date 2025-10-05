@@ -22,6 +22,7 @@
 #include <sys/xattr.h>
 #include <systemd/sd-journal.h>
 
+#include <fuse_lowlevel.h>
 #include "famfs_lib.h"
 #include "fuse_log.h"
 
@@ -83,7 +84,7 @@ void famfs_icache_insert_locked(struct famfs_icache *icache,
 void
 famfs_icache_unref_inode(struct famfs_icache *icache, struct famfs_inode *inode,
 			 uint64_t n);
-void dump_icache(struct famfs_icache *icache);
+void dump_icache(struct famfs_icache *icache, int loglevel);
 
 struct famfs_inode *famfs_get_inode_from_nodeid(
 	struct famfs_icache *icache, fuse_ino_t nodeid);

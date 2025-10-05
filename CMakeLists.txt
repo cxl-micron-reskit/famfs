@@ -146,7 +146,7 @@ target_compile_definitions(libmongoose
 add_executable(famfs src/famfs_cli.c)
 add_executable(mkfs.famfs src/mkfs.famfs.c)
 add_executable(pcq src/pcq.c)
-add_executable(famfs_fused src/famfs_fused.c)
+add_executable(famfs_fused src/famfs_fused.c src/famfs_rest.c)
 
 find_package(PkgConfig REQUIRED)
 if (NOT PKG_CONFIG_FOUND)
@@ -162,7 +162,7 @@ target_link_libraries(famfs libfamfs famfstest uuid z yaml)
 target_link_libraries(mkfs.famfs libfamfs uuid z yaml)
 target_link_libraries(pcq libpcq libfamfs uuid z famfstest yaml)
 
-target_link_libraries(famfs_fused libfamfs libicache
+target_link_libraries(famfs_fused libfamfs libicache libmongoose
     "${CMAKE_CURRENT_BINARY_DIR}/libfuse/lib/libfuse3.so"
     pthread dl rt systemd
 )
