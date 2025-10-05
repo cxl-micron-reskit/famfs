@@ -1612,7 +1612,7 @@ int main(int argc, char *argv[])
 
 	/*fuse_set_log_func(fused_syslog); */
 	fuse_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
-	famfs_log_set_default_log_level(FAMFS_LOG_DEBUG);
+	famfs_log_set_level(FAMFS_LOG_DEBUG);
 	
 	famfs_log(FAMFS_LOG_DEBUG,  "%s: this is debug(=%d)\n",
 		 PROGNAME, FUSE_LOG_DEBUG);

@@ -35,7 +35,7 @@ enum famfs_log_level {
 typedef void (*famfs_log_func_t)(enum famfs_log_level level,
                                 const char *fmt, va_list ap);
 void famfs_set_log_func(famfs_log_func_t func);
-void famfs_log_set_default_log_level(unsigned int def_level);
+void famfs_log_set_level(unsigned int def_level);
 void famfs_log(enum famfs_log_level level, const char *fmt, ...);
 void famfs_log_enable_syslog(const char *ident, int option, int facility);
 void famfs_log_disable_syslog(void);

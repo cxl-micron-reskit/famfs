@@ -53,14 +53,14 @@ void print_global_opts(void)
 		printf("\t--%s\n", global_options[i++].name);
 }
 
-static void famfs_set_default_log_level(int verbose)
+static void verbose_to_log_level(int verbose)
 {
 	if (verbose == 1) {
-	    famfs_log_set_default_log_level(FAMFS_LOG_INFO);
+	    famfs_log_set_level(FAMFS_LOG_INFO);
 	    return;
 	}
 	if (verbose > 1)
-	    famfs_log_set_default_log_level(FAMFS_LOG_DEBUG);
+	    famfs_log_set_level(FAMFS_LOG_DEBUG);
 }
 
 /********************************************************************/
@@ -414,7 +414,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	}
 
 	if (verbose)
-		famfs_set_default_log_level(verbose);
+		verbose_to_log_level(verbose);
 
 	if (fuse_mode == FAMFS_FUSE) {
 		printf("daxdev=%s, mpt=%s\n", realdaxdev, realmpt);

@@ -10,7 +10,7 @@
 #include <syslog.h>
 #include <stdarg.h>
 
-static unsigned int famfs_default_log_level = FAMFS_LOG_NOTICE;
+static unsigned int famfs_log_level = FAMFS_LOG_NOTICE;
 
 static bool to_syslog = true;
 
@@ -18,7 +18,7 @@ static void default_log_func(
 	enum famfs_log_level level,
 	const char *fmt, va_list ap)
 {
-	if (to_syslog && level <= famfs_default_log_level)
+	if (to_syslog && level <= famfs_log_level)
 		vsyslog(level, fmt, ap);
 }
 
@@ -41,9 +41,9 @@ void famfs_log(enum famfs_log_level level, const char *fmt, ...)
 	va_end(ap);
 }
 
-void famfs_log_set_default_log_level(unsigned int def_level)
+void famfs_log_set_level(unsigned int def_level)
 {
-	famfs_default_log_level = def_level;
+	famfs_log_level = def_level;
 }
 
 void famfs_log_enable_syslog(const char *ident, int option, int facility)
