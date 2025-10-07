@@ -97,6 +97,18 @@ static void famfs_dispatch_http(
 		mg_http_reply(c, 200, meta,
 			      "icache: dumping icache to syslog\n");
 
+	} else if (mg_match(hm->uri, mg_str("/icache_stats"), NULL)) {
+		extern struct famfs_ctx famfs_context;
+		struct famfs_icache *icache = &famfs_context.icache;
+		mg_http_reply(c, 200,
+			      "Content-Type: text/yaml\r\nConnection: close\r\n",
+			      "icache_stats:\n"
+			      "  search_count:   %lld\n"
+			      "  nodes_scanned:  %lld\n"
+			      "  search_fail_ct: %lld\n",
+			      icache->search_count, icache->nodes_scanned,
+			      icache->search_fail_ct);
+
 	} else if (mg_match(hm->uri, mg_str("/inodes"), NULL)) {
 		/* Dummy target */
 		mg_http_reply(c, 200,

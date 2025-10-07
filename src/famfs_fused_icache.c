@@ -148,8 +148,10 @@ famfs_icache_find_get_from_ino_locked(struct famfs_icache *icache, uint64_t ino)
 		return inode;
 	}
 
+	icache->search_count++;
 	for (p = icache->root.next; p != &icache->root; p = p->next) {
 		/* Nodeid is the address of the entry we're looking for */
+		icache->nodes_scanned++;
 		if (p->ino == ino) {
 			assert(p->refcount > 0);
 			inode = p;
@@ -157,6 +159,8 @@ famfs_icache_find_get_from_ino_locked(struct famfs_icache *icache, uint64_t ino)
 			break;
 		}
 	}
+	if (!inode)
+		icache->search_fail_ct++;
 
 	return inode;
 }

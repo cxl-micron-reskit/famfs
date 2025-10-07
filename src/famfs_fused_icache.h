@@ -60,6 +60,10 @@ struct famfs_icache {
 	uint64_t count;
 	char *shadow_root;
 	void *owner;
+
+	uint64_t search_count;   /* How many times did we find_get an inode */
+	uint64_t nodes_scanned;  /* how many nodes scanned in find_get ops */
+	uint64_t search_fail_ct; /* How many searches failed */
 };
 
 static inline uint64_t
