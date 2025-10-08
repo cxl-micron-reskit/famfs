@@ -53,7 +53,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     message("Compiling for code coverage tests")
     include(CodeCoverage)
     set(GCOVR_ADDITIONAL_ARGS
-      "--gcov-ignore-parse-errors" "all"
+      "--gcov-ignore-parse-errors=all" "--merge-mode-functions=separate"
     )
     append_coverage_compiler_flags()
   endif()
@@ -118,10 +118,9 @@ target_include_directories(libpcq PUBLIC
 
 target_link_libraries(libpcq PUBLIC cthreadpool)
 
-add_library(libicache src/famfs_fused_icache.c)
+add_library(libicache_obj OBJECT src/famfs_fused_icache.c)
 
-target_include_directories(libicache
-    PUBLIC
+target_include_directories(libicache_obj PUBLIC
         ${PROJECT_SOURCE_DIR}/src
         ${PROJECT_SOURCE_DIR}/C-Thread-Pool
         ${PROJECT_SOURCE_DIR}/mongoose
@@ -131,7 +130,11 @@ target_include_directories(libicache
         ${LINUX_INCLUDE_BASE}
 )
 
+add_library(libicache STATIC $<TARGET_OBJECTS:libicache_obj>)
+
 add_library(libmongoose mongoose/mongoose.c)
+
+
 
 target_include_directories(libmongoose
     PUBLIC
@@ -162,10 +165,17 @@ target_link_libraries(famfs libfamfs famfstest uuid z yaml)
 target_link_libraries(mkfs.famfs libfamfs uuid z yaml)
 target_link_libraries(pcq libpcq libfamfs uuid z famfstest yaml)
 
-target_link_libraries(famfs_fused libfamfs libicache libmongoose
-    "${CMAKE_CURRENT_BINARY_DIR}/libfuse/lib/libfuse3.so"
-    pthread dl rt systemd
+target_link_libraries(famfs_fused
+    PRIVATE
+        libfamfs
+        libmongoose
+        "${CMAKE_CURRENT_BINARY_DIR}/libfuse/lib/libfuse3.so"
+        pthread dl rt systemd
 )
+
+# Explicitly add the object file from libicache_obj
+target_sources(famfs_fused PRIVATE $<TARGET_OBJECTS:libicache_obj>)
+
 
 #
 ## Test definitions ###
