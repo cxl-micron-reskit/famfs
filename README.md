@@ -335,3 +335,37 @@ reasonably sized in the early stages.
 Famfs is not a general purpose file system, and unlike most file systems, it is not a data
 storage tool. Famfs is a data *sharing* tool.
 
+## 📚 Cite Famfs
+
+If you use **famfs** in research, academic publications, or presentations, please cite it as follows:
+
+**Plain text citation**
+
+> John Groves. *Famfs: The fabric-attached memory file system.* 2025.  
+> Available at <https://famfs.org>.  
+> Developed by John Groves (Micron Technology, Inc.).  
+> Presented at the Linux Plumbers Conference (LPC) 2023–2025;  
+> the Linux Storage, Filesystem, and Memory Management (LSFMM) Summits 2024–2025;  
+> the USENIX Conference on File and Storage Technologies (FAST) 2025 (poster);  
+> **FMS: The Future of Memory and Storage** 2025;  
+> the SNIA Developer Conference (SDC) 2025; and  
+> the Massive Storage Systems and Technology Conference (MSST) 2025.
+
+---
+
+**BibTeX**
+
+```bibtex
+@misc{groves_famfs,
+  author       = {John Groves},
+  title        = {Famfs: The fabric-attached memory file system},
+  year         = {2025},
+  howpublished = {\url{https://famfs.org}},
+  note         = {Developed by John Groves (Micron Technology, Inc.).
+                  Presented at the Linux Plumbers Conference (LPC) 2023--2025;
+                  the Linux Storage, Filesystem, and Memory Management (LSFMM) Summits 2024--2025;
+                  the USENIX Conference on File and Storage Technologies (FAST) 2025 (poster);
+                  FMS: The Future of Memory and Storage 2025;
+                  the SNIA Developer Conference (SDC) 2025;
+                  and the Massive Storage Systems and Technology Conference (MSST) 2025.}
+}
