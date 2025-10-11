@@ -242,6 +242,13 @@ ${CLI} logplay -rm $MPT            && fail "logplay with -m and -r should fail"
 ${CLI} logplay                     && fail "logplay without MPT arg should fail"
 #${CLI} logplay --shadow            && fail "shadow logplay with no daxdev should fail"
 
+# Dump icache stats before umount
+if [[ "$FAMFS_MODE" == "fuse" ]]; then
+    # turn up log debug
+    sudo curl  --unix-socket $(scripts/famfs_shadow.sh /mnt/famfs)/sock \
+	 http://localhost/icache_stats
+fi
+
 # Unmount and remount
 sudo $UMOUNT $MPT || fail "umount should succeed"
 findmnt -t famfs $MPT && fail "famfs is still mounted at $MPT after umount attempt"

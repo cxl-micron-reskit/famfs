@@ -130,6 +130,13 @@ do
     ${CLI} verify -S $N -f $MPT/$FILE                || fail "$FILE mismatch"
 done
 
+# Dump icache stats before umount
+if [[ "$FAMFS_MODE" == "fuse" ]]; then
+    # turn up log debug
+    sudo curl  --unix-socket $(scripts/famfs_shadow.sh /mnt/famfs)/sock \
+	 http://localhost/icache_stats
+fi
+
 sudo $UMOUNT $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
 ${MOUNT} $DEV $MPT || fail "mount should succeed"

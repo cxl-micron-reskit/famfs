@@ -174,6 +174,13 @@ ${MKFS}  $DEV         && fail "mkfs while mounted should fail"
 
 #${MKFS} -f -k $DEV    && fail "mkfs/kill while mounted should fail"
 
+# Dump icache stats before umount
+if [[ "$FAMFS_MODE" == "fuse" ]]; then
+    # turn up log debug
+    sudo curl  --unix-socket $(scripts/famfs_shadow.sh /mnt/famfs)/sock \
+	 http://localhost/icache_stats
+fi
+
 #
 # Blow away the file system and test famfs mount with no valid superblock
 #

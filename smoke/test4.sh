@@ -176,7 +176,7 @@ if [[ "${FAMFS_MODE}" == "v1" ]]; then
 	sudo modprobe ${FAMFS_MOD}  || fail "modprobe"
     fi
 fi
-${MOUNT} $DEV $MPT      || fail "famfs mount should succeed after kmod reloaded"
+${MOUNT} -vv $DEV $MPT      || fail "famfs mount should succeed after kmod reloaded"
 
 #TODO troubleshoot remount
 if [[ "${FAMFS_MODE}" == "v1" ]]; then

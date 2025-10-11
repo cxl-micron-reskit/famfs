@@ -94,6 +94,14 @@ famfs_recreate "test_shadow_yaml"
 verify_mounted $DEV $MPT $TEST
 
 verify_mounted $DEV $MPT "$TEST.sh mounted"
+
+# Dump icache stats before umount
+if [[ "$FAMFS_MODE" == "fuse" ]]; then
+    # turn up log debug
+    sudo curl  --unix-socket $(scripts/famfs_shadow.sh /mnt/famfs)/sock \
+	 http://localhost/icache_stats
+fi
+
 sudo $UMOUNT $MPT || fail "$TEST.sh umount"
 verify_not_mounted $DEV $MPT "$TEST.sh"
 

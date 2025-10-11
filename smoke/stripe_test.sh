@@ -294,6 +294,13 @@ stripe_test () {
 	fail_fsck "Failed to verify $rc files (seed=$seed) ***********************" "-B $NBUCKETS"
     fi
 
+    # Dump icache stats before umount
+    if [[ "$FAMFS_MODE" == "fuse" ]]; then
+	# turn up log debug
+	sudo curl  --unix-socket $(scripts/famfs_shadow.sh /mnt/famfs)/sock \
+	     http://localhost/icache_stats
+    fi
+
     echo
     echo "Unmount and remount to test logplay for interleaved files"
     echo

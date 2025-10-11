@@ -169,7 +169,18 @@ ${CLI} mkdir -p $PFX/./A/x/y/z               || fail "mkdir -p 5"
 cd -
 
 ${CLI} mkdir -pv $MPT/${F_8M}/foo/bar/baz/bing && fail "mkdir -p with a file in path should fail"
+
+if [[ "$FAMFS_MODE" == "fuse" ]]; then
+    # turn up log debug
+    sudo curl  --unix-socket $(scripts/famfs_shadow.sh /mnt/famfs)/sock  -X POST -d  7 http://localhost/log_level
+fi
+
 ${CLI} mkdir -pvvv $MPT/a/y/../../../.. && fail "mkdir -p ../../../.. ascended out of famfs"
+
+if [[ "$FAMFS_MODE" == "fuse" ]]; then
+    # Dump the icache to the log
+    sudo curl  --unix-socket $(./scripts/famfs_shadow.sh /mnt/famfs)/sock  http://localhost/icache_dump
+fi
 
 # Cause some eviction and re-reading
 echo 2 | sudo tee /proc/sys/vm/drop_caches
@@ -257,6 +268,13 @@ fi
 GID_OUT="$(sudo stat --format='%g' ${FILE})"
 if [[ $GID != $GID_OUT ]]; then
     fail "cp -g err $GID ${GID_OUT}"
+fi
+
+# Dump icache stats before umount
+if [[ "$FAMFS_MODE" == "fuse" ]]; then
+    # turn up log debug
+    sudo curl  --unix-socket $(scripts/famfs_shadow.sh /mnt/famfs)/sock \
+	 http://localhost/icache_stats
 fi
 
 sudo $UMOUNT $MPT || fail "umount"

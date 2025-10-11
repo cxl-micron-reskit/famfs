@@ -133,7 +133,6 @@ sudo chown $id:$grp $MPT/q4.consumer
 # Coverage tests leave some root cruft after running pcq as root; clean that up...
 sudo chown -R ${id}:${grp} $BIN
 
-
 # Test setperm
 # XXX: --setperm not working yet on fuse as of 9/2025
 # because 'chmod' is not yet implemented; fix this...
