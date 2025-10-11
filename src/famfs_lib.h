@@ -115,6 +115,9 @@ enum famfs_type famfs_get_kernel_type(int verbose);
 void free_string_list(char **strings, int nstrings);
 char **tokenize_string(const char *input, const char *delimiter, int *out_count);
 void famfs_thpool_destroy(threadpool thp, useconds_t usec);
+void log_file_mode(
+	const char *caller, const char *name, const struct stat *st,
+	int log_level);
 
 /* famfs_yaml.c */
 #include <yaml.h>

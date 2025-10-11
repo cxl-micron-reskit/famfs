@@ -1693,7 +1693,7 @@ TEST(famfs, famfs_icache_test) {
 		}
 
 		/* Put the holder ref on the inode we inserted */
-		famfs_inode_putref_locked(inode);
+		famfs_inode_putref_locked(inode, 1);
 		prev_inode = inode;
 	}
 	ASSERT_EQ(icache.count, NBUCKETS);
@@ -1714,8 +1714,7 @@ TEST(famfs, famfs_icache_test) {
 		loopct++;
 
 		/* Put one ref for the find above, and one to "free" the inode */
-		famfs_inode_putref_locked(inode);
-		famfs_inode_putref_locked(inode);
+		famfs_inode_putref_locked(inode, 2);
 
 		/* Cache should not shrink because all but last have refs */
 		if (num_in_icache > 0) {
@@ -1765,15 +1764,14 @@ TEST(famfs, famfs_icache_test) {
 		loopct++;
 
 		/* Put one ref for the find above, and one to "free" the inode */
-		famfs_inode_putref_locked(inode);
-		famfs_inode_putref_locked(inode);
+		famfs_inode_putref_locked(inode, 2);
 
 		/* Cache should not shrink because all but last have refs */
 		if (num_in_icache > 0) {
 			ASSERT_EQ(num_in_icache + loopct, NBUCKETS);
 		}
 		/* Put the holder ref on the inode we inserted */
-		famfs_inode_putref_locked(inode);
+		famfs_inode_putref_locked(inode, 1);
 	}
 	
 	/* Put the root inode to go back to refcount=2 */

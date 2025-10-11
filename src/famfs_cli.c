@@ -207,9 +207,9 @@ do_famfs_cli_logplay(int argc, char *argv[])
 				   shadowpath, shadowtest, verbose);
 	if (rc == 0)
 		famfs_log(FAMFS_LOG_NOTICE,
-			  "famfs logplay completed successfully on %s", fspath);
+			  "famfs cli: famfs logplay completed successfully on %s", fspath);
 	else
-		famfs_log(FAMFS_LOG_ERR, "famfs logplay failed on %s", fspath);
+		famfs_log(FAMFS_LOG_ERR, "famfs cli: famfs logplay failed on %s", fspath);
 
 	return rc;
 }
@@ -483,9 +483,9 @@ do_famfs_cli_mount(int argc, char *argv[])
 			   verbose);
 	if (rc == 0)
 		famfs_log(FAMFS_LOG_NOTICE,
-			  "famfs mount completed successfully on %s", realmpt);
+			  "famfs cli: famfs mount completed successfully on %s", realmpt);
 	else
-		famfs_log(FAMFS_LOG_ERR, "famfs mount failed on %s", realmpt);
+		famfs_log(FAMFS_LOG_ERR, "famfs cli: famfs mount failed on %s", realmpt);
 
 out:
 err_out:

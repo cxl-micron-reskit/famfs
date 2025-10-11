@@ -95,31 +95,6 @@ struct _uintptr_to_must_hold_fuse_ino_t_dummy_struct \
  *     lift.
  */
 
-#if 0
-enum {
-	CACHE_NEVER,
-	CACHE_NORMAL,
-	CACHE_ALWAYS,
-};
-
-struct famfs_ctx {
-	int debug;
-	int writeback;
-	int flock;
-	int xattr;
-	char *source;
-	char *daxdev;
-	int max_daxdevs;
-	struct famfs_daxdev *daxdev_table;
-	double timeout;
-	int cache;
-	int timeout_set;
-	int pass_yaml; /* pass the shadow yaml through */
-	int readdirplus;
-	struct famfs_icache icache;
-};
-#endif
-
 void
 famfs_dump_opts(const struct famfs_ctx *fd)
 {
@@ -300,7 +275,8 @@ famfs_getattr(
 		}
 		inode->attr = buf;
 	}
-	
+
+	log_file_mode(__func__, inode->name, &inode->attr, FAMFS_LOG_DEBUG);
 	buf = inode->attr;
 	famfs_inode_putref(inode);
 	fuse_reply_attr(req, &buf, lo->timeout);
@@ -314,21 +290,53 @@ famfs_setattr(
 	int valid,
 	struct fuse_file_info *fi)
 {
-	(void)nodeid;
-	(void)attr;
-	(void)valid;
+	struct famfs_ctx *lo = famfs_ctx_from_req(req);
+	struct famfs_inode *inode = famfs_get_inode_from_nodeid(&lo->icache,
+								nodeid);
+	struct stat buf;
+	int errs = 0;
 	(void)fi;
+
 	/*
 	 * Setattr makes ephemeral changes to famfs. The authority is the
 	 * metadata log.
 	 * Still, we allow certain changes:
 	 * * mode
 	 * * uid, gid
-	 * XXX how can we cache ephemeral changes without changing the yaml
-	 * (which must reflect the log authority)?...
+	 * If a file's attr has been changed, it is pinned in the icache,
+	 * causing the attr changes to be cached for the duration of the mount,
+	 * because the the copy in the icache will be used.
 	 */
-	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
-	fuse_reply_err(req, ENOTSUP);
+
+	buf = inode->attr; /* grab a copy from the icached inode */
+	log_file_mode(__func__, inode->name, &inode->attr, FAMFS_LOG_NOTICE);
+
+	/* Update the attr */
+	if (valid & FUSE_SET_ATTR_MODE)
+		buf.st_mode = attr->st_mode;
+	if (valid & FUSE_SET_ATTR_UID)
+		buf.st_uid = attr->st_uid;
+	if (valid & FUSE_SET_ATTR_GID)
+		buf.st_gid = attr->st_gid;
+	if (valid & FUSE_SET_ATTR_SIZE) {
+		famfs_log(FAMFS_LOG_ERR, "%s: Truncate(%lld) not supported\n",
+			  attr->st_size);
+		errs++;
+	}
+	if (valid & FUSE_SET_ATTR_MTIME)
+		buf.st_mtime = attr->st_mtime;
+
+	if (errs) {
+		famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
+		fuse_reply_err(req, EINVAL);
+	} else {
+		inode->attr = buf; /* replace with changed attr */
+		inode->pinned = 1;
+		log_file_mode("after:", inode->name, &inode->attr,
+			      FAMFS_LOG_NOTICE);
+		fuse_reply_attr(req, &buf, lo->timeout);
+	}
+	famfs_inode_putref(inode);
 }
 
 
@@ -376,7 +384,7 @@ famfs_shadow_to_stat(
 	FILE *yaml_stream;
 	int rc;
 
-	assert(fmeta_out);
+	FAMFS_ASSERT(__func__, fmeta_out);
 	if (bufsize < 100) /* This is imprecise... */
 		famfs_log(FAMFS_LOG_ERR,
 			 "File size=%ld: too small  to contain valid yaml\n",
@@ -401,9 +409,6 @@ famfs_shadow_to_stat(
 		famfs_log(FAMFS_LOG_ERR, "%s: err from yaml parser rc=%d\n", __func__, rc);
 		return rc;
 	}
-
-	famfs_log(FAMFS_LOG_NOTICE, "%s: ext_type=%d\n",
-		 __func__, fmeta.fm_fmap.fmap_ext_type);
 
 	/* Fields we don't provide */
 	stat_out->st_dev     = shadow_stat->st_dev;
@@ -472,8 +477,11 @@ famfs_do_lookup(
 	int res;
 
 	famfs_log(FAMFS_LOG_DEBUG,
-		 "%s: parent_inode=%ld name=%s icache_count=%lld\n",
-		 __func__, parent, name, famfs_icache_count(&lo->icache));
+		 "%s: parent_inode=%lx ino=%ld ref=%lld "
+		  "icache_count=%lld name=%s\n",
+		  __func__, parent_inode, parent_inode->ino,
+		  parent_inode->refcount,
+		  famfs_icache_count(&lo->icache), name);
 
 	memset(e, 0, sizeof(*e));
 	e->attr_timeout = lo->timeout;
@@ -491,8 +499,9 @@ famfs_do_lookup(
 
 	newfd = openat(parentfd, name, O_PATH | O_NOFOLLOW, O_RDONLY);
 	if (newfd == -1) {
-		famfs_log(FAMFS_LOG_ERR, "%s: open failed errno=%d\n",
-			 __func__, errno);
+		if (errno != ENOENT)
+			famfs_log(FAMFS_LOG_ERR, "%s: open failed errno=%d\n",
+				  __func__, errno);
 		goto out_err;
 	}
 
@@ -503,63 +512,52 @@ famfs_do_lookup(
 
 	e->attr = st;
 	if (S_ISDIR(st.st_mode)) {
+		ftype = FAMFS_FDIR;
 		famfs_log(FAMFS_LOG_DEBUG,
 			 "               : inode=%d is a directory\n",
 			 e->attr.st_ino);
-		ftype = FAMFS_FDIR;
 	} else if (S_ISREG(st.st_mode)) {
+		void *yaml_buf = NULL;
+		ssize_t yaml_size;
+		ino_t ino = st.st_ino; /* Inode number from file, not yaml */
+
 		ftype = FAMFS_FREG;
 
-		if (lo->pass_yaml) {
-			/* This exposes the yaml files directly */
-			famfs_log(FAMFS_LOG_ERR,
-				 "%s: passing yaml file stat (size=%ld)\n",
-				 __func__, st.st_size);
-			e->attr = st;
-		} else {
-			void *yaml_buf = NULL;
-			ssize_t yaml_size;
-			ino_t ino = st.st_ino; /* Inode number from file, not yaml */
-
-			/* Now that we know it's a regular file, we must
-			 * close and re-open without O_PATH to get to the
-			 * shadow yaml */
-			close(newfd);
-			newfd = openat(parentfd, name, O_NOFOLLOW, O_RDONLY);
-			if (newfd == -1) {
-				goto out_err;
-			}
-
-			fmeta = calloc(1, sizeof(*fmeta));
-			if (!fmeta)
-				goto out_err;
-		
-			yaml_buf = famfs_read_fd_to_buf(newfd, FAMFS_YAML_MAX,
-							&yaml_size);
-			if (!yaml_buf) {
-				famfs_log(FAMFS_LOG_ERR,
-					 "failed to read to yaml_buf\n");
-				goto out_err;
-			}
-
-			/* Don't keep regular files open - only directories */
-			close(newfd);
-			newfd = -1;
-
-			/* Famfs gets the stat struct from the shadow yaml */
-			res = famfs_shadow_to_stat(yaml_buf, yaml_size, &st,
-						   &e->attr, fmeta, 0);
-			if (res)
-				goto out_err;
-			st.st_ino = ino;
-
-			if (yaml_buf)
-				free(yaml_buf);
+		/* Now that we know it's a regular file, we must
+		 * close and re-open without O_PATH to get to the
+		 * shadow yaml */
+		close(newfd);
+		newfd = openat(parentfd, name, O_NOFOLLOW, O_RDONLY);
+		if (newfd == -1) {
+			goto out_err;
 		}
 
-		famfs_log(FAMFS_LOG_DEBUG, "               :"
-			  "inode=%d size=%ld is a file\n",
-			  e->attr.st_ino, e->attr.st_size);
+		fmeta = calloc(1, sizeof(*fmeta));
+		if (!fmeta)
+			goto out_err;
+		
+		yaml_buf = famfs_read_fd_to_buf(newfd, FAMFS_YAML_MAX,
+						&yaml_size);
+		if (!yaml_buf) {
+			famfs_log(FAMFS_LOG_ERR,
+				  "failed to read to yaml_buf\n");
+			goto out_err;
+		}
+
+		/* Don't keep regular files open - only directories */
+		close(newfd);
+		newfd = -1;
+
+		/* Famfs gets the stat struct from the shadow yaml */
+		res = famfs_shadow_to_stat(yaml_buf, yaml_size, &st,
+					   &e->attr, fmeta, 0);
+		if (res)
+			goto out_err;
+		st.st_ino = ino;
+
+		if (yaml_buf)
+			free(yaml_buf);
+
 	} else {
 		famfs_log(FAMFS_LOG_DEBUG,
 			 "               : inode=%d is neither file nor dir\n",
@@ -577,8 +575,13 @@ famfs_do_lookup(
 	if (!inode) {
 		pthread_mutex_lock(&lo->icache.mutex);
 		inode = famfs_icache_find_get_from_ino_locked(&lo->icache,
-							    e->attr.st_ino);
+							      e->attr.st_ino);
 		if (inode) {
+			/* inode refcount counts lookups. Add +1 to the refcount
+			 * in addition to the +1 from find_get above so we can
+			 * unconditionally drop 1 ref on exit
+			 */
+			famfs_inode_getref_locked(inode);
 			pthread_mutex_unlock(&lo->icache.mutex);
 			goto found_inode;
 		} else {
@@ -610,8 +613,8 @@ famfs_do_lookup(
 found_inode:
 
 		famfs_log(FAMFS_LOG_DEBUG,
-			 "               : inode=%d already cached\n",
-			e->attr.st_ino);
+			  "s: inode=%d already cached\n", inode->ino);
+
 		close(newfd);
 		newfd = -1;
 		rc = famfs_check_inode(inode, fmeta, e);
@@ -622,7 +625,7 @@ found_inode:
 				inode->fmeta = NULL;
 			}
 		}
-		if (!inode->fmeta && S_ISREG(st.st_mode)) {
+		if (inode->ftype == FAMFS_FREG && !inode->fmeta) {
 			famfs_log(FAMFS_LOG_ERR,
 				 "%s: null fmeta for ino=%ld; populating\n",
 				 __func__, e->attr.st_ino);
@@ -652,13 +655,7 @@ found_inode:
 	 * have been freed and/or reused. So we still have to look up the inode
 	 * in our cache...
 	 */
-	famfs_log(FAMFS_LOG_NOTICE, "%s: nodeid=%lx i_ino=%ld ext_type=%d\n",
-		 __func__, (long long)e->ino, e->attr.st_ino,
-		  (inode->fmeta) ? (int)inode->fmeta->fm_fmap.fmap_ext_type : -1);
-
-	if (famfs_debug(req))
-		famfs_log(FAMFS_LOG_DEBUG, "  %lli/%s -> %lli\n",
-			(unsigned long long) parent, name, (unsigned long long) e->ino);
+	dump_inode(__func__, inode, FAMFS_LOG_NOTICE);
 
 	/* TODO: a vectorized famfs_inode_putref would be nice */
 	if (parent_inode)
@@ -713,6 +710,7 @@ famfs_get_fmap(
 	char *fmap_message = NULL;
 	ssize_t fmap_size;
 	int err = 0;
+	(void)size;
 
 	fmap_message = calloc(1, fmap_bufsize);
 	if (!fmap_message) {
@@ -720,15 +718,14 @@ famfs_get_fmap(
 		goto out_err;
 	}
 	
-	famfs_log(FAMFS_LOG_NOTICE, "%s: inode=%ld size=%ld\n",
-		 __func__, nodeid, size);
-
 	/* The fuse v1 patch set uses the inode number as the nodeid, meaning
 	 * we have to search the list every time. */
 	inode = famfs_get_inode_from_nodeid(&lo->icache, nodeid);
 	if (inode) /* XXX drop when first fuse patch set is deprecated */
 		famfs_log(FAMFS_LOG_DEBUG, "%s: old kmod - found by i_ino\n",
 			 __func__);
+
+	dump_inode(__func__, inode, FAMFS_LOG_NOTICE);
 
 	/* If it's the v2 or later kmod, the nodeid is the address of the
 	 * famfs_inode. Retrieving it this way validates that there is indeed
@@ -762,8 +759,6 @@ famfs_get_fmap(
 		err = EINVAL;
 		goto out_err;
 	}
-	famfs_log(FAMFS_LOG_NOTICE, "%s: sending fmap message len=%ld\n",
-		 __func__, fmap_size);
 #if 1
 	/* XXX revertme
 	 * For the moment we return fmap_bufsize because the v1 famfs-fuse
@@ -953,12 +948,8 @@ famfs_forget_one(
 	struct famfs_inode *inode = famfs_get_inode_from_nodeid(&lo->icache,
 							    nodeid);
 
-	if (famfs_debug(req)) {
-		famfs_log(FAMFS_LOG_DEBUG, "  forget %lli %lli -%lli\n",
-			(unsigned long long) nodeid,
-			(unsigned long long) inode->refcount,
-			(unsigned long long) nlookup);
-	}
+	famfs_log(FAMFS_LOG_DEBUG, "%s: ino=%lld refcount=%lld count=%lld\n",
+		  __func__, inode->ino, inode->refcount, nlookup);
 
 	/* +1 because we got a ref when we looked it up here */
 	famfs_icache_unref_inode(&lo->icache, inode, nlookup + 1);
@@ -1587,6 +1578,9 @@ fused_syslog(
 
 #define MAX_DAXDEVS 1
 
+/*
+ * Globals!
+ */
 struct famfs_ctx famfs_context;
 
 int main(int argc, char *argv[])
@@ -1614,11 +1608,6 @@ int main(int argc, char *argv[])
 	/*fuse_set_log_func(fused_syslog); */
 	fuse_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
 	
-	famfs_log(FAMFS_LOG_DEBUG,  "%s: this is debug(=%d)\n",
-		 PROGNAME, FUSE_LOG_DEBUG);
-	famfs_log(FAMFS_LOG_ERR,    "%s: this is an err(=%d)\n",
-		 PROGNAME, FUSE_LOG_ERR);
-
 	/*
 	 * This gets opts (fuse_cmdline_opts)
 	 * (This is a struct containing option fields)

@@ -29,6 +29,10 @@
 #include <zlib.h>
 #include <sys/file.h>
 #include <dirent.h>
+#include <pwd.h>
+#include <grp.h>
+#include <time.h>
+
 #include <linux/famfs_ioctl.h>
 
 #include "famfs_meta.h"
@@ -573,4 +577,52 @@ void famfs_thpool_destroy(threadpool thp, useconds_t sleep_us)
 {
 	thpool_destroy(thp);
 	usleep(sleep_us);
+}
+
+void log_file_mode(
+	const char *caller,
+	const char *name,
+	const struct stat *st,
+	int log_level)
+{
+	struct passwd *pw = getpwuid(st->st_uid);
+	struct group  *gr = getgrgid(st->st_gid);
+	char perms[11] = "----------";
+	mode_t mode = st->st_mode;
+	char timebuf[64];
+
+	if (S_ISDIR(mode))  perms[0] = 'd';
+	else if (S_ISLNK(mode)) perms[0] = 'l';
+	else if (S_ISCHR(mode)) perms[0] = 'c';
+	else if (S_ISBLK(mode)) perms[0] = 'b';
+	else if (S_ISFIFO(mode)) perms[0] = 'p';
+	else if (S_ISSOCK(mode)) perms[0] = 's';
+
+	if (mode & S_IRUSR) perms[1] = 'r';
+	if (mode & S_IWUSR) perms[2] = 'w';
+	if (mode & S_IXUSR) perms[3] = 'x';
+	if (mode & S_IRGRP) perms[4] = 'r';
+	if (mode & S_IWGRP) perms[5] = 'w';
+	if (mode & S_IXGRP) perms[6] = 'x';
+	if (mode & S_IROTH) perms[7] = 'r';
+	if (mode & S_IWOTH) perms[8] = 'w';
+	if (mode & S_IXOTH) perms[9] = 'x';
+
+	/* Handle suid, sgid, sticky bits */
+	if (mode & S_ISUID) perms[3] = (perms[3] == 'x') ? 's' : 'S';
+	if (mode & S_ISGID) perms[6] = (perms[6] == 'x') ? 's' : 'S';
+	if (mode & S_ISVTX) perms[9] = (perms[9] == 'x') ? 't' : 'T';
+
+	strftime(timebuf, sizeof(timebuf), "%b %e %H:%M",
+		 localtime(&st->st_mtime));
+
+	famfs_log(log_level, "%s: %s %2lu %-8s %-8s %8lld %s %s\n",
+		  caller, perms,
+		  (unsigned long)st->st_nlink,
+		  pw ? pw->pw_name : "?",
+		  gr ? gr->gr_name : "?",
+		  (long long)st->st_size,
+		  timebuf,
+		  name);
+
 }

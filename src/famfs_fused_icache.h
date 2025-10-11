@@ -49,6 +49,7 @@ struct famfs_inode {
 	struct famfs_icache *icache;
 	struct famfs_log_file_meta *fmeta; /* fmeta must be freed */
 	struct stat attr;
+	int pinned;      /* We pin in the cache if attrs have been mutated */
 	enum famfs_fuse_ftype ftype;
 	struct famfs_inode *parent;        /* parent ref must be dropped */
 	char *name;                        /* name must be freed */
@@ -88,6 +89,7 @@ void famfs_icache_insert_locked(struct famfs_icache *icache,
 void
 famfs_icache_unref_inode(struct famfs_icache *icache, struct famfs_inode *inode,
 			 uint64_t n);
+void dump_inode(const char *caller, struct famfs_inode *inode, int loglevel);
 void dump_icache(struct famfs_icache *icache, int loglevel);
 
 struct famfs_inode *famfs_get_inode_from_nodeid(
@@ -116,7 +118,7 @@ static inline void famfs_inode_getref(
 	pthread_mutex_unlock(&icache->mutex);
 };
 
-void famfs_inode_putref_locked(struct famfs_inode *inode);
+void famfs_inode_putref_locked(struct famfs_inode *inode, uint64_t count);
 void famfs_inode_putref(struct famfs_inode *inode);
 
 

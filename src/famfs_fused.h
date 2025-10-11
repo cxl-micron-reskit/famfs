@@ -6,6 +6,7 @@
 #ifndef FAMFS_FUSED_H
 #define FAMFS_FUSED_H
 
+#include <assert.h>
 #include "famfs_fused_icache.h"
 
 enum {
@@ -30,5 +31,16 @@ struct famfs_ctx {
 	int readdirplus;
 	struct famfs_icache icache;
 };
+
+
+#define FAMFS_ASSERT(FUNC, ASSERTION)					\
+    do {                                                                \
+        if (!(ASSERTION)) {                                             \
+		famfs_log(FAMFS_LOG_ERR,				\
+                    "%s: assertion failed: %s (in %s:%d)\n",            \
+                    FUNC, #ASSERTION, __FILE__, __LINE__);              \
+            assert(ASSERTION);                                          \
+        }                                                               \
+    } while (0)
 
 #endif /* FAMFS_FUSED_H */
