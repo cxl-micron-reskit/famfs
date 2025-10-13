@@ -15,14 +15,15 @@
  */
 
 enum famfs_log_level {
-        FAMFS_LOG_EMERG,
-        FAMFS_LOG_ALERT,
-        FAMFS_LOG_CRIT,
-        FAMFS_LOG_ERR,
-        FAMFS_LOG_WARNING,
-        FAMFS_LOG_NOTICE,
-        FAMFS_LOG_INFO,
-        FAMFS_LOG_DEBUG
+	FAMFS_LOG_EMERG,
+	FAMFS_LOG_ALERT,
+	FAMFS_LOG_CRIT,
+	FAMFS_LOG_ERR,
+	FAMFS_LOG_WARNING,
+	FAMFS_LOG_NOTICE,
+	FAMFS_LOG_INFO,
+	FAMFS_LOG_DEBUG,
+	FAMFS_INVALID,
 };
 
 /**
@@ -42,6 +43,14 @@ void famfs_log_enable_syslog(const char *ident, int option, int facility);
 void famfs_log_disable_syslog(void);
 void famfs_log_close_syslog(void);
 const char *famfs_log_level_string(int level);
+
+static inline void
+famfs_nop_log_func(enum famfs_log_level level, const char *fmt, va_list ap)
+{
+	(void)level;
+	(void)fmt;
+	(void)ap;
+}
 
 #endif /* _FAMFS_LOG_H */
 

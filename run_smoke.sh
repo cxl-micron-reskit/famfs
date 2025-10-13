@@ -74,6 +74,18 @@ while (( $# > 0)); do
 	    SKIP_PCQ=1
 #	    SKIP_FIO=0
 	    ;;
+	(--justpcq)
+	    SKIP_TEST0=1
+	    SKIP_TEST1=1
+	    SKIP_TEST2=1
+	    SKIP_TEST3=1
+	    SKIP_TEST4=1
+	    #SKIP_PCQ=1
+	    SKIP_FIO=1
+	    SKIP_SHADOW_YAML=1
+	    SKIP_STRIPE_TEST=1
+	    COVERAGE=0
+	    ;;
 	(--quick)
 	    SKIP_PCQ=1
 	    SKIP_FIO=1

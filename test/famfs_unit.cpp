@@ -1647,8 +1647,9 @@ TEST(famfs, famfs_fmap_alloc_verify) {
 
 TEST(famfs, famfs_icache_test) {
 	struct famfs_inode *inode, *prev_inode = NULL;
-	struct famfs_inode *root_inode;
+	char *shadow_root = "/tmp/test/root";
 	struct bucket_series *bs = NULL;
+	struct famfs_inode *root_inode;
 	struct stat st;
 	famfs_icache icache;
 	s64 inode_num;
@@ -1658,7 +1659,8 @@ TEST(famfs, famfs_icache_test) {
 	memset(&st, 0, sizeof(st));
 	memset(&icache, 0, sizeof(icache));
 	
-	famfs_icache_init(NULL, &icache, NULL);
+	system("mkdir /tmp/test/root");
+	famfs_icache_init(NULL, &icache, shadow_root);
 	ASSERT_EQ(icache.root.next, icache.root.prev);
 	ASSERT_EQ(icache.count, 0);
 
@@ -1685,7 +1687,7 @@ TEST(famfs, famfs_icache_test) {
 		ASSERT_EQ(inode->ino, inode_num);
 		num_in_icache++;
 		famfs_icache_insert_locked(&icache, inode);
-		ASSERT_EQ(num_in_icache, icache.count);
+		ASSERT_EQ(num_in_icache, famfs_icache_count(&icache));
 
 		if (num_in_icache > 1) {
 			/* refcount of root_inode should be 3 or 4... */
@@ -1698,6 +1700,8 @@ TEST(famfs, famfs_icache_test) {
 	}
 	ASSERT_EQ(icache.count, NBUCKETS);
 
+	dump_icache(&icache, FAMFS_LOG_NOTICE);
+
 	ASSERT_EQ(bs->current, NBUCKETS);
 	bucket_series_rewind(bs);
 
@@ -1705,7 +1709,7 @@ TEST(famfs, famfs_icache_test) {
 	u64 loopct = 0;
 	while ((inode_num = bucket_series_next(bs)) != -1) {
 		struct famfs_inode *inode =
-			famfs_icache_find_get_from_ino_locked(&icache, inode_num);
+			famfs_icache_find_get_from_ino(&icache, inode_num);
 
 		ASSERT_NE(inode, (struct famfs_inode *)NULL);
 		ASSERT_EQ(inode_num, inode->ino);
@@ -1750,12 +1754,12 @@ TEST(famfs, famfs_icache_test) {
 	ASSERT_EQ(bs->current, NBUCKETS);
 	bucket_series_rewind(bs);
 
-
 	/* Delete all nodes from the cache in insert order */
 	loopct = 0;
 	while ((inode_num = bucket_series_next(bs)) != -1) {
 		struct famfs_inode *inode =
-			famfs_icache_find_get_from_ino_locked(&icache, inode_num);
+			famfs_icache_find_get_from_ino_locked(&icache,
+							      inode_num);
 
 		ASSERT_NE(inode, (struct famfs_inode *)NULL);
 		ASSERT_EQ(inode_num, inode->ino);
@@ -1776,9 +1780,71 @@ TEST(famfs, famfs_icache_test) {
 	
 	/* Put the root inode to go back to refcount=2 */
 	famfs_inode_putref(root_inode);
+	bucket_series_rewind(bs);
+
+	/* Depth again, to be cleaned up by famfs_icache_destroy() */
+	while ((inode_num = bucket_series_next(bs)) != -1) {
+		inode = famfs_inode_alloc(&icache,
+					  -1 /* fd */,
+					  "bogusname",
+					  inode_num,
+					  0           /* dev */,
+					  NULL        /* fmeta */,
+					  &st         /* attr / stat */,
+					  FAMFS_FDIR  /* ftype */,
+					  prev_inode  /* parent */);
+		ASSERT_EQ(inode->ino, inode_num);
+		num_in_icache++;
+		famfs_icache_insert_locked(&icache, inode);
+		ASSERT_EQ(num_in_icache, icache.count);
+
+		if (num_in_icache > 1) {
+			/* refcount of root_inode should be 3 or 4... */
+			ASSERT_EQ(prev_inode->refcount, 2);
+		}
+
+		/* Put the holder ref on the inode we inserted */
+		famfs_inode_putref_locked(inode, 1);
+		prev_inode = inode;
+	}
+	ASSERT_EQ(icache.count, NBUCKETS);
+
+	ASSERT_EQ(bs->current, NBUCKETS);
+	bucket_series_rewind(bs);
 
 	bucket_series_destroy(bs);
-	
-	/* That last put should have caused a cascading putref */
-	ASSERT_EQ(icache.count, 0);
+
+	famfs_icache_destroy(&icache);
+}
+
+TEST(famfs, famfs_log_test) {
+	famfs_log(FAMFS_LOG_NOTICE, "%s:\n", __func__);
+	famfs_log(FAMFS_INVALID, "bad log level\n");
+
+	printf("0: %s\n", famfs_log_level_string(0));
+	printf("1: %s\n", famfs_log_level_string(1));
+	printf("2: %s\n", famfs_log_level_string(2));
+	printf("3: %s\n", famfs_log_level_string(3));
+	printf("4: %s\n", famfs_log_level_string(4));
+	printf("5: %s\n", famfs_log_level_string(5));
+	printf("6: %s\n", famfs_log_level_string(6));
+	printf("7: %s\n", famfs_log_level_string(7));
+	printf("8: %s\n", famfs_log_level_string(8)); /* invalid */
+
+	ASSERT_EQ(famfs_log_get_level(), FAMFS_LOG_NOTICE);
+
+	famfs_log_set_level(FAMFS_LOG_DEBUG);
+	ASSERT_EQ(famfs_log_get_level(), FAMFS_LOG_DEBUG);
+	famfs_log_set_level(FAMFS_INVALID); /* Invalid level - level should not change */
+	ASSERT_EQ(famfs_log_get_level(), FAMFS_LOG_DEBUG);
+
+	famfs_log_disable_syslog();
+	famfs_log(FAMFS_LOG_NOTICE, "%s:\n", __func__);
+}
+
+TEST(famfs, famfs_daxdev) {
+	int rc;
+	rc = famfs_bounce_daxdev("bogusdev", 2);
+	printf("famfs_bounce_daxdev = %d\n", rc);
+	ASSERT_NE(rc, 0);
 }
