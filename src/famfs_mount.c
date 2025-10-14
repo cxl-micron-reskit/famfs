@@ -537,6 +537,7 @@ famfs_start_fuse_daemon(
 	const char *shadow,
 	ssize_t timeout,
 	int useraccess,
+	int default_perm,
 	int debug,
 	int verbose)
 {
@@ -602,6 +603,12 @@ famfs_start_fuse_daemon(
 			sizeof(opts) - strlen(opts) - 1);
 	}
 	
+	if (default_perm) {
+		char useraccess_arg[PATH_MAX] = ",default_permissions";
+		strncat(opts, useraccess_arg,
+			sizeof(opts) - strlen(opts) - 1);
+	}
+
 	if (verbose)
 		printf("%s: opts: %s\n", __func__, opts);
 
@@ -646,6 +653,7 @@ famfs_mount_fuse(
 	ssize_t timeout,
 	int logplay_use_mmap,
 	int useraccess,
+	int default_perm,
 	int debug,
 	int verbose)
 {
@@ -738,7 +746,7 @@ famfs_mount_fuse(
 
 	/* Start the fuse daemon, which mounts the FS */
 	rc = famfs_start_fuse_daemon(realmpt, realdaxdev, local_shadow, timeout,
-				     useraccess, debug, verbose);
+				     useraccess, default_perm, debug, verbose);
 	if (rc < 0) {
 		fprintf(stderr, "%s: failed to start fuse daemon\n", __func__);
 		return rc;

@@ -48,7 +48,7 @@ enum famfs_type {
 char *famfs_get_shadow_root(const char *shadow_path, int verbose);
 int famfs_mount_fuse(const char *realdaxdev, const char *realmpt,
 		     const char *realshadow, ssize_t timeout,
-		     int logplay_use_fuse, int useraccess,
+		     int logplay_use_fuse, int useraccess, int default_perm,
 		     int debug, int verbose);
 
 /* famfs_lib dual v1/v2 functions */

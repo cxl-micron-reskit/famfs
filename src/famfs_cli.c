@@ -248,6 +248,8 @@ famfs_mount_usage(int   argc,
 	       "                     verbose logging\n"
 	       "    -v|--verbose   - Print verbose output\n"
 	       "    -u|--nouseraccess  - Allow non-root access\n"
+	       "    -p|--nodefaultperm - Do not apply normal posix permissions\n"
+	       "                         (don'd use default_permissions mount opt\n"
 	       "    -S|--shadow=path - Path to root of shadow filesystem\n"
 	       "\n", progname);
 }
@@ -261,6 +263,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	int verbose = 0;
 	int use_read = 0;
 	int useraccess = 1;
+	int default_perm = 1;
 	char *shadowpath = NULL;
 	int use_mmap = 0;
 	char *mpt = NULL;
@@ -285,7 +288,8 @@ do_famfs_cli_mount(int argc, char *argv[])
 		{"timeout",    required_argument,      0,  't'},
 		{"cache",      required_argument,      0,  'c'},
 		{"verbose",    no_argument,            0,  'v'},
-		{"nouseraccess", no_argument,            0,  'u'},
+		{"nouseraccess", no_argument,          0,  'u'},
+		{"nodefaultperm", no_argument,         0,  'p'},
 		{"shadow",     required_argument,      0,  'S'},
 		{0, 0, 0, 0}
 	};
@@ -297,7 +301,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+h?RrfFmvudt:c:S:",
+	while ((c = getopt_long(argc, argv, "+h?RrfFmvupdt:c:S:",
 				mount_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -332,6 +336,9 @@ do_famfs_cli_mount(int argc, char *argv[])
 			break;
 		case 'u':
 			useraccess = 0;
+			break;
+		case 'p':
+			default_perm = 0;
 			break;
 		case 'S':
 			if (shadowpath) {
@@ -419,7 +426,8 @@ do_famfs_cli_mount(int argc, char *argv[])
 	if (fuse_mode == FAMFS_FUSE) {
 		printf("daxdev=%s, mpt=%s\n", realdaxdev, realmpt);
 		rc = famfs_mount_fuse(realdaxdev, realmpt, shadowpath, timeout,
-				      use_mmap, useraccess, debug, verbose);
+				      use_mmap, useraccess, default_perm,
+				      debug, verbose);
 		goto out;
 	}
 
