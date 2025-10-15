@@ -74,7 +74,7 @@ famfs_logplay_usage(int argc, char *argv[])
 	printf("\n"
 	       "famfs logplay: Play the log of a mounted famfs file system\n"
 	       "\n"
-	       "This administrative command is necessary to discover any files created\n"
+	       "This administrative command is necessary if files have been added by another node\n"
 	       "since the file system was mounted (or since the last logplay)\n"
 	       "\n"
 	       "    %s logplay [args] <mount_point>\n"
@@ -104,12 +104,15 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	char *shadowpath = NULL;
 
 	struct option logplay_options[] = {
-		/* These options set a */
+		/* Public options */
 		{"dryrun",    no_argument,             0,  'n'},
+		{"verbose",   no_argument,             0,  'v'},
+
+		/* These options are for testing and are not listed
+		 * in the help above */
 		{"mmap",      no_argument,             0,  'm'},
 		{"read",      no_argument,             0,  'r'},
 		{"client",    no_argument,             0,  'c'},
-		{"verbose",   no_argument,             0,  'v'},
 		{"shadowtest", no_argument,            0,  's'},
 		{"shadow",    required_argument,       0,  'S'},
 		{"daxdev",    required_argument,       0,  'd'},
@@ -225,31 +228,24 @@ famfs_mount_usage(int   argc,
 	printf("\n"
 	       "famfs mount: mount a famfs file system and make it ready to use\n"
 	       "\n"
-	       "We recommend using the \'famfs mount\' command rather than the native system mount\n"
-	       "command, because there are additional steps necessary to make a famfs file system\n"
-	       "ready to use after the system mount (see mkmeta and logplay). This command takes\n"
-	       "care of the whole job.\n"
-	       "\n"
-	       "    %s mount <memdevice> <mountpoint>\n"
+	       "    %s mount [args] <memdevice> <mountpoint>\n"
 	       "\n"
 	       "Arguments:\n"
-	       "    -?             - Print this message\n"
-	       "    -R|--remount   - Re-mount\n"
-	       "    -f|--fuse      - Use famfs via fuse. If specified, the mount will\n"
-	       "                     fail if fuse support for famfs is not available.\n"
-	       "    -F|--nofuse    - Use the standalone famfs v1 kernel module. If\n"
-	       "                     specified, the mount will fail if the famfs v1\n"
-	       "                     kernel module is not available\n"
-	       "    -t|--timeout   - Fuse metadata timeout in seconds\n"
-	       "    -c|--cache=always|normal|never"
-	       "                   - Cache metadata in fuse indefinitely|1s|never\n"
-	       "    -d|--debug     - In fuse mode, the debug option runs the fuse\n"
-	       "                     daemon single-threaded, and may enable more\n"
-	       "                     verbose logging\n"
-	       "    -v|--verbose   - Print verbose output\n"
+	       "    -h|-?              - Print this message\n"
+	       "    -f|--fuse          - Use famfs via fuse. If specified, the mount will\n"
+	       "                         fail if fuse support for famfs is not available.\n"
+	       "    -F|--nofuse        - Use the standalone famfs v1 kernel module. If\n"
+	       "                         specified, the mount will fail if the famfs v1\n"
+	       "                         kernel module is not available\n"
+	       "    -t|--timeout       - Fuse metadata timeout in seconds\n"
+	       "    -d|--debug         - In fuse mode, the debug option runs the fuse\n"
+	       "                         daemon single-threaded, and may enable more\n"
+	       "                         verbose logging\n"
+	       "    -v|--verbose       - Print verbose output\n"
 	       "    -u|--nouseraccess  - Allow non-root access\n"
+	       "                         (don't use fuse allow_other mount opt)\n"
 	       "    -p|--nodefaultperm - Do not apply normal posix permissions\n"
-	       "                         (don'd use default_permissions mount opt\n"
+	       "                         (don't use fuse default_permissions mount opt)\n"
 	       "    -S|--shadow=path - Path to root of shadow filesystem\n"
 	       "\n", progname);
 }
@@ -279,18 +275,20 @@ do_famfs_cli_mount(int argc, char *argv[])
 
 	struct option mount_options[] = {
 		/* These options set a */
-		{"remount",    no_argument,            0,  'R'},
 		{"read",       no_argument,            0,  'r'},
 		{"mmap",       no_argument,            0,  'm'},
 		{"debug",      no_argument,            0,  'd'},
 		{"fuse",       no_argument,            0,  'f'},
 		{"nofuse",     no_argument,            0,  'F'},
 		{"timeout",    required_argument,      0,  't'},
-		{"cache",      required_argument,      0,  'c'},
 		{"verbose",    no_argument,            0,  'v'},
 		{"nouseraccess", no_argument,          0,  'u'},
 		{"nodefaultperm", no_argument,         0,  'p'},
 		{"shadow",     required_argument,      0,  'S'},
+
+		/* un-advertised options */
+		{"remount",    no_argument,            0,  'R'},
+		{"cache",      required_argument,      0,  'c'},
 		{0, 0, 0, 0}
 	};
 
@@ -353,6 +351,8 @@ do_famfs_cli_mount(int argc, char *argv[])
 			timeout = strtoul(optarg, 0, 0);
 			break;
 		case 'c':
+			/* This was inherited from passthrough_ll.c (libfuse) and will
+			 * likely be removed soon */
 			cachearg = optarg;
 			break;
 		}
@@ -514,16 +514,18 @@ famfs_mkmeta_usage(int argc,
 	printf("\n"
 	       "famfs mkmeta:\n"
 	       "\n"
+	       "This legacy command is only used during testing (and only for \"standalone\"\n"
+	       "famfs, which will be deprecated soon). The famfs mount procedure\n"
+	       "automatically creates the meta files for you.\n"
+	       "\n"
 	       "The famfs file system exposes its superblock and log to its userspace components\n"
-	       "as files. After telling the linux kernel to mount a famfs file system, you need\n"
-	       "to run 'famfs mkmeta' in order to expose the critical metadata, and then run\n"
-	       "'famfs logplay' to play the log. Files will not be visible until these steps\n"
-	       "have been performed.\n"
+	       "as files, and other famfs cli commands (e.g. fsck, logplay) access the superblock\n"
+	       "via their meta files.\n"
 	       "\n"
 	       "    %s mkmeta <memdevice>  # Example memdevice: /dev/dax0.0\n"
 	       "\n"
 	       "Arguments:\n"
-	       "    -?               - Print this message\n"
+	       "    -h|-?            - Print this message\n"
 	       "    -v|--verbose     - Print verbose output\n"
 	       "\n", progname);
 }
@@ -602,7 +604,7 @@ famfs_fsck_usage(int argc,
 	       "    %s [args] <mount point>\n"
 	       "\n"
 	       "Arguments:\n"
-	       "    -?           \n"
+	       "    -?           - Print this message\n"
 	       "    -v|--verbose - Print debugging output while executing the command\n"
 	       "\n"
 	       "Exit codes:\n"
@@ -720,28 +722,25 @@ famfs_cp_usage(int argc,
 	       "    %s cp [args]/path/to/* <dirpath>\n"
 	       "\n"
 	       "Arguments:\n"
-	       "    -h|-?           		- Print this message\n"
-	       "    -r              		- Recursive\n"
-	       "    -t|--threadct <nthreads>    - Number of copy threads\n"
-	       "    -m|--mode <mode> 		- Set mode (as in chmod) to octal value\n"
-	       "    -u|--uid <uid>   		- Specify uid (default is current user's uid)\n"
-	       "    -g|--gid <gid>   		- Specify uid (default is current user's gid)\n"
-	       "    -v|--verbose       		- print debugging output while executing the command\n"
+	       "    -h|-?                         - Print this message\n"
+	       "    -r                            - Recursive\n"
+	       "    -t|--threadct <nthreads>      - Number of copy threads\n"
+	       "    -m|--mode <mode>              - Set mode (as in chmod) to octal value\n"
+	       "    -u|--uid <uid>                - Specify uid (default is current user's uid)\n"
+	       "    -g|--gid <gid>                - Specify uid (default is current user's gid)\n"
+	       "    -v|--verbose                  - print debugging output while executing the command\n"
 	       "Interleaving Arguments:\n"
-	       "    -N|--nstrips <n>  - Number of strips to use in interleaved allocations.\n"
-	       "    -B|--nbuckets <n> - Number of buckets to divide the device into\n"
-	       "                        (nstrips && nbuckets) causes strided\n"
-	       "                        allocation within a single device.\n"
+	       "    -N|--nstrips <n>              - Number of strips to use in interleaved allocations.\n"
+	       "    -B|--nbuckets <n>             - Number of buckets to divide the device into\n"
+	       "                                    (nstrips && nbuckets) causes strided\n"
+	       "                                    allocation within a single device.\n"
 	       "    -C|--chunksize <size>[kKmMgG] - Size of chunks for interleaved allocation\n"
 	       "                        (default=2M)\n"
 	       "\n"
-	       "NOTE 1: 'famfs cp' will never overwrite an existing file, which is a side-effect\n"
-	       "        of the facts that famfs never does delete, truncate or allocate-on-write\n"
+	       "NOTE 1: 'famfs cp' will only overwrite an existing file if it the correct size.\n"
+	       "        This makes 'famfs cp' restartable if necessary.\n"
 	       "NOTE 2: you need this tool to copy a file into a famfs file system,\n"
 	       "        but the standard \'cp\' can be used to copy FROM a famfs file system.\n"
-	       "        If you inadvertently copy files into famfs using the standard 'cp' (or\n"
-	       "        other non-famfs tools), the files created will be invalid. Any such files\n"
-	       "        can be found using 'famfs check'.\n"
 	       "\n",
 	       progname, progname, progname);
 }
@@ -901,7 +900,7 @@ famfs_check_usage(int argc,
 	       "    %s check [args] <mount point>\n"
 	       "\n"
 	       "Arguments:\n"
-	       "    -?           - Print this message\n"
+	       "    -h|-?        - Print this message\n"
 	       "    -v|--verbose - Print debugging output while executing the command\n"
 	       "                   (the verbose arg can be repeated for more verbose output)\n"
 	       "\n"
@@ -987,7 +986,7 @@ famfs_getmap_usage(int argc,
 	       "Arguments:\n"
 	       "    -q|--quiet - Quiet print output, but exit code confirms whether the\n"
 	       "                 file is famfs\n"
-	       "    -?         - Print this message\n"
+	       "    -h|-?      - Print this message\n"
 	       "\n"
 	       "Exit codes:\n"
 	       "   0    - The file is a fully-mapped famfs file\n"
@@ -1220,7 +1219,7 @@ famfs_clone_usage(int argc,
 	       "    %s clone <src_file> <dest_file>\n"
 	       "\n"
 	       "Arguments:\n"
-	       "    -?           - Print this message\n"
+	       "    -h|-?        - Print this message\n"
 	       "\nNOTE: this creates a file system error and is for testing only!!\n"
 	       "\n", progname);
 }
@@ -1304,30 +1303,32 @@ famfs_creat_usage(int argc,
 	       "    %s creat --multi file1,256M --multi file2,256M\n"
 	       "\n"
 	       "Arguments:\n"
-	       "    -?                     - Print this message\n"
-	       "    -m|--mode <octal-mode> - Default is 0644\n"
-	       "                             Note: mode is ored with ~umask, so the actual mode\n"
-	       "                             may be less permissive; see umask for more info\n"
-	       "    -u|--uid <int uid> - Default is caller's uid\n"
-	       "    -g|--gid <int gid> - Default is caller's gid\n"
-	       "    -v|--verbose       - Print debugging output while executing the command\n"
+	       "    -h|-?                    - Print this message\n"
+	       "    -m|--mode <octal-mode>   - Default is 0644\n"
+	       "                               Note: mode is ored with ~umask, so the actual mode\n"
+	       "                               may be less permissive; see umask for more info\n"
+	       "    -u|--uid <int uid>       - Default is caller's uid\n"
+	       "    -g|--gid <int gid>       - Default is caller's gid\n"
+	       "    -v|--verbose             - Print debugging output while executing the command\n"
+	       "\n"
 	       "Single-file create: (cannot mix with multi-create)\n"
 	       "    -s|--size <size>[kKmMgG] - Required file size\n"
 	       "    -S|--seed <random-seed>  - Optional seed for randomization\n"
 	       "    -r|--randomize           - Optional - will randomize with provided seed\n"
+	       "\n"
 	       "Multi-file create: (cannot mix with single-create)\n"
 	       "    -t|--threadct <nthreads> - Thread count in --multi mode\n"
 	       "    -M|--multi <fname>,<size>[,<seed>]\n"
-	       "                        - This arg can repeat; will create each fiel\n"
-	       "                          if non-zero seed specified, will randomize\n"
+	       "                             - This arg can repeat; will create each fiel\n"
+	       "                               if non-zero seed specified, will randomize\n"
 	       "\n"
 	       "Interleave arguments:\n"
-	       "    -N|--nstrips <n>  - Number of strips to use in interleaved allocations.\n"
-	       "    -B|--nbuckets <n> - Number of buckets to divide the device into\n"
-	       "                        (nstrips && nbuckets) causes strided\n"
-	       "                        allocation within a single device.\n"
+	       "    -N|--nstrips <n>              - Number of strips to use in interleaved allocations.\n"
+	       "    -B|--nbuckets <n>             - Number of buckets to divide the device into\n"
+	       "                                    (nstrips && nbuckets) causes strided\n"
+	       "                                    allocation within a single device.\n"
 	       "    -C|--chunksize <size>[kKmMgG] - Size of chunks for interleaved allocation\n"
-	       "                        (default=256M)\n"
+	       "                                    (default=256M)\n"
 	       "\n"
 	       "NOTE: the --randomize and --seed arguments are useful for testing; the file is\n"
 	       "      randomized based on the seed, making it possible to use the 'famfs verify'\n"
@@ -1783,7 +1784,7 @@ famfs_mkdir_usage(int argc,
 	       "    %s mkdir [args] <dirname>\n\n"
 	       "\n"
 	       "Arguments:\n"
-	       "    -?               - Print this message\n"
+	       "    -h|-?            - Print this message\n"
 	       "    -p|--parents     - No error if existing, make parent directories as needed,\n"
 	       "                       the -m option only applies to dirs actually created\n"
 	       "    -m|--mode=<mode> - Set mode (as in chmod) to octal value\n"
@@ -1879,7 +1880,7 @@ famfs_verify_usage(int argc,
 	       "    %s verify -S <seed> -f <filename>\n"
 	       "\n"
 	       "Arguments:\n"
-	       "    -?                           - Print this message\n"
+	       "    -h|-?                        - Print this message\n"
 	       "    -f|--filename <filename>     - Required file path\n"
 	       "    -S|--seed <random-seed>      - Required seed for data verification\n"
 	       "    -m|--multi <filename>,<seed> - Verify multiple files in parallel\n"
@@ -2139,7 +2140,7 @@ famfs_flush_usage(int argc,
 	       "\n"
 	       "Arguments:\n"
 	       "    -v           - Verbose output\n"
-	       "    -?           - Print this message\n"
+	       "    -h|-?        - Print this message\n"
 	       "\nNOTE: this creates a file system error and is for testing only!!\n"
 	       "\n", progname);
 }
@@ -2239,9 +2240,9 @@ famfs_chkread_usage(int argc,
 	       "    %s chkread <famfs-file>\n"
 	       "\n"
 	       "Arguments:\n"
-	       "    -?  - Print this message\n"
-	       "    -s  - File is famfs superblock\n"
-	       "    -l  - File is famfs log\n"
+	       "    -h|-?  - Print this message\n"
+	       "    -s     - File is famfs superblock\n"
+	       "    -l     - File is famfs log\n"
 	       "\n", progname);
 }
 

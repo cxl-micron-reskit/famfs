@@ -64,11 +64,6 @@ echo '```'             >> $OUTFILE
 famfs flush -?         >> $OUTFILE
 echo '```'             >> $OUTFILE
 
-echo "## famfs mkmeta" >> $OUTFILE
-echo '```'             >> $OUTFILE
-famfs mkmeta -?        >> $OUTFILE
-echo '```'             >> $OUTFILE
-
 echo "## famfs logplay" >> $OUTFILE
 echo '```'              >> $OUTFILE
 famfs logplay -?        >> $OUTFILE

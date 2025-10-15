@@ -4,12 +4,13 @@
 Create a famfs file system:
     mkfs.famfs [args] <memdevice>  # Example memdevice: /dev/dax0.0
 
-Create a famfs file system with a 256MiB log    mkfs.famfs --loglen 256m /dev/dax0.0
+Create a famfs file system with a 256MiB log
+    mkfs.famfs --loglen 256m /dev/dax0.0
 
-Arguments
+Arguments:
     -h|-?      - Print this message
-    -f|--force - Will create the file system even if there is already a superblock
-    -k|--kill  - Will 'kill' the superblock (also requires -f)
+    -f|--force - Will create the file system even if there is already a valid superblock
+    -k|--kill  - Will 'kill' existing superblock (also requires -f)
     -l|--loglen <loglen> - Default loglen: 8 MiB
                            Valid range: >= 8 MiB
 
@@ -44,25 +45,24 @@ Commands:
 
 famfs mount: mount a famfs file system and make it ready to use
 
-We recommend using the 'famfs mount' command rather than the native system mount
-command, because there are additional steps necessary to make a famfs file system
-ready to use after the system mount (see mkmeta and logplay). This command takes
-care of the whole job.
-
-    famfs mount <memdevice> <mountpoint>
+    famfs mount [args] <memdevice> <mountpoint>
 
 Arguments:
-    -?             - Print this message
-    -R|--remount   - Re-mount
-    -f|--fuse      - Use famfs via fuse. If specified, the mount will
-                     fail if fuse support for famfs is not available.
-    -F|--nofuse    - Use the standalone famfs v1 kernel module. If
-                     specified, the mount will fail if the famfs v1
-                     kernel module is not available
-    -d|--debug     - In fuse mode, the debug option runs the fuse
-                     daemon single-threaded, and may enable more
-                     verbose logging
-    -v|--verbose   - Print verbose output
+    -h|-?              - Print this message
+    -f|--fuse          - Use famfs via fuse. If specified, the mount will
+                         fail if fuse support for famfs is not available.
+    -F|--nofuse        - Use the standalone famfs v1 kernel module. If
+                         specified, the mount will fail if the famfs v1
+                         kernel module is not available
+    -t|--timeout       - Fuse metadata timeout in seconds
+    -d|--debug         - In fuse mode, the debug option runs the fuse
+                         daemon single-threaded, and may enable more
+                         verbose logging
+    -v|--verbose       - Print verbose output
+    -u|--nouseraccess  - Allow non-root access
+    -p|--nodefaultperm - Do not apply normal posix permissions
+                         (don'd use default_permissions mount opt
+    -S|--shadow=path - Path to root of shadow filesystem
 
 ```
 ## famfs fsck
@@ -71,17 +71,16 @@ Arguments:
 famfs fsck: check a famfs file system
 
 This command checks the validity of the superblock and log, and scans the
-superblock for cross-linked files.
+log for cross-linked files.
 
 Check an unmounted famfs file system
-    famfs fsck [args] <memdevice>  # Example memdevices: /dev/pmem0 or /dev/dax0.0
+    famfs fsck [args] <memdevice>  # Example memdevice: /dev/dax0.0
+
 Check a mounted famfs file system:
     famfs [args] <mount point>
 
 Arguments:
     -?           - Print this message
-    -m|--mmap    - Access the superblock and log via mmap
-    -h|--human   - Print sizes in a human-friendly form
     -v|--verbose - Print debugging output while executing the command
 
 Exit codes:
@@ -93,6 +92,10 @@ Exit codes:
 ```
 
 famfs check: check the contents of a famfs file system.
+
+NOTE: 'famfs check' is only useful for standalone famfs. For fuse-based
+      famfs, a new 'famfs logplay --check' option will be added to run
+      appropriate checks for famfs-fuse
 
 Unlike fsck, which validates the log and that there are no cross-linked files,
 this command examines every file in a mounted famfs instance and checks that
@@ -109,7 +112,7 @@ files (if any) and report them.
     famfs check [args] <mount point>
 
 Arguments:
-    -?           - Print this message
+    -h|-?        - Print this message
     -v|--verbose - Print debugging output while executing the command
                    (the verbose arg can be repeated for more verbose output)
 
@@ -137,7 +140,7 @@ famfs mkdir: Create a directory in a famfs file system:
 
 
 Arguments:
-    -?               - Print this message
+    -h|-?            - Print this message
     -p|--parents     - No error if existing, make parent directories as needed,
                        the -m option only applies to dirs actually created
     -m|--mode=<mode> - Set mode (as in chmod) to octal value
@@ -159,25 +162,26 @@ Copy a file into a directory of a famfs file system with the same basename
 Copy a wildcard set of files to a directory
     famfs cp [args]/path/to/* <dirpath>
 
-Arguments
-    -h|-?           		- Print this message
-    -m|--mode <mode> 		- Set mode (as in chmod) to octal value
-    -u|--uid <uid>   		- Specify uid (default is current user's uid)
-    -g|--gid <gid>   		- Specify uid (default is current user's gid)
-    -v|--verbose       		- print debugging output while executing the command
-    -C|--chunksize <size>    	- Size of chunks for interleaved allocation
-                               	  (default=0); non-zero causes interleaved allocation.
-    -N|--nstrips <n>         	- Number of strips to use in interleaved allocations.
-    -B|--nbuckets <n>        	- Number of buckets to divide the device into
-                                  causes strided allocation within a single device.
+Arguments:
+    -h|-?                         - Print this message
+    -r                            - Recursive
+    -t|--threadct <nthreads>      - Number of copy threads
+    -m|--mode <mode>              - Set mode (as in chmod) to octal value
+    -u|--uid <uid>                - Specify uid (default is current user's uid)
+    -g|--gid <gid>                - Specify uid (default is current user's gid)
+    -v|--verbose                  - print debugging output while executing the command
+Interleaving Arguments:
+    -N|--nstrips <n>              - Number of strips to use in interleaved allocations.
+    -B|--nbuckets <n>             - Number of buckets to divide the device into
+                                    (nstrips && nbuckets) causes strided
+                                    allocation within a single device.
+    -C|--chunksize <size>[kKmMgG] - Size of chunks for interleaved allocation
+                        (default=2M)
 
-NOTE 1: 'famfs cp' will never overwrite an existing file, which is a side-effect
-        of the facts that famfs never does delete, truncate or allocate-on-write
+NOTE 1: 'famfs cp' will only overwrite an existing file if it the correct size.
+        This makes 'famfs cp' restartable if necessary.
 NOTE 2: you need this tool to copy a file into a famfs file system,
         but the standard 'cp' can be used to copy FROM a famfs file system.
-        If you inadvertently copy files into famfs using the standard 'cp' (or
-        other non-famfs tools), the files created will be invalid. Any such files
-        can be found using 'famfs check'.
 
 ```
 ## famfs creat
@@ -185,7 +189,7 @@ NOTE 2: you need this tool to copy a file into a famfs file system,
 
 famfs creat: Create a file in a famfs file system
 
-This testing tool allocates and creates a file of a specified size.
+This tool allocates and creates files.
 
 Create a file backed by free space:
     famfs creat -s <size> <filename>
@@ -196,11 +200,14 @@ Create a file containing randomized data from a specific seed:
 Create a file backed by free space, with octal mode 0644:
     famfs creat -s <size> -m 0644 <filename>
 
+Create two files randomized with separte seeds:
+    famfs creat --multi file1,256M,42 --multi file2,256M,43
+
+Create two non-randomized files:
+    famfs creat --multi file1,256M --multi file2,256M
+
 Arguments:
-    -?                       - Print this message
-    -s|--size <size>[kKmMgG] - Required file size
-    -S|--seed <random-seed>  - Optional seed for randomization
-    -r|--randomize           - Optional - will randomize with provided seed
+    -h|-?                    - Print this message
     -m|--mode <octal-mode>   - Default is 0644
                                Note: mode is ored with ~umask, so the actual mode
                                may be less permissive; see umask for more info
@@ -208,11 +215,24 @@ Arguments:
     -g|--gid <int gid>       - Default is caller's gid
     -v|--verbose             - Print debugging output while executing the command
 
-    -C|--chunksize <size>    - Size of chunks for interleaved allocation
-                               (default=0); non-zero causes interleaved allocation.
-    -N|--nstrips <n>         - Number of strips to use in interleaved allocations.
-    -B|--nbuckets <n>        - Number of buckets to divide the device into
-                               causes strided allocation within a single device.
+Single-file create: (cannot mix with multi-create)
+    -s|--size <size>[kKmMgG] - Required file size
+    -S|--seed <random-seed>  - Optional seed for randomization
+    -r|--randomize           - Optional - will randomize with provided seed
+
+Multi-file create: (cannot mix with single-create)
+    -t|--threadct <nthreads> - Thread count in --multi mode
+    -M|--multi <fname>,<size>[,<seed>]
+                             - This arg can repeat; will create each fiel
+                               if non-zero seed specified, will randomize
+
+Interleave arguments:
+    -N|--nstrips <n>              - Number of strips to use in interleaved allocations.
+    -B|--nbuckets <n>             - Number of buckets to divide the device into
+                                    (nstrips && nbuckets) causes strided
+                                    allocation within a single device.
+    -C|--chunksize <size>[kKmMgG] - Size of chunks for interleaved allocation
+                                    (default=256M)
 
 NOTE: the --randomize and --seed arguments are useful for testing; the file is
       randomized based on the seed, making it possible to use the 'famfs verify'
@@ -226,9 +246,13 @@ famfs verify: Verify the contents of a file that was created with 'famfs creat':
     famfs verify -S <seed> -f <filename>
 
 Arguments:
-    -?                        - Print this message
-    -f|--filename <filename>  - Required file path
-    -S|--seed <random-seed>   - Required seed for data verification
+    -h|-?                        - Print this message
+    -f|--filename <filename>     - Required file path
+    -S|--seed <random-seed>      - Required seed for data verification
+    -m|--multi <filename>,<seed> - Verify multiple files in parallel
+                                   (specify with multiple instances of this arg)
+                                   (cannot combine with separate args)
+    -t|--threadct <nthreads>     - Thread count in --multi mode
 
 ```
 ## famfs flush
@@ -246,27 +270,9 @@ was mutated, this operation may be needed.
 
 Arguments:
     -v           - Verbose output
-    -?           - Print this message
+    -h|-?        - Print this message
 
 NOTE: this creates a file system error and is for testing only!!
-
-```
-## famfs mkmeta
-```
-
-famfs mkmeta:
-
-The famfs file system exposes its superblock and log to its userspace components
-as files. After telling the linux kernel to mount a famfs file system, you need
-to run 'famfs mkmeta' in order to expose the critical metadata, and then run
-'famfs logplay' to play the log. Files will not be visible until these steps
-have been performed.
-
-    famfs mkmeta <memdevice>  # Example memdevices: /dev/pmem0 or /dev/dax0.0
-
-Arguments:
-    -?               - Print this message
-    -v|--verbose     - Print verbose output
 
 ```
 ## famfs logplay
@@ -274,23 +280,13 @@ Arguments:
 
 famfs logplay: Play the log of a mounted famfs file system
 
-This administrative command is necessary after mounting a famfs file system
-and performing a 'famfs mkmeta' to instantiate all logged files
+This administrative command is necessary if files have been added by another node
+since the file system was mounted (or since the last logplay)
 
     famfs logplay [args] <mount_point>
 
-    famfs logplay --shadow <shadowpath> --daxdev <daxdev>
-
-    famfs logplay --shadow <shadowpath> <mount_point>
-
 Arguments:
-    -r|--read   - Get the superblock and log via posix read
-    -m|--mmap   - Get the log via mmap
-    -c|--client - force "client mode" (all files read-only)
-    -n|--dryrun - Process the log but don't instantiate the files & directories
-    -S|--shadow <path> - create a Yaml based shadow filesystem at mount_point path
-    -s|--shadowtest - test mode for shadow logplay
-    -d|--daxdev <daxdev> - dax device for shadow logplay
+    -n|--dryrun  - Process the log but don't instantiate the files & directories
     -v|--verbose - Verbose output
 
 
@@ -308,7 +304,7 @@ This command is primarily for testing and validation of a famfs file system
 Arguments:
     -q|--quiet - Quiet print output, but exit code confirms whether the
                  file is famfs
-    -?         - Print this message
+    -h|-?      - Print this message
 
 Exit codes:
    0    - The file is a fully-mapped famfs file
@@ -334,7 +330,7 @@ Clone a file, creating a second file with the same extent list:
     famfs clone <src_file> <dest_file>
 
 Arguments:
-    -?           - Print this message
+    -h|-?        - Print this message
 
 NOTE: this creates a file system error and is for testing only!!
 
@@ -347,8 +343,8 @@ famfs chkread: verify that the contents of a file match via read and mmap
     famfs chkread <famfs-file>
 
 Arguments:
-    -?  - Print this message
-    -s  - File is famfs superblock
-    -l  - File is famfs log
+    -h|-?  - Print this message
+    -s     - File is famfs superblock
+    -l     - File is famfs log
 
 ```
