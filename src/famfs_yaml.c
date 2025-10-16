@@ -40,7 +40,8 @@ __famfs_emit_yaml_simple_ext_list(
 	int line;
 
 	/* The extent list */
-	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"simple_ext_list",
+	rc = yaml_scalar_event_initialize(event, NULL, NULL,
+					  (yaml_char_t *)"simple_ext_list",
 					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(emitter, event);
@@ -57,50 +58,62 @@ __famfs_emit_yaml_simple_ext_list(
 	for (i = 0; i < nextents; i++) {
 		/* YAML_MAPPING_START_EVENT: Start of extent */
 		rc = yaml_mapping_start_event_initialize(event, NULL, NULL, 1,
-							 YAML_BLOCK_MAPPING_STYLE);
+						     YAML_BLOCK_MAPPING_STYLE);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 		rc = yaml_emitter_emit(emitter, event);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 
 		/* Devindex */
-		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"devindex",
-						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+		rc = yaml_scalar_event_initialize(event, NULL, NULL,
+						  (yaml_char_t *)"devindex",
+						  -1, 1, 1,
+						  YAML_PLAIN_SCALAR_STYLE);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 		rc = yaml_emitter_emit(emitter, event);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 
 		sprintf(strbuf, "%lld", se[i].se_devindex);
-		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
-						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+		rc = yaml_scalar_event_initialize(event, NULL, NULL,
+						  (yaml_char_t *)strbuf,
+						  -1, 1, 1,
+						  YAML_PLAIN_SCALAR_STYLE);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 		rc = yaml_emitter_emit(emitter, event);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 
 
 		/* Offset */
-		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"offset",
-						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+		rc = yaml_scalar_event_initialize(event, NULL, NULL,
+						  (yaml_char_t *)"offset",
+						  -1, 1, 1,
+						  YAML_PLAIN_SCALAR_STYLE);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 		rc = yaml_emitter_emit(emitter, event);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 
 		sprintf(strbuf, "0x%llx", se[i].se_offset);
-		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
-						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+		rc = yaml_scalar_event_initialize(event, NULL, NULL,
+						  (yaml_char_t *)strbuf,
+						  -1, 1, 1,
+						  YAML_PLAIN_SCALAR_STYLE);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 		rc = yaml_emitter_emit(emitter, event);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 
 		/* Length */
-		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"length",
-						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+		rc = yaml_scalar_event_initialize(event, NULL, NULL,
+						  (yaml_char_t *)"length",
+						  -1, 1, 1,
+						  YAML_PLAIN_SCALAR_STYLE);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 		rc = yaml_emitter_emit(emitter, event);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 
 		sprintf(strbuf, "0x%llx", se[i].se_len);
-		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
-						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+		rc = yaml_scalar_event_initialize(event, NULL, NULL,
+						  (yaml_char_t *)strbuf,
+						  -1, 1, 1,
+						  YAML_PLAIN_SCALAR_STYLE);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 		rc = yaml_emitter_emit(emitter, event);
 		ASSERT_NE_GOTO(rc, 0, err_out);
@@ -139,7 +152,8 @@ __famfs_emit_yaml_striped_ext_list(
 	int line;
 
 	/* The extent list */
-	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"striped_ext_list",
+	rc = yaml_scalar_event_initialize(event, NULL, NULL,
+					  (yaml_char_t *)"striped_ext_list",
 					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(emitter, event);
@@ -156,21 +170,25 @@ __famfs_emit_yaml_striped_ext_list(
 	for (i = 0; i < fmap->fmap_niext; i++) {
 		/* YAML_MAPPING_START_EVENT: Start of extent */
 		rc = yaml_mapping_start_event_initialize(event, NULL, NULL, 1,
-							 YAML_BLOCK_MAPPING_STYLE);
+						   YAML_BLOCK_MAPPING_STYLE);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 		rc = yaml_emitter_emit(emitter, event);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 
 		/* nstrips */
-		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"nstrips",
-						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+		rc = yaml_scalar_event_initialize(event, NULL, NULL,
+						  (yaml_char_t *)"nstrips",
+						  -1, 1, 1,
+						  YAML_PLAIN_SCALAR_STYLE);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 		rc = yaml_emitter_emit(emitter, event);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 
 		sprintf(strbuf, "%lld", fmap->ie[i].ie_nstrips);
-		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
-						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+		rc = yaml_scalar_event_initialize(event, NULL, NULL,
+						  (yaml_char_t *)strbuf,
+						  -1, 1, 1,
+						  YAML_PLAIN_SCALAR_STYLE);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 		rc = yaml_emitter_emit(emitter, event);
 		ASSERT_NE_GOTO(rc, 0, err_out);
@@ -178,19 +196,23 @@ __famfs_emit_yaml_striped_ext_list(
 		/* chunk_size */
 		rc = yaml_scalar_event_initialize(event, NULL, NULL,
 						  (yaml_char_t *)"chunk_size",
-						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+						  -1, 1, 1,
+						  YAML_PLAIN_SCALAR_STYLE);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 		rc = yaml_emitter_emit(emitter, event);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 
 		sprintf(strbuf, "0x%llx", fmap->ie[i].ie_chunk_size);
-		rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
-						  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
+		rc = yaml_scalar_event_initialize(event, NULL, NULL,
+						  (yaml_char_t *)strbuf,
+						  -1, 1, 1,
+						  YAML_PLAIN_SCALAR_STYLE);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 		rc = yaml_emitter_emit(emitter, event);
 		ASSERT_NE_GOTO(rc, 0, err_out);
 
-		__famfs_emit_yaml_simple_ext_list(emitter, event, fmap->ie[i].ie_strips,
+		__famfs_emit_yaml_simple_ext_list(emitter, event,
+						  fmap->ie[i].ie_strips,
 						  fmap->ie[i].ie_nstrips);
 
 		/* YAML_MAPPING_END_EVENT: End of extent */
@@ -235,90 +257,104 @@ __famfs_emit_yaml_file_section(
 	int line;
 
 	/* Relative path */
-	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"path",
+	rc = yaml_scalar_event_initialize(event, NULL, NULL,
+					  (yaml_char_t *)"path",
 					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(emitter, event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
-	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)fm->fm_relpath,
+	rc = yaml_scalar_event_initialize(event, NULL, NULL,
+					  (yaml_char_t *)fm->fm_relpath,
 					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(emitter, event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 
 	/* size */
-	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"size",
+	rc = yaml_scalar_event_initialize(event, NULL, NULL,
+					  (yaml_char_t *)"size",
 					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(emitter, event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	sprintf(strbuf, "%lld", fm->fm_size);
-	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
+	rc = yaml_scalar_event_initialize(event, NULL, NULL,
+					  (yaml_char_t *)strbuf,
 					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(emitter, event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 
 	/* flags */
-	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"flags",
+	rc = yaml_scalar_event_initialize(event, NULL, NULL,
+					  (yaml_char_t *)"flags",
 					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(emitter, event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	sprintf(strbuf, "%d", fm->fm_flags);
-	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
+	rc = yaml_scalar_event_initialize(event, NULL, NULL,
+					  (yaml_char_t *)strbuf,
 					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(emitter, event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 
 	/* mode */
-	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"mode",
+	rc = yaml_scalar_event_initialize(event, NULL, NULL,
+					  (yaml_char_t *)"mode",
 					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(emitter, event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	sprintf(strbuf, "0%o", (fm->fm_mode /* | 0100000 */));
-	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
+	rc = yaml_scalar_event_initialize(event, NULL, NULL,
+					  (yaml_char_t *)strbuf,
 					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(emitter, event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 
 	/* uid */
-	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"uid",
+	rc = yaml_scalar_event_initialize(event, NULL, NULL,
+					  (yaml_char_t *)"uid",
 					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(emitter, event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	sprintf(strbuf, "%d", fm->fm_uid);
-	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
+	rc = yaml_scalar_event_initialize(event, NULL, NULL,
+					  (yaml_char_t *)strbuf,
 					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(emitter, event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 
 	/* gid */
-	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"gid",
+	rc = yaml_scalar_event_initialize(event, NULL, NULL,
+					  (yaml_char_t *)"gid",
 					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(emitter, event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	sprintf(strbuf, "%d", fm->fm_gid);
-	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
+	rc = yaml_scalar_event_initialize(event, NULL, NULL,
+					  (yaml_char_t *)strbuf,
 					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(emitter, event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 
 	/* nextents */
-	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)"nextents",
+	rc = yaml_scalar_event_initialize(event, NULL, NULL,
+					  (yaml_char_t *)"nextents",
 					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(emitter, event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	sprintf(strbuf, "%d", fm->fm_fmap.fmap_nextents);
-	rc = yaml_scalar_event_initialize(event, NULL, NULL, (yaml_char_t *)strbuf,
+	rc = yaml_scalar_event_initialize(event, NULL, NULL,
+					  (yaml_char_t *)strbuf,
 					  -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(emitter, event);
@@ -328,10 +364,11 @@ __famfs_emit_yaml_file_section(
 	switch (fm->fm_fmap.fmap_ext_type) {
 	case FAMFS_EXT_SIMPLE:
 		return __famfs_emit_yaml_simple_ext_list(emitter, event,
-					 fm->fm_fmap.se, fm->fm_fmap.fmap_nextents);
+				    fm->fm_fmap.se, fm->fm_fmap.fmap_nextents);
 		break;
 	case FAMFS_EXT_INTERLEAVE:
-		return __famfs_emit_yaml_striped_ext_list(emitter, event, &fm->fm_fmap);
+		return __famfs_emit_yaml_striped_ext_list(emitter, event,
+							  &fm->fm_fmap);
 		break;
 		
 	default:
@@ -387,20 +424,23 @@ famfs_emit_file_yaml(
 	ASSERT_NE_GOTO(rc, 0, err_out);
 
 	/* YAML_MAPPING_START_EVENT:  Start Mapping */
-	rc = yaml_mapping_start_event_initialize(&event, NULL, NULL, 1, YAML_BLOCK_MAPPING_STYLE);
+	rc = yaml_mapping_start_event_initialize(&event, NULL, NULL, 1,
+						 YAML_BLOCK_MAPPING_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(&emitter, &event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 
 	/* Key: file */
-	rc = yaml_scalar_event_initialize(&event, NULL, NULL, (yaml_char_t *)"file",
+	rc = yaml_scalar_event_initialize(&event, NULL, NULL,
+					  (yaml_char_t *)"file",
 				     -1, 1, 1, YAML_PLAIN_SCALAR_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(&emitter, &event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 
 	/* Start Mapping for file */
-	rc = yaml_mapping_start_event_initialize(&event, NULL, NULL, 1, YAML_BLOCK_MAPPING_STYLE);
+	rc = yaml_mapping_start_event_initialize(&event, NULL, NULL, 1,
+						 YAML_BLOCK_MAPPING_STYLE);
 	ASSERT_NE_GOTO(rc, 0, err_out);
 	rc = yaml_emitter_emit(&emitter, &event);
 	ASSERT_NE_GOTO(rc, 0, err_out);
@@ -477,33 +517,39 @@ yaml_event_str(int event_type)
 
 /* Get the next yaml event. If its type != ev_type, set rc=-1 and goto bad_target */
 #define GET_YAML_EVENT_OR_GOTO(PARSER, EV, ev_type, rc, bad_target, verbose) {	\
-	if (!yaml_parser_parse(PARSER, EV)) {						\
-		fprintf(stderr, "%s:%d yaml parser error\n", __func__, __LINE__);	\
-		rc = -1;								\
-		goto bad_target;							\
-	}										\
-	if ((EV)->type != ev_type) {							\
-		fprintf(stderr, "%s:%d: expected event type: %s but found %s\n", 	\
-			__func__, __LINE__,						\
-			yaml_event_str(ev_type),					\
-			yaml_event_str((EV)->type));					\
-		rc = -1;								\
-		yaml_event_delete(EV);							\
-		goto bad_target;							\
-	} else if (verbose > 1)								\
-		printf("%s: %s (%s)\n", __func__, yaml_event_str((EV)->type),		\
-		       (ev_type == YAML_SCALAR_EVENT) ? (char *)((EV)->data.scalar.value) : ""); \
-}
+	if (!yaml_parser_parse(PARSER, EV)) {			\
+		fprintf(stderr, "%s:%d yaml parser error\n",		\
+			__func__, __LINE__);				\
+		rc = -1;						\
+		goto bad_target;					\
+	}								\
+	if ((EV)->type != ev_type) {					\
+		fprintf(stderr,						\
+			"%s:%d: expected event type: %s but found %s\n", \
+			__func__, __LINE__,				\
+			yaml_event_str(ev_type),			\
+			yaml_event_str((EV)->type));			\
+		rc = -1;						\
+		yaml_event_delete(EV);					\
+		goto bad_target;					\
+	} else if (verbose > 1)						\
+		printf("%s: %s (%s)\n",					\
+		       __func__, yaml_event_str((EV)->type),		\
+		       (ev_type == YAML_SCALAR_EVENT) ?			\
+		       (char *)((EV)->data.scalar.value) : "");		\
+	}
 
-#define GET_YAML_EVENT(PARSER, EV, rc, bad_target, verbose) {				\
-	if (!yaml_parser_parse(PARSER, EV)) {						\
-		fprintf(stderr, "%s:%d yaml parser error\n", __func__, __LINE__); 	\
-		rc = -1;								\
-		goto bad_target;							\
-	} else if (verbose > 1)								\
-		printf("%s: %s (%s)\n", __func__, yaml_event_str((EV)->type), 		\
-		       ((EV)->type == YAML_SCALAR_EVENT) ? (char *)((EV)->data.scalar.value) : ""); \
-}
+#define GET_YAML_EVENT(PARSER, EV, rc, bad_target, verbose) {		\
+	if (!yaml_parser_parse(PARSER, EV)) {			\
+		fprintf(stderr, "%s:%d yaml parser error\n",		\
+			__func__, __LINE__);				\
+		rc = -1;						\
+		goto bad_target;					\
+	} else if (verbose > 1)						\
+		printf("%s: %s (%s)\n", __func__, yaml_event_str((EV)->type), \
+		       ((EV)->type == YAML_SCALAR_EVENT) ?		\
+		       (char *)((EV)->data.scalar.value) : "");		\
+	}
 
 static int
 famfs_parse_file_simple_ext_list(
@@ -522,11 +568,13 @@ famfs_parse_file_simple_ext_list(
 	int got_len = 0;
 
 	/* "simple_ext_list" stanza starts wtiha  YAML_SEQUENCE_START_EVENT */
-	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_SEQUENCE_START_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_SEQUENCE_START_EVENT,
+			       rc, err_out, verbose);
 	yaml_event_delete(&event);
 
 	/* "simple_ext_list" stanza starts wtiha  YAML_MAPPING_START_EVENT */
-	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_START_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_START_EVENT,
+			       rc, err_out, verbose);
 	yaml_event_delete(&event);
 
 	while (!done) {
@@ -538,7 +586,8 @@ famfs_parse_file_simple_ext_list(
 		type = event.type;
 
 		if (type == YAML_SCALAR_EVENT)
-			strncpy(current_key, (char *)event.data.scalar.value, MAX_KEY - 1);
+			strncpy(current_key, (char *)event.data.scalar.value,
+				MAX_KEY - 1);
 
 		yaml_event_delete(&event);
 
@@ -550,25 +599,34 @@ famfs_parse_file_simple_ext_list(
 			if (strcmp(current_key, "offset") == 0) {
 				/* offset */
 				got_ofs = 1;
-				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event,
+						       YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				se[ext_index].se_offset =
-					strtoull((char *)val_event.data.scalar.value, 0, 0);
+					strtoull((char *)
+						 val_event.data.scalar.value,
+						 0, 0);
 				yaml_event_delete(&val_event);
 			} else if (strcmp(current_key, "length") == 0) {
 				/* length */
 				got_len = 1;
-				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event,
+						       YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				se[ext_index].se_len =
-					strtoull((char *)val_event.data.scalar.value, 0, 0);
+					strtoull((char *)
+						 val_event.data.scalar.value,
+						 0, 0);
 				yaml_event_delete(&val_event);
 			} else if (strcmp(current_key, "devindex") == 0) {
 				/* devindex */
-				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event,
+						       YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				se[ext_index].se_devindex =
-					strtoull((char *)val_event.data.scalar.value, 0, 0);
+					strtoull((char *)
+						 val_event.data.scalar.value,
+						 0, 0);
 				yaml_event_delete(&val_event);
 
 			} else {
@@ -580,9 +638,11 @@ famfs_parse_file_simple_ext_list(
 
 		case YAML_MAPPING_START_EVENT:
 			if (verbose > 1)
-				printf("%s: extent %d is coming next\n", __func__, ext_index);
+				printf("%s: extent %d is coming next\n",
+				       __func__, ext_index);
 			if (ext_index >= max_extents) {
-				fprintf(stderr, "%s: too many extents! (max=%d)\n",
+				fprintf(stderr,
+					"%s: too many extents! (max=%d)\n",
 					__func__, max_extents);
 				rc = -EOVERFLOW;
 				yaml_event_delete(&event);
@@ -592,19 +652,20 @@ famfs_parse_file_simple_ext_list(
 		case YAML_MAPPING_END_EVENT:
 			if (!got_len || !got_ofs) {
 				fprintf(stderr,
-					"%s: offset or length missing from extent\n",
+				  "%s: offset or length missing from extent\n",
 					__func__);
 				rc = -EINVAL;
 				goto err_out;
 			}
 			got_ofs = got_len = 0;
 			if (verbose > 1)
-				printf("%s: end of extent %d\n", __func__, ext_index);
+				printf("%s: end of extent %d\n",
+				       __func__, ext_index);
 			ext_index++;
 			break;
 		case YAML_SEQUENCE_END_EVENT:
 			if (verbose > 1)
-				printf("%s: finished with ext list (%d entries)\n",
+				printf("%s: finished ext list (%d entries)\n",
 				       __func__, ext_index);
 			done = 1;
 			break;
@@ -617,7 +678,8 @@ famfs_parse_file_simple_ext_list(
 		yaml_event_delete(&val_event);
 
 	}
-	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_END_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_END_EVENT,
+			       rc, err_out, verbose);
 err_out:
 	*nparsed_out = ext_index;
 
@@ -639,11 +701,13 @@ famfs_parse_file_striped_ext_list(
 	int type;
 
 	/* "simple_ext_list" stanza starts wtiha  YAML_SEQUENCE_START_EVENT */
-	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_SEQUENCE_START_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_SEQUENCE_START_EVENT,
+			       rc, err_out, verbose);
 	yaml_event_delete(&event);
 
 	/* "simple_ext_list" stanza starts wtiha  YAML_MAPPING_START_EVENT */
-	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_START_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_START_EVENT,
+			       rc, err_out, verbose);
 	yaml_event_delete(&event);
 
 	while (!done) {
@@ -655,7 +719,8 @@ famfs_parse_file_striped_ext_list(
 		type = event.type;
 
 		if (type == YAML_SCALAR_EVENT)
-			strncpy(current_key, (char *)event.data.scalar.value, MAX_KEY - 1);
+			strncpy(current_key, (char *)event.data.scalar.value,
+				MAX_KEY - 1);
 
 		yaml_event_delete(&event);
 
@@ -664,31 +729,39 @@ famfs_parse_file_striped_ext_list(
 
 			if (strcmp(current_key, "chunk_size") == 0) {
 				/* chunk_size */
-				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event,
+						       YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				fm->fm_fmap.ie[ext_index].ie_chunk_size =
-					strtoull((char *)val_event.data.scalar.value, 0, 0);
+					strtoull((char *)
+						 val_event.data.scalar.value,
+						 0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose > 1) printf("%s: chunk_size: 0x%llx\n",
-							__func__,
-						fm->fm_fmap.ie[ext_index].ie_chunk_size);
+				if (verbose > 1)
+					printf("%s: chunk_size: 0x%llx\n",
+					       __func__,
+					       fm->fm_fmap.ie[ext_index].ie_chunk_size);
 			} else  if (strcmp(current_key, "nstrips") == 0) {
 				/* nstrips */
-				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event,
+						       YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				fm->fm_fmap.ie[ext_index].ie_nstrips =
-					strtoull((char *)val_event.data.scalar.value, 0, 0);
+				    strtoull((char *)val_event.data.scalar.value,
+					     0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose > 1) printf("%s: nstrips: 0x%llx\n",
-							__func__,
-							fm->fm_fmap.ie[ext_index].ie_nstrips);
-			} else  if (strcmp(current_key, "simple_ext_list") == 0) {
+				if (verbose > 1)
+					printf("%s: nstrips: 0x%llx\n",
+					       __func__,
+					  fm->fm_fmap.ie[ext_index].ie_nstrips);
+			} else  if (strcmp(current_key,
+					   "simple_ext_list") == 0) {
 				int nparsed = 0;
 				/* strips (list) */
 
-				/* The strip extent list is the same as a simple extent
-				 * list, but with the max_strips limit instead of
-				 * max_extents... */
+				/* The strip extent list is the same as a
+				 * simple extent list, but with the max_strips
+				 * limit instead of max_extents... */
 				rc = famfs_parse_file_simple_ext_list(parser,
 					      fm->fm_fmap.ie[ext_index].ie_strips,
 					      max_strips, &nparsed, verbose);
@@ -700,14 +773,15 @@ famfs_parse_file_striped_ext_list(
 					goto err_out;
 				}
 
-				if ((u64)nparsed != fm->fm_fmap.ie[ext_index].ie_nstrips) {
+				if ((u64)nparsed !=
+				    fm->fm_fmap.ie[ext_index].ie_nstrips) {
 					fprintf(stderr,
 						"%s: chunk_size=0x%llx idx=%d\n",
 						__func__,
 						fm->fm_fmap.ie[ext_index].ie_chunk_size,
 						ext_index);
 					fprintf(stderr,
-						"%s: expect %lld strips, found %d\n",
+					    "%s: expect %lld strips, found %d\n",
 						__func__,
 						fm->fm_fmap.ie[ext_index].ie_nstrips,
 						nparsed);
@@ -715,7 +789,8 @@ famfs_parse_file_striped_ext_list(
 					goto err_out;
 				}
 
-				/* After we get the strip extents, bump the ext_index */
+				/* After we get the strip extents,
+				 * bump the ext_index */
 				ext_index++;
 			} else {
 				fprintf(stderr, "%s: Bad scalar key %s\n",
@@ -726,9 +801,11 @@ famfs_parse_file_striped_ext_list(
 
 		case YAML_MAPPING_START_EVENT:
 			if (verbose > 1)
-				printf("%s: extent %d is coming next\n", __func__, ext_index);
+				printf("%s: extent %d is coming next\n",
+				       __func__, ext_index);
 			if (ext_index >= max_strips) {
-				fprintf(stderr, "%s: too many extents! (max=%d)\n",
+				fprintf(stderr,
+					"%s: too many extents! (max=%d)\n",
 					__func__, max_extents);
 				rc = -EOVERFLOW;
 				yaml_event_delete(&event);
@@ -737,12 +814,14 @@ famfs_parse_file_striped_ext_list(
 			break;
 		case YAML_MAPPING_END_EVENT:
 			if (verbose > 1)
-				printf("%s: end of extent %d\n", __func__, ext_index);
+				printf("%s: end of extent %d\n",
+				       __func__, ext_index);
 			ext_index++;
 			break;
 		case YAML_SEQUENCE_END_EVENT:
 			if (verbose > 1)
-				printf("%s: finished with ext list (%d entries)\n",
+				printf("%s: finished with ext list "
+				       "(%d entries)\n",
 				       __func__, ext_index);
 			done = 1;
 			break;
@@ -755,7 +834,8 @@ famfs_parse_file_striped_ext_list(
 		yaml_event_delete(&val_event);
 
 	}
-	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_END_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_END_EVENT,
+			       rc, err_out, verbose);
 err_out:
 
 	return rc;
@@ -775,7 +855,8 @@ famfs_parse_file_yaml(
 	int rc = 0;
 
 	/* "file" stanza starts wtiha  YAML_MAPPING_START_EVENT */
-	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_START_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_START_EVENT,
+			       rc, err_out, verbose);
 
 	while (!done) {
 		yaml_event_t val_event;
@@ -789,16 +870,20 @@ famfs_parse_file_yaml(
 			if (strcmp(current_key, "path") == 0) {
 				/* path */
 				/* TODO: check for overflow */
-				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event,
+						       YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				strncpy((char *)fm->fm_relpath,
 					(char *)val_event.data.scalar.value,
 					FAMFS_MAX_PATHLEN - 1);
-				if (verbose > 1) printf("%s: path: %s\n", __func__, fm->fm_relpath);
+				if (verbose > 1) printf("%s: path: %s\n",
+							__func__,
+							fm->fm_relpath);
 				yaml_event_delete(&val_event);
 			} else if (strcmp(current_key, "size") == 0) {
 				/* size */
-				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event,
+						       YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				fm->fm_size = strtoull((char *)val_event.data.scalar.value,
 						       0, 0);
@@ -807,7 +892,8 @@ famfs_parse_file_yaml(
 							__func__, fm->fm_size);
 			} else if (strcmp(current_key, "flags") == 0) {
 				/* flags */
-				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event,
+						       YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				fm->fm_flags = strtoull((char *)val_event.data.scalar.value,
 							0, 0);
@@ -816,68 +902,81 @@ famfs_parse_file_yaml(
 							__func__, fm->fm_flags);
 			} else if (strcmp(current_key, "mode") == 0) {
 				/* mode */
-				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event,
+						       YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				fm->fm_mode = strtoull((char *)val_event.data.scalar.value,
 						       0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose > 1) printf("%s: mode: 0%o\n", __func__, fm->fm_mode);
+				if (verbose > 1) printf("%s: mode: 0%o\n",
+							__func__, fm->fm_mode);
 			} else if (strcmp(current_key, "uid") == 0) {
 				/* uid */
-				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event,
+						       YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				fm->fm_uid = strtoull((char *)val_event.data.scalar.value,
 						      0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose > 1) printf("%s: uid: %d\n", __func__, fm->fm_uid);
+				if (verbose > 1) printf("%s: uid: %d\n",
+							__func__, fm->fm_uid);
 			} else if (strcmp(current_key, "gid") == 0) {
 				/* gid */
-				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event,
+						       YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				fm->fm_gid = strtoull((char *)val_event.data.scalar.value,
 						      0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose > 1) printf("%s: gid: %d\n", __func__, fm->fm_gid);
+				if (verbose > 1) printf("%s: gid: %d\n",
+							__func__, fm->fm_gid);
 			} else if (strcmp(current_key, "nextents") == 0) {
 				/* nextents */
-				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event,
+						       YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				fm->fm_fmap.fmap_nextents = strtoull((char *)val_event.data.scalar.value,
 						      0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose > 1) printf("%s: nextents: %d\n",
-							__func__, fm->fm_fmap.fmap_nextents);
+				if (verbose > 1)
+					printf("%s: nextents: %d\n",
+					       __func__,
+					       fm->fm_fmap.fmap_nextents);
 			} else if (strcmp(current_key, "simple_ext_list") == 0) {
 				int nparsed;
 				/* simple_ext_list */
 				fm->fm_fmap.fmap_ext_type = FAMFS_EXT_SIMPLE;
 				rc = famfs_parse_file_simple_ext_list(parser,
 						      fm->fm_fmap.se,
-						      max_extents, &nparsed, verbose);
+						      max_extents, &nparsed,
+								      verbose);
 				if (rc) {
-					fprintf(stderr,
-						"%s: error parsing simple ext list\n",
+					fprintf(stderr, "%s: error parsing "
+						"simple ext list\n",
 						__func__);
 					goto err_out;
 				}
 				if ((u64)nparsed != fm->fm_fmap.fmap_nextents) {
 					fprintf(stderr,
-						"%s: expect %d extents, found %d\n",
-						__func__, fm->fm_fmap.fmap_nextents,
+					    "%s: expect %d extents, found %d\n",
+					    __func__, fm->fm_fmap.fmap_nextents,
 						nparsed);
 					rc = -EINVAL;
 					goto err_out;
 
 				}
-			} else if (strcmp(current_key, "striped_ext_list") == 0) {
+			} else if (strcmp(current_key,
+					  "striped_ext_list") == 0) {
 				/* striped_ext_list */
 				fm->fm_fmap.fmap_ext_type = FAMFS_EXT_INTERLEAVE;
-				rc = famfs_parse_file_striped_ext_list(parser, fm, max_extents,
-								       max_strips, verbose);
+				rc = famfs_parse_file_striped_ext_list(parser,
+							 fm, max_extents,
+							 max_strips, verbose);
 				if (rc)
 					goto err_out;
 			} else {
-				fprintf(stderr, "%s: Unrecognized scalar key %s\n",
+				fprintf(stderr,
+					"%s: Unrecognized scalar key %s\n",
 					__func__, current_key);
 				rc = -EINVAL;
 				goto err_out;
@@ -887,7 +986,8 @@ famfs_parse_file_yaml(
 
 		case YAML_MAPPING_END_EVENT:
 			if (verbose > 1)
-				printf("%s: Finished with file yaml\n", __func__);
+				printf("%s: Finished with file yaml\n",
+				       __func__);
 			done = 1;
 			break;
 		default:
@@ -926,23 +1026,29 @@ famfs_parse_shadow_yaml(
 	yaml_parser_set_input_file(&parser, fp);
 
 	/* Look for YAML_STREAM_START_EVENT */
-	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_STREAM_START_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_STREAM_START_EVENT,
+			       rc, err_out, verbose);
 	yaml_event_delete(&event);
 
 	/* Look for YAML_DOCUMENT_START_EVENT */
-	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_DOCUMENT_START_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_DOCUMENT_START_EVENT,
+			       rc, err_out, verbose);
 	yaml_event_delete(&event);
 
 	/* Look for YAML_MAPPING_START_EVENT */
-	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_MAPPING_START_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_MAPPING_START_EVENT,
+			       rc, err_out, verbose);
 	yaml_event_delete(&event);
 
 	/* Look for "file" stanza as scalar event
-	 * Theoretically there could be other stanzas later, but this is the only one now
+	 * Theoretically there could be other stanzas later,
+	 * but this is the only one now
 	 */
-	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_SCALAR_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_SCALAR_EVENT,
+			       rc, err_out, verbose);
 	if (strcmp((char *)"file", (char *)event.data.scalar.value) == 0) {
-		rc = famfs_parse_file_yaml(&parser, fm, max_extents, max_strips, verbose);
+		rc = famfs_parse_file_yaml(&parser, fm, max_extents,
+					   max_strips, verbose);
 		if (rc) {
 			yaml_event_delete(&event);
 			goto err_out;
@@ -951,11 +1057,13 @@ famfs_parse_shadow_yaml(
 	yaml_event_delete(&event);
 
 	/* Look for YAML_DOCUMENT_END_EVENT */
-	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_DOCUMENT_END_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_DOCUMENT_END_EVENT,
+			       rc, err_out, verbose);
 	yaml_event_delete(&event);
 
 	/* Look for YAML_STREAM_END_EVENT */
-	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_STREAM_END_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_STREAM_END_EVENT,
+			       rc, err_out, verbose);
 	yaml_event_delete(&event);
 
 err_out:
@@ -968,8 +1076,9 @@ err_out:
  *
  * This is not the file yaml! This is the .meta/.alloc.cfg file!!
  *
- * This file currently contains interleaved_alloc: (nbuckets, nstrips and chunk_size)
- * and nothing else - but it may be expanded later.
+ * This file currently contains interleaved_alloc:
+ * (nbuckets, nstrips and chunk_size) and nothing else -
+ * but it may be expanded later.
  */
 static int
 famfs_parse_stripe_config_yaml(
@@ -983,7 +1092,8 @@ famfs_parse_stripe_config_yaml(
 	int rc = 0;
 
 	/* interleaved_alloc stanza starts with a  YAML_MAPPING_START_EVENT */
-	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_START_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(parser, &event, YAML_MAPPING_START_EVENT,
+			       rc, err_out, verbose);
 
 	while (!done) {
 		yaml_event_t val_event;
@@ -994,46 +1104,59 @@ famfs_parse_stripe_config_yaml(
 		case YAML_SCALAR_EVENT:
 			current_key = (char *)event.data.scalar.value;
 			if (verbose > 1)
-				printf("%s: current_key=%s\n", __func__, current_key);
+				printf("%s: current_key=%s\n", __func__,
+				       current_key);
 
 			if (strcmp(current_key, "nbuckets") == 0) {
 				/* nbuckets */
-				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event,
+						       YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				interleave_param->nbuckets = strtoull((char *)val_event.data.scalar.value,
 							    0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose > 1) printf("%s: nbuckets: %lld\n",
-							__func__, interleave_param->nbuckets);
+				if (verbose > 1)
+					printf("%s: nbuckets: %lld\n",
+					   __func__, interleave_param->nbuckets);
 			} else if (strcmp(current_key, "nstrips") == 0) {
 				/* nstrips */
-				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event,
+						       YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
 				interleave_param->nstrips = strtoull((char *)val_event.data.scalar.value,
 							    0, 0);
 				yaml_event_delete(&val_event);
-				if (verbose > 1) printf("%s: nstrips: %lld\n",
-							__func__, interleave_param->nstrips);
+				if (verbose > 1)
+					printf("%s: nstrips: %lld\n",
+					   __func__, interleave_param->nstrips);
 			} else if (strcmp(current_key, "chunk_size") == 0) {
 				char tmpstr[256];
 				char *endptr;
 				s64 mult;
 
 				/* chunk_size */
-				GET_YAML_EVENT_OR_GOTO(parser, &val_event, YAML_SCALAR_EVENT,
+				GET_YAML_EVENT_OR_GOTO(parser, &val_event,
+						       YAML_SCALAR_EVENT,
 						       rc, err_out, verbose);
-				strncpy(tmpstr, (char *)val_event.data.scalar.value, 255);
+				strncpy(tmpstr,
+					(char *)val_event.data.scalar.value,
+					255);
 
-				interleave_param->chunk_size = strtoull(tmpstr, &endptr, 0);
+				interleave_param->chunk_size = strtoull(tmpstr,
+									&endptr,
+									0);
 				mult = get_multiplier(endptr);
 				if (mult > 0)
 					interleave_param->chunk_size *= mult;
 
 				yaml_event_delete(&val_event);
-				if (verbose > 1) printf("%s: chunk_size: %lld\n", __func__,
-							interleave_param->chunk_size);
+				if (verbose > 1)
+					printf("%s: chunk_size: %lld\n",
+					       __func__,
+					       interleave_param->chunk_size);
 			} else {
-				fprintf(stderr, "%s: Unrecognized scalar key: %s\n",
+				fprintf(stderr,
+					"%s: Unrecognized scalar key: %s\n",
 					__func__, current_key);
 				rc = -EINVAL;
 				goto err_out;
@@ -1043,7 +1166,8 @@ famfs_parse_stripe_config_yaml(
 
 		case YAML_MAPPING_END_EVENT:
 			if (verbose > 1)
-				printf("%s: Finished with file yaml\n", __func__);
+				printf("%s: Finished with file yaml\n",
+				       __func__);
 			done = 1;
 			break;
 		default:
@@ -1085,22 +1209,28 @@ famfs_parse_alloc_yaml(
 	yaml_parser_set_input_file(&parser, fp);
 
 	/* Look for YAML_STREAM_START_EVENT */
-	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_STREAM_START_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_STREAM_START_EVENT,
+			       rc, err_out, verbose);
 	yaml_event_delete(&event);
 
 	/* Look for YAML_DOCUMENT_START_EVENT */
-	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_DOCUMENT_START_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_DOCUMENT_START_EVENT,
+			       rc, err_out, verbose);
 	yaml_event_delete(&event);
 
 	/* Look for YAML_MAPPING_START_EVENT */
-	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_MAPPING_START_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_MAPPING_START_EVENT,
+			       rc, err_out, verbose);
 	yaml_event_delete(&event);
 
 	/* Look for "file" stanza as scalar event
-	 * Theoretically there could be other stanzas later, but this is the only one now
+	 * Theoretically there could be other stanzas later,
+	 * but this is the only one now
 	 */
-	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_SCALAR_EVENT, rc, err_out, verbose);
-	if (strcmp((char *)"interleaved_alloc", (char *)event.data.scalar.value) == 0) {
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_SCALAR_EVENT,
+			       rc, err_out, verbose);
+	if (strcmp((char *)"interleaved_alloc",
+		   (char *)event.data.scalar.value) == 0) {
 		rc = famfs_parse_stripe_config_yaml(&parser, stripe, verbose);
 		if (rc) {
 			yaml_event_delete(&event);
@@ -1109,16 +1239,19 @@ famfs_parse_alloc_yaml(
 	}
 	yaml_event_delete(&event);
 
-	/* Look for YAML_MAPPING_END_EVENT - end of the interleaved_alloc stanza */
-	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_MAPPING_END_EVENT, rc, err_out, verbose);
+	/* Look for YAML_MAPPING_END_EVENT - end of interleaved_alloc stanza */
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_MAPPING_END_EVENT,
+			       rc, err_out, verbose);
 	yaml_event_delete(&event);
 
 	/* Look for YAML_DOCUMENT_END_EVENT */
-	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_DOCUMENT_END_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_DOCUMENT_END_EVENT,
+			       rc, err_out, verbose);
 	yaml_event_delete(&event);
 
 	/* Look for YAML_STREAM_END_EVENT */
-	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_STREAM_END_EVENT, rc, err_out, verbose);
+	GET_YAML_EVENT_OR_GOTO(&parser, &event, YAML_STREAM_END_EVENT,
+			       rc, err_out, verbose);
 	yaml_event_delete(&event);
 
 err_out:

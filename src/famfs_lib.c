@@ -473,21 +473,29 @@ famfs_gen_superblock_crc(const struct famfs_superblock *sb)
 	unsigned long crc = crc32(0L, Z_NULL, 0);
 
 	assert(sb);
-	crc = crc32(crc, (const unsigned char *)&sb->ts_magic,       sizeof(sb->ts_magic));
-	crc = crc32(crc, (const unsigned char *)&sb->ts_version,     sizeof(sb->ts_version));
-	crc = crc32(crc, (const unsigned char *)&sb->ts_log_offset,  sizeof(sb->ts_log_offset));
+	crc = crc32(crc, (const unsigned char *)&sb->ts_magic,
+		    sizeof(sb->ts_magic));
+	crc = crc32(crc, (const unsigned char *)&sb->ts_version,
+		    sizeof(sb->ts_version));
+	crc = crc32(crc, (const unsigned char *)&sb->ts_log_offset,
+		    sizeof(sb->ts_log_offset));
 
-	crc = crc32(crc, (const unsigned char *)&sb->ts_log_len,     sizeof(sb->ts_log_len));
+	crc = crc32(crc, (const unsigned char *)&sb->ts_log_len,
+		    sizeof(sb->ts_log_len));
 
-	crc = crc32(crc, (const unsigned char *)&sb->ts_alloc_unit, sizeof(sb->ts_alloc_unit));
+	crc = crc32(crc, (const unsigned char *)&sb->ts_alloc_unit,
+		    sizeof(sb->ts_alloc_unit));
 	crc = crc32(crc, (const unsigned char *)&sb->ts_omf_ver_major,
 		    sizeof(sb->ts_omf_ver_major));
 	crc = crc32(crc, (const unsigned char *)&sb->ts_omf_ver_minor,
 		    sizeof(sb->ts_omf_ver_minor));
 
-	crc = crc32(crc, (const unsigned char *)&sb->ts_uuid,        sizeof(sb->ts_uuid));
-	crc = crc32(crc, (const unsigned char *)&sb->ts_dev_uuid,    sizeof(sb->ts_uuid));
-	crc = crc32(crc, (const unsigned char *)&sb->ts_system_uuid, sizeof(sb->ts_system_uuid));
+	crc = crc32(crc, (const unsigned char *)&sb->ts_uuid,
+		    sizeof(sb->ts_uuid));
+	crc = crc32(crc, (const unsigned char *)&sb->ts_dev_uuid,
+		    sizeof(sb->ts_uuid));
+	crc = crc32(crc, (const unsigned char *)&sb->ts_system_uuid,
+		    sizeof(sb->ts_system_uuid));
 	return crc;
 }
 
@@ -502,7 +510,8 @@ famfs_gen_log_header_crc(const struct famfs_log *logp)
 	crc = crc32(crc, (const unsigned char *)
 		    &logp->famfs_log_len, sizeof(logp->famfs_log_len));
 	crc = crc32(crc, (const unsigned char *)
-		    &logp->famfs_log_last_index, sizeof(logp->famfs_log_last_index));
+		    &logp->famfs_log_last_index,
+		    sizeof(logp->famfs_log_last_index));
 	return crc;
 }
 
@@ -673,7 +682,8 @@ famfs_fsck_scan(
 			printf("  Allocated space:        %.2fG\n",
 			       (float)alloc_sum / agig);
 			printf("  Free space:             %.2fG\n",
-			       ((float)bitmap_capacity - (float)alloc_sum) / agig);
+			       ((float)bitmap_capacity - (float)alloc_sum)
+			       / agig);
 		}
 		printf("  Space amplification:     %0.2f\n", space_amp);
 		printf("  Percent used:            %.1f%%\n\n", percent_used);
@@ -1038,8 +1048,9 @@ famfs_v2_set_file_map(
 
 			kie[i].ie_nstrips = ie->ie_nstrips;
 			kie[i].ie_chunk_size = ie->ie_chunk_size;
-			/* XXX if more than one interleaved extent becomes possible,
-			 * we won't just be able to use the file size here
+			/* XXX if more than one interleaved extent becomes
+			 * possible, we won't just be able to use the
+			 * file size here
 			 */
 			kie[i].ie_nbytes = size;
 
@@ -1118,7 +1129,7 @@ __famfs_mkmeta_superblock(
 		if ((st.st_mode & S_IFMT) == S_IFREG) {
 			/* Superblock file exists */
 			if (st.st_size != FAMFS_SUPERBLOCK_SIZE) {
-				if (!shadow) /* shadow files aren't "actual size" */
+				if (!shadow) /* shadow files not "actual size" */
 					fprintf(stderr,
 						"%s: bad superblock file - "
 						"remount likely required\n",
@@ -1244,7 +1255,7 @@ __famfs_mkmeta_log(
 			}
 		} else {
 			fprintf(stderr,
-				"%s: non-regular file found where log expected\n",
+			    "%s: non-regular file found where log expected\n",
 				__func__);
 			return -EINVAL;
 		}
@@ -1504,7 +1515,8 @@ famfs_validate_log_header(const struct famfs_log *logp)
 	unsigned long crc = famfs_gen_log_header_crc(logp);
 
 	if (logp->famfs_log_magic != FAMFS_LOG_MAGIC) {
-		fprintf(stderr, "%s: bad magic number in log header\n", __func__);
+		fprintf(stderr, "%s: bad magic number in log header\n",
+			__func__);
 		return -1;
 	}
 	if (logp->famfs_log_crc != crc) {
@@ -1660,7 +1672,9 @@ __famfs_logplay(
 			 * Check for files with null offset...
 			 */
 			for (j = 0; j < fm->fm_fmap.fmap_nextents; j++) {
-				const struct famfs_simple_extent *se = &fm->fm_fmap.se[j];
+				const struct famfs_simple_extent *se;
+
+				se = &fm->fm_fmap.se[j];
 
 				if (se->se_offset == 0 || mock_path) {
 					fprintf(stderr,
@@ -1750,7 +1764,8 @@ __famfs_logplay(
 			else {
 				struct famfs_simple_extent *el;
 
-				if (fm->fm_fmap.fmap_ext_type != FAMFS_EXT_SIMPLE) {
+				if (fm->fm_fmap.fmap_ext_type
+				    != FAMFS_EXT_SIMPLE) {
 					fprintf(stderr,
 						"%s: error: "
 						"non-simple extents in abi 42\n",
@@ -1764,7 +1779,9 @@ __famfs_logplay(
 				assert(el);
 
 				for (j = 0; j < fm->fm_fmap.fmap_nextents; j++) {
-					const struct famfs_log_fmap *tle = &fm->fm_fmap;
+					const struct famfs_log_fmap *tle;
+
+					tle = &fm->fm_fmap;
 
 					el[j].se_offset = tle->se[j].se_offset;
 					el[j].se_len    = tle->se[j].se_len;
@@ -2296,7 +2313,8 @@ find_real_parent_path(const char *path)
 
 		pc = dirname(pc);
 		if (--loop_ct == 0) {
-			fprintf(stderr, "%s: bailed from possible infinite loop; "
+			fprintf(stderr,
+				"%s: bailed from possible infinite loop; "
 				"path=%s path_copy=%s\n",
 				__func__, path, pc);
 			return NULL;
@@ -2700,7 +2718,7 @@ famfs_fsck(
 			return -1;
 
 		rc = famfs_mmap_superblock_and_log_raw(path, &sb, &logp,
-						       0 /* figure out log size */,
+						       0 /* return log size */,
 						       1 /* read-only */);
 		if (rc)
 			return rc;
@@ -2727,7 +2745,8 @@ famfs_fsck(
 		printf("  mount point: %s\n", mpt);
 		printf("  mount type:  %s\n", famfs_mount_type(famfs_type));
 		if (famfs_type == FAMFS_FUSE) {
-			if (famfs_path_is_mount_pt(mpt, backing_dev, shadow_path)) {
+			if (famfs_path_is_mount_pt(mpt, backing_dev,
+						   shadow_path)) {
 				printf("  backing dev: %s\n", backing_dev);
 				printf("  shadow path: %s\n", shadow_path);
 			}
@@ -2744,8 +2763,8 @@ famfs_fsck(
 			sb =   famfs_map_superblock_by_path(path,
 							    1 /* read only */);
 			if (!sb) {
-				fprintf(stderr, "%s: "
-					"failed to map superblock from file %s\n",
+				fprintf(stderr, "%s: failed to map superblock "
+					"from file %s\n",
 					__func__, path);
 				return -1;
 			}
@@ -2810,7 +2829,8 @@ famfs_fsck(
 			    || mock_failure == MOCK_FAIL_READ_LOG) {
 				close(lfd);
 				rc = -1;
-				fprintf(stderr, "%s: error %d reading log file\n",
+				fprintf(stderr,
+					"%s: error %d reading log file\n",
 					__func__, errno);
 				goto err_out;
 			}
@@ -3230,7 +3250,8 @@ famfs_file_create_stub(
  * This is only intended for testing yaml generation and parsing.
  */
 static int
-famfs_test_shadow_yaml(FILE *fp, const struct famfs_log_file_meta *fc, int verbose)
+famfs_test_shadow_yaml(
+		FILE *fp, const struct famfs_log_file_meta *fc, int verbose)
 {
 	struct famfs_log_file_meta readback = { 0 };
 	int rc;
@@ -3241,7 +3262,7 @@ famfs_test_shadow_yaml(FILE *fp, const struct famfs_log_file_meta *fc, int verbo
 	if (rc) {
 		struct famfs_log_file_meta readback2 = { 0 };
 
-		fprintf(stderr, "-----------------------------------------------------\n");
+		fprintf(stderr, "------------------------------------------\n");
 		rewind(fp);
 		rc = famfs_parse_shadow_yaml(fp, &readback2,
 					     FAMFS_MAX_SIMPLE_EXTENTS,
@@ -3312,8 +3333,8 @@ famfs_shadow_file_create(
 			/* This is normal for log replay */
 			/* TODO: options to verify and fix contents? */
 			if (verbose > 1)
-				fprintf(stderr,
-					"%s: file (%s) exists where dir should be\n",
+				fprintf(stderr, "%s: file (%s) "
+					"exists where dir should be\n",
 					__func__, shadow_fullpath);
 			if (ls) ls->f_existed++;
 
@@ -3344,7 +3365,8 @@ famfs_shadow_file_create(
 
 		default:
 			fprintf(stderr,
-				"%s: something (%s) exists where shadow file should be\n",
+				"%s: something (%s) "
+				"exists where shadow file should be\n",
 				__func__, shadow_fullpath);
 			if (ls) ls->f_errs++;
 			return -1;
@@ -3477,8 +3499,10 @@ __famfs_mkfile(
 						__func__, target_fullpath);
 				else
 					fprintf(stderr,
-						"%s: existing open failed %s\nerrno=%d",
-						__func__, target_fullpath, errno);
+						"%s: existing open failed "
+						"%s\nerrno=%d",
+						__func__, target_fullpath,
+						errno);
 			}
 			goto out;
 		}
@@ -3503,7 +3527,9 @@ __famfs_mkfile(
 		case S_IFDIR:
 			break; /* all good - parent is a directory */
 		default:
-			fprintf(stderr, "%s: Error %s parent exists but is not a directory\n",
+			fprintf(stderr,
+				"%s: Error %s parent exists "
+				"but is not a directory\n",
 				__func__, target_fullpath);
 			fd = -1;
 			goto out;
@@ -3556,7 +3582,8 @@ __famfs_mkfile(
 
 		fd = open(filepath, O_RDWR, mode);
 		if (fd < 0)
-			fprintf(stderr, "%s: unable to open brand new file %s (errno=%d)\n",
+			fprintf(stderr,
+				"%s: unable to open new file %s (errno=%d)\n",
 				__func__, filepath, errno);
 	} else {
 		/* Create the stub file in standalone famfs
@@ -3577,7 +3604,8 @@ __famfs_mkfile(
 					close(fd);
 					fd = rc;
 					fprintf(stderr,
-						"%s: failed to create destination file %s\n",
+						"%s: failed to create dest "
+						"%s\n",
 						__func__, filename);
 				}
 #endif
@@ -3586,18 +3614,19 @@ __famfs_mkfile(
 
 				if (fmap->fmap_nextents > 1) {
 					fprintf(stderr,
-						"%s: nextents %d (are you running a v2 test?)\n",
+						"%s: Error extents %d\n",
 						__func__, fmap->fmap_nextents);
 					close(fd);
-					fd = -EINVAL; /* XXX: gotta fix up return codes */
+					fd = -EINVAL; /* XXX: fix return codes */
 					goto out;
 				}
 				ext.se_offset = fmap->se[0].se_offset;
 				ext.se_len    = fmap->se[0].se_len;
 
-				/* This will do legacy allocation regardless of whether
-				 * striping is configured in the ll */
-				rc = famfs_v1_set_file_map(fd, size, 1, &ext, FAMFS_REG);
+				/* This will do legacy allocation regardless
+				 * of whether striping is configured in the ll */
+				rc = famfs_v1_set_file_map(fd, size, 1, &ext,
+							   FAMFS_REG);
 				if (rc) {
 					close(fd);
 					fd = rc;
@@ -3660,11 +3689,14 @@ famfs_mkfile(
 
 	if (interleave_param) {
 		if (verbose)
-			printf("%s: overriding interleave_param defaults (nbuckets/nstrips/chunk)="
-			       "(%lld/%lld/%lld) with (%lld/%lld/%lld)\n", __func__,
-			       ll.interleave_param.nbuckets, ll.interleave_param.nstrips,
+			printf("%s: overriding interleave_param defaults "
+			       "(nbuckets/nstrips/chunk)="
+			       "(%lld/%lld/%lld) with (%lld/%lld/%lld)\n",
+			       __func__, ll.interleave_param.nbuckets,
+			       ll.interleave_param.nstrips,
 			       ll.interleave_param.chunk_size,
-			       interleave_param->nbuckets, interleave_param->nstrips,
+			       interleave_param->nbuckets,
+			       interleave_param->nstrips,
 			       interleave_param->chunk_size);
 
 		ll.interleave_param = *interleave_param;
@@ -3762,7 +3794,7 @@ __famfs_mkdir(
 
 	/* Rationalize dirpath; if it exists, get role based on that */
 	if (realpath(dirpath, realdirpath)) {
-		/* if dirpath already exists in "non -p" mkdir, that's an error */
+		/* Error if dirpath already exists in "non -p" mkdir */
 		return -1;
 	}
 
@@ -4461,7 +4493,8 @@ famfs_cp(struct famfs_locked_log *lp,
 		 * file is created
 		 */
 		if (verbose > 1)
-			printf("%s: (%s) -> (%s)\n", __func__, srcfile, destfile);
+			printf("%s: (%s) -> (%s)\n",
+			       __func__, srcfile, destfile);
 
 		strncpy(actual_destfile, destfile, PATH_MAX - 1);
 	}
@@ -4656,8 +4689,8 @@ famfs_cp_multi(
 				if (!dest_parent_path) {
 					free(dirdupe);
 					fprintf(stderr,
-						"%s: unable to get realpath for (%s)\n",
-						__func__, dest);
+						"%s: unable to get realpath "
+						"for (%s)\n", __func__, dest);
 					return -1;
 				}
 
@@ -4765,7 +4798,7 @@ famfs_cp_multi(
 
 		switch (src_stat.st_mode & S_IFMT) {
 		case S_IFREG:
-			/* Dest is a directory and files will be copied into it */
+			/* Dest is a dir and files will be copied into it */
 			rc = famfs_cp(&ll, argv[i], dest, mode,
 				      uid, gid, verbose);
 			if (rc < 0) { /* rc < 0 is errors we abort after */
@@ -4788,17 +4821,17 @@ famfs_cp_multi(
 						  uid, gid, verbose);
 				if (rc < 0) { /* rc < 0 is abort errors */
 					fprintf(stderr,
-						"%s/: aborting %s due to error\n",
+						"%s/: aborting %s due to err\n",
 						argv[i],
 						cp_compare ? "compare" : "cp");
 					err = rc;
 					goto err_out;
 				}
-				if (rc)  /* rc > 0 is errors that we continue after */
+				if (rc)  /* rc > 0: non-abort errors */
 					err = 1;
 			} else {
-				fprintf(stderr,
-					"%s: -r not specified; omitting directory '%s'\n",
+				fprintf(stderr, "%s: -r not specified; "
+					"omitting directory '%s'\n",
 					__func__, argv[i]);
 				err = 1;
 			}
@@ -5360,8 +5393,7 @@ famfs_check(const char *path,
 	snprintf(logpath, PATH_MAX - 1, "%s/.meta/.log", path);
 	rc = stat(metadir, &st);
 	if (rc) {
-		fprintf(stderr,
-			"%s: Need to run mkmeta on device %s for this file system\n",
+		fprintf(stderr,	"%s: Error: run mkmeta on device %s\n",
 			__func__, dev_out);
 		ndirs++;
 		return -1;
