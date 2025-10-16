@@ -654,6 +654,7 @@ famfs_mount_fuse(
 	int logplay_use_mmap,
 	int useraccess,
 	int default_perm,
+	int bounce_dax,
 	int debug,
 	int verbose)
 {
@@ -736,12 +737,14 @@ famfs_mount_fuse(
 		goto out;
 	}
 
-	/* Not more access allowed to the raw daxdev after mkmeta! */
-	rc = famfs_bounce_daxdev(realdaxdev, verbose);
-	if (rc) {
-		fprintf(stderr, "%s: failed to bounce daxdev %s\n",
-			__func__, realdaxdev);
-		return rc;
+	if (bounce_dax) {
+		/* Not more access allowed to the raw daxdev after mkmeta! */
+		rc = famfs_bounce_daxdev(realdaxdev, verbose);
+		if (rc) {
+			fprintf(stderr, "%s: failed to bounce daxdev %s\n",
+				__func__, realdaxdev);
+			return rc;
+		}
 	}
 
 	/* Start the fuse daemon, which mounts the FS */

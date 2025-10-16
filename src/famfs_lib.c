@@ -3556,8 +3556,8 @@ __famfs_mkfile(
 
 		fd = open(filepath, O_RDWR, mode);
 		if (fd < 0)
-			fprintf(stderr, "%s: unable to open brand new file %s\n",
-				__func__, filepath);
+			fprintf(stderr, "%s: unable to open brand new file %s (errno=%d)\n",
+				__func__, filepath, errno);
 	} else {
 		/* Create the stub file in standalone famfs
 		 * KABI 42: Only supports simple extent lists

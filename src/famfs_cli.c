@@ -246,7 +246,9 @@ famfs_mount_usage(int   argc,
 	       "                         (don't use fuse allow_other mount opt)\n"
 	       "    -p|--nodefaultperm - Do not apply normal posix permissions\n"
 	       "                         (don't use fuse default_permissions mount opt)\n"
-	       "    -S|--shadow=path - Path to root of shadow filesystem\n"
+	       "    -S|--shadow=path   - Path to root of shadow filesystem\n"
+	       "    -b|--bouncedax     - Disable and re-enable the primary daxdev prior to mount\n"
+	       "                         (fuse only)\n"
 	       "\n", progname);
 }
 
@@ -258,6 +260,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	int debug = 0;
 	int verbose = 0;
 	int use_read = 0;
+	int bouncedax = 0;
 	int useraccess = 1;
 	int default_perm = 1;
 	char *shadowpath = NULL;
@@ -284,6 +287,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 		{"verbose",    no_argument,            0,  'v'},
 		{"nouseraccess", no_argument,          0,  'u'},
 		{"nodefaultperm", no_argument,         0,  'p'},
+		{"bouncedax",   no_argument,           0,  'b'},
 		{"shadow",     required_argument,      0,  'S'},
 
 		/* un-advertised options */
@@ -299,7 +303,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+h?RrfFmvupdt:c:S:",
+	while ((c = getopt_long(argc, argv, "+h?RrfFmvupbdt:c:S:",
 				mount_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -426,7 +430,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	if (fuse_mode == FAMFS_FUSE) {
 		printf("daxdev=%s, mpt=%s\n", realdaxdev, realmpt);
 		rc = famfs_mount_fuse(realdaxdev, realmpt, shadowpath, timeout,
-				      use_mmap, useraccess, default_perm,
+				      use_mmap, useraccess, default_perm, bouncedax,
 				      debug, verbose);
 		goto out;
 	}
@@ -455,15 +459,13 @@ do_famfs_cli_mount(int argc, char *argv[])
 		goto err_out;
 	}
 
- 	/*
- 	 * No more access allowed to the raw daxdev after mkmeta!
- 	 */
-
-	rc = famfs_bounce_daxdev(realdaxdev, verbose);
-	if (rc) {
-		fprintf(stderr, "%s: failed to bounce daxdev %s\n",
-			__func__, realdaxdev);
-		return rc;
+	if (bouncedax) {
+		rc = famfs_bounce_daxdev(realdaxdev, verbose);
+		if (rc) {
+			fprintf(stderr, "%s: failed to bounce daxdev %s\n",
+				__func__, realdaxdev);
+			return rc;
+		}
 	}
 
 	rc = mount(realdaxdev, realmpt, "famfs", mflags, "");
@@ -482,6 +484,9 @@ do_famfs_cli_mount(int argc, char *argv[])
 		umount(realmpt);
 		goto err_out;
 	}
+	/*
+	 * No more access allowed to the raw daxdev after mkmeta!
+	 */
 
 	rc = famfs_logplay(realmpt, use_mmap,
 			   0    /* not dry-run */,

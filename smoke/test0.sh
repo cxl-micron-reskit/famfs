@@ -266,7 +266,7 @@ if [[ "$FMODE" == "v1" ]]; then
     # Post mount, re-create the meta files
     ${CLI} mkmeta $DEV                || fail "mkmeta 2"
 else
-    ${MOUNT} $DEV $MPT
+    ${MOUNT} --bouncedax $DEV $MPT  # hit the --bouncedax option
     verify_mounted $DEV $MPT "test0 fuse mount"
 fi
 
