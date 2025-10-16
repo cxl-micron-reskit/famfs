@@ -53,6 +53,7 @@ struct famfs_inode {
 	enum famfs_fuse_ftype ftype;
 	struct famfs_inode *parent;        /* parent ref must be dropped */
 	char *name;                        /* name must be freed */
+	int flock_held;
 };
 
 struct famfs_icache {
@@ -61,6 +62,7 @@ struct famfs_icache {
 	uint64_t count;
 	char *shadow_root;
 	void *owner;
+	pthread_mutex_t flock_mutex; /* only one flock per file system!! */
 
 	uint64_t search_count;   /* How many times did we find_get an inode */
 	uint64_t nodes_scanned;  /* how many nodes scanned in find_get ops */
@@ -121,5 +123,7 @@ static inline void famfs_inode_getref(
 void famfs_inode_putref_locked(struct famfs_inode *inode, uint64_t count);
 void famfs_inode_putref(struct famfs_inode *inode);
 
+void famfs_icache_flock(struct famfs_inode *inode);
+void famfs_icache_unflock(struct famfs_inode *inode);
 
 #endif /* FAMFS_FUSED_ICACHE */

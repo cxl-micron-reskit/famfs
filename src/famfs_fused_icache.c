@@ -17,6 +17,7 @@ int famfs_icache_init(
 {
 	memset(icache, 0, sizeof(*icache));
 	pthread_mutex_init(&icache->mutex, NULL);
+	pthread_mutex_init(&icache->flock_mutex, NULL);
 	icache->owner = owner;
 	
 	/* Root inode setup */
@@ -52,6 +53,27 @@ void famfs_icache_destroy(struct famfs_icache *icache)
 	}
 	if (icache->shadow_root)
 		free(icache->shadow_root);
+}
+
+void famfs_icache_flock(struct famfs_inode *inode)
+{
+	struct famfs_icache *icache = inode->icache;
+
+	pthread_mutex_lock(&icache->flock_mutex);
+	inode->flock_held = 1;
+}
+
+void famfs_icache_unflock(struct famfs_inode *inode)
+{
+	struct famfs_icache *icache = inode->icache;
+
+	if (!inode->flock_held) {
+		famfs_log(FAMFS_LOG_ERR, "%s: ino %d name %s flock not held\n",
+			  __func__, inode->ino, inode->name);
+		return;
+	}
+	inode->flock_held = 0;
+	pthread_mutex_unlock(&icache->flock_mutex);
 }
 
 void dump_inode(const char *caller, struct famfs_inode *inode, int loglevel)
