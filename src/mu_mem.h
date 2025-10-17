@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /*
- * Copyright (C) 2021-2024 Micron Technology, Inc.  All rights reserved.
+ * Copyright (C) 2021-2025 Micron Technology, Inc.  All rights reserved.
  */
 #ifndef H_MU_MEM
 #define H_MU_MEM

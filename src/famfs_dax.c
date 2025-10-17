@@ -1,6 +1,8 @@
-
-
 // SPDX-License-Identifier: GPL-2.0-or-later
+/*
+ * Copyright (C) 2025 Micron Technology, Inc.  All rights reserved.
+ */
+
 /*
  * reenable_devdax.c - Disable a DAX device then re-enable it in devdax mode
  *

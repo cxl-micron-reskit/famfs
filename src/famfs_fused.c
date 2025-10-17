@@ -6,7 +6,7 @@
   See the file COPYING.
 */
 /*
- * Copyright (C) 2024 Micron Technology, Inc.  All rights reserved.
+ * Copyright (C) 2024-2025 Micron Technology, Inc.  All rights reserved.
  */
 
 #define _GNU_SOURCE
