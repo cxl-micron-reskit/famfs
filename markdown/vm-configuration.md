@@ -29,10 +29,16 @@ add the following to the GRUB_CMDLINE string:
 
 :bangbang: **Important:** For the command line above, you must have at least 16G of memory, because you are reserving 8G starting at a starting offset of 8G. Linux does not error-check this; if you try to use nonexistent memory we observes that it both runs slowly and doesn't work.
 
-**Note:** In theory ```memmap=8G$8G``` should give you a dax device rather than pmem. The usual problem is that it's hard to successfully escape the ```$``` so this often fails.
+**Note:** In theory ```memmap=8G$8G``` should give you a dax device rather than pmem. The usual problem is that it's hard to successfully escape the ```$``` so this often fails. Here is good solution:
 
-This will reserve 8G of memory at offset 8G into system physical RAM as a simulated
-pmem device. You must check your available memory and make sure that you have enough to
+    # Create a memmap_val grub macro:
+    sudo grub2-editenv /boot/grub2/grubenv set memmap_val='8G\$8G'
+    # Use the macro in /etc/default/grub
+    ...memmap=\$memmap_val
+
+The latter will reserve 8G of memory at offset 8G into system physical RAM as a
+simulated devdax device (while the former will provide a simulated pmem device).
+You must check your available memory and make sure that you have enough to
 back the entire range - if not, it won't work well...
 
 After doing that, you will need too run the following commands:
