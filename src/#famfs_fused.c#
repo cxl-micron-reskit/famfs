@@ -6,7 +6,7 @@
   See the file COPYING.
 */
 /*
- * Copyright (C) 2024 Micron Technology, Inc.  All rights reserved.
+ * Copyright (C) 2024-2025 Micron Technology, Inc.  All rights reserved.
  */
 
 #define _GNU_SOURCE
@@ -1524,8 +1524,7 @@ famfs_lseek(
 	(void)whence;
 	(void)fi;
 	(void)nodeid;
-
-	fuse_reply_lseek(req, 0);
+`	fuse_reply_lseek(req, 0);
 }
 
 static const struct fuse_lowlevel_ops famfs_oper = {
