@@ -259,6 +259,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 {
 	int c;
 	int rc;
+	int dummy = 0;
 	int debug = 0;
 	int verbose = 0;
 	int use_read = 0;
@@ -291,6 +292,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 		{"nodefaultperm", no_argument,         0,  'p'},
 		{"bouncedax",   no_argument,           0,  'b'},
 		{"shadow",     required_argument,      0,  'S'},
+		{"dummy",      no_argument,            0,  'D'},
 
 		/* un-advertised options */
 		{"remount",    no_argument,            0,  'R'},
@@ -305,7 +307,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+h?RrfFmvupbdt:c:S:",
+	while ((c = getopt_long(argc, argv, "+h?RrfFmvupbdt:c:S:D",
 				mount_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -361,6 +363,10 @@ do_famfs_cli_mount(int argc, char *argv[])
 			 * and will likely be removed soon */
 			cachearg = optarg;
 			break;
+		case 'D':
+			printf("dummy = 1\n");
+			dummy = 1;
+			break;
 		}
 	}
 
@@ -396,7 +402,14 @@ do_famfs_cli_mount(int argc, char *argv[])
 
 	remaining_args = argc - optind;
 
-	if (remaining_args != 2) {
+	if (dummy && remaining_args != 1) {
+		fprintf(stderr,
+			"%s: error: dummy mount requires <daxdev>\n",
+			__func__);
+		famfs_mount_usage(argc, argv);
+		return -1;
+	}
+	else if (!dummy && remaining_args != 2) {
 		fprintf(stderr,
 			"%s: error: <daxdev> and <mountpoint> args required\n",
 			__func__);
@@ -411,13 +424,16 @@ do_famfs_cli_mount(int argc, char *argv[])
 		free(realdaxdev);
 		return -1;
 	}
-	mpt = argv[optind++];
-	realmpt = realpath(mpt, NULL);
-	if (!realmpt) {
-		fprintf(stderr, "famfs mount: mount pt (%s) not found\n", mpt);
-		free(realmpt);
-		rc = -1;
-		goto err_out;
+	if (!dummy) {
+		mpt = argv[optind++];
+		realmpt = realpath(mpt, NULL);
+		if (!realmpt) {
+			fprintf(stderr,
+				"famfs mount: mount pt (%s) not found\n", mpt);
+			free(realmpt);
+			rc = -1;
+			goto err_out;
+		}
 	}
 
 	if (fuse_mode == 0)
@@ -432,17 +448,39 @@ do_famfs_cli_mount(int argc, char *argv[])
 		verbose_to_log_level(verbose);
 
 	if (fuse_mode == FAMFS_FUSE) {
+		if (dummy) {
+			char *mpt_out;
+			rc = famfs_dummy_mount(realdaxdev,
+					       0 /* figure out log size */,
+					       &mpt_out,
+					       debug, verbose);
+			if (rc == 0)
+				printf("Successful dummy mount at %s\n",
+				       mpt_out);
+
+			free(mpt_out);
+			goto out;
+		}
+
 		printf("daxdev=%s, mpt=%s\n", realdaxdev, realmpt);
-		rc = famfs_mount_fuse(realdaxdev, realmpt, shadowpath, timeout,
-				      use_mmap, useraccess, default_perm,
-				      bouncedax, debug, verbose);
+		rc = famfs_mount_fuse(realdaxdev, realmpt, shadowpath,
+				      timeout, use_mmap, useraccess,
+				      default_perm, bouncedax,
+				      0, 0, /* not dummy mount */
+				      debug, verbose);
 		goto out;
+
 	}
 
 	/*
 	 * From here down, it's a standalone famfs mount
 	 */
 
+	if (dummy) {
+		fprintf(stderr, "famfs mount: dummy mode is fuse-only\n");
+		rc = -1;
+		goto err_out;
+	}
 	if (!famfs_module_loaded(1)) {
 		fprintf(stderr,
 			"famfs mount: famfs kernel module is not loaded!\n");

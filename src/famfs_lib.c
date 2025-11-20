@@ -33,6 +33,8 @@
 #include <linux/famfs_ioctl.h>
 #include <linux/magic.h>
 #include <pthread.h>
+#include <stdbool.h>
+#include <sys/mount.h>
 
 #include "famfs_meta.h"
 #include "famfs_lib.h"
@@ -61,6 +63,7 @@ famfs_dir_create(
 	gid_t       gid);
 
 static struct famfs_superblock *famfs_map_superblock_by_path(const char *path,
+							     bool check_sb,
 							     int read_only);
 static int famfs_file_create_stub(const char *path, mode_t mode, uid_t uid,
 				  gid_t gid,
@@ -312,7 +315,7 @@ __famfs_get_role_and_logstats(
 }
 
 #if 0
-int
+enum famfs_system_role
 famfs_get_role_and_logstats(
 	const char *fspath
 	u64 *log_offsetp,
@@ -320,13 +323,17 @@ famfs_get_role_and_logstats(
 {
 	size_t sb_size;
 	char mpt_out[PATH_MAX];
+	ennum famfs_system_role role;
 
 	fd = open_superblock_file_read_only(fspath, &sb_size, @mpt_out);
 	if (fd < 0)
-		return fd;
+	  return FAMFS_NODEV;
 
 	if (sb_size != FAMFS_SUPERBLOCK_SIZE) {
 		fprintf(stderr, "%s: bad superblock size=%ld (expected %ld)\n",
+			__func__, sb_size, FAMFS_SUPERBLOCK_SIZE);
+		famfs_log(FAMFS_LOG_ERR,
+			  "%s: bad superblock size=%ld (expected %ld)\n",
 			__func__, sb_size, FAMFS_SUPERBLOCK_SIZE);
 		
 	}
@@ -341,15 +348,15 @@ famfs_get_role_and_logstats(
 	if (addr == MAP_FAILED) {
 		fprintf(stderr, "%s: failed to mmap superblock\n", __func__);
 		close(fd);
-		return -1;
+		return FAMFS_NODEV;
 	}
 
-	rc = famfs_get_role_and_logstats((struct famfs_superblock)addr,
-					 log_offsetp, log_sizep);
+	role = __famfs_get_role_and_logstats((struct famfs_superblock)addr,
+					   log_offsetp, log_sizep);
 	munmap(addr, sb_size);
 	close(fd);
 
-	return rc;
+	return role;
 }
 #endif
 
@@ -359,20 +366,21 @@ famfs_get_role(const struct famfs_superblock *sb)
 	return __famfs_get_role_and_logstats(sb, NULL, NULL);
 }
 
-int
+enum famfs_system_role
 famfs_get_role_by_dev(const char *daxdev)
 {
 	struct famfs_superblock *sb;
 	int rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, NULL,
 						   0, 1 /* read only */);
+	enum famfs_system_role role;
 
 	if (rc)
-		return rc;
+		return FAMFS_NODEV;
 
-	rc = famfs_get_role(sb);
+	role = famfs_get_role(sb);
 	munmap(sb, FAMFS_SUPERBLOCK_SIZE);
 
-	return rc;
+	return role;
 }
 
 static int
@@ -383,7 +391,7 @@ famfs_get_role_by_path(
 	struct famfs_superblock *sb;
 	int role;
 
-	sb = famfs_map_superblock_by_path(path, 1 /* read only */);
+	sb = famfs_map_superblock_by_path(path, false, 1 /* read only */);
 	if (!sb) {
 		fprintf(stderr,
 			"%s: unable to find famfs superblock for path %s\n",
@@ -401,7 +409,8 @@ famfs_get_role_by_path(
 int
 famfs_get_device_size(
 	const char       *fname,
-	size_t           *size)
+	size_t           *size,
+	bool              char_only)
 {
 	char spath[PATH_MAX];
 	FILE *sfile;
@@ -429,6 +438,8 @@ famfs_get_device_size(
 		is_blk = 1;
 		snprintf(spath, PATH_MAX, "/sys/class/block/%s/size", base);
 		free(name);
+		if (char_only)
+			return -EINVAL;
 		break;
 	}
 	default:
@@ -2558,7 +2569,8 @@ open_superblock_file_read_only(
 static struct famfs_superblock *
 famfs_map_superblock_by_path(
 	const char *path,
-	int         read_only)
+	bool check_superblock,
+	int read_only)
 {
 	struct famfs_superblock *sb;
 	int prot = (read_only) ? PROT_READ : PROT_READ | PROT_WRITE;
@@ -2566,7 +2578,7 @@ famfs_map_superblock_by_path(
 	void *addr;
 	int fd;
 
-	assert(read_only); /* check whether we ever open it writable */
+	//assert(read_only); /* check whether we ever open it writable */
 
 	fd = __open_superblock_file(path, read_only,
 				    &sb_size, NULL);
@@ -2594,12 +2606,13 @@ famfs_map_superblock_by_path(
 		return NULL;
 	}
 	sb = (struct famfs_superblock *)addr;
-	flush_processor_cache(sb, sb_size); /* invalidate processor cache */
 
-	if (famfs_check_super(sb, NULL, NULL)) {
-		munmap(sb, sb_size);
-		fprintf(stderr, "%s: invalid superblock\n", __func__);
-		return NULL;
+	if (check_superblock) {
+		if (famfs_check_super(sb, NULL, NULL)) {
+			munmap(sb, sb_size);
+			fprintf(stderr, "%s: invalid superblock\n", __func__);
+			return NULL;
+		}
 	}
 
 	return sb;
@@ -2609,6 +2622,7 @@ static struct famfs_log *
 famfs_map_log_by_path(
 	const char *path,
 	int         read_only,
+	bool        check_log,
 	enum lock_opt lockopt)
 {
 	struct famfs_log *logp;
@@ -2617,10 +2631,11 @@ famfs_map_log_by_path(
 	void *addr;
 	int fd;
 
-	/* XXX: the open is always read-only, but the mmap is sometimes writable;
-	 * Why does this work ?!
-	 */
-	fd = open_log_file_read_only(path, &log_size, -1, NULL, lockopt);
+	if (read_only)
+		fd = open_log_file_read_only(path, &log_size, -1, NULL, lockopt);
+	else
+		fd = open_log_file_writable(path, &log_size, -1, NULL, lockopt);
+
 	if (fd < 0) {
 		fprintf(stderr,
 			"%s: failed to open log file for filesystem %s\n",
@@ -2634,20 +2649,19 @@ famfs_map_log_by_path(
 			__func__, path);
 		return NULL;
 	}
-	/* Should not need to invalidate the cache for the log because we have
-	 * verified that we are running on the master, which is the only node
-	 * that is allowed to write the log */
+
 	logp = (struct famfs_log *)addr;
-	if (log_size != logp->famfs_log_len) {
+
+	invalidate_processor_cache(logp, log_size);
+	if (check_log && log_size != logp->famfs_log_len) {
 		fprintf(stderr,
 			"%s: log file length is invalid (%lld / %lld)\n",
 			__func__, (s64)log_size, logp->famfs_log_len);
 		munmap(addr, log_size);
 		return NULL;
 	}
-	flush_processor_cache(logp, log_size);  /* invalidate processor cache */
 
-	if (famfs_validate_log_header(logp)) {
+	if (check_log && famfs_validate_log_header(logp)) {
 		munmap(addr, log_size);
 		return NULL;
 	}
@@ -2713,7 +2727,7 @@ famfs_fsck(
 
 		/* If it's a device, we'll try to mmap superblock and log
 		 * from the device */
-		rc = famfs_get_device_size(path, &size);
+		rc = famfs_get_device_size(path, &size, 0);
 		if (rc < 0)
 			return -1;
 
@@ -2761,6 +2775,7 @@ famfs_fsck(
 			 * Note that this tends to fail
 			 */
 			sb =   famfs_map_superblock_by_path(path,
+							    true /* check sb */,
 							    1 /* read only */);
 			if (!sb) {
 				fprintf(stderr, "%s: failed to map superblock "
@@ -2770,6 +2785,7 @@ famfs_fsck(
 			}
 
 			logp = famfs_map_log_by_path(path, 1 /* read only */,
+						     true /* check_log */,
 						     NO_LOCK);
 			if (!logp) {
 				fprintf(stderr,
@@ -2874,7 +2890,7 @@ famfs_validate_superblock_by_path(const char *path, u64 *alloc_unit)
 	struct famfs_superblock *sb;
 	ssize_t daxdevsize = -1;
 
-	sb = famfs_map_superblock_by_path(path, 1);
+	sb = famfs_map_superblock_by_path(path, true /* check sb */, 1);
 	if (sb) {
 		if (alloc_unit)
 			*alloc_unit = sb->ts_alloc_unit;
@@ -5183,18 +5199,186 @@ __famfs_mkfs(const char              *daxdev,
 	return 0;
 }
 
+static void famfs_kill_superblock(struct famfs_superblock *sb)
+{
+	sb->ts_magic = 0;
+	printf("Famfs superblock killed\n");
+	sb->ts_magic = 0;
+	flush_processor_cache(&sb->ts_magic, sizeof(sb->ts_magic));
+}
+
+static bool famfs_mkfs_allowed(
+	enum famfs_system_role role,
+	const char *daxdev,
+	int force,
+	size_t *devsize_out)
+{
+	u64 min_devsize = 4ll * 1024ll * 1024ll * 1024ll;
+	size_t devsize;
+	int rc;
+
+	/* If the role is FAMFS_CLIENT, there is a superblock already;
+	 * if the role is not FAMFS_CLIENT, its' either FAMFS_MASTER or
+	 * FAMFS_NOSUPER; In either of those cases it's ok to mkfs.
+	 *
+	 * If the role is FAMFS_CLIENT, they'll have to manually blow away
+	 * the superblock if they want to do a new mkfs.
+	 */
+	if (role == FAMFS_CLIENT && !force) {
+		fprintf(stderr, "%s: Error: Device %s has a superblock owned by"
+			" another host.\n", __func__, daxdev);
+		return false;
+	}
+	if (role == FAMFS_NODEV) {
+		fprintf(stderr, "%s: Error: Device %s looks invalid\n",
+			__func__, daxdev);
+		return false;
+	}
+	rc = famfs_get_device_size(daxdev, &devsize, 1);
+	if (rc)
+		return false;
+
+	printf("devsize: %ld\n", devsize);
+
+	if (devsize < min_devsize) {
+		fprintf(stderr, "%s: unsupported memory device size (<4GiB)\n",
+			__func__);
+		return false;
+	}
+	*devsize_out = devsize;
+	return true;
+}
+
+int famfs_mkfs_via_dummy_mount(
+	const char *daxdev,
+	u64         log_len,
+	int         kill,
+	int         force)
+{
+	struct famfs_superblock *sb = NULL;
+	struct famfs_log *logp = NULL;
+	enum famfs_system_role role;
+	size_t devsize_out;
+	char *mpt_out;
+	int umountrc;
+	int rc = 0;
+	int umount_retries = 2;
+
+	rc = famfs_dummy_mount(daxdev, log_len, &mpt_out, 1, 1);
+	if (rc) {
+		fprintf(stderr, "%s: dummy mount failed for %s\n",
+			__func__, daxdev);
+		return rc;
+	}
+
+	if (kill && force) {
+		sb = famfs_map_superblock_by_path(mpt_out,
+						  false /* no check */,
+						  0 /* writable */);
+		if (!sb) {
+			fprintf(stderr,
+				"%s: failed to mmap superblock via %s\n",
+				__func__, mpt_out);
+			rc = -1;
+			goto out_umount;
+		}
+		famfs_kill_superblock(sb);
+
+		rc = 0;
+		goto out_umount;
+	}
+
+	sb = famfs_map_superblock_by_path(mpt_out,
+					  false /* no check */,
+					  1 /* read-only */ );
+	if (!sb) {
+		fprintf(stderr,
+			"%s: failed to mmap superblock read-only via %s\n",
+			__func__, mpt_out);
+		rc = -1;
+		goto out_umount;
+	}
+	role = famfs_get_role(sb);
+	rc = munmap(sb, FAMFS_SUPERBLOCK_SIZE);
+	if (rc)
+		fprintf(stderr, "%s: failed to unmap superblock\n", __func__);
+	sb = NULL;
+
+	if (!famfs_mkfs_allowed(role, daxdev, force, &devsize_out)) {
+		rc = -EPERM;
+		goto out_umount;
+	}
+
+	/* At this point we know:
+	 * * The superblock file exists in the dummy mount and is readable
+	 * * One of the following is true
+	 *   * There is no valid superblock
+	 *   * The caller is the master
+	 *   * force=true
+	 */
+
+	/* Remap the superblock writable */
+	sb = famfs_map_superblock_by_path(mpt_out,
+					  false /* no check */,
+					  0 /* writable */);
+	if (!sb) {
+		fprintf(stderr, "%s: failed to mmap superblock via %s\n",
+			__func__, mpt_out);
+		rc = -ENODEV;
+		goto out_umount;
+	}
+	logp = famfs_map_log_by_path(mpt_out, 0 /* writable */,
+				     false /* don't check the log */,
+				     NO_LOCK);
+	if (!logp) {
+		fprintf(stderr, "%s: failed to mmap log via %s\n",
+			__func__, mpt_out);
+		rc = -ENODEV;
+		goto out_umount;
+	}
+
+	rc = __famfs_mkfs(daxdev, sb, logp, log_len, devsize_out, force, kill);
+
+out_umount:
+	if (logp) {
+		int rc2 = munmap(logp, sb->ts_log_len);
+		if (rc2)
+			fprintf(stderr, "%s: failed to unmap log\n", __func__);
+	}
+	if (sb) {
+		int rc2 = munmap(sb, FAMFS_SUPERBLOCK_SIZE);
+		if (rc2)
+			fprintf(stderr, "%s: failed to unmap superblock\n",
+				__func__);
+	}
+
+	umountrc = umount(mpt_out);
+	if (umountrc) {
+		fprintf(stderr,
+			"%s: %d umount failed for %s (rc=%d errno=%d)\n",
+			__func__, getpid(), mpt_out, umountrc, errno);
+		if (umount_retries--) {
+			sleep(1);
+			goto out_umount;
+		}
+	} else {
+		printf("%s: umount successful for %s\n", __func__, mpt_out);
+	}
+	return rc;
+}
+
 int
 famfs_mkfs(const char *daxdev,
 	   u64         log_len,
 	   int         kill,
 	   int         force)
 {
-	int rc;
-	size_t devsize;
 	struct famfs_superblock *sb;
+	enum famfs_system_role role;
 	struct famfs_log *logp;
-	u64 min_devsize = 4ll * 1024ll * 1024ll * 1024ll;
+	size_t devsize_out;
 	char *mpt = NULL;
+	int rc;
 
 	mpt = famfs_get_mpt_by_dev(daxdev);
 	if (mpt) {
@@ -5211,42 +5395,14 @@ famfs_mkfs(const char *daxdev,
 			fprintf(stderr, "Failed to mmap superblock\n");
 			return -1;
 		}
-		printf("Famfs superblock killed\n");
-		sb->ts_magic = 0;
-		flush_processor_cache(&sb->ts_magic, sizeof(sb->ts_magic));
+		famfs_kill_superblock(sb);
 		return 0;
 	}
 
-	rc = famfs_get_role_by_dev(daxdev);
-	if (rc < 0) {
-		fprintf(stderr, "%s: failed to establish role\n", __func__);
-		return rc;
-	}
+	role = famfs_get_role_by_dev(daxdev);
 
-	/* If the role is FAMFS_CLIENT, there is a superblock already;
-	 * if the role is not FAMFS_CLIENT, its' either FAMFS_MASTER or
-	 * FAMFS_NOSUPER; In either of those cases it's ok to mkfs.
-	 *
-	 * If the role is FAMFS_CLIENT, they'll have to manually blow away
-	 * the superblock if they want to do a new mkfs.
-	 */
-	if (rc == FAMFS_CLIENT) {
-		fprintf(stderr, "Error: Device %s has a superblock owned by"
-				" another host.\n", daxdev);
-		return rc;
-	}
-
-	rc = famfs_get_device_size(daxdev, &devsize);
-	if (rc)
-		return -1;
-
-	printf("devsize: %ld\n", devsize);
-
-	if (devsize < min_devsize) {
-		fprintf(stderr, "%s: unsupported memory device size (<4GiB)\n",
-			__func__);
-		return -EINVAL;
-	}
+	if (!famfs_mkfs_allowed(role, daxdev, force, &devsize_out))
+		return -EPERM;
 
 	/* Either there is no valid superblock, or the caller is the master */
 
@@ -5255,7 +5411,20 @@ famfs_mkfs(const char *daxdev,
 	if (rc)
 		return -1;
 
-	return __famfs_mkfs(daxdev, sb, logp, log_len, devsize, force, kill);
+	rc = __famfs_mkfs(daxdev, sb, logp, log_len, devsize_out, force, kill);
+	if (sb) {
+		int rc2 = munmap(sb, FAMFS_SUPERBLOCK_SIZE);
+		if (rc2)
+			fprintf(stderr, "%s: failed to unmap superblock\n",
+				__func__);
+	}		
+	if (logp) {
+		int rc2 = munmap(logp, log_len);
+		if (rc2)
+			fprintf(stderr, "%s: failed to unmap log\n",
+				__func__);
+	}
+	return rc;
 }
 
 int

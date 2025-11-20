@@ -308,11 +308,11 @@ TEST(famfs, famfs_get_device_size)
 	size_t size;
 	int rc;
 
-	rc = famfs_get_device_size("/dev/zero", &size);
+	rc = famfs_get_device_size("/dev/zero", &size, 0);
 	ASSERT_NE(rc, 0);
-	rc = famfs_get_device_size("badfile", &size);
+	rc = famfs_get_device_size("badfile", &size, 1);
 	ASSERT_NE(rc, 0);
-	rc = famfs_get_device_size("/etc/hosts", &size);
+	rc = famfs_get_device_size("/etc/hosts", &size, 0);
 	ASSERT_NE(rc, 0);
 }
 

@@ -12,6 +12,7 @@
 #include <linux/famfs_ioctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <stdbool.h>
 
 #include "famfs.h"
 #include "famfs_meta.h"
@@ -49,7 +50,10 @@ char *famfs_get_shadow_root(const char *shadow_path, int verbose);
 int famfs_mount_fuse(const char *realdaxdev, const char *realmpt,
 		     const char *realshadow, ssize_t timeout,
 		     int logplay_use_fuse, int useraccess, int default_perm,
-		     int bounce_dax, int debug, int verbose);
+		     int bounce_dax, int dummy, u64 dummy_log_size,
+		     int debug, int verbose);
+int famfs_dummy_mount(const char *realdaxdev, size_t log_len, char **mpt_out,
+		      int debug, int verbose);
 
 /* famfs_lib dual v1/v2 functions */
 int file_is_famfs_v1(const char *fname);
@@ -57,10 +61,10 @@ int file_is_famfs(const char *fname);
 
 /* famfs_lib v1 functions */
 int famfs_module_loaded(int verbose);
-int famfs_get_role_by_dev(const char *daxdev);
+enum famfs_system_role famfs_get_role_by_dev(const char *daxdev);
 void *famfs_mmap_whole_file(const char *fname, int read_only, size_t *sizep);
 
-extern int famfs_get_device_size(const char *fname, size_t *size);
+extern int famfs_get_device_size(const char *fname, size_t *size, bool char_only);
 int famfs_check_super(const struct famfs_superblock *sb,
 		      u64 *log_offset, u64 *log_size);
 enum famfs_system_role __famfs_get_role_and_logstats(
@@ -96,6 +100,8 @@ int famfs_clone(const char *srcfile, const char *destfile);
 int famfs_mkdir(const char *dirpath, mode_t mode, uid_t uid, gid_t gid, int verbose);
 int famfs_mkdir_parents(const char *dirpath, mode_t mode, uid_t uid, gid_t gid, int verbose);
 int famfs_mkfs(const char *daxdev, u64 log_len, int kill, int force);
+int famfs_mkfs_via_dummy_mount(const char *daxdev, u64 log_len, int kill,
+			       int force);
 int famfs_check(const char *path, int verbose);
 
 int famfs_flush_file(const char *filename, int verbose);
