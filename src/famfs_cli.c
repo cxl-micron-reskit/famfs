@@ -157,7 +157,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 					"%s: don't specify more than one "
 					"shadowpath\n",
 					__func__);
-				return -EINVAL;
+				return EINVAL;
 			}
 			shadowpath = optarg;
 			break;
@@ -178,7 +178,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 			"Error: The --mmap and --read arguments "
 			"are mutually exclusive\n\n");
 		famfs_logplay_usage(argc, argv);
-		return -1;
+		return 1;
 	}
 	if (!(use_mmap || use_read)) {
 		/* If neither method was explicitly requested, default to mmap */
@@ -188,7 +188,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	if (daxdev && !shadowpath) {
 		fprintf(stderr,
 			"Error: daxdev only used with shadow logplay\n");
-		return -1;
+		return 1;
 	}
 	if (shadowpath)
 		printf("Logplay: running in shadow test mode\n");
@@ -199,7 +199,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 			"(actually any path within a famfs file system "
 			"will work)\n");
 		famfs_logplay_usage(argc, argv);
-		return -1;
+		return 1;
 	}
 	fspath = argv[optind++];
 
@@ -669,6 +669,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	int c;
 	extern int mock_fstype;
 	char *daxdev = NULL;
+	bool nodax = false;
 	int nbuckets = 0;
 	int use_mmap = 0;
 	int use_read = 0;
@@ -684,6 +685,9 @@ do_famfs_cli_fsck(int argc, char *argv[])
 		{"force",       no_argument,             0,  'f'},
 		{"mock",        no_argument,             0,  'M'},
 		{"nbuckets",    required_argument,       0,  'B'},
+
+		{"nodax",       no_argument,             0,  'D'},
+
 		{0, 0, 0, 0}
 	};
 
@@ -691,7 +695,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+vh?mrfMB:",
+	while ((c = getopt_long(argc, argv, "+vh?mrfMB:D",
 				fsck_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -722,6 +726,9 @@ do_famfs_cli_fsck(int argc, char *argv[])
 		case 'B':
 			nbuckets = strtoul(optarg, 0, 0);
 			break;
+		case 'D':
+			nodax = true;
+			break;
 		case '?':
 			famfs_fsck_usage(argc, argv);
 			return 0;
@@ -746,7 +753,8 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	}
 
 	daxdev = argv[optind++];
-	return famfs_fsck(daxdev, use_mmap, human, force, nbuckets, verbose);
+	return famfs_fsck(daxdev, nodax, use_mmap, human, force,
+			  nbuckets, verbose);
 }
 
 
@@ -2363,14 +2371,14 @@ do_famfs_cli_chkread(int argc, char *argv[])
 
 	if (filename == NULL) {
 		fprintf(stderr, "Must supply filename\n");
-		exit(-1);
+		return 1;
 	}
 
 	rc = stat(filename, &st);
 	if (rc < 0) {
 		fprintf(stderr, "%s: could not stat file %s\n",
 			__func__, filename);
-		exit(-1);
+		return 1;
 	}
 	buf = calloc(1, st.st_size);
 	assert(buf);
@@ -2484,6 +2492,21 @@ do_famfs_cli_help(int argc, char **argv)
 		printf("\t%s\n", famfs_cli_cmds[i].cmd);
 }
 
+
+#include <stdlib.h>
+
+int exit_val(int rc) {
+	/* Take absolute value */
+	int val = (rc < 0) ? -rc : rc;
+
+	/* If less than 127, return it; otherwise cap at 127 */
+	if (val < 127) {
+		return val;
+	} else {
+		return 127;
+	}
+}
+
 int
 main(int argc, char **argv)
 {
@@ -2509,7 +2532,7 @@ main(int argc, char **argv)
 	if (optind >= argc) {
 		fprintf(stderr, "famfs_cli: missing command\n\n");
 		do_famfs_cli_help(argc, argv);
-		return -1;
+		return 1;
 	}
 
 	famfs_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
@@ -2519,7 +2542,7 @@ main(int argc, char **argv)
 			optind++; /* move past cmd on cmdline */
 			rc = famfs_cli_cmds[i].run(argc, argv);
 			famfs_log_close_syslog();
-			return rc;
+			return exit_val(rc);
 		}
 	}
 
@@ -2527,6 +2550,6 @@ main(int argc, char **argv)
 	fprintf(stderr, "famfs cli: Unrecognized command %s\n", argv[optind]);
 	do_famfs_cli_help(argc, argv);
 
-	return -1;
+	return 3;
 }
 

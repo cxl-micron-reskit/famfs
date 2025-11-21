@@ -561,7 +561,7 @@ famfs_start_fuse_daemon(
 	if (pid > 0) {
 		famfs_log(FAMFS_LOG_DEBUG, "%s: pid=%d\n", __func__, pid);
 		if (debug)
-			printf("%s: pid=%d\n", __func__, pid);
+			printf("%s: famfs_fused pid=%d\n", __func__, pid);
 
 		return 0;
 	}
@@ -839,14 +839,15 @@ famfs_mount_fuse(
 	/* Get the role, log offset and size via the superblock
 	 * meta file
 	 */
-	role = __famfs_get_role_and_logstats(sb, &log_offset, &log_size);
+	role = __famfs_get_role_and_logstats(sb, &log_offset,
+					     (u64 *)&log_size_out);
 	if (!dummy) {
 		switch (role) {
 		case FAMFS_NOSUPER:
 			/* FAMFS_NOSUPER is the only case where we abort a
 			 * non-dummy mount: unmap before umount */
-			sb = NULL;
 			rc = munmap(sb, FAMFS_SUPERBLOCK_SIZE);
+			sb = NULL;
 			if (rc)
 				fprintf(stderr, "%s: failed to munmap superblock"
 					" errno=%d\n", __func__, errno);
@@ -859,6 +860,11 @@ famfs_mount_fuse(
 
 	if (role == FAMFS_MASTER || role == FAMFS_CLIENT)
 		assert(sb->ts_log_offset == FAMFS_SUPERBLOCK_SIZE);
+
+	/* if log_size is set, it's from the dummy_log_size argument - use that.
+	 * If not set, use the actual log size form the superblock */
+	if (log_size == 0)
+		log_size = log_size_out;
 
 	if (log_size > 0) {
 		/* Now that we know the offset and size of the log file, create
@@ -920,10 +926,13 @@ out:
 	if (rc && mounted) {
 		fprintf(stderr, "%s: unmounting due to error\n", __func__);
 		umountrc = umount(realmpt);
-		if (umountrc)
+		if (umountrc) {
 			fprintf(stderr,
 				"%s: umount failed for %s (rc=%d errno=%d)\n",
 				__func__, realmpt, umountrc, errno);
+			/* Expected by smoke tests in this instance */
+			rc = 99;
+		}
 	}
 
 	free(local_shadow);

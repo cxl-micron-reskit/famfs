@@ -84,6 +84,7 @@ static int famfs_mmap_superblock_and_log_raw(const char *devname,
 static int open_superblock_file_read_only(const char *path, size_t  *sizep,
 					  char *mpt_out);
 static char *famfs_relpath_from_fullpath(const char *mpt, char *fullpath);
+static void famfs_kill_superblock(struct famfs_superblock *sb);
 
 /* famfs v2 stuff (dual standalone / fuse) */
 
@@ -1232,7 +1233,7 @@ __famfs_mkmeta_log(
 	int rc;
 
 	assert(log_offset == 0x200000);
-	assert(log_size = 0x800000); /* XXX */
+	//assert(log_size == 0x800000); /* XXX */
 
 	strncat(dirpath, mpt,     PATH_MAX - 1);
 	strncat(dirpath, "/",     PATH_MAX - 1);
@@ -2671,7 +2672,8 @@ famfs_map_log_by_path(
 
 int
 famfs_fsck(
-	const char *path,
+	const char *path_input,
+	bool nodax,
 	int use_mmap,
 	int human,
 	int force,
@@ -2680,6 +2682,8 @@ famfs_fsck(
 {
 	struct famfs_superblock *sb = NULL;
 	struct famfs_log *logp = NULL;
+	const char *path = path_input;
+	char *dummy_mpt = NULL;
 	struct stat st;
 	int famfs_type;
 	size_t size;
@@ -2688,6 +2692,9 @@ famfs_fsck(
 	assert(path);
 	assert(strlen(path) > 1);
 
+	/* If "path_input" is a daxdev and we're in nodax mode, we'll do a
+	 * dummy mount, and jump back here with path=<dummy_mpt> */
+restart:
 	rc = stat(path, &st);
 	if (rc < 0) {
 		fprintf(stderr, "%s: failed to stat path %s (%s)\n",
@@ -2725,17 +2732,34 @@ famfs_fsck(
 				__func__, path);
 		}
 
-		/* If it's a device, we'll try to mmap superblock and log
-		 * from the device */
-		rc = famfs_get_device_size(path, &size, 0);
-		if (rc < 0)
-			return -1;
+		if (nodax) {
+			/* path is a daxdev, but nodax means we should do a
+			 * dummy mount and fsck via the mount point */
+			rc = famfs_dummy_mount(path,
+					       0 /* figure out log size */,
+					       &dummy_mpt, 1, 1);
+			if (rc) {
+				fprintf(stderr,
+					"%s: dummy mount failed for %s\n",
+					__func__, path);
+				return rc;
+			}
+			path = dummy_mpt;
+			goto restart;
 
-		rc = famfs_mmap_superblock_and_log_raw(path, &sb, &logp,
+		} else {
+			/* If it's a device, we'll try to mmap superblock and
+			 * log from the device */
+			rc = famfs_get_device_size(path, &size, 0);
+			if (rc < 0)
+				return -1;
+
+			rc = famfs_mmap_superblock_and_log_raw(path, &sb, &logp,
 						       0 /* return log size */,
 						       1 /* read-only */);
-		if (rc)
-			return rc;
+			if (rc)
+				return rc;
+		}
 
 		break;
 	}
@@ -2867,11 +2891,28 @@ famfs_fsck(
 	}
 	rc = famfs_fsck_scan(sb, logp, human, nbuckets, verbose);
 err_out:
-	if (!use_mmap && sb)
-		free(sb);
-	if (!use_mmap && logp)
-		free(logp);
-
+	if (use_mmap) {
+		if (logp)
+			munmap(logp, sb->ts_log_len);
+		if (sb)
+			munmap(sb, FAMFS_SUPERBLOCK_SIZE);
+	} else {
+		if (sb)
+			free(sb);
+		if (logp)
+			free(logp);
+	}
+	if (dummy_mpt) {
+		int umountrc = umount(dummy_mpt);
+		if (umountrc) {
+			fprintf(stderr,
+				"%s: %d umount failed for %s (rc=%d errno=%d)\n",
+				__func__, getpid(), dummy_mpt, umountrc, errno);
+		} else {
+			printf("%s: umount successful for %s\n",
+			       __func__, dummy_mpt);
+		}
+	}
 	return rc;
 }
 
@@ -5109,20 +5150,12 @@ __famfs_mkfs(const char              *daxdev,
 {
 	int rc;
 
-	/* Minimum log length is the FAMFS_LOG_LEN; Also, must be a power of 2 */
-	if (log_len & (log_len - 1) || log_len < FAMFS_LOG_LEN) {
-		fprintf(stderr, "Error: invalid log length (%lld)\n", log_len);
-		return -EINVAL;
-	}
-
 	/* This test is redundant with famfs_mfks(), but is kept because that
 	 * function can't be called by unit tests (because it opens the
 	 * actual device)
 	 */
 	if (kill && force) {
-		printf("Famfs superblock killed\n");
-		sb->ts_magic = 0;
-		flush_processor_cache(sb, FAMFS_SUPERBLOCK_SIZE);
+		famfs_kill_superblock(sb);
 		return 0;
 	}
 
@@ -5262,7 +5295,19 @@ int famfs_mkfs_via_dummy_mount(
 	char *mpt_out;
 	int umountrc;
 	int rc = 0;
-	int umount_retries = 2;
+
+	/* This will be checked again, but it's a valid way to check whether
+	 * daxdev is actually a dax device */
+	rc = famfs_get_device_size(daxdev, &devsize_out, 1);
+	if (rc)
+		return rc;
+
+	/* Minimum log length is the FAMFS_LOG_LEN; And must be a power of 2 */
+	if (log_len & (log_len - 1) || log_len < FAMFS_LOG_LEN) {
+		fprintf(stderr, "%s: Error: invalid log length (%lld)\n",
+			__func__, log_len);
+		return -EINVAL;
+	}
 
 	rc = famfs_dummy_mount(daxdev, log_len, &mpt_out, 1, 1);
 	if (rc) {
@@ -5341,7 +5386,7 @@ int famfs_mkfs_via_dummy_mount(
 
 out_umount:
 	if (logp) {
-		int rc2 = munmap(logp, sb->ts_log_len);
+		int rc2 = munmap(logp, log_len);
 		if (rc2)
 			fprintf(stderr, "%s: failed to unmap log\n", __func__);
 	}
@@ -5357,10 +5402,6 @@ out_umount:
 		fprintf(stderr,
 			"%s: %d umount failed for %s (rc=%d errno=%d)\n",
 			__func__, getpid(), mpt_out, umountrc, errno);
-		if (umount_retries--) {
-			sleep(1);
-			goto out_umount;
-		}
 	} else {
 		printf("%s: umount successful for %s\n", __func__, mpt_out);
 	}
@@ -5379,6 +5420,13 @@ famfs_mkfs(const char *daxdev,
 	size_t devsize_out;
 	char *mpt = NULL;
 	int rc;
+
+	/* Minimum log length is the FAMFS_LOG_LEN; And must be a power of 2 */
+	if (log_len & (log_len - 1) || log_len < FAMFS_LOG_LEN) {
+		fprintf(stderr, "%s: Error: invalid log length (%lld)\n",
+			__func__, log_len);
+		return -EINVAL;
+	}
 
 	mpt = famfs_get_mpt_by_dev(daxdev);
 	if (mpt) {

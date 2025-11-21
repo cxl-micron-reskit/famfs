@@ -110,7 +110,7 @@ main(int argc, char *argv[])
 
 	if (optind >= argc) {
 		fprintf(stderr, "mkfs.famfs: must specify memory device\n");
-		return -1;
+		return 1;
 	}
 
 	/* TODO: multiple devices? */
@@ -133,5 +133,5 @@ main(int argc, char *argv[])
 		famfs_log(FAMFS_LOG_ERR, "mkfs failed on device %s", daxdev);
 
 	famfs_log_close_syslog();
-	return rc;
+	return (rc) ? 2:0;
 }

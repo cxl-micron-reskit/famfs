@@ -459,8 +459,9 @@ int check_file_exists(
 				    && (size_t)st.st_size != expected_size) {
 					close(fd);
 					fprintf(stderr,
-						"%s: bad size %ld, retry\n",
-						__func__, st.st_size);
+					   "%s: bad size %ld != %ld, retry\n",
+						__func__, st.st_size,
+						expected_size);
 					goto retry;
 				}
 
