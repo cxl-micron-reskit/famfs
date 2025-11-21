@@ -70,9 +70,11 @@ if [[ "$FAMFS_MODE" == "v1" || "$FAMFS_MODE" == "fuse" ]]; then
     if [[ "$FAMFS_MODE" == "fuse" ]]; then
         MOUNT_OPTS="--fuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS="--nodax"
-    else
+	FSCK_OPTS="--nodax"
+   else
         MOUNT_OPTS="--nofuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS=""
+	FSCK_OPTS=""
     fi
 else
     echo "FAMFS_MODE: invalid"
@@ -83,6 +85,7 @@ MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
 MKFS="sudo $VG $BIN/mkfs.famfs $MKFS_OPTS"
 CLI="sudo $VG $BIN/famfs"
 CLI_NOSUDO="$VG $BIN/famfs"
+FSCK="${CLI} fsck $FSCK_OPTS"
 TEST="test4"
 
 source $SCRIPTS/test_funcs.sh

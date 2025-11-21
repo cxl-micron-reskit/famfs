@@ -68,9 +68,11 @@ if [[ "$FAMFS_MODE" == "v1" || "$FAMFS_MODE" == "fuse" ]]; then
     if [[ "$FAMFS_MODE" == "fuse" ]]; then
         MOUNT_OPTS="--fuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS="--nodax"
+	FSCK_OPTS="--nodax"
     else
         MOUNT_OPTS="--nofuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS=""
+	FSCK_OPTS=""
     fi
 else
     echo "FAMFS_MODE: invalid"
@@ -81,6 +83,7 @@ MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
 MKFS="sudo $VG $BIN/mkfs.famfs $MKFS_OPTS"
 CLI="sudo $VG $BIN/famfs"
 CLI_NOSUDO="$VG $BIN/famfs"
+FSCK="${CLI} fsck $FSCK_OPTS"
 TEST="prepare"
 
 source $SCRIPTS/test_funcs.sh
@@ -110,28 +113,28 @@ ${MKFS}  $DEV         || fail "mkfs"
 ${MKFS} -f $DEV       || fail "redo mkfs with -f should succeed"
 
 ${MKFS} -f --loglen 1 $DEV && fail "mkfs with loglen 1 should fail"
-LOG_LEN=$(sudo $BIN/famfs fsck -v $MPT | grep "log_len" | awk -e '{print $2}')
+LOG_LEN=$(${FSCK} -v $DEV | grep "log_len" | awk -e '{print $2}')
 assert_equal $LOG_LEN "8388608" "Log size should not change after mkfs with bogus loglen"
 
 ${MKFS} -f --loglen 11m $DEV && fail "mkfs with loglen 11m should fail"
-LOG_LEN=$(sudo $BIN/famfs fsck -v $MPT | grep "log_len" | awk -e '{print $2}')
+LOG_LEN=$(${FSCK} -v $DEV | grep "log_len" | awk -e '{print $2}')
 assert_equal $LOG_LEN "8388608" "Log size should not change after mkfs with bogus loglen 2"
 
-exit 1
+#exit 1
 ${MKFS} -f --loglen 256m $DEV || fail "mkfs should work with 256m log"
-LOG_LEN=$(sudo $BIN/famfs fsck -v $MPT | grep "log_len" | awk -e '{print $2}')
+LOG_LEN=$(${FSCK} -v $DEV | grep "log_len" | awk -e '{print $2}')
 assert_equal $LOG_LEN "268435456" "Log should be 256M"
 
 ${MKFS} $DEV && fail "redo mkfs without -f should fail"
-LOG_LEN=$(sudo $BIN/famfs fsck -v $MPT | grep "log_len" | awk -e '{print $2}')
+LOG_LEN=$(${FSCK} -v $DEV | grep "log_len" | awk -e '{print $2}')
 assert_equal $LOG_LEN "268435456" "Log size should not change after failed mkfs"
 
 ${MKFS} -f --loglen 1m $DEV   && fail "mkfs should fail with 1m logsize"
-LOG_LEN=$(sudo $BIN/famfs fsck -v $MPT | grep "log_len" | awk -e '{print $2}')
+LOG_LEN=$(${FSCK} -v $DEV | grep "log_len" | awk -e '{print $2}')
 assert_equal $LOG_LEN "268435456" "Log size should not change after mkfs with bogus loglen 3"
 
 ${MKFS} -f $DEV       || fail "redo mkfs with -f should succeed 2"
-LOG_LEN=$(sudo $BIN/famfs fsck -v $MPT | grep "log_len" | awk -e '{print $2}')
+LOG_LEN=$(${FSCK} -v $DEV | grep "log_len" | awk -e '{print $2}')
 assert_equal $LOG_LEN "8388608" "Log size should not change after mkfs with bogus loglen4"
 
 ${MKFS}  $DEV         && fail "mkfs redo" # fail, fs exists

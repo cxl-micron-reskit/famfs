@@ -78,9 +78,11 @@ if [[ "$FAMFS_MODE" == "v1" || "$FAMFS_MODE" == "fuse" ]]; then
     if [[ "$FAMFS_MODE" == "fuse" ]]; then
         MOUNT_OPTS="--fuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS="--nodax"
+	FSCK_OPTS="--nodax"
     else
         MOUNT_OPTS="--nofuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS=""
+	FSCK_OPTS=""
     fi
 else
     echo "FAMFS_MODE: invalid"
@@ -89,8 +91,9 @@ fi
 
 MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
 MKFS="sudo $VG $BIN/mkfs.famfs $MKFS_OPTS"
-CLI="sudo $VG $BIN/famfs"
+LI="sudo $VG $BIN/famfs"
 CLI_NOSUDO="$VG $BIN/famfs"
+FSCK="${CLI} fsck $FSCK_OPTS"
 TEST="stripe_test"
 
 source $SCRIPTS/test_funcs.sh
@@ -183,11 +186,11 @@ stripe_test_cp () {
     fi
     echo "rc=$rc"
     
-    ${CLI} fsck -h -B ${NBUCKETS} ${MPT}
-    ${CLI} fsck -h -B 1 ${MPT}
-    ${CLI} fsck -B ${NBUCKETS} ${MPT}
-    ${CLI} fsck -B $(( NBUCKETS - 1 )) ${MPT}
-    ${CLI} fsck -B $(( NBUCKETS - 2 )) ${MPT}
+    ${FSCK} -h -B ${NBUCKETS} ${MPT}
+    ${FSCK} -h -B 1 ${MPT}
+    ${FSCK} -B ${NBUCKETS} ${MPT}
+    ${FSCK} -B $(( NBUCKETS - 1 )) ${MPT}
+    ${FSCK} -B $(( NBUCKETS - 2 )) ${MPT}
     echo "Created and copied $counter files"
     echo "Processed all successfully copied files."
 }
@@ -292,7 +295,7 @@ stripe_test () {
 	echo "...good"
     else
 	echo "Failed to verify $rc files (seed=$seed) ***********************"
-	${CLI} fsck -hv $MPT
+	${FSCK} -hv $MPT
 	fail_fsck "Failed to verify $rc files (seed=$seed) ***********************" "-B $NBUCKETS"
     fi
 
@@ -336,7 +339,7 @@ stripe_test () {
 	fail "Failed to verify $rc files (seed=$seed)"
     fi
 
-    ${CLI} fsck -h -B ${NBUCKETS} ${MPT}
+    ${FSCK} -h -B ${NBUCKETS} ${MPT}
     echo "Processed all successfully created files."
 }
 

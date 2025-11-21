@@ -68,11 +68,13 @@ done
 if [[ "$FAMFS_MODE" == "v1" || "$FAMFS_MODE" == "fuse" ]]; then
     echo "FAMFS_MODE: $FAMFS_MODE"
     if [[ "$FAMFS_MODE" == "fuse" ]]; then
-        MOUNT_OPTS="--fuse" # Can drop this b/c fuse is the default
+	MOUNT_OPTS="--fuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS="--nodax"
+	FSCK_OPTS="--nodax"
     else
         MOUNT_OPTS="--nofuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS=""
+	FSCK_OPTS=""
     fi
 else
     echo "FAMFS_MODE: invalid"
@@ -82,6 +84,7 @@ fi
 MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
 MKFS="sudo $VG $BIN/mkfs.famfs $MKFS_OPTS"
 CLI="sudo $VG $BIN/famfs"
+FSCK="${CLI} fsck $FSCK_OPTS"
 TEST="test_fio"
 
 source $SCRIPTS/test_funcs.sh
@@ -99,7 +102,7 @@ verify_mounted $DEV $MPT "test_fio.sh"
 TESTDIR="$MPT/fio_stress"
 ${CLI} mkdir -p $TESTDIR
 
-SPACE_AVAIL=$(sudo $BIN/famfs fsck $TESTDIR | grep "Free space" | awk -e '{print $3}')
+SPACE_AVAIL=$(sudo $BIN/famfs ${FSCK} $TESTDIR | grep "Free space" | awk -e '{print $3}')
 
 pwd
 # Not a stress test, just a smoke test (4 jobs)

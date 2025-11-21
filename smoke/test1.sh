@@ -67,9 +67,11 @@ if [[ "$FAMFS_MODE" == "v1" || "$FAMFS_MODE" == "fuse" ]]; then
     if [[ "$FAMFS_MODE" == "fuse" ]]; then
         MOUNT_OPTS="--fuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS="--nodax"
+	FSCK_OPTS="--nodax"
     else
         MOUNT_OPTS="--nofuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS=""
+	FSCK_OPTS=""
     fi
 else
     echo "FAMFS_MODE: invalid"
@@ -80,6 +82,7 @@ MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
 MKFS="sudo $VG $BIN/mkfs.famfs $MKFS_OPTS"
 CLI="sudo $VG $BIN/famfs"
 CLI_NOSUDO="$VG $BIN/famfs"
+FSCK="${CLI} fsck $FSCK_OPTS"
 TEST="test1"
 
 source $SCRIPTS/test_funcs.sh
@@ -94,19 +97,19 @@ verify_mounted $DEV $MPT "test1.sh"
 sudo $UMOUNT $MPT || fail "umount"
 verify_not_mounted $DEV $MPT "test1.sh"
 
-${CLI} fsck $MPT && fail "fsck by path should fail when not mounted"
-${CLI} fsck $DEV || fail "fsck by dev should succeed when not mounted"
+${FSCK} $MPT && fail "fsck by path should fail when not mounted"
+${FSCK} $DEV || fail "fsck by dev should succeed when not mounted"
 
 ${MOUNT} $DEV $MPT  || fail "mount should succeed test1 1"
 
-${CLI} fsck $MPT || fail "fsck by path should succeed when mounted"
+${FSCK} $MPT || fail "fsck by path should succeed when mounted"
 
 # Try exclusive open in driver to make this test good;
 # (currently succeeds but it should fail)
-${CLI} fsck $DEV && fail "fsck by dev should fail when mounted"
-${CLI} fsck --force $DEV || fail "fsck by dev when mounted should succeed if forced"
+${FSCK} $DEV && fail "fsck by dev should fail when mounted"
+${FSCK} --force $DEV || fail "fsck by dev when mounted should succeed if forced"
 
-${CLI} fsck /boguspath          && fail "fsck should fail on bogus path"
+${FSCK} /boguspath          && fail "fsck should fail on bogus path"
 ${CLI_NOSUDO} fsck bogusrelpath && fail "fsck should fail on bogus relative path"
 
 verify_mounted $DEV $MPT "test1.sh"
@@ -414,11 +417,11 @@ ${CLI} cp $MPT/A/B/C/w/x/y/z/* $MPT || fail "cp valid wildcard to mount pt dir s
 sudo touch /tmp/emptyfile
 ${CLI} cp /tmp/emptyfile $MPT/emptyfile2 && fail "cp with empty source file should fail"
 
-${CLI} fsck $MPT || fail "fsck should succeed"
-${CLI} fsck -m $MPT || fail "fsck -mh should succeed"
-${CLI} fsck -vv $MPT || fail "fsck -vv should succeed"
-${CLI} fsck -r $MPT  || fail "fsck -r $MPT should succeed"
-${CLI} fsck -rm $MPT && fail "fsck -r -m $MPT should fail"
+${FSCK} $MPT || fail "fsck should succeed"
+${FSCK} -m $MPT || fail "fsck -mh should succeed"
+${FSCK} -vv $MPT || fail "fsck -vv should succeed"
+${FSCK} -r $MPT  || fail "fsck -r $MPT should succeed"
+${FSCK} -rm $MPT && fail "fsck -r -m $MPT should fail"
 
 sudo cmp $MPT/bigtest0 $MPT/bigtest0_cp       || fail "copies should match"
 

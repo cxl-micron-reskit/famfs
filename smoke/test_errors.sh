@@ -70,9 +70,11 @@ if [[ "$FAMFS_MODE" == "v1" || "$FAMFS_MODE" == "fuse" ]]; then
     if [[ "$FAMFS_MODE" == "fuse" ]]; then
         MOUNT_OPTS="--fuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS="--nodax"
+	FSCK_OPTS="--nodax"
     else
         MOUNT_OPTS="--nofuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS=""
+	FSCK_OPTS=""
     fi
 else
     echo "FAMFS_MODE: invalid"
@@ -82,6 +84,7 @@ fi
 MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
 MKFS="sudo $VG $BIN/mkfs.famfs $MKFS_OPTS"
 CLI="sudo $VG $BIN/famfs"
+FSCK="${CLI} fsck $FSCK_OPTS"
 TEST="test_errors:"
 
 source $SCRIPTS/test_funcs.sh
@@ -102,7 +105,7 @@ famfs_recreate "test_errors"
 
 verify_mounted $DEV $MPT "test_errors.sh"
 
-${CLI} fsck $MPT || fail "fsck should not fail when nothing cloned"
+${FSCK} $MPT || fail "fsck should not fail when nothing cloned"
 
 # Create a file to clone
 ${CLI} creat -r -S 10 -s 0x400000 $MPT/original || fail "create original should succeed"
@@ -126,7 +129,7 @@ ${CLI} clone -v $MPT/bogusfile $MPT/bogusfile.cllone && fail "clone bogusfile sh
 ${CLI} clone -v /etc/passwd $MPT/passwd              && fail "clone from outside famfs should fail"
 
 
-${CLI} fsck $MPT && fail "fsck should fail after cloning "
+${FSCK} $MPT && fail "fsck should fail after cloning "
 ${CLI} verify -S 10 -f $MPT/clone  || fail "re-verify clone"
 ${CLI} verify -S 10 -f $MPT/clone1 || fail "re-verify clone1"
 
@@ -150,8 +153,8 @@ if (( $? == 0 )); then
 fi
 sudo ln -s /tmp $MPT/adir2     && fail "symlink should fail with famfs kmod v2"
 
-${CLI} fsck -v $MPT && fail "fsck -v if a clone has ever happened should fail"
-${CLI} fsck $MPT && fail "fsck if a clone has ever happened should fail"
+${FSCK} -v $MPT && fail "fsck -v if a clone has ever happened should fail"
+${FSCK} $MPT && fail "fsck if a clone has ever happened should fail"
 
 # Some v2-specific tests
 

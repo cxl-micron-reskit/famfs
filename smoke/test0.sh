@@ -67,9 +67,11 @@ if [[ "$FAMFS_MODE" == "v1" || "$FAMFS_MODE" == "fuse" ]]; then
     if [[ "$FAMFS_MODE" == "fuse" ]]; then
         MOUNT_OPTS="--fuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS="--nodax"
+	FSCK_OPTS="--nodax"
     else
         MOUNT_OPTS="--nofuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS=""
+	FSCK_OPTS=""
     fi
 else
     echo "FAMFS_MODE: invalid"
@@ -80,6 +82,7 @@ MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
 MKFS="sudo $VG $BIN/mkfs.famfs $MKFS_OPTS"
 CLI="sudo $VG $BIN/famfs"
 CLI_NOSUDO="$VG $BIN/famfs"
+FSCK="${CLI} fsck $FSCK_OPTS"
 TEST="test0"
 
 source $SCRIPTS/test_funcs.sh
@@ -352,10 +355,10 @@ ${CLI} flush /bogus/file && "flush of a bogus file should fail"
 ${CLI} flush $(sudo find $MPT -type f -print) || fail "flush all files should work"
 ${CLI} flush -vv $(sudo find $MPT -print)     && fail "this flush should report errors"
 
-${CLI} fsck      && fail "fsck with no args should fail"
-${CLI} fsck -?   || fail "fsck -h should succeed"x
-${CLI} fsck $MPT || fail_fsck "fsck should succeed" "-vv"
-${CLI} fsck --human $MPT || fail "fsck --human should succeed"
+${FSCK}      && fail "fsck with no args should fail"
+${FSCK} -?   || fail "fsck -h should succeed"x
+${FSCK} $MPT || fail_fsck "fsck should succeed" "-vv"
+${FSCK} --human $MPT || fail "fsck --human should succeed"
 
 mkdir -p ~/smoke.shadow
 ${CLI} logplay --shadow ~/smoke.shadow/test0.shadow $MPT

@@ -67,9 +67,11 @@ if [[ "$FAMFS_MODE" == "v1" || "$FAMFS_MODE" == "fuse" ]]; then
     if [[ "$FAMFS_MODE" == "fuse" ]]; then
         MOUNT_OPTS="--fuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS="--nodax"
+	FSCK_OPTS="--nodax"
     else
         MOUNT_OPTS="--nofuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS=""
+	FSCK_OPTS=""
     fi
 else
     echo "FAMFS_MODE: invalid"
@@ -80,6 +82,7 @@ MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
 MKFS="sudo $VG $BIN/mkfs.famfs $MKFS_OPTS"
 CLI="sudo $VG $BIN/famfs"
 CLI_NOSUDO="$VG $BIN/famfs"
+FSCK="${CLI} fsck $FSCK_OPTS"
 TEST="test3"
 
 source $SCRIPTS/test_funcs.sh
@@ -180,7 +183,7 @@ ${CLI} verify -S 1 -f $MPT/ddtest && fail "verify ddfile should fail since it wa
 sudo dd conv=notrunc if=$MPT/ddtest_copy of=$MPT/ddtest bs=2048 || fail "dd contents back into ddfile"
 ${CLI} verify -S 1 -f $MPT/ddtest || fail "verify ddfile should succeed since contents put back"
 
-${CLI} fsck $MPT || fail "fsck should succeed - no cross links yet"
+${FSCK} $MPT || fail "fsck should succeed - no cross links yet"
 
 mkdir -p ~/smoke.shadow
 ${CLI} logplay --shadow ~/smoke.shadow/test3.shadow $MPT

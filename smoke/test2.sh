@@ -67,9 +67,11 @@ if [[ "$FAMFS_MODE" == "v1" || "$FAMFS_MODE" == "fuse" ]]; then
     if [[ "$FAMFS_MODE" == "fuse" ]]; then
         MOUNT_OPTS="--fuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS="--nodax"
+	FSCK_OPTS="--nodax"
     else
         MOUNT_OPTS="--nofuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS=""
+	FSCK_OPTS=""
     fi
 else
     echo "FAMFS_MODE: invalid"
@@ -80,6 +82,7 @@ MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
 MKFS="sudo $VG $BIN/mkfs.famfs $MKFS_OPTS"
 CLI="sudo $VG $BIN/famfs"
 CLI_NOSUDO="$VG $BIN/famfs"
+FSCK="${CLI} fsck $FSCK_OPTS"
 TEST="test2"
 
 source $SCRIPTS/test_funcs.sh
@@ -91,7 +94,7 @@ set -x
 famfs_recreate "test2"
 
 verify_mounted $DEV $MPT "test2.sh"
-${CLI} fsck $MPT || fail "fsck should succeed"
+${FSCK} $MPT || fail "fsck should succeed"
 
 # Try to create a file that is not in a famfs file system (assume relative path not in one)
 NOT_IN_FAMFS=no_leading_slash
