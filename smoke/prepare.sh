@@ -67,8 +67,10 @@ if [[ "$FAMFS_MODE" == "v1" || "$FAMFS_MODE" == "fuse" ]]; then
     echo "FAMFS_MODE: $FAMFS_MODE"
     if [[ "$FAMFS_MODE" == "fuse" ]]; then
         MOUNT_OPTS="--fuse" # Can drop this b/c fuse is the default
+	MKFS_OPTS="--nodax"
     else
         MOUNT_OPTS="--nofuse" # Can drop this b/c fuse is the default
+	MKFS_OPTS=""
     fi
 else
     echo "FAMFS_MODE: invalid"
@@ -76,7 +78,7 @@ else
 fi
 
 MOUNT="sudo $VG $BIN/famfs mount $MOUNT_OPTS"
-MKFS="sudo $VG $BIN/mkfs.famfs"
+MKFS="sudo $VG $BIN/mkfs.famfs $MKFS_OPTS"
 CLI="sudo $VG $BIN/famfs"
 CLI_NOSUDO="$VG $BIN/famfs"
 TEST="prepare"
@@ -101,6 +103,7 @@ ${MKFS}               && fail "mkfs without dev argument should fail"
 ${MKFS} /tmp/nonexistent && fail "mkfs on nonexistent dev should fail"
 # in case there is not a file system, make one
 ${MKFS} $DEV # no error check; if there is not a fs already this will create it
+echo "mount exit code: $?"
 ${MKFS} -k $DEV       && fail "mkfs/kill should fail without --force"
 ${MKFS} -f -k $DEV    || fail "mkfs/kill should succeed with --force"
 ${MKFS}  $DEV         || fail "mkfs"
@@ -114,6 +117,7 @@ ${MKFS} -f --loglen 11m $DEV && fail "mkfs with loglen 11m should fail"
 LOG_LEN=$(sudo $BIN/famfs fsck -v $MPT | grep "log_len" | awk -e '{print $2}')
 assert_equal $LOG_LEN "8388608" "Log size should not change after mkfs with bogus loglen 2"
 
+exit 1
 ${MKFS} -f --loglen 256m $DEV || fail "mkfs should work with 256m log"
 LOG_LEN=$(sudo $BIN/famfs fsck -v $MPT | grep "log_len" | awk -e '{print $2}')
 assert_equal $LOG_LEN "268435456" "Log should be 256M"
