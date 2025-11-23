@@ -309,9 +309,9 @@ stripe_test () {
     echo
     echo "Unmount and remount to test logplay for interleaved files"
     echo
-    sudo umount $MPT || fail "umount should work"
+    expect_good sudo umount $MPT -- "umount should work"
     verify_not_mounted $DEV $MPT "stripe_test umount should have succeeded"
-    ${MOUNT} $DEV $MPT  || fail "remount should work"
+    expect_good ${MOUNT} $DEV $MPT  -- "remount should work"
     verify_mounted $DEV $MPT "stripe_test remount should have succeeded"
 
     #
@@ -348,8 +348,8 @@ stripe_test () {
 # Start with a clean, empty file systeem
 famfs_recreate "stripe_test.sh"
 
-${CLI} ${CREAT} -vv -B 100 -C 2m -N 3 -s 2m $MPT/toomanybuckets && fail "too many buckets should fail"
-${CLI} ${CREAT} -B 10 -C 2000000 -N 3 -s 2m $MPT/badchunksz && fail "bad chunk size should fail"
+expect_fail ${CLI} ${CREAT} -vv -B 100 -C 2m -N 3 -s 2m $MPT/toomanybuckets -- "too many buckets should fail"
+expect_fail ${CLI} ${CREAT} -B 10 -C 2000000 -N 3 -s 2m $MPT/badchunksz -- "bad chunk size should fail"
  
 BASENAME="/mnt/famfs/stripe_file"
 CAPACITY=$(famfs_get_capacity "$MPT")

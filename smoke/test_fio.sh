@@ -106,13 +106,13 @@ SPACE_AVAIL=$(sudo $BIN/famfs ${FSCK} $TESTDIR | grep "Free space" | awk -e '{pr
 
 pwd
 # Not a stress test, just a smoke test (4 jobs)
-$REALSCRIPTS/stress_fio.sh \
+expect_good $REALSCRIPTS/stress_fio.sh \
 		       -v \
 		       -b $BIN \
 		       -r 30 \
 		       -s $SPACE_AVAIL \
 		       -p $TESTDIR \
-		       -j 4 || fail "test_fio failed"
+		       -j 4 -- "test_fio failed"
 
 mkdir -p ~/smoke.shadow
 ${CLI} logplay --shadow ~/smoke.shadow/test_fio.shadow $MPT

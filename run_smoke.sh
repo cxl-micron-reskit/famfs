@@ -243,7 +243,7 @@ if [[ "$SCRIPTS" =~ *[[:space:]]* ]]; then
 fi
 
 ./smoke/prepare.sh  ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
-echo ":== test0 prepare success"
+echo ":== prepare success"
 
 if [ -z "$SKIP_TEST0" ]; then
     ./smoke/test0.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
