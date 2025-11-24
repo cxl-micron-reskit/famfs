@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-source ./test_header.sh
+source smoke/test_header.sh
 
 TEST="test_errors:"
 
@@ -14,7 +14,7 @@ if [[ "${FAMFS_MODE}" == "fuse" ]]; then
     exit 0
 fi
 
-set -x
+#set -x
 
 # Start with a clean, empty file system
 famfs_recreate "test_errors"
@@ -58,8 +58,11 @@ verify_mounted $DEV $MPT "test1.sh"
 # Throw a curveball or two at logplay
 expect_good ${CLI} mkdir $MPT/adir         -- "should be able to mkdir adir"
 expect_good ${CLI} mkdir $MPT/adir2        -- "should be able to mkdir adir2"
+set +e
 sudo rm -rf $MPT/adir
-if (( $? == 0 )); then
+RC="$?"
+set -e
+if (( "$RC" == 0 )); then
     expect_good sudo touch $MPT/adir           -- "should be able to create rogue file"
     expect_good sudo rm -rf $MPT/adir2         \
 	-- "should be able to rogue remove a dir2"
@@ -87,8 +90,9 @@ verify_not_mounted $DEV $MPT "umount should have worked after redundant mounts"
 
 expect_good ${MOUNT} $DEV $MPT       -- "basic mount should succeed"
 
-mkdir -p ~/smoke.shadow
-${CLI} logplay --shadow ~/smoke.shadow/test_errors.shadow $MPT
+SHADOW="/tmp/smoke.shadow/test_errors.shadow/root"
+expect_good sudo mkdir -p $SHADOW  -- "failed to mkdir -p $SHADOW"
+expect_good ${CLI} logplay -sS $SHADOW $MPT -- "logplay -Ss failed"
 
 #sudo $UMOUNT $MPT || fail "umount"
 

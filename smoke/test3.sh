@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
-source ./test_header.sh
+source smoke/test_header.sh
 
 TEST="test3"
 
 source $SCRIPTS/test_funcs.sh
 
-set -x
+#set -x
 
 # Start with a clean, empty file systeem
 famfs_recreate "test3"
@@ -24,8 +24,11 @@ expect_good sudo dd of=/dev/null if=$MPT/ddtest bs=4096 -- "dd out of ddfile"
 # Test some cases where the kmod should throw errors because the famfs file is
 # not in a valid state
 #
+set +e
 sudo truncate $MPT/ddtest -s 2048
-if (( $? == 0 )); then
+rc="$?"
+set -e
+if (( "$RC" == 0 )); then
     # This should be reconsidered when we no longer support kmods that
     # allow truncate XXX
     echo "--------------------------------------------"
@@ -34,7 +37,7 @@ if (( $? == 0 )); then
     assert_file_size "$MPT/ddtest" 2048 "bad size after rogue truncate"
     expect_fail sudo dd of=/dev/null if=$MPT/ddtest bs=2048 \
 	-- "Any read from a truncated file should fail"
-    expect_good sudo truncate $MPT/ddtest -s 4096           \
+    expect_fail sudo truncate $MPT/ddtest -s 4096           \
 	-- "truncate extra-hinky - back to original size"
     assert_file_size "$MPT/ddtest"  4096 "bad size after second rogue truncate"
     expect_fail sudo dd of=/dev/null if=$MPT/ddtest bs=2048 \
@@ -51,8 +54,11 @@ if [[ "${FAMFS_MODE}" == "v1" ]]; then
     expect_good sudo touch $MPT/touchfile -- "touch should succeed at creating an invalid file"
     expect_fail sudo dd if=$MPT/touchfile -- "dd from invalid file should fail"
 
+    set +e
     sudo truncate $MPT/touchfile -s 8192
-    if (( $? == 0 )); then
+    rc="$?"
+    set -e
+    if (( "$RC" == 0 )); then
 	# This should be reconsidered when we no longer support kmods that
 	# allow truncate XXX
 	expect_fail sudo dd if=$MPT/touchfile of=/dev/null bs=8192 count=1  \
@@ -67,7 +73,7 @@ else
     expect_fail sudo dd if=$MPT/touchfile -- "dd from missing file should fail"
 fi
 
-stat $MPT/ddtest
+expect_good stat $MPT/ddtest -- "stat ddtest should work"
 
 # Dump icache stats before umount
 if [[ "$FAMFS_MODE" == "fuse" ]]; then
@@ -103,8 +109,9 @@ expect_good ${CLI} verify -S 1 -f $MPT/ddtest -- "verify ddfile should succeed s
 
 expect_good ${FSCK} $MPT -- "fsck should succeed - no cross links yet"
 
-mkdir -p ~/smoke.shadow
-${CLI} logplay --shadow ~/smoke.shadow/test3.shadow $MPT
+expect_good sudo mkdir -p /tmp/smoke.shadow/test3.shadow/root -- "mkdir shadow"
+expect_good ${CLI} logplay -Ss ~/smoke.shadow/test3.shadow $MPT \
+	    -- "test3 shadow logplay"
 
 set +x
 echo ":==*************************************************************************"

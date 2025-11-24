@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-source ./test_header.sh
+source smoke/test_header.sh
 
 TEST="pcq"
 
@@ -10,7 +10,7 @@ STATUSFILE="/tmp/pcqstatus_$$.txt"
 PCQ="sudo $VG $BIN/pcq  "
 pcq="$VG $BIN/pcq  "
 
-set -x
+#set -x
 
 # Start with a clean, empty file systeem
 famfs_recreate "test_pcq"
@@ -193,10 +193,11 @@ expect_good ${pcq} --info $MPT/q2                        -- "empty pcq info 2"
 expect_good ${pcq} --info $MPT/q3                        -- "empty pcq info 3"
 expect_good ${pcq} --info $MPT/q4                        -- "empty pcq info 4"
 
-unlink "$STATUSFILE"
+expect_good unlink "$STATUSFILE" -- "failed to unlink $STATUSFILE"
 
-mkdir -p ~/smoke.shadow
-${CLI} logplay --shadow ~/smoke.shadow/test_pcq.shadow $MPT
+expect_good sudo mkdir -p /tmp/smoke.shadow/test_pcq.shadow/root
+expect_good ${CLI} logplay -Ss /tmp/smoke.shadow/test_pcq.shadow $MPT \
+	    -- "pcq logplay -Ss should succeed"
 
 set +x
 echo ":========================================================================"

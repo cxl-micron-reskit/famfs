@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-source ./test_header.sh
+source smoke/test_header.sh
 
 TEST="prepare"
 
@@ -64,22 +64,22 @@ expect_good ${FSCK} $DEV -- "fsck"
 if [[ "$FAMFS_MODE" == "v1" ]]; then
     # We now expect the module to already be loaded (if FAMFS_MODE==v1),
     # but no harm in modprobe to make double sure
-    sudo modprobe ${FAMFS_MOD} || fail "modprobe ${FAMFS_MOD}"
+    expect_good sudo modprobe ${FAMFS_MOD} -- "modprobe ${FAMFS_MOD}"
 
     #
     # Test manual mount / mkmeta / logplay
     #
-    sudo mount $RAW_MOUNT_OPTS $DEV $MPT || fail "mount"
-    sudo mount $RAW_MOUNT_OPTS $DEV $MPT && fail "double mount should fail"
+    expect_good sudo mount $RAW_MOUNT_OPTS $DEV $MPT -- "mount"
+    expect_fail sudo mount $RAW_MOUNT_OPTS $DEV $MPT -- "double mount should fail"
 
-    ${CLI} mkmeta $DEV        || fail "mkmeta"
+    expect_good ${CLI} mkmeta $DEV -- "mkmeta"
 
     # XXX famfs-fuse does not yet put the primary daxdev in /proc/mounts.
     # need to fix this
-    grep $DEV /proc/mounts              || fail "dev=$DEV not in /proc/mounts~"
+    expect_good grep $DEV /proc/mounts   -- "dev=$DEV not in /proc/mounts~"
 else
     # In fuse mode, we don't support manual mount...
-    ${MOUNT} -vv $DEV $MPT || fail "famfs fuse mount should work"
+    expect_good ${MOUNT} -vv $DEV $MPT -- "famfs fuse mount should work"
 fi
 
 expect_good grep famfs /proc/mounts -- "No famfs mounted"

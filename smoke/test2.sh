@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
-source ./test_header.sh
+source smoke/test_header.sh
 
 TEST="test2"
 
 source $SCRIPTS/test_funcs.sh
 
-set -x
+#set -x
 
 # Start with a clean, empty file systeem
 famfs_recreate "test2"
@@ -65,10 +65,10 @@ verify_not_mounted $DEV $MPT "test1.sh"
 expect_good ${MOUNT} $DEV $MPT -- "mount should succeed"
 verify_mounted $DEV $MPT "test1.sh"
 
-expect_fail sudo cmp $MPT/bigtest10 $MPT/bigtest11        -- "files should not match"
+expect_fail sudo cmp $MPT/bigtest10 $MPT/bigtest11 -- "files should not match"
 
-mkdir -p ~/smoke.shadow
-${CLI} logplay --shadow ~/smoke.shadow/test2.shadow $MPT
+expect_good sudo mkdir -p /tmp/smoke.shadow/test2.shadow/root
+expect_good ${CLI} logplay -Ss /tmp/smoke.shadow/test2.shadow $MPT
 
 set +x
 echo ":==*************************************************************************"

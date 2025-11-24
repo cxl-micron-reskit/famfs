@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
-source ./test_header.sh
+source smoke/test_header.sh
 
 TEST="test1"
 
 source $SCRIPTS/test_funcs.sh
 
-set -x
+#set -x
 
 # Start with a clean, empty file systeem
 famfs_recreate "test1"
@@ -158,7 +158,7 @@ expect_good ${CLI} verify -S 42 -f $MPT/subdir/${F_8M}_cp9 -- "verify ${F_8M}_cp
 # Cp wildcard to directory from mkdir -p, and verify
 # (with custom mode/uid/gid)
 FMODE="600"
-UID=$(id -u)
+#UID=$(id -u)
 GID=$(id -g)
 
 cd ${MPT}/..
@@ -339,12 +339,13 @@ expect_good ${FSCK} $MPT -- "fsck should succeed"
 expect_good ${FSCK} -m $MPT -- "fsck -mh should succeed"
 expect_good ${FSCK} -vv $MPT -- "fsck -vv should succeed"
 expect_good ${FSCK} -r $MPT  -- "fsck -r $MPT should succeed"
-expect_good ${FSCK} -rm $MPT -- "fsck -r -m $MPT should fail"
+expect_fail ${FSCK} -rm $MPT -- "fsck -r -m $MPT should fail"
 
 expect_good sudo cmp $MPT/bigtest0 $MPT/bigtest0_cp       -- "copies should match"
 
-mkdir -p ~/smoke.shadow
-${CLI} logplay --shadow ~/smoke.shadow/test1.shadow $MPT
+mkdir -p /tmp/smoke.shadow/test1.shadow/root
+expect_good ${CLI} logplay -Ss /tmp/smoke.shadow/test1.shadow $MPT \
+	    -- "shadow logplay should work"
 
 set +x
 echo ":==*************************************************************************"

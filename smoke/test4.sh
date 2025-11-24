@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-source ./test_header.sh
+source smoke/test_header.sh
 
 TEST="test4"
 
@@ -8,7 +8,7 @@ source $SCRIPTS/test_funcs.sh
 
 MULTICHASE="sudo $BIN/src/multichase/multichase"
 
-set -x
+# set -x
 
 # Start with a clean, empty file systeem
 famfs_recreate "test4"
@@ -67,7 +67,7 @@ expect_good ${CLI} logplay --shadow $SHADOWPATH --shadowtest $MPT  -vv -- \
 # check that a removed file is restored on remount
 F="$MPT/test_xfile"
 expect_good ${CLI} creat -s 16m -r -S 42 $F -- "failed to create F ($F)"
-sudo rm $F
+expect_fail sudo rm $F
 expect_good sudo $UMOUNT $MPT            -- "umount failed"
 
 verify_not_mounted $DEV $MPT "test4.sh 2nd umount"
@@ -104,12 +104,12 @@ if [[ "${FAMFS_MODE}" == "v1" ]]; then
 fi
 # mount -R needs mkmeta cleanup...
 
-SHADOW_TARGET=~/smoke.shadow
+SHADOW_TARGET=/tmp/smoke.shadow
 THIS_SHADOW=test4.shadow
 SH=${SHADOW_TARGET}/${THIS_SHADOW}
-mkdir -p ${SHADOW_TARGET}
-rm -rf $SH
-${CLI} logplay --shadow $SH $MPT
+expect_good mkdir -p ${THIS_SHADOW}/root -- "failed to mkdir -p ${SHADOW_TARGET}"
+expect_good sudo rm -rf $SH -- "failed to remove $SH"
+expect_good ${CLI} logplay -Ss $SH $MPT -- "shadow logplay should work"
 
 sudo $UMOUNT $MPT # run_smoke.sh expects the file system unmounted after this test
 

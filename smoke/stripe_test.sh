@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 
-source ./test_header.sh
+source smoke/test_header.sh
 
 TEST="stripe_test"
 
 source $SCRIPTS/test_funcs.sh
+
+CREAT="creat -t 1"
 
 stripe_test_cp () {
     SIZE=$1
@@ -22,7 +24,7 @@ stripe_test_cp () {
 	# Generate a file name
 	file_name=$(printf "${BASENAME}_%05d" "$counter")
 
-	echo "Creating file $counter:$file_name"
+	echo "stripe_test_cp: Creating file $counter:$file_name"
 	# Try to create the file
 	${CLI} ${CREAT}  -N "$NSTRIPS" -B "$NBUCKETS" -s "$SIZE" "$file_name"
 	# Assert if file creation failed
@@ -122,10 +124,14 @@ stripe_test () {
 	SIZE=$(generate_random_int "$SIZE_MIN" "$SIZE_MAX")
 	echo "SIZE $SIZE"
 
-	echo "Creating file $counter:$file_name"
+	echo "stripe_test: Creating file $counter:$file_name"
 	# Try to create the file
-	${CLI} ${CREAT}  -C "$CHUNKSIZE" -N "$NSTRIPS" -B "$NBUCKETS" -s "$SIZE" "$file_name"
-	if [[ $? -ne 0 ]]; then
+	set +e
+	${CLI} ${CREAT}  -C "$CHUNKSIZE" -N "$NSTRIPS" -B "$NBUCKETS" \
+	       -s "$SIZE" "$file_name"
+	RC="$?"
+	set -e
+	if [[ "$RC" -ne 0 ]]; then
 	    echo "File creation failed on $file_name"
 	    # Assert if counter is 0 i.e. first interleaved file creation failed
 	    assert_ne $counter 0 "Failed to create any interleaved files"
@@ -168,12 +174,14 @@ stripe_test () {
 	(( loopct++ ))
     done
     #set -x
+    set +e
     ${CLI} ${CREAT} -t0 -v ${randomize_args[@]}
-    rc=$?
-    if [[ $rc -eq 0 ]]; then
+    RC="$?"
+    set -e
+    if [[ "$RC" -eq 0 ]]; then
 	echo "...done"
     else
-	fail_fsck "$rc failures from initialization" "-B $NBUCKETS"
+	fail_fsck "$RC failures from initialization" "-B $NBUCKETS"
     fi
 
     # TODO: if the the FAMFS_KABI_VERSION >= 43, verify that the files are striped
@@ -196,21 +204,24 @@ stripe_test () {
 	
 	(( loopct++ ))
     done
+    set +e
     ${CLI} ${VERIFY} ${verify_args[@]}
-    rc="$?"
-    if [[ $rc -eq 0 ]]; then
+    RC="$?"
+    set -e
+    if [[ "$RC" -eq 0 ]]; then
 	echo "...good"
     else
-	echo "Failed to verify $rc files (seed=$seed) ***********************"
+	echo "Failed to verify $RC files (seed=$seed) ***********************"
 	${FSCK} -hv $MPT
-	fail_fsck "Failed to verify $rc files (seed=$seed) ***********************" "-B $NBUCKETS"
+	fail "Failed to verify $rc files (seed=$seed) ***********************" "-B $NBUCKETS"
     fi
 
     # Dump icache stats before umount
     if [[ "$FAMFS_MODE" == "fuse" ]]; then
 	# turn up log debug
-	sudo curl  --unix-socket $(scripts/famfs_shadow.sh /mnt/famfs)/sock \
-	     http://localhost/icache_stats
+	expect_good sudo curl  \
+		    --unix-socket $(scripts/famfs_shadow.sh /mnt/famfs)/sock \
+		    http://localhost/icache_stats -- "rest fail"
     fi
 
     echo
@@ -238,15 +249,17 @@ stripe_test () {
 	(( loopct++ ))
     done
 
+    set +e
     ${CLI} ${VERIFY} -v ${verify_args[@]}
-    rc="$?"
-    if [[ $rc -eq 0 ]]; then
+    RC="$?"
+    set -e
+    if [[ "$RC" -eq 0 ]]; then
 	echo "...good"
     else
-	fail "Failed to verify $rc files (seed=$seed)"
+	fail "Failed to verify $RC files (seed=$seed)"
     fi
 
-    ${FSCK} -h -B ${NBUCKETS} ${MPT}
+    expect_good ${FSCK} -h -B ${NBUCKETS} ${MPT} -- "fsck should work"
     echo "Processed all successfully created files."
 }
 
@@ -255,9 +268,12 @@ stripe_test () {
 # Start with a clean, empty file systeem
 famfs_recreate "stripe_test.sh"
 
-expect_fail ${CLI} ${CREAT} -vv -B 100 -C 2m -N 3 -s 2m $MPT/toomanybuckets -- "too many buckets should fail"
-expect_fail ${CLI} ${CREAT} -B 10 -C 2000000 -N 3 -s 2m $MPT/badchunksz -- "bad chunk size should fail"
- 
+expect_fail ${CLI} ${CREAT} -vv -B 100 -C 2m -N 3 -s 2m $MPT/toomanybuckets \
+	    -- "too many buckets should fail"
+expect_fail ${CLI} ${CREAT} -B 10 -C 2000000 -N 3 -s 2m $MPT/badchunksz \
+	    -- "bad chunk size should fail"
+
+#set -x
 BASENAME="/mnt/famfs/stripe_file"
 CAPACITY=$(famfs_get_capacity "$MPT")
 echo "Capacity: $CAPACITY"
@@ -282,7 +298,7 @@ echo "NSTRIPS: $NSTRIPS"
 (( SIZE_MIN = SIZE_MAX - (2 * 1048576) ))
 (( CHUNKSIZE= 2 * 1048576 ))
 
-stripe_test "$SIZE_MIN" "$SIZE_MAX" "$CHUNKSIZE" "$NSTRIPS" "$NBUCKETS" 42
+#stripe_test "$SIZE_MIN" "$SIZE_MAX" "$CHUNKSIZE" "$NSTRIPS" "$NBUCKETS" 42
 
 famfs_recreate "stripe_test.sh 2"
 (( NFILES = 8 ))

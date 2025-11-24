@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-source ./test_header.sh
+source smoke/test_header.sh
 
 TEST="test_fio"
 
@@ -17,7 +17,7 @@ famfs_recreate "test_fio"
 verify_mounted $DEV $MPT "test_fio.sh"
 
 TESTDIR="$MPT/fio_stress"
-${CLI} mkdir -p $TESTDIR
+ecpect_good ${CLI} mkdir -p $TESTDIR -- "mkdir $TESTDIR should succeed"
 
 SPACE_AVAIL=$(sudo $BIN/famfs ${FSCK} $TESTDIR | grep "Free space" | awk -e '{print $3}')
 
@@ -31,8 +31,9 @@ expect_good $REALSCRIPTS/stress_fio.sh \
 		       -p $TESTDIR \
 		       -j 4 -- "test_fio failed"
 
-mkdir -p ~/smoke.shadow
-${CLI} logplay --shadow ~/smoke.shadow/test_fio.shadow $MPT
+SHADOW=/tmp/smoke.shadow/test_fio.shadow/root
+expect_good sudo mkdir -p $SHADOW -- "mkdir $SHADOW should work"
+expect_good ${CLI} logplay -sS $SHADOW $MPT -- "shadow logplay should work"
 
 set +x
 echo ":==*************************************************************************"

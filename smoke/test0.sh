@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-source test_header.sh
+source smoke/test_header.sh
 
 TEST="test0"
 
@@ -49,9 +49,11 @@ expect_fail ${CLI} creat -S 1 -r -M "$MPT/notcreated,22" -- "seed and multi inco
 expect_fail ${CLI} creat -M "$MPT/notcreated" -- "multi with no size should fail"
 expect_fail ${CLI} creat -M "$MPT/notcreated" -- "multi with no size should fail"
 
-exit 1
+if [[ "$FAMFS_MODE" == "fuse" ]]; then
+    exit 1
+    # next test hangs on fuse..
+fi
 
-# this hangs
 expect_fail ${CLI} creat -M "$MPT/notcr,22,22,22" -- "multi with too many params should fail"
 expect_good ${CLI} creat -M "$MPT/seeded,2M,42" \
        -M "$MPT/notseeded,2M" -- "multi-create partially seeded should work"
@@ -115,9 +117,9 @@ expect_fail ${CLI} creat -r -s 0 -S 1 $MPT/emptyfile  -- "Create empty file shou
 # Test creat mode/uid/gid options
 # These permissions should make it work without sudo
 FMODE="600"
-UID=$(id -u)
-GID=$(id -g)
-expect_good ${CLI} creat -s 0x100000 -r -m $FMODE -u $UID -g $GID $MPT/testmode0 -- "creat with mode/uid/gid"
+uid=$(id -u)
+gid=$(id -g)
+expect_good ${CLI} creat -s 0x100000 -r -m $FMODE -u $uid -g $gid $MPT/testmode0 -- "creat with mode/uid/gid"
 
 #
 # Check creat with the custom mode/uid/gid
@@ -127,12 +129,12 @@ if [[ $FMODE != $FMODE_OUT ]]; then
     fail "creat -m err $FMODE ${FMODE_OUT}"
 fi
 UID_OUT="$(sudo stat --format='%u' $MPT/testmode0)"
-if [[ $UID != $UID_OUT ]]; then
-    fail "creat -u err $UID ${UID_OUT}"
+if [[ $uid != $UID_OUT ]]; then
+    fail "creat -u err $uid ${UID_OUT}"
 fi
 GID_OUT="$(sudo stat --format='%g' $MPT/testmode0)"
-if [[ $GID != $GID_OUT ]]; then
-    fail "creat -g err $GID ${GID_OUT}"
+if [[ $gid != $GID_OUT ]]; then
+    fail "creat -g err $gid ${GID_OUT}"
 fi
 
 expect_fail ${CLI} mkdir   -- "mkdir with no args should fail"
@@ -140,18 +142,18 @@ expect_fail ${CLI} mkdir   -- "mkdir with no args should fail"
 # Test mkdir with custom mode/uid/gid
 #
 DIRPATH=$MPT/z/y/x/w
-${CLI} mkdir -p -m $FMODE -u $UID -g $GID $DIRPATH
+${CLI} mkdir -p -m $FMODE -u $uid -g $gid $DIRPATH
 FMODE_OUT="$(sudo stat --format='%a' $DIRPATH)"
 if [[ $FMODE != $FMODE_OUT ]]; then
     fail "creat -m err $FMODE ${FMODE_OUT}"
 fi
 UID_OUT="$(sudo stat --format='%u' $DIRPATH)"
-if [[ $UID != $UID_OUT ]]; then
-    fail "creat -u err $UID ${UID_OUT}"
+if [[ $uid != $UID_OUT ]]; then
+    fail "creat -u err $uid ${UID_OUT}"
 fi
 GID_OUT="$(sudo stat --format='%g' $DIRPATH)"
-if [[ $GID != $GID_OUT ]]; then
-    fail "creat -g err $GID ${GID_OUT}"
+if [[ $gid != $GID_OUT ]]; then
+    fail "creat -g err $gid ${GID_OUT}"
 fi
 
 expect_good ${CLI} logplay -h                  -- "logplay -h should work"
@@ -221,12 +223,12 @@ if [[ $FMODE != $FMODE_OUT ]]; then
     fail "creat -m err $FMODE ${FMODE_OUT}"
 fi
 UID_OUT="$(sudo stat --format='%u' $MPT/testmode0)"
-if [[ $UID != $UID_OUT ]]; then
-    fail "creat -u err $UID ${UID_OUT}"
+if [[ $uid != $UID_OUT ]]; then
+    fail "creat -u err $uid ${UID_OUT}"
 fi
 GID_OUT="$(sudo stat --format='%g' $MPT/testmode0)"
-if [[ $GID != $GID_OUT ]]; then
-    fail "creat -g err $GID ${GID_OUT}"
+if [[ $gid != $GID_OUT ]]; then
+    fail "creat -g err $gid ${GID_OUT}"
 fi
 
 #
@@ -237,13 +239,13 @@ FMODE_OUT="$(sudo stat --format='%a' $DIRPATH)"
 if [[ $FMODE != $FMODE_OUT ]]; then
     fail "mkdir -m err $FMODE ${FMODE_OUT}"
 fi
-UID_OUT="$(sudo stat --format='%u' $DIRPATH)"
-if [[ $UID != $UID_OUT ]]; then
-    fail "mkdir -u err $UID ${UID_OUT}"
+uid_OUT="$(sudo stat --format='%u' $DIRPATH)"
+if [[ $uid != $UID_OUT ]]; then
+    fail "mkdir -u err $uid ${UID_OUT}"
 fi
 GID_OUT="$(sudo stat --format='%g' $DIRPATH)"
-if [[ $GID != $GID_OUT ]]; then
-    fail "mkdir -g err $GID ${GID_OUT}"
+if [[ $gid != $GID_OUT ]]; then
+    fail "mkdir -g err $gid ${GID_OUT}"
 fi
 
 #
@@ -280,8 +282,9 @@ expect_good ${FSCK} -?   -- "fsck -h should succeed"x
 expect_good ${FSCK} $MPT -- "fsck should succeed" "-vv"
 expect_good ${FSCK} --human $MPT -- "fsck --human should succeed"
 
-mkdir -p ~/smoke.shadow
-${CLI} logplay --shadow ~/smoke.shadow/test0.shadow $MPT
+SR="~/smoke.shadow"
+mkdir -p $SR/root
+expect_good ${CLI} logplay --shadow $SR $MPT -- "shadow logplay should work to $SR"
 
 set +x
 echo ":==*************************************************************************"

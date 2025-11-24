@@ -22,6 +22,9 @@ fi
 if [ -z "${FAMFS_MODE}" ]; then
     FAMFS_MODE="v1"
 fi
+if [ -z "$NODAX_ARG" ]; then
+    NODAX_ARG=""
+fi
 
 # Override defaults as needed
 while (( $# > 0)); do
@@ -50,6 +53,9 @@ while (( $# > 0)); do
 	    FAMFS_MODE="$1"
 	    shift
 	    ;;
+	(-D|--nodax)
+	    NODAX_ARG="--nodax"
+	    ;;
 	(-v|--valgrind)
 	    # no argument to -v; just setup for Valgrind
 	    VG=${VALGRIND_ARG}
@@ -72,8 +78,8 @@ if [[ "$FAMFS_MODE" == "v1" || "$FAMFS_MODE" == "fuse" ]]; then
     echo "FAMFS_MODE: $FAMFS_MODE"
     if [[ "$FAMFS_MODE" == "fuse" ]]; then
 	MOUNT_OPTS="--fuse" # Can drop this b/c fuse is the default
-	MKFS_OPTS="--nodax"
-	FSCK_OPTS="--nodax"
+	MKFS_OPTS="$NODAX_ARG"
+	FSCK_OPTS="$NODAX_ARG"
    else
         MOUNT_OPTS="--nofuse" # Can drop this b/c fuse is the default
 	MKFS_OPTS=""

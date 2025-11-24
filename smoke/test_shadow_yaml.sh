@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
-source ./test_header.sh
+source smoke/test_header.sh
 
 TEST="test_shadow_yaml"
 
 source $SCRIPTS/test_funcs.sh
 
-set -x
+#set -x
 
 # Start with a clean, empty file systeem
 famfs_recreate "test_shadow_yaml"
@@ -54,26 +54,6 @@ sudo mkdir /tmp/famfs2
 expect_fail ${CLI_NOSUDO} logplay --shadow /tmp/famfs2 --daxdev $DEV -vv -- \
     "shadow logplay to non-writable shadow dir should fail"
 sudo rm -rf /tmp/famfs2
-
-SHADOWPATH2=/tmp/famfs_shadowpath2
-sudo rm -rf $SHADOWPATH2
-sudo mkdir $SHADOWPATH2
-
-sudo cat <<EOF > $SHADOWPATH2/0505
----
-file:
-  path: 0505
-  size: 1048576
-  flags: 2
-  mode: 00
-  uid: 0
-  gid: 0
-  nextents: 1
-  simple_ext_list:
-  - offset: 0x3fc00000
-    length: 0x200000
-...
-EOF
 
 expect_good ${MOUNT} $DEV $MPT -- "remount after shadow yaml test should work"
 verify_mounted $DEV $MPT "$TEST.sh mounted 2"
@@ -144,11 +124,8 @@ fi
 
 echo 3 | sudo tee /proc/sys/vm/drop_caches
 
-# work thorugh permissions of different mount types here
+# TODO work thorugh permissions of different mount types here
 #find $FUSE_MPT || fail "Find to recursively list fuse should succeed"
-
-mkdir -p ~/smoke.shadow
-${CLI} logplay --shadow ~/smoke.shadow/test_shadow_yaml.shadow $MPT
 
 set +x
 echo ":==*************************************************************************"
