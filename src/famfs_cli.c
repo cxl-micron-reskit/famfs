@@ -678,14 +678,15 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	int human = 0; /* -h is no longer --help... */
 
 	struct option fsck_options[] = {
-		/* These options set a */
-		{"mmap",        no_argument,             0,  'm'},
 		{"human",       no_argument,             0,  'h'},
 		{"verbose",     no_argument,             0,  'v'},
 		{"force",       no_argument,             0,  'f'},
-		{"mock",        no_argument,             0,  'M'},
 		{"nbuckets",    required_argument,       0,  'B'},
 
+		/* Un-publicized options */
+		{"mmap",        no_argument,             0,  'm'},
+		{"read",        no_argument,             0,  'r'},
+		{"mock",        no_argument,             0,  'M'},
 		{"nodax",       no_argument,             0,  'D'},
 
 		{0, 0, 0, 0}
@@ -2492,20 +2493,6 @@ do_famfs_cli_help(int argc, char **argv)
 		printf("\t%s\n", famfs_cli_cmds[i].cmd);
 }
 
-
-#include <stdlib.h>
-
-int exit_val(int rc) {
-	/* Take absolute value */
-	int val = (rc < 0) ? -rc : rc;
-
-	/* If less than 127, return it; otherwise cap at 127 */
-	if (val < 127) {
-		return val;
-	} else {
-		return 127;
-	}
-}
 
 int
 main(int argc, char **argv)

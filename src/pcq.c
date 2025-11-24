@@ -267,7 +267,7 @@ main(int argc, char **argv)
 				fprintf(stderr, "%s: invalid --setperm arg (%s)\n",
 					__func__, optarg);
 				pcq_usage(argc, argv);
-				return -1;
+				return 1;
 			}
 			break;
 
@@ -287,19 +287,19 @@ main(int argc, char **argv)
 			"%s: info not compatible with operating on a pcq\n\n",
 			argv[0]);
 		pcq_usage(argc, argv);
-		return -1;
+		return 1;
 	}
 	if (create && (bucket_size == 0 || nbuckets == 0)) {
 		fprintf(stderr,
 			"%s: create requires bsize and nbuckets\n\n", argv[0]);
 		pcq_usage(argc, argv);
-		return -1;
+		return 1;
 	}
 	if (!create && (uid || gid)) {
 		fprintf(stderr, "%s: uid/gid only apply with --create\n",
 			__func__);
 		pcq_usage(argc, argv);
-		return -1;
+		return 1;
 	}
 	if (create) {
 		if (!uid)
@@ -312,18 +312,18 @@ main(int argc, char **argv)
 			"%s: drain can't be used with producer, time or nmessages options\n\n",
 			argv[0]);
 		pcq_usage(argc, argv);
-		return -1;
+		return 1;
 	}
 	if (runtime && nmessages) {
 		fprintf(stderr,
 			"%s: the --nmessages and --time args cannot be used together\n\n",
 			__func__);
 		pcq_usage(argc, argv);
-		return -1;
+		return 1;
 	}
 	if (optind > (argc - 1)) {
 		fprintf(stderr, "Must specify base filename\n\n");
-		return -1;
+		return 1;
 	}
 	filename = argv[optind++];
 
@@ -336,18 +336,18 @@ main(int argc, char **argv)
 		fprintf(stderr,
 			"--setperm is incompatible with --create|--drain|--producer|--consumer");
 		pcq_usage(argc, argv);
-		return -1;
+		return 1;
 	}
 
 	if (role != pcq_perm_nop)
-		return pcq_set_perm(filename, role);
+		return exit_val(pcq_set_perm(filename, role));
 
 	if (create)
-		return pcq_create(filename, nbuckets, bucket_size,
-				  uid, gid,  verbose);
+		return exit_val(pcq_create(filename, nbuckets, bucket_size,
+					   uid, gid,  verbose));
 
 	if (info)
-		return get_queue_info(filename, statusfile, verbose);
+		return exit_val(get_queue_info(filename, statusfile, verbose));
 	if (drain) {
 		struct pcq_thread_arg ta = { 0 };
 
@@ -365,7 +365,7 @@ main(int argc, char **argv)
 				fprintf(statusfile, "%lld", -ta.nerrors);
 				fclose(statusfile);
 			}
-			return -(int)ta.nerrors;
+			return exit_val((int)ta.nerrors);
 		}
 
 		if (statusfile) {
@@ -374,7 +374,7 @@ main(int argc, char **argv)
 			fprintf(statusfile, "%lld", ta.nreceived);
 			fclose(statusfile);
 		}
-		return rc;
+		return exit_val(rc);
 	}
 
 	/*
@@ -465,7 +465,7 @@ main(int argc, char **argv)
 			fprintf(statusfile, "%lld", -(prod.nerrors + cons.nerrors));
 			fclose(statusfile);
 		}
-		return -(int)(prod.nerrors + cons.nerrors);
+		return exit_val((int)(prod.nerrors + cons.nerrors));
 	}
 
 	if (statusfile) {
@@ -475,5 +475,5 @@ main(int argc, char **argv)
 		fprintf(statusfile, "%lld", (prod.nsent + cons.nreceived));
 		fclose(statusfile);
 	}
-	return prod.result + cons.result;
+	return exit_val(prod.result + cons.result);
 }

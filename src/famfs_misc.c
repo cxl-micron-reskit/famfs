@@ -627,3 +627,15 @@ void log_file_mode(
 		  name);
 
 }
+
+int exit_val(int rc) {
+	/* Take absolute value */
+	int val = (rc < 0) ? -rc : rc;
+
+	/* If less than 127, return it; otherwise cap at 127 */
+	if (val < 127) {
+		return val;
+	} else {
+		return 127;
+	}
+}

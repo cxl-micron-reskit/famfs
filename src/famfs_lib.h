@@ -125,6 +125,7 @@ void famfs_thpool_destroy(threadpool thp, useconds_t usec);
 void log_file_mode(
 	const char *caller, const char *name, const struct stat *st,
 	int log_level);
+int exit_val(int rc);
 
 /* famfs_yaml.c */
 #include <yaml.h>
