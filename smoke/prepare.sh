@@ -1,137 +1,164 @@
 #!/usr/bin/env bash
 
+# Load header (defines: DEV, MPT, MKFS, FSCK, MOUNT, CLI, etc.)
 source smoke/test_header.sh
 
 TEST="prepare"
 
-source $SCRIPTS/test_funcs.sh
+# Load helper functions
+source "$SCRIPTS/test_funcs.sh"
 
 #set -x
 
-sudo mkdir -p $MPT || fail "mkdir $MPT"
+#
+# Ensure mountpoint exists
+#
+expect_good sudo mkdir -p "$MPT" -- "mkdir $MPT"
 
-# Make sure famfs is not mounted
-findmnt $MPT
-if (( $? == 0 )); then
-    sudo umount $MPT
+#
+# Ensure famfs is NOT mounted at $MPT
+#
+# Unmount only if $DEV is actually mounted at $MPT
+if findmnt -rn -S "$DEV" --target "$MPT" >/dev/null 2>&1; then
+    expect_good sudo umount "$MPT" -- "umount $MPT"
 fi
-sudo umount /tmp/famfs_fuse
 
-# destroy famfs file system, if any
-expect_good ${MKFS} -h    -- "mkfs -h should work"
-expect_fail ${MKFS}       -- "mkfs without dev argument should fail"
+# Also unmount temp fuse mount if present
+sudo umount /tmp/famfs_fuse >/dev/null 2>&1 || true
 
-expect_fail ${MKFS} /tmp/nonexistent -- "mkfs on nonexistent dev should fail"
+#
+# Basic mkfs tests
+#
+expect_good "${MKFS[@]}" -h         -- "mkfs -h should work"
+expect_fail "${MKFS[@]}"            -- "mkfs without dev argument should fail"
+expect_fail "${MKFS[@]}" /tmp/nonexistent -- "mkfs on nonexistent dev should fail"
 
-# in case there is not a file system, make one. Failure OK, but not crashes
-stop_on_crash ${MKFS} $DEV -- "Safety mkfs"
+# If no filesystem is present, create one — ensure we do NOT crash
+stop_on_crash "${MKFS[@]}" "$DEV" -- "Safety mkfs"
 
-expect_fail ${MKFS} -k $DEV -- "mkfs/kill should fail without --force"
-expect_good ${MKFS} -f -k $DEV -- "mkfs/kill should succeed with --force"
-expect_good ${MKFS}  $DEV      -- "mkfs"
-expect_good ${MKFS} -f $DEV    -- "redo mkfs with -f should succeed"
+expect_fail "${MKFS[@]}" -k "$DEV"       -- "mkfs/kill should fail without --force"
+expect_good "${MKFS[@]}" -f -k "$DEV"    -- "mkfs/kill should succeed with --force"
+expect_good "${MKFS[@]}" "$DEV"          -- "mkfs"
+expect_good "${MKFS[@]}" -f "$DEV"       -- "redo mkfs with -f should succeed"
 
-expect_fail ${MKFS} -f --loglen 1 $DEV -- "mkfs with loglen 1 should fail"
-LOG_LEN=$(expect_good ${FSCK} -v $DEV | grep "log_len" | awk -e '{print $2}')
-assert_equal $LOG_LEN "8388608" "Log size should not change after mkfs with bogus loglen"
+#
+# loglen sanity tests
+#
+expect_fail "${MKFS[@]}" -f --loglen 1 "$DEV" -- "mkfs with loglen 1 should fail"
+LOG_LEN=$(expect_good "${FSCK[@]}" -v "$DEV" | grep "log_len" | awk '{print $2}')
+assert_equal "$LOG_LEN" "8388608" "Log size should not change after mkfs with bogus loglen"
 
-${MKFS} -f --loglen 11m $DEV && fail "mkfs with loglen 11m should fail"
-LOG_LEN=$(expect_good ${FSCK} -v $DEV | grep "log_len" | awk -e '{print $2}')
-assert_equal $LOG_LEN "8388608" "Log size should not change after mkfs with bogus loglen 2"
+expect_fail "${MKFS[@]}" -f --loglen 11m "$DEV" -- "mkfs with loglen 11m should fail"
+LOG_LEN=$(expect_good "${FSCK[@]}" -v "$DEV" | grep "log_len" | awk '{print $2}')
+assert_equal "$LOG_LEN" "8388608" "Log size should not change after mkfs with bogus loglen 2"
 
-#exit 1
-${MKFS} -f --loglen 256m $DEV || fail "mkfs should work with 256m log"
-LOG_LEN=$(expect_good ${FSCK} -v $DEV | grep "log_len" | awk -e '{print $2}')
-assert_equal $LOG_LEN "268435456" "Log should be 256M"
+# Valid log length
+expect_good "${MKFS[@]}" -f --loglen 256m "$DEV" -- "mkfs should work with 256m log"
+LOG_LEN=$(expect_good "${FSCK[@]}" -v "$DEV" | grep "log_len" | awk '{print $2}')
+assert_equal "$LOG_LEN" "268435456" "Log should be 256M"
 
-${MKFS} $DEV && fail "redo mkfs without -f should fail"
-LOG_LEN=$(expect_good ${FSCK} -v $DEV | grep "log_len" | awk -e '{print $2}')
-assert_equal $LOG_LEN "268435456" "Log size should not change after failed mkfs"
+expect_fail "${MKFS[@]}" "$DEV" -- "redo mkfs without -f should fail"
+LOG_LEN=$(expect_good "${FSCK[@]}" -v "$DEV" | grep "log_len" | awk '{print $2}')
+assert_equal "$LOG_LEN" "268435456" "Log size should not change after failed mkfs"
 
-${MKFS} -f --loglen 1m $DEV   && fail "mkfs should fail with 1m logsize"
-LOG_LEN=$(expect_good ${FSCK} -v $DEV | grep "log_len" | awk -e '{print $2}')
-assert_equal $LOG_LEN "268435456" "Log size should not change after mkfs with bogus loglen 3"
+expect_fail "${MKFS[@]}" -f --loglen 1m "$DEV" -- "mkfs should fail with 1m logsize"
+LOG_LEN=$(expect_good "${FSCK[@]}" -v "$DEV" | grep "log_len" | awk '{print $2}')
+assert_equal "$LOG_LEN" "268435456" "Log size should not change after mkfs with bogus loglen 3"
 
-${MKFS} -f $DEV       || fail "redo mkfs with -f should succeed 2"
-LOG_LEN=$(expect_good ${FSCK} -v $DEV | grep "log_len" | awk -e '{print $2}')
-assert_equal $LOG_LEN "8388608" "Log size should not change after mkfs with bogus loglen4"
+expect_good "${MKFS[@]}" -f "$DEV" -- "redo mkfs with -f should succeed 2"
+LOG_LEN=$(expect_good "${FSCK[@]}" -v "$DEV" | grep "log_len" | awk '{print $2}')
+assert_equal "$LOG_LEN" "8388608" "Log size should revert after -f mkfs"
 
-expect_fail ${MKFS}  $DEV   -- "mkfs redo" # fail, fs exists
+expect_fail "${MKFS[@]}" "$DEV" -- "mkfs redo should fail when fs exists"
 
-expect_good ${CLI} -h        -- "cli -h should succeed"
-expect_good ${FSCK} $DEV -- "fsck"
+#
+# CLI & FSCK sanity
+#
+expect_good "${CLI[@]}" -h        -- "cli -h should succeed"
+expect_good "${FSCK[@]}" "$DEV"   -- "fsck"
+
+#
+# Mount testing differs by mode
+#
 
 if [[ "$FAMFS_MODE" == "v1" ]]; then
-    # We now expect the module to already be loaded (if FAMFS_MODE==v1),
-    # but no harm in modprobe to make double sure
-    expect_good sudo modprobe ${FAMFS_MOD} -- "modprobe ${FAMFS_MOD}"
+    # Ensure module is loaded
+    expect_good sudo modprobe "$FAMFS_MOD" -- "modprobe ${FAMFS_MOD}"
 
     #
     # Test manual mount / mkmeta / logplay
     #
-    expect_good sudo mount $RAW_MOUNT_OPTS $DEV $MPT -- "mount"
-    expect_fail sudo mount $RAW_MOUNT_OPTS $DEV $MPT -- "double mount should fail"
+    expect_good sudo mount "${RAW_MOUNT_OPTS[@]}" "$DEV" "$MPT" -- "raw mount"
+    expect_fail sudo mount "${RAW_MOUNT_OPTS[@]}" "$DEV" "$MPT" -- "double raw mount should fail"
 
-    expect_good ${CLI} mkmeta $DEV -- "mkmeta"
+    expect_good "${CLI[@]}" mkmeta "$DEV" -- "mkmeta"
 
-    # XXX famfs-fuse does not yet put the primary daxdev in /proc/mounts.
-    # need to fix this
-    expect_good grep $DEV /proc/mounts   -- "dev=$DEV not in /proc/mounts~"
+    # Make sure the mount appears in /proc/mounts
+    expect_good grep "$DEV" /proc/mounts -- "dev=$DEV not in /proc/mounts"
+
 else
-    # In fuse mode, we don't support manual mount...
-    expect_good ${MOUNT} -vv $DEV $MPT -- "famfs fuse mount should work"
+    # FUSE mode mount
+    expect_good "${MOUNT[@]}" -vv "$DEV" "$MPT" -- "famfs fuse mount should work"
 fi
 
 expect_good grep famfs /proc/mounts -- "No famfs mounted"
-expect_good grep $MPT /proc/mounts  -- "Mount pt $MPT not in /proc/mounts~"
+expect_good grep "$MPT" /proc/mounts -- "mount point $MPT not in /proc/mounts"
 
-expect_good sudo test -f $MPT/.meta/.superblock -- "no superblock file after mkmeta"
-expect_good sudo test -f $MPT/.meta/.log -- "prep: no log file after mkmeta"
+expect_good sudo test -f "$MPT/.meta/.superblock" -- "no superblock file after mkmeta"
+expect_good sudo test -f "$MPT/.meta/.log"        -- "prep: no log file after mkmeta"
 
-expect_good ${CLI} logplay $MPT  -- "empty fs logplay should succeed"
-expect_good ${FSCK} --human $MPT -- "prep: fsck --human should succeed"
+expect_good "${CLI[@]}" logplay "$MPT"  -- "empty fs logplay should succeed"
+expect_good "${FSCK[@]}" --human "$MPT" -- "prep: fsck --human should succeed"
 
-# Try mkfs while mounted
-expect_fail ${MKFS}  $DEV        -- "mkfs while mounted should fail"
+#
+# Try mkfs while mounted (should fail)
+#
+expect_fail "${MKFS[@]}" "$DEV" -- "mkfs while mounted should fail"
 
-# XXX: currently after fuse mount, daxdev is not open unless a file has
-# been looked up and accessed.
-#exit -1
-
-#${MKFS} -f -k $DEV    && fail "mkfs/kill while mounted should fail"
-
-# Dump icache stats before umount
+#
+# Debug ICACHE stats if fuse mode
+#
 if [[ "$FAMFS_MODE" == "fuse" ]]; then
-    # turn up log debug
-    expect_good sudo curl  --unix-socket \
-		$(scripts/famfs_shadow.sh /mnt/famfs)/sock \
-		http://localhost/icache_stats -- "REST query failed"
+    expect_good sudo curl --unix-socket \
+        "$(scripts/famfs_shadow.sh /mnt/famfs)/sock" \
+        http://localhost/icache_stats \
+        -- "REST query failed"
 fi
 
 #
-# Blow away the file system and test famfs mount with no valid superblock
+# Test mount with invalid superblock (after kill)
 #
-expect_good sudo umount $MPT       -- "umount $MPT should succeed"
-verify_not_mounted $DEV $MPT "umount failed?"
+expect_good sudo umount "$MPT" -- "umount $MPT should succeed"
+verify_not_mounted "$DEV" "$MPT" "umount failed?"
 
-# We don't know for certain whether there is a valid file system, so create one...
-expect_good ${MKFS} -f $DEV        -- "mkfs should succeed with --force"
-expect_good ${MKFS} -f -k $DEV     -- "mkfs/kill should succeed with --force (2)"
-# Now there is not a valid file system because we killed the superblock...
+expect_good "${MKFS[@]}" -f "$DEV"    -- "mkfs should succeed with --force"
+expect_good "${MKFS[@]}" -f -k "$DEV" -- "mkfs/kill should succeed with --force (2)"
+
+# mount should now fail with bad superblock
 expect_fail_except --bad 99 \
-		   ${MOUNT} $DEV $MPT -- "mount should fail with bad superblock"
-verify_not_mounted $DEV $MPT "should not be mounted after failed mount"
-expect_good ${MKFS} $DEV           -- "clean mkfs should succeed"
+    "${MOUNT[@]}" "$DEV" "$MPT" -- "mount should fail with bad superblock"
 
-# Mount without specifying fuse or otherwise; famfs should figure it out
-expect_good ${CLI} mount -v $MOUNT_OPTS $DEV $MPT -- "mount with unspecified type should work"
-expect_good sudo umount $MPT       -- "umount $MPT should succeed"
-verify_not_mounted $DEV $MPT "umount failed?"
+verify_not_mounted "$DEV" "$MPT" "should not be mounted after failed mount"
 
-expect_good ${MOUNT} $DEV $MPT     -- "mount of clean file system should succeed"
-expect_fail ${MOUNT} $DEV $MPT     -- "Double mount should fail "
+# create a clean filesystem
+expect_good "${MKFS[@]}" "$DEV" -- "clean mkfs should succeed"
 
-verify_mounted $DEV $MPT "mount failed?"
+#
+# Mount without specifying fuse/no-fuse; let CLI auto-detect
+#
+expect_good "${CLI[@]}" mount -v "${MOUNT_OPTS[@]}" "$DEV" "$MPT" \
+    -- "CLI auto mount should work"
+expect_good sudo umount "$MPT" -- "umount $MPT should succeed"
+
+verify_not_mounted "$DEV" "$MPT" "umount failed?"
+
+#
+# Final mount tests
+#
+expect_good "${MOUNT[@]}" "$DEV" "$MPT" -- "mount of clean file system should succeed"
+expect_fail "${MOUNT[@]}" "$DEV" "$MPT" -- "Double mount should fail"
+
+verify_mounted "$DEV" "$MPT" "mount failed?"
 
 set +x
 echo ":==*************************************************************************"

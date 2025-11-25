@@ -1,109 +1,154 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 source smoke/test_header.sh
 
-TEST="test_errors:"
+TEST="test_errors"
+source "$SCRIPTS/test_funcs.sh"
 
-source $SCRIPTS/test_funcs.sh
-
-if [[ "${FAMFS_MODE}" == "fuse" ]]; then
+# test_errors only works with famfsv1 (not fuse)
+if [[ "$FAMFS_MODE" == "fuse" ]]; then
     echo "*************************************************************"
-    echo "test_errs does not support famfs/fuse yet"
+    echo "test_errors does not support famfs/fuse yet"
     echo "*************************************************************"
     sleep 1
     exit 0
 fi
 
-#set -x
-
-# Start with a clean, empty file system
+#
+# Fresh filesystem
+#
 famfs_recreate "test_errors"
+verify_mounted "$DEV" "$MPT" "test_errors.sh"
 
-verify_mounted $DEV $MPT "test_errors.sh"
+expect_good   "${FSCK[@]}" "$MPT" \
+             -- "fsck should not fail when nothing cloned"
 
-expect_good ${FSCK} $MPT -- "fsck should not fail when nothing cloned"
-
+#
 # Create a file to clone
-expect_good ${CLI} creat -r -S 10 -s 0x400000 $MPT/original -- "create original should succeed"
-expect_good ${CLI} verify -S 10 -f $MPT/original            -- "verify original should succeed"
+#
+expect_good   "${CLI[@]}" creat -r -S 10 -s 0x400000 "$MPT/original" \
+             -- "create original"
+expect_good   "${CLI[@]}" verify -S 10 -f "$MPT/original" \
+             -- "verify original"
 
-N="10"
-FILE="bigtest$N"
-expect_good ${CLI} clone -h                               -- "clone -h should succeed"
-expect_good ${CLI} clone $MPT/original $MPT/clone         -- "clone original should succeed"
-expect_good ${CLI} clone -v $MPT/original $MPT/clone1     -- "second clone should succeed"
-expect_good ${CLI} clone -v $MPT/clone $MPT/clone2        -- "clone from clone should also succeed"
+#
+# Basic clone tests
+#
+expect_good   "${CLI[@]}" clone -h \
+             -- "clone -h should succeed"
 
-expect_good ${CLI} verify -S 10 -f $MPT/clone             -- "verify clone should succeed"
-expect_good ${CLI} verify -S 10 -f $MPT/clone1            -- "verify clone1 should succeed"
-expect_good ${CLI} verify -S 10 -f $MPT/clone2            -- "verify clone2 should succeed"
+expect_good   "${CLI[@]}" clone "$MPT/original" "$MPT/clone" \
+             -- "clone original"
 
+expect_good   "${CLI[@]}" clone -v "$MPT/original" "$MPT/clone1" \
+             -- "clone1"
 
+expect_good   "${CLI[@]}" clone -v "$MPT/clone" "$MPT/clone2" \
+             -- "clone2"
+
+expect_good   "${CLI[@]}" verify -S 10 -f "$MPT/clone"  -- "verify clone"
+expect_good   "${CLI[@]}" verify -S 10 -f "$MPT/clone1" -- "verify clone1"
+expect_good   "${CLI[@]}" verify -S 10 -f "$MPT/clone2" -- "verify clone2"
+
+#
 # Error cases
-expect_fail ${CLI} clone  -- "clone with no args should fail"
-expect_fail ${CLI} clone -v $MPT/bogusfile $MPT/bogusfile.cllone -- "clone bogusfile should fail"
-expect_fail ${CLI} clone -v /etc/passwd $MPT/passwd              -- "clone from outside famfs should fail"
+#
+expect_fail   "${CLI[@]}" clone \
+             -- "clone with no args should fail"
 
+expect_fail   "${CLI[@]}" clone -v "$MPT/bogusfile" "$MPT/bogusfile.cllone" \
+             -- "clone on nonexistent file should fail"
 
-expect_fail ${FSCK} $MPT -- "fsck should fail after cloning "
-expect_good ${CLI} verify -S 10 -f $MPT/clone  -- "re-verify clone"
-expect_good ${CLI} verify -S 10 -f $MPT/clone1 -- "re-verify clone1"
+expect_fail   "${CLI[@]}" clone -v /etc/passwd "$MPT/passwd" \
+             -- "clone from non-famfs file should fail"
 
-expect_good sudo $UMOUNT $MPT -- "umount"
-verify_not_mounted $DEV $MPT "test_errors .sh"
-expect_good ${MOUNT} $DEV $MPT -- "mount in test_errors"
-#full_mount $DEV $MPT "${MOUNT_OPTS}" "test_errors.sh"
-verify_mounted $DEV $MPT "test1.sh"
+#
+# fsck should now fail after cloning
+#
+expect_fail   "${FSCK[@]}" "$MPT" \
+             -- "fsck should fail after cloning"
 
-# Throw a curveball or two at logplay
-expect_good ${CLI} mkdir $MPT/adir         -- "should be able to mkdir adir"
-expect_good ${CLI} mkdir $MPT/adir2        -- "should be able to mkdir adir2"
+expect_good   "${CLI[@]}" verify -S 10 -f "$MPT/clone"  -- "reverify clone"
+expect_good   "${CLI[@]}" verify -S 10 -f "$MPT/clone1" -- "reverify clone1"
+
+#
+# Unmount/remount
+#
+expect_good   sudo "$UMOUNT" "$MPT" -- "umount"
+verify_not_mounted "$DEV" "$MPT" "test_errors.sh"
+
+expect_good   "${MOUNT[@]}" "$DEV" "$MPT" \
+             -- "mount after unmount"
+verify_mounted "$DEV" "$MPT" "test_errors remount"
+
+#
+# Throw curveballs at logplay
+#
+expect_good   "${CLI[@]}" mkdir "$MPT/adir"  -- "mkdir adir"
+expect_good   "${CLI[@]}" mkdir "$MPT/adir2" -- "mkdir adir2"
+
 set +e
-sudo rm -rf $MPT/adir
-RC="$?"
+sudo rm -rf "$MPT/adir"
+rc=$?
 set -e
-if (( "$RC" == 0 )); then
-    expect_good sudo touch $MPT/adir           -- "should be able to create rogue file"
-    expect_good sudo rm -rf $MPT/adir2         \
-	-- "should be able to rogue remove a dir2"
-    expect_good sudo touch $MPT/adir2          -- "should be able to touch a file"
-    expect_fail ${CLI} logplay -vvv $MPT       \
-	-- "logplay should complain when a file is where a dir should be"
+if (( rc == 0 )); then
+    expect_good sudo touch "$MPT/adir"     -- "rogue file in place of dir"
+    expect_good sudo rm -rf "$MPT/adir2"   -- "remove adir2"
+    expect_good sudo touch "$MPT/adir2"    -- "touch file"
+    expect_fail "${CLI[@]}" logplay -vvv "$MPT" \
+                -- "logplay should complain when file replaces directory"
 fi
-expect_fail sudo ln -s /tmp $MPT/adir2     -- "symlink should fail with famfs kmod v2"
 
-expect_fail ${FSCK} -v $MPT -- "fsck -v if a clone has ever happened should fail"
-expect_fail ${FSCK} $MPT -- "fsck if a clone has ever happened should fail"
+expect_fail sudo ln -s /tmp "$MPT/adir2" \
+            -- "symlink should fail with famfs v1/v2"
 
-# Some v2-specific tests
+expect_fail "${FSCK[@]}" -v "$MPT" \
+            -- "fsck -v should fail once cloning has occurred"
+expect_fail "${FSCK[@]}" "$MPT" \
+            -- "fsck should fail after cloning"
 
-expect_good sudo $UMOUNT $MPT            -- "umount should work"
-expect_good ${MOUNT} $DEV $MPT       -- "basic mount should succeed"
-expect_fail ${MOUNT} $DEV $MPT       -- "remount 1 should fail"
-expect_fail ${MOUNT} $DEV $MPT       -- "remount 2 should fail"
-expect_fail ${MOUNT} $DEV $MPT       -- "remount 3 should fail"
+#
+# v2-specific redundant mount behavior (also applies to v1 logically)
+#
+expect_good sudo "$UMOUNT" "$MPT" -- "umount before remount tests"
+expect_good "${MOUNT[@]}" "$DEV" "$MPT" -- "normal mount"
+
+expect_fail "${MOUNT[@]}" "$DEV" "$MPT" -- "redundant remount 1"
+expect_fail "${MOUNT[@]}" "$DEV" "$MPT" -- "redundant remount 2"
+expect_fail "${MOUNT[@]}" "$DEV" "$MPT" -- "redundant remount 3"
+
 sudo mkdir -p /tmp/famfs
-expect_fail ${MOUNT} $DEV /tmp/famfs -- "remount at different path should fail"
-verify_mounted $DEV $MPT     "mounted after redundant mounts"
-expect_good sudo $UMOUNT $MPT            -- "umount should work after redundant mounts"
-verify_not_mounted $DEV $MPT "umount should have worked after redundant mounts"
+expect_fail "${MOUNT[@]}" "$DEV" /tmp/famfs \
+            -- "mount same dev at different path should fail"
 
-expect_good ${MOUNT} $DEV $MPT       -- "basic mount should succeed"
+verify_mounted "$DEV" "$MPT" "after redundant mount attempts"
 
+expect_good sudo "$UMOUNT" "$MPT" \
+            -- "umount after redundant mounts"
+verify_not_mounted "$DEV" "$MPT" "should be unmounted"
+
+expect_good "${MOUNT[@]}" "$DEV" "$MPT" \
+            -- "mount after redundant tests"
+
+#
+# shadow logplay
+#
 SHADOW="/tmp/smoke.shadow/test_errors.shadow/root"
-expect_good sudo mkdir -p $SHADOW  -- "failed to mkdir -p $SHADOW"
-expect_good ${CLI} logplay -sS $SHADOW $MPT -- "logplay -Ss failed"
 
-#sudo $UMOUNT $MPT || fail "umount"
+expect_good sudo mkdir -p "$SHADOW" \
+            -- "mkdir shadow path"
+
+expect_good "${CLI[@]}" logplay -sS "$SHADOW" "$MPT" \
+            -- "shadow logplay -Ss should work"
 
 set +x
 echo "*************************************************************************"
-echo " Important note: This test (at least the first run) will generate a stack dump"
-echo " in the kernel log (a WARN_ONCE) due to cross-linked pages (specifically DAX noticing"
-echo " that a page was mapped to more than one file. This is normal, as this test intentionally"
-echo " does bogus cross-linked mappings"
-set +x
+echo " NOTE: This test *intentionally* triggers kernel WARN_ONCE stack dumps"
+echo "       due to forced cross-linked DAX mappings. This is normal."
+echo "*************************************************************************"
 echo ":==*************************************************************************"
 echo ":==test_errors completed successfully"
 echo ":==*************************************************************************"
+
 exit 0
