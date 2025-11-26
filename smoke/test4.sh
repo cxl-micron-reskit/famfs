@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
+
 set -euo pipefail
 
 source smoke/test_header.sh
+source "$SCRIPTS/test_funcs.sh"
 
 TEST="test4"
-source "$SCRIPTS/test_funcs.sh"
+start_test $TEST
 
 # multichase binary (array form)
 MULTICHASE=(sudo "$BIN/src/multichase/multichase")
@@ -141,8 +143,5 @@ expect_good "${CLI[@]}" logplay -Ss "$SH" "$MPT" \
 sudo "$UMOUNT" "$MPT"
 
 set +x
-echo ":==*************************************************************************"
-echo ":==test4 (multichase) completed successfully"
-echo ":==*************************************************************************"
-
+finish_test $TEST
 exit 0

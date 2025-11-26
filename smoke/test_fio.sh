@@ -3,10 +3,10 @@
 set -euo pipefail
 
 source smoke/test_header.sh
+source "$SCRIPTS/test_funcs.sh"
 
 TEST="test_fio"
-
-source "$SCRIPTS/test_funcs.sh"
+start_test $TEST
 
 echo "SCRIPTS=$SCRIPTS $(realpath "$SCRIPTS")"
 REALSCRIPTS=$(realpath "$SCRIPTS")
@@ -57,7 +57,5 @@ expect_good "${CLI[@]}" logplay -sS "$SHADOW" "$MPT" \
            -- "shadow logplay should work"
 
 set +x
-echo ":==*************************************************************************"
-echo ":==$TEST completed successfully"
-echo ":==*************************************************************************"
+finish_test $TEST
 exit 0

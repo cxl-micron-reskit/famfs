@@ -2,11 +2,11 @@
 
 # Load header (defines: DEV, MPT, MKFS, FSCK, MOUNT, CLI, etc.)
 source smoke/test_header.sh
-
-TEST="prepare"
-
 # Load helper functions
 source "$SCRIPTS/test_funcs.sh"
+
+TEST="prepare"
+start_test $TEST
 
 #set -x
 

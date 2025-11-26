@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 source smoke/test_header.sh
+source "$SCRIPTS/test_funcs.sh"
 
 TEST="test3"
-
-source "$SCRIPTS/test_funcs.sh"
+start_test $TEST
 
 #set -x
 
@@ -176,7 +176,5 @@ expect_good "${CLI[@]}" logplay -Ss /tmp/smoke.shadow/test3.shadow "$MPT" \
            -- "test3 shadow logplay"
 
 set +x
-echo ":==*************************************************************************"
-echo ":==test3 completed successfully"
-echo ":==*************************************************************************"
+finish_test $TEST
 exit 0

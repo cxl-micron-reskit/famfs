@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
+
 set -euo pipefail
 
 source smoke/test_header.sh
+source "$SCRIPTS/test_funcs.sh"
 
 TEST="test_errors"
-source "$SCRIPTS/test_funcs.sh"
+start_test $TEST
 
 # test_errors only works with famfsv1 (not fuse)
 if [[ "$FAMFS_MODE" == "fuse" ]]; then
@@ -147,8 +149,5 @@ echo "*************************************************************************"
 echo " NOTE: This test *intentionally* triggers kernel WARN_ONCE stack dumps"
 echo "       due to forced cross-linked DAX mappings. This is normal."
 echo "*************************************************************************"
-echo ":==*************************************************************************"
-echo ":==test_errors completed successfully"
-echo ":==*************************************************************************"
-
+finish_test $TEST
 exit 0

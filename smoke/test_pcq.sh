@@ -3,10 +3,10 @@
 set -euo pipefail
 
 source smoke/test_header.sh
+source "$SCRIPTS/test_funcs.sh"
 
 TEST="pcq"
-
-source "$SCRIPTS/test_funcs.sh"
+start_test $TEST
 
 STATUSFILE="/tmp/pcqstatus_$$.txt"
 
@@ -312,8 +312,5 @@ expect_good "${CLI[@]}" logplay -Ss "$SHADOW" "$MPT" \
            -- "pcq logplay -Ss should succeed"
 
 set +x
-echo ":========================================================================"
-echo ":== test_pcq.sh: success!"
-echo ":========================================================================"
-
+finish_test $TEST
 exit 0

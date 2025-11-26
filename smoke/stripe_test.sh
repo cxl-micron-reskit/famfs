@@ -5,10 +5,10 @@ set -e
 set -o pipefail
 
 source smoke/test_header.sh
+source "$SCRIPTS/test_funcs.sh"
 
 TEST="stripe_test"
-
-source "$SCRIPTS/test_funcs.sh"
+start_test $TEST
 
 # ---------------------------------------------------------------------
 # stripe_test_cp:
@@ -388,7 +388,5 @@ expect_good "${CLI[@]}" logplay -sS $SHADOW "$MPT" \
 	    -- "shadow logplay should work for stripe_test"
 
 set +x
-echo ":==*************************************************************************"
-echo ":==stripe_test completed successfully"
-echo ":==*************************************************************************"
+finish_test $TEST
 exit 0

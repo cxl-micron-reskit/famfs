@@ -496,3 +496,17 @@ overwrite_page () {
 
     dd if=/dev/urandom of="$file" bs=4096 count=1 seek="$pgnum" conv=notrunc
 }
+
+start_test () {
+    local TEST=$1
+    echo ":==----------------------------------------------------------------"
+    echo ":==$TEST started"
+    echo ":==----------------------------------------------------------------"
+}
+
+finish_test () {
+    local TEST=$1
+    echo ":==*****************************************************************"
+    echo ":==$TEST completed successfully"
+    echo ":==*****************************************************************"
+}

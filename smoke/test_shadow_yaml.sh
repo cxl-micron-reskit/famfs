@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 source smoke/test_header.sh
+source "$SCRIPTS/test_funcs.sh"
 
 TEST="test_shadow_yaml"
-
-source "$SCRIPTS/test_funcs.sh"
+start_test $TEST
 
 #set -x
 
@@ -149,7 +149,5 @@ echo 3 | sudo tee /proc/sys/vm/drop_caches >/dev/null
 # TODO: test permissions / recursive find in fuse mount
 
 set +x
-echo ":==*************************************************************************"
-echo ":==$TEST completed successfully"
-echo ":==*************************************************************************"
+finish_test $TEST
 exit 0
