@@ -367,6 +367,50 @@ verify_not_mounted () {
     echo ":== verify_not_mounted: good on $DEV $MPT"
 }
 
+# famfs_mount_alive <mountpoint>
+#
+# Returns:
+#   0 => Alive
+#   1 => Not mounted
+#   2 => FUSE mount found but famfs_fused not responding
+mount_alive() {
+    local mpt="$1"
+    local entry opts curl_rc
+
+    # Lookup the mount entry for this mountpoint
+    entry=$(awk -v mpt="$mpt" '$2 == mpt {print}' /proc/mounts)
+
+    if [[ -z "$entry" ]]; then
+        echo ":== mount_alive: nothing mounted at $mpt"
+        return 1
+    fi
+
+    # Extract mount options (4th column)
+    opts=$(echo "$entry" | awk '{print $4}')
+
+    # FUSE?
+    if [[ "$opts" == *shadow=* ]]; then
+        # curl must not trigger set -e if it fails
+        set +e
+        sudo curl \
+            --unix-socket "$(scripts/famfs_shadow.sh "$mpt")/sock" \
+            http://localhost/pid >/dev/null 2>&1
+        curl_rc=$?
+        set -e
+
+        if (( curl_rc != 0 )); then
+            echo ":== mount_alive: Error: famfs_fused not responding on $mpt (curl rc=$curl_rc)"
+            return 2
+        fi
+
+        echo ":== mount_alive: fuse mount alive on $mpt"
+        return 0
+    fi
+
+    echo ":== mount_alive: non-fuse mount alive"
+    return 0
+}
+
 verify_mounted () {
     local DEV=$1
     local MPT=$2
@@ -377,12 +421,14 @@ verify_mounted () {
     if findmnt -rn -t famfs -S "$DEV" --target "$MPT" >/dev/null 2>&1; then
         echo ":== verify_mounted: famfs match on $DEV $MPT"
         echo ":== verify_mounted: good on $DEV $MPT"
+        mount_alive "$MPT" || fail "mount not alive: $MSG"
         return 0
     fi
 
     if findmnt -rn -S "$DEV" --target "$MPT" >/dev/null 2>&1; then
         echo ":== verify_mounted: generic match on $DEV $MPT"
         echo ":== verify_mounted: good on $DEV $MPT"
+        mount_alive "$MPT" || fail "mount not alive: $MSG"
         return 0
     fi
 

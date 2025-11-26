@@ -29,6 +29,13 @@ static char *sock_path = NULL;
 
 /*
  * Handle a parsed HTTP request and replies
+ *
+ * Supported URLs:
+ *
+ * * log_level/ - (GET, POST or PUT) - get or set log_level
+ * * icache_dump - (GET) dump icache into syslog
+ * * icache_stats - (GET) return icache stats in yaml format
+ * * pid - (GET) Return pid of famfs_fused in yaml format
  */
 static void famfs_dispatch_http(
 	struct mg_connection *c, struct mg_http_message *hm)
@@ -109,11 +116,18 @@ static void famfs_dispatch_http(
 			      icache->search_count, icache->nodes_scanned,
 			      icache->search_fail_ct);
 
+	} else if (mg_match(hm->uri, mg_str("/pid"), NULL)) {
+		pid_t pid = getpid();
+		mg_http_reply(c, 200,
+			"Content-Type: text/yaml\r\nConnection: close\r\n",
+			"pid: %d\n",
+			pid);
+
 	} else if (mg_match(hm->uri, mg_str("/inodes"), NULL)) {
 		/* Dummy target */
 		mg_http_reply(c, 200,
-			      "Content-Type: text/yaml\r\nConnection: close\r\n",
-			      "inodes:\n  total: 1500\n  open: 12\n  deleted: 7\n");
+			"Content-Type: text/yaml\r\nConnection: close\r\n",
+			"inodes:\n  total: 1500\n  open: 12\n  deleted: 7\n");
 
 	} else {
 		char *meta = "Content-Type: text/plain\r\nConnection: close\r\n";
