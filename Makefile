@@ -137,18 +137,20 @@ smoke_dual:	debug
 # Sanitize ***
 
 smoke_sanitize_nofuse:	sanitize
-	script -e -c "./run_smoke.sh --nofuse --sanitize" -O "smoke.$(HOSTNAME).nofuse.log"
+	script -e -c "./run_smoke.sh --nofuse --sanitize" \
+				-O "smoke.$(HOSTNAME).san.nofuse.log"
+	scripts/check_sanitizer_output.sh "smoke.$(HOSTNAME).san.nofuse.log"
 
 smoke_sanitize_fuse:	sanitize
-	script -e -c "./run_smoke.sh --fuse --sanitize" -O "smoke.$(HOSTNAME).fuse.log"
+	script -e -c "./run_smoke.sh --fuse --sanitize" \
+				-O "smoke.$(HOSTNAME).san.fuse.log"
+	scripts/check_sanitizer_output.sh "smoke.$(HOSTNAME).san.fuse.log"
 
 smoke_sanitize:	sanitize
 	make smoke_sanitize_nofuse
 	make smoke_sanitize_fuse
 
-smoke_sanitize_dual:	sanitize
-	make smoke_sanitize_nofuse
-	make smoke_sanitize_fuse
+smoke_sanitize_dual:	smoke_sanitize
 
 # Valgrind ***
 
