@@ -26,30 +26,36 @@ expect_fail "${CLI[@]}" verify -S 1 -f "$MPT/ddtest" \
            -- "verify should fail after dd overwrite"
 expect_good sudo dd of=/dev/null if="$MPT/ddtest" bs=4096 \
            -- "dd out of ddfile"
+mount_alive $MPT
 
 #
 # Test some cases where the kmod should throw errors because the famfs file is
 # not in a valid state
 #
-set +e
-sudo truncate "$MPT/ddtest" -s 2048
-rc="$?"
-set -e
-if (( rc == 0 )); then
-    # This should be reconsidered when we no longer support kmods that
-    # allow truncate XXX
-    echo "--------------------------------------------"
-    echo "This kernel allows truncate"
-    echo "--------------------------------------------"
-    assert_file_size "$MPT/ddtest" 2048 "bad size after rogue truncate"
-    expect_fail sudo dd of=/dev/null if="$MPT/ddtest" bs=2048 \
-        -- "Any read from a truncated file should fail"
-    expect_fail sudo truncate "$MPT/ddtest" -s 4096 \
-        -- "truncate extra-hinky - back to original size"
-    assert_file_size "$MPT/ddtest" 4096 "bad size after second rogue truncate"
-    expect_fail sudo dd of=/dev/null if="$MPT/ddtest" bs=2048 \
-        -- "Read from previously horked file should fail"
+if [[ "${FAMFS_MODE}" == "v1" ]]; then
+    set +e
+    sudo truncate "$MPT/ddtest" -s 2048
+    rc="$?"
+    set -e
+    if (( rc == 0 )); then
+	# This should be reconsidered when we no longer support kmods that
+	# allow truncate XXX
+	echo "--------------------------------------------"
+	echo "This kernel allows truncate"
+	echo "--------------------------------------------"
+	assert_file_size "$MPT/ddtest" 2048 "bad size after rogue truncate"
+	expect_fail sudo dd of=/dev/null if="$MPT/ddtest" bs=2048 \
+		    -- "Any read from a truncated file should fail"
+	expect_good sudo truncate "$MPT/ddtest" -s 4096 \
+		    -- "truncate extra-hinky - back to original size"
+	assert_file_size "$MPT/ddtest" 4096 "bad size after second rogue truncate"
+	expect_fail sudo dd of=/dev/null if="$MPT/ddtest" bs=2048 \
+		    -- "Read from previously horked file should fail"
+    else
+	mount_alive $MPT
+    fi
 fi
+
 
 # Test behavior of standard "cp" into famfs
 # The create should succeed, but the write should fail, leaving an empty, invalid file
@@ -60,7 +66,7 @@ sudo cp /etc/passwd "$MPT/pwd"
 cp_status=$?
 set -e
 if (( cp_status == 0 )); then
-    fail "cp to famfs should fail due to invalid famfs metadata: command succeeded unexpectedly"
+    fail "cp to famfs should fail due to invalid famfs metadata: commanzd succeeded unexpectedly"
 else
     echo ":== cp to famfs: good failure (cp to famfs should fail due to invalid famfs metadata, exit $cp_status)"
 fi
@@ -110,15 +116,21 @@ if [[ "${FAMFS_MODE}" == "v1" ]]; then
             -- "dd to touchfile should fail"
     fi
 else
+    expect_good mount_alive $MPT
     expect_fail test -f "$MPT/pwd" \
                -- "non-cli cp to famfs/fuse should fail outright"
     # Create an invalid file via "touch" and test behavior
+    expect_good mount_alive $MPT
     expect_fail sudo touch "$MPT/touchfile" \
                -- "non-cli touch should fail in famfs/fuse"
+    expect_good mount_alive $MPT
     expect_fail sudo dd if="$MPT/touchfile" \
                -- "dd from missing file should fail"
 fi
 
+expect_good mount_alive $MPT
+
+sudo ls -al $MPT
 expect_good stat "$MPT/ddtest" -- "stat ddtest should work"
 
 # Dump icache stats before umount
