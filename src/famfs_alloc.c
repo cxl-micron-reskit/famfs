@@ -711,6 +711,7 @@ famfs_file_strided_alloc(
 			mu_print_bitmap(lp->bitmap, lp->nbits);
 		}
 
+		bucket_series_destroy(bs);
 		return -ENOMEM;
 	}
 	/* We only support single-interleaved-extent (but multi-strip) alloc: */
