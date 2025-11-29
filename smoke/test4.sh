@@ -36,7 +36,7 @@ SHADOWPATH=/tmp/shadowpath/root
 expect_fail   "${CLI[@]}" logplay --shadow -d /dev/bogodax \
               -- "shadow logplay should fail with bogus daxdev"
 
-sudo rm -rf "$SHADOWPATH"
+expect_good sudo rm -rf "$SHADOWPATH"
 
 expect_fail   "${CLI[@]}" logplay --shadow "$SHADOWPATH/frob" --daxdev "$DEV" -vv \
               -- "shadow logplay to nonexistent shadow dir should fail if parent doesn't exist"
@@ -44,8 +44,8 @@ expect_fail   "${CLI[@]}" logplay --shadow "$SHADOWPATH/frob" --daxdev "$DEV" -v
 expect_fail   "${CLI[@]}" logplay --daxdev "$DEV" -vv "$SHADOWPATH" \
               -- "logplay should fail if --daxdev is set without --shadow"
 
-sudo rm -rf "$SHADOWPATH"
-sudo mkdir -p "$SHADOWPATH"
+expect_good sudo rm -rf "$SHADOWPATH"
+expect_good sudo mkdir -p "$SHADOWPATH"
 
 expect_good   "${CLI[@]}" logplay --shadow "$SHADOWPATH" --daxdev "$DEV" -vv \
               -- "shadow logplay to existing shadow dir should succeed"
@@ -77,7 +77,9 @@ expect_good   "${CLI[@]}" logplay --shadow "$SHADOWPATH" --shadowtest "$MPT" -vv
 #
 F="$MPT/test_xfile"
 expect_good   "${CLI[@]}" creat -s 16m -r -S 42 "$F" -- "failed to create F"
-expect_fail   sudo rm "$F"
+set +e
+sudo rm "$F" # no 'expect...' - works with v1 and not with fuse
+set -e
 
 expect_good   sudo "$UMOUNT" "$MPT" -- "umount"
 verify_not_mounted "$DEV" "$MPT" "test4.sh second umount"

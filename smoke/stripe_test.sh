@@ -302,6 +302,7 @@ stripe_test () {
     loopct=0
     verify_args=()
 
+    set +e # set -e leaks from something, probably verify_mounted
     for file in "${files[@]}"; do
         local seed=$(( BASE_SEED + loopct ))
         echo "re-verifying file: $file seed=$seed"

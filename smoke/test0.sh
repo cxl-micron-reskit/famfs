@@ -51,10 +51,7 @@ expect_fail "${CLI[@]}" creat -S 1 -r -M "$MPT/notcreated,22" \
 expect_fail "${CLI[@]}" creat -M "$MPT/notcreated"        -- "multi with no size should fail"
 expect_fail "${CLI[@]}" creat -M "$MPT/notcreated"        -- "multi with no size should fail (again)"
 
-if [[ "$FAMFS_MODE" == "fuse" ]]; then
-    # next test hangs on fuse..
-    exit 1
-fi
+echo "next test hangs on 6.17 fuse?"
 
 expect_fail "${CLI[@]}" creat -M "$MPT/notcr,22,22,22" \
            -- "multi with too many params should fail"
