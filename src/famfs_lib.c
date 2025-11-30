@@ -1465,6 +1465,13 @@ famfs_mmap_whole_file(
 		close(fd);
 		return NULL;
 	}
+	if (!ptr_is_readable(addr)) {
+		famfs_log(FAMFS_LOG_ERR, "%s: mmap(%s) not readable\n",
+			  __func__, fname);
+		fprintf(stderr,  "%s: mmap(%s) not readable\n",
+			__func__, fname);
+		addr = NULL;
+	}
 	close(fd);
 	return addr;
 }
@@ -2567,6 +2574,9 @@ open_superblock_file_read_only(
 	return __open_superblock_file(path, 1, sizep, mpt_out);
 }
 
+/*
+ * path can be any path within a famfs mount, but mount point is recommended
+ */
 static struct famfs_superblock *
 famfs_map_superblock_by_path(
 	const char *path,
@@ -2603,6 +2613,13 @@ famfs_map_superblock_by_path(
 	close(fd);
 	if (addr == MAP_FAILED) {
 		fprintf(stderr, "%s: Failed to mmap superblock file %s\n",
+			__func__, path);
+		return NULL;
+	}
+	if (!ptr_is_readable(addr)) {
+		famfs_log(FAMFS_LOG_ERR, "%s: mmap not readable (path=%s)\n",
+			  __func__, path);
+		fprintf(stderr,  "%s: mmap not readable (path=%s)\n",
 			__func__, path);
 		return NULL;
 	}

@@ -32,6 +32,9 @@
 #include <pwd.h>
 #include <grp.h>
 #include <time.h>
+#include <setjmp.h>
+#include <signal.h>
+#include <stdint.h>
 
 #include <linux/famfs_ioctl.h>
 
@@ -626,6 +629,51 @@ void log_file_mode(
 		  timebuf,
 		  name);
 
+}
+
+static sigjmp_buf jmp_env;
+
+/* Async-signal-safe handler */
+static void sigbus_handler(int sig)
+{
+	(void)sig;
+	siglongjmp(jmp_env, 1);
+}
+
+bool ptr_is_readable(const void *p)
+{
+	struct sigaction sa_old, sa_new;
+	bool result;
+
+	/* Install temporary SIGBUS handler */
+	memset(&sa_new, 0, sizeof(sa_new));
+	sa_new.sa_handler = sigbus_handler;
+	sigemptyset(&sa_new.sa_mask);
+	sa_new.sa_flags = SA_NODEFER;   /* don't block SIGBUS while in handler */
+
+	if (sigaction(SIGBUS, &sa_new, &sa_old) < 0) {
+		/* If we can't install the handler, safest answer is "bad" */
+		return false;
+	}
+
+	if (sigsetjmp(jmp_env, 1) == 0) {
+		/*
+		 * Attempt to read from the pointer.
+		 * Use volatile so compiler cannot optimize away.
+		 */
+		volatile uint8_t tmp = *(volatile const uint8_t *)p;
+		(void)tmp;
+
+		result = true;
+	} else {
+		/* We jumped here from the SIGBUS handler */
+		result = false;
+	}
+
+	/* Restore old handler */
+	sigaction(SIGBUS, &sa_old, NULL);
+
+	return result;
 }
 
 int exit_val(int rc) {
