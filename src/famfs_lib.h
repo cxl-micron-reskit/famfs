@@ -74,7 +74,7 @@ enum famfs_system_role
 famfs_get_role_and_logstats(const struct famfs_superblock *sb,
 			    u64 *log_offsetp, u64 *log_sizep);
 int famfs_fsck(const char *devname, bool nodax,
-	       int use_mmap, int human, int force, 
+	       int use_mmap, int human,
 	       int nbuckets, int verbose);
 
 int famfs_mkmeta_standalone(const char *devname, int verbose);

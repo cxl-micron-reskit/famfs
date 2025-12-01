@@ -2693,7 +2693,6 @@ famfs_fsck(
 	bool nodax,
 	int use_mmap,
 	int human,
-	int force,
 	int nbuckets,
 	int verbose)
 {
@@ -2738,15 +2737,10 @@ restart:
 		mpt = famfs_get_mpt_by_dev(path);
 		if (mpt) {
 			free(mpt);
-			if (!force) {
-				fprintf(stderr, "%s: error: "
-				    "cannot fsck by device (%s) when mounted\n",
-					__func__, path);
-				return -EBUSY;
-			}
-			fprintf(stderr,
-				"%s: Attempting %s mmap when fs is mounted\n",
+			fprintf(stderr, "%s: error: "
+				"cannot fsck by device (%s) when mounted\n",
 				__func__, path);
+			return -EBUSY;
 		}
 
 		if (nodax) {

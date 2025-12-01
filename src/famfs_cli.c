@@ -674,7 +674,6 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	int use_mmap = 0;
 	int use_read = 0;
 	int verbose = 0;
-	int force = 0;
 	int human = 0; /* -h is no longer --help... */
 
 	struct option fsck_options[] = {
@@ -716,11 +715,6 @@ do_famfs_cli_fsck(int argc, char *argv[])
 		case 'v':
 			verbose++;
 			break;
-		case 'f':
-			/* This "hidden" option tries to mmap devdax
-			 * even when a fs is mounted */
-			force++;
-			break;
 		case 'M':
 			mock_fstype = FAMFS_V1;
 			break;
@@ -754,7 +748,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	}
 
 	daxdev = argv[optind++];
-	return famfs_fsck(daxdev, nodax, use_mmap, human, force,
+	return famfs_fsck(daxdev, nodax, use_mmap, human,
 			  nbuckets, verbose);
 }
 

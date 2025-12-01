@@ -25,7 +25,6 @@ expect_good "${FSCK[@]}" "$MPT" -- "fsck by path should succeed when mounted"
 # Try exclusive open in driver to make this test good;
 # (currently succeeds but it should fail)
 expect_fail "${FSCK[@]}" "$DEV" -- "fsck by dev should fail when mounted"
-expect_good "${FSCK[@]}" --force "$DEV" -- "fsck by dev when mounted should succeed if forced"
 
 expect_fail "${FSCK[@]}" /boguspath -- "fsck should fail on bogus path"
 expect_fail "${CLI_NOSUDO[@]}" fsck bogusrelpath -- "fsck should fail on bogus relative path"
