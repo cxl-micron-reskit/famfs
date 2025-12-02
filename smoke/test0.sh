@@ -28,6 +28,9 @@ expect_good "${CLI[@]}" -h mount               -- "famfs -h mount should work"
 expect_good "${CLI[@]}" creat -h                          -- "creat -h should succeed"
 expect_fail "${CLI[@]}" creat                              -- "creat with no args should fail"
 expect_fail "${CLI[@]}" creat -r -S 1 "$MPT/test1"         -- "creat without size should fail"
+
+#-------------------------------------------------------------------------x
+# This command causes the first warning from 6.17
 expect_fail "${CLI[@]}" creat -S -s 10 "$MPT/badf"         -- "creat with -S but no -r should fail"
 expect_good "${CLI[@]}" creat -r -s 4096 -S 1 "$MPT/test1" -- "creat test1"
 expect_fail "${CLI[@]}" creat "$MPT/.meta"                 -- "creat an existing directory should fail"
@@ -52,9 +55,11 @@ expect_fail "${CLI[@]}" creat -M "$MPT/notcreated"        -- "multi with no size
 expect_fail "${CLI[@]}" creat -M "$MPT/notcreated"        -- "multi with no size should fail (again)"
 
 echo "next test hangs on 6.17 fuse?"
-
 expect_fail "${CLI[@]}" creat -M "$MPT/notcr,22,22,22" \
            -- "multi with too many params should fail"
+
+echo "next cmd fails on 6.17"
+exit 1
 expect_good "${CLI[@]}" creat -M "$MPT/seeded,2M,42" \
            -M "$MPT/notseeded,2M" \
            -- "multi-create partially seeded should work"

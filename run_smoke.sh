@@ -249,7 +249,7 @@ if [[ "$SCRIPTS" =~ *[[:space:]]* ]]; then
     fail "ERROR: the SCRIPTS path ($SCRIPTS) contains spaces!"
 fi
 
-./smoke/prepare.sh  ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" || exit -1
+./smoke/prepare.sh  ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV  -m "$FAMFS_MODE" $NODAX_ARG || exit -1
 echo ":== prepare success"
 
 if [ -z "$SKIP_TEST0" ]; then
