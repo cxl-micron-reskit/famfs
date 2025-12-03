@@ -4,10 +4,11 @@
 set -e
 set -o pipefail
 
+TEST="stripe_test"
+
 source smoke/test_header.sh
 source "$SCRIPTS/test_funcs.sh"
 
-TEST="stripe_test"
 start_test $TEST
 
 # ---------------------------------------------------------------------

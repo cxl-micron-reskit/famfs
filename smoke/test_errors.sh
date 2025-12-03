@@ -2,10 +2,11 @@
 
 set -euo pipefail
 
+TEST="test_errors"
+
 source smoke/test_header.sh
 source "$SCRIPTS/test_funcs.sh"
 
-TEST="test_errors"
 start_test $TEST
 
 # test_errors only works with famfsv1 (not fuse)

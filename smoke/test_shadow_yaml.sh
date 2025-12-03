@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 
+TEST="test_shadow_yaml"
+
 source smoke/test_header.sh
 source "$SCRIPTS/test_funcs.sh"
 
-TEST="test_shadow_yaml"
 start_test $TEST
 
 #set -x

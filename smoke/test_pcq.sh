@@ -2,10 +2,11 @@
 
 set -euo pipefail
 
+TEST="pcq"
+
 source smoke/test_header.sh
 source "$SCRIPTS/test_funcs.sh"
 
-TEST="pcq"
 start_test $TEST
 
 STATUSFILE="/tmp/pcqstatus_$$.txt"

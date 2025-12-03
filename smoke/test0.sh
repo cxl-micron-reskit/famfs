@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
 TEST="test0"
-start_test $TEST
 
 source smoke/test_header.sh
 
 source "$SCRIPTS/test_funcs.sh"
 
+start_test $TEST
 #set -x
 
 # Start with a clean, empty file system

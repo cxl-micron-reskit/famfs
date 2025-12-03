@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 
+TEST="test3"
+
 source smoke/test_header.sh
 source "$SCRIPTS/test_funcs.sh"
 
-TEST="test3"
 start_test $TEST
 
 #set -x

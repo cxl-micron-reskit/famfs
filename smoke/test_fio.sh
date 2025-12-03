@@ -2,10 +2,11 @@
 
 set -euo pipefail
 
+TEST="test_fio"
+
 source smoke/test_header.sh
 source "$SCRIPTS/test_funcs.sh"
 
-TEST="test_fio"
 start_test $TEST
 
 echo "SCRIPTS=$SCRIPTS $(realpath "$SCRIPTS")"

@@ -2,10 +2,11 @@
 
 set -euo pipefail
 
+TEST="test4"
+
 source smoke/test_header.sh
 source "$SCRIPTS/test_funcs.sh"
 
-TEST="test4"
 start_test $TEST
 
 # multichase binary (array form)
