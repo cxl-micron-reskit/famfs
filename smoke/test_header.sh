@@ -57,6 +57,9 @@ while (( $# > 0 )); do
         -D|--nodax)
             NODAX_ARG="--nodax"
             ;;
+	-l|--log)
+	    LOG_CMDS="Y"
+	    ;;
         -v|--valgrind)
             VG=("valgrind"
                 "--leak-check=full"

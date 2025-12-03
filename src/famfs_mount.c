@@ -975,6 +975,9 @@ famfs_dummy_mount(
 		return rc;
 	}
 
+	if (verbose)
+		printf("%s on %s\n", __func__, mpt);
+
 	*mpt_out = mpt; /* Caller must free mpt */
 	return 0;
 }

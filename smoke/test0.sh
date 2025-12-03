@@ -59,7 +59,6 @@ expect_fail "${CLI[@]}" creat -M "$MPT/notcr,22,22,22" \
            -- "multi with too many params should fail"
 
 echo "next cmd fails on 6.17"
-exit 1
 expect_good "${CLI[@]}" creat -M "$MPT/seeded,2M,42" \
            -M "$MPT/notseeded,2M" \
            -- "multi-create partially seeded should work"

@@ -10,6 +10,57 @@ fail () {
     exit 1
 }
 
+# Global variable:
+TRACE_MARKER_AVAILABLE=N
+
+TRACE_MARKER_AVAILABLE=N
+
+init_trace_marker_available() {
+    # Existence test must be done with sudo because non-root can't see debugfs.
+    if sudo test -e /sys/kernel/debug/tracing/trace_marker 2>/dev/null; then
+        # Now test writability (requires root-capable sudo as well)
+        if sudo test -w /sys/kernel/debug/tracing/trace_marker 2>/dev/null; then
+            TRACE_MARKER_AVAILABLE=Y
+        else
+            TRACE_MARKER_AVAILABLE=N
+        fi
+    else
+        TRACE_MARKER_AVAILABLE=N
+    fi
+}
+
+init_trace_marker_available
+echo "TRACE_MARKER_AVAILABLE: $TRACE_MARKER_AVAILABLE"
+
+emit_to_logs() {
+    if [[ "$LOG_CMDS" != "Y" ]]; then
+        return
+    fi
+
+    # Recreate the command line from array args
+    local -a argv=("$@")
+    local cmd
+    cmd=$(printf '%q ' "${argv[@]}")
+    cmd="${cmd%" "}"     # trim trailing space
+
+    local msg="smoke: $TEST: $cmd"
+
+    # famfs log
+    logger -t famfs "$msg"
+
+    # kernel facility (optional: harmless if ignored by journald)
+    echo "<5>$msg" | sudo tee /dev/kmsg > /dev/null
+
+    # trace marker if enabled
+    if [[ "$TRACE_MARKER_AVAILABLE" == "Y" ]]; then
+        # use sudo for the write
+	local trc_marker=/sys/kernel/debug/tracing/trace_marker
+        echo "<5>$msg" | sudo tee $trc_marker > /dev/null
+    fi
+
+    sleep 0.05
+}
+
 # Helper: detect whether errexit is currently set
 _has_errexit() {
     case $- in
@@ -58,6 +109,8 @@ expect_good () {
         had_errexit=1
         set +e
     fi
+
+    emit_to_logs "${cmd[@]}"
 
     # Run the command with errexit disabled
     "${cmd[@]}"
@@ -121,6 +174,8 @@ expect_fail () {
         had_errexit=1
         set +e
     fi
+
+    emit_to_logs "${cmd[@]}"
 
     # Run the command with errexit disabled
     "${cmd[@]}"
@@ -196,6 +251,8 @@ expect_fail_except () {
         set +e
     fi
 
+    emit_to_logs "${cmd[@]}"
+
     # Run with errexit disabled
     "${cmd[@]}"
     local status=$?
@@ -268,6 +325,8 @@ stop_on_crash () {
         had_errexit=1
         set +e
     fi
+
+    emit_to_logs "${cmd[@]}"
 
     # Run with errexit disabled
     "${cmd[@]}"
