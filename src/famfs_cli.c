@@ -1583,7 +1583,9 @@ threaded_randomize(void *arg)
 	struct multi_creat *mc = arg;
 
 	assert(mc);
-	mc->rc = randomize_one(mc->fname, mc->fsize, mc->seed);
+	/* Only randomize if creation succeeded; preserve creation errors */
+	if (mc->rc == 0)
+		mc->rc = randomize_one(mc->fname, mc->fsize, mc->seed);
 }
 
 
@@ -1609,6 +1611,10 @@ randomize_multi(
 	if (threadct)
 		thp = thpool_init(threadct);
 	for (i = 0; i < multi_count; i++) {
+		/* Skip files that weren't created or don't have seeds */
+		if (!mc[i].created || !mc[i].seed)
+			continue;
+
 		if (threadct)
 			thpool_add_work(thp, threaded_randomize,
 					(void *)&mc[i]);
