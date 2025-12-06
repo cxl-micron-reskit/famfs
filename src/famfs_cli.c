@@ -1612,7 +1612,7 @@ randomize_multi(
 		thp = thpool_init(threadct);
 	for (i = 0; i < multi_count; i++) {
 		/* Skip files that weren't created or don't have seeds */
-		if (!mc[i].created || !mc[i].seed)
+		if (!mc[i].seed)
 			continue;
 
 		if (threadct)
