@@ -266,7 +266,6 @@ famfs_log_file_meta_to_msg(
 
 			ie[i].ie_nstrips = log_fmap->ie[i].ie_nstrips;
 			ie[i].ie_chunk_size = log_fmap->ie[i].ie_chunk_size;
-			// XXX ie[i].ie_nbytes = log_fmap->ie[i].ie_nbytes;
 			ie[i].ie_nbytes = fmeta->fm_size;
 
 			printf("%s: ie[%d] nstrips=%d chunk=%d nbytes=%ld\n",

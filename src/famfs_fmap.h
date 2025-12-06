@@ -18,7 +18,6 @@
 #define LOG_SIMPLE_EXT_TAG 0xbeef
 #define LOG_IEXT_TAG       0xcafe
 
-//#define FAMFS_MAX_STRIPS 64
 #define FAMFS_MAX_SIMPLE_EXT 16 /* I don't see a reason to make this big...? */
 
 /* Structs used serializing fmaps into buffers/message */

@@ -57,7 +57,7 @@ static void famfs_dispatch_http(
 
 		} else if (mg_match(hm->method, mg_str("POST"), NULL) ||
 			   mg_match(hm->method, mg_str("PUT"), NULL)) {
-			// Body may contain "level=3" or just "3"
+			/* Body may contain "level=3" or just "3" */
 			char buf[32] = {0};
 			int len = (int) MIN(hm->body.len, sizeof(buf) - 1);
 			int new_level;
@@ -151,11 +151,11 @@ static void famfs_unix_bridge(struct mg_connection *c, int ev, void *ev_data)
 			struct mg_http_message hm;
 			int n = mg_http_parse((char *) c->recv.buf, c->recv.len, &hm);
 			if (n > 0) {
-				// got a complete request
+				/* got a complete request */
 				famfs_dispatch_http(c, &hm);
 				mg_iobuf_del(&c->recv, 0, (size_t) n);
 			} else if (n < 0) {
-				// bad request
+				/* bad request */
 				mg_http_reply(c, 400,
 					      "Connection: close\r\n",
 					      "Bad Request\n");

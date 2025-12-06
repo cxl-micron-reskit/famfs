@@ -427,7 +427,6 @@ famfs_get_device_size(
 		return -errno;
 	}
 
-	//base_name = strrchr(fname, '/');
 	switch (st.st_mode & S_IFMT) {
 	case S_IFCHR:
 		snprintf(spath, PATH_MAX, "/sys/dev/char/%d:%d/size",
@@ -1233,7 +1232,6 @@ __famfs_mkmeta_log(
 	int rc;
 
 	assert(log_offset == 0x200000);
-	//assert(log_size == 0x800000); /* XXX */
 
 	strncat(dirpath, mpt,     PATH_MAX - 1);
 	strncat(dirpath, "/",     PATH_MAX - 1);
@@ -1342,7 +1340,6 @@ famfs_mkmeta_standalone(
 	char superblock_path[PATH_MAX] = {0};
 	struct famfs_superblock *sb;
 	enum famfs_system_role role;
-	//struct famfs_log *logp = NULL;
 	u64 log_offset, log_size;
 	char *mpt = NULL;
 	size_t sb_size;
@@ -2589,7 +2586,6 @@ famfs_map_superblock_by_path(
 	void *addr;
 	int fd;
 
-	//assert(read_only); /* check whether we ever open it writable */
 
 	fd = __open_superblock_file(path, read_only,
 				    &sb_size, NULL);
@@ -3110,13 +3106,12 @@ __famfs_init_locked_log(
 		lp->thp = thpool_init(thread_ct);
 
 #if 1
-	/* Been occasionally hitting this assert; get more info */
+	/* XXX Been occasionally hitting this assert; get more info */
 	if (lp->logp->famfs_log_len != log_size) {
 		fprintf(stderr, "%s: ****************************************\n",
 			__func__);
 		fprintf(stderr, "%s: log size mismatch log hdr %lld != %ld\n",
 			__func__, lp->logp->famfs_log_len, log_size);
-		//famfs_fsck_scan(sb, lp->logp, 0, 1);
 		rc = -66;
 		goto err_out;
 	}
@@ -3354,7 +3349,6 @@ famfs_test_shadow_yaml(
 			famfs_emit_file_yaml(&readback, stderr);
 			fprintf(stderr, "============\n");
 			famfs_emit_file_yaml(fc, stderr);
-			//diff_text_buffers(); //XXX
 		}
 		if (verbose > 1)
 			famfs_compare_log_file_meta(fc, &readback, 1);

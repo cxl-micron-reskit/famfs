@@ -220,7 +220,7 @@ famfs_path_is_mount_pt(
 			if (strlen(opts) <= strlen("shadow="))
 				continue; 
 
- 			xmpt = realpath(mpt, NULL);
+			xmpt = realpath(mpt, NULL);
 			if (!xmpt) {
 				fprintf(stderr, "realpath(%s) errno %d\n",
 					mpt, errno);
@@ -389,7 +389,7 @@ char *find_mount_point(const char *path)
 	if (fs.f_fsid.__val[0] == root_fs.f_fsid.__val[0] &&
 	    fs.f_fsid.__val[1] == root_fs.f_fsid.__val[1]) {
 		free(current_path);
-		return strdup("/");  // It's the root file system
+		return strdup("/");  /* It's the root file system */
 	}
 
 	/* Ascend the directory tree to find the mount point */
@@ -413,7 +413,7 @@ char *find_mount_point(const char *path)
 		if (parent_fs.f_fsid.__val[0] != fs.f_fsid.__val[0] ||
 		    parent_fs.f_fsid.__val[1] != fs.f_fsid.__val[1] ||
 		    parent_st.st_dev != st.st_dev) {
-			break;  // We have found the mount point
+			break;  /* We have found the mount point */
 		}
 
 		/* Move up if still the same file system */
@@ -425,7 +425,7 @@ char *find_mount_point(const char *path)
 		}
 	}
 
-	return current_path;  // This is the mount point path
+	return current_path;  /* This is the mount point path */
 }
 
 static int is_directory(const char *path)
