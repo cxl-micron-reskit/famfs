@@ -63,14 +63,14 @@ fi
 # The create should succeed, but the write should fail, leaving an empty, invalid file
 # (Inline "expect_fail" semantics here to avoid mysterious early exits.)
 set +e
-echo ":== sudo cp /etc/passwd $MPT/pwd"
+echo ":= sudo cp /etc/passwd $MPT/pwd"
 sudo cp /etc/passwd "$MPT/pwd"
 cp_status=$?
 set -e
 if (( cp_status == 0 )); then
     fail "cp to famfs should fail due to invalid famfs metadata: commanzd succeeded unexpectedly"
 else
-    echo ":== cp to famfs: good failure (cp to famfs should fail due to invalid famfs metadata, exit $cp_status)"
+    echo ":= cp to famfs: good failure (cp to famfs should fail due to invalid famfs metadata, exit $cp_status)"
 fi
 
 if [[ "${FAMFS_MODE}" == "v1" ]]; then
@@ -79,14 +79,14 @@ if [[ "${FAMFS_MODE}" == "v1" ]]; then
 
     # Inline expect_fail for: test -s $MPT/pwd (we expect it to FAIL, i.e., file is empty)
     set +e
-    echo ":== test -s $MPT/pwd"
+    echo ":= test -s $MPT/pwd"
     test -s "$MPT/pwd"
     ts_status=$?
     set -e
     if (( ts_status == 0 )); then
         fail "file from cp should be empty: test -s succeeded (file is non-empty)"
     else
-        echo ":== test -s: good failure (file from cp should be empty, exit $ts_status)"
+        echo ":= test -s: good failure (file from cp should be empty, exit $ts_status)"
     fi
 
     # Create an invalid file via "touch" and test behavior
@@ -95,14 +95,14 @@ if [[ "${FAMFS_MODE}" == "v1" ]]; then
 
     # Inline expect_fail for the dd read-from-invalid-file case
     set +e
-    echo ":== sudo dd if='$MPT/touchfile' of=/dev/null"
+    echo ":= sudo dd if='$MPT/touchfile' of=/dev/null"
     sudo dd if="$MPT/touchfile" of=/dev/null bs=4096 count=1
     dd_status=$?
     set -e
     if (( dd_status == 0 )); then
 	fail "dd from invalid file should fail: command unexpectedly succeeded"
     else
-	echo ":== dd: good failure (dd from invalid file should fail, exit $dd_status)"
+	echo ":= dd: good failure (dd from invalid file should fail, exit $dd_status)"
     fi
 
     set +e

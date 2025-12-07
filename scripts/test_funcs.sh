@@ -101,7 +101,7 @@ expect_good () {
         fail "${msg}: no command provided to expect_good"
     fi
 
-    echo ":== expect_good: ${cmd[@]}"
+    echo ":= expect_good: ${cmd[@]}"
 
     # Save and disable errexit
     local had_errexit=0
@@ -118,7 +118,7 @@ expect_good () {
 
     # IMPORTANT: classify status while errexit is still disabled
     if (( status == 0 )); then
-        echo ":== expect_good: good completion"
+        echo ":= expect_good: good completion"
         # Restore errexit state
         (( had_errexit )) && set -e
         return 0
@@ -166,7 +166,7 @@ expect_fail () {
         fail "${msg}: no command provided to expect_fail"
     fi
 
-    echo ":== expect_fail: ${cmd[@]}"
+    echo ":= expect_fail: ${cmd[@]}"
 
     # Save and disable errexit
     local had_errexit=0
@@ -192,7 +192,7 @@ expect_fail () {
         (( had_errexit )) && set -e
         fail "${msg}: bad failure (terminated by ${signame} [$signo], exit=$status)"
     else
-        echo ":== expect_fail: good failure (${msg}, exit $status)"
+        echo ":= expect_fail: good failure (${msg}, exit $status)"
         (( had_errexit )) && set -e
         return 0
     fi
@@ -280,7 +280,7 @@ expect_fail_except () {
         (( had_errexit )) && set -e
         fail "${msg}: bad failure (unacceptable exit code $status)"
     else
-        echo ":== expect_fail_except(${bad_codes[@]}): good failure (${msg}, exit $status)"
+        echo ":= expect_fail_except(${bad_codes[@]}): good failure (${msg}, exit $status)"
         (( had_errexit )) && set -e
         return 0
     fi
@@ -317,7 +317,7 @@ stop_on_crash () {
         fail "${msg}: no command provided to stop_on_crash"
     fi
 
-    echo ":== stop_on_crash: ${cmd[@]}"
+    echo ":= stop_on_crash: ${cmd[@]}"
 
     # Save and disable errexit
     local had_errexit=0
@@ -341,7 +341,7 @@ stop_on_crash () {
         fail "${msg}: terminated by ${signame} [$signo], exit=$status"
     fi
 
-    echo ":== stop_on_crash: command did not crash: ${cmd[@]}"
+    echo ":= stop_on_crash: command did not crash: ${cmd[@]}"
     (( had_errexit )) && set -e
     return 0
 }
@@ -413,7 +413,7 @@ verify_not_mounted () {
     local MPT=$2
     local MSG=$3
 
-    echo ":== verify_not_mounted: $DEV $MPT"
+    echo ":= verify_not_mounted: $DEV $MPT"
 
     if findmnt -rn -t famfs -S "$DEV" --target "$MPT" >/dev/null 2>&1; then
         fail "verify_not_mounted: v1: $MSG"
@@ -423,7 +423,7 @@ verify_not_mounted () {
         fi
     fi
 
-    echo ":== verify_not_mounted: good on $DEV $MPT"
+    echo ":= verify_not_mounted: good on $DEV $MPT"
 }
 
 # famfs_mount_alive <mountpoint>
@@ -440,7 +440,7 @@ mount_alive() {
     entry=$(awk -v mpt="$mpt" '$2 == mpt {print}' /proc/mounts)
 
     if [[ -z "$entry" ]]; then
-        echo ":== mount_alive: nothing mounted at $mpt"
+        echo ":= mount_alive: nothing mounted at $mpt"
         return 1
     fi
 
@@ -462,11 +462,11 @@ mount_alive() {
             return 2
         fi
 
-        echo ":== mount_alive: fuse mount alive on $mpt"
+        echo ":= mount_alive: fuse mount alive on $mpt"
         return 0
     fi
 
-    echo ":== mount_alive: non-fuse mount alive"
+    echo ":= mount_alive: non-fuse mount alive"
     return 0
 }
 
@@ -475,18 +475,18 @@ verify_mounted () {
     local MPT=$2
     local MSG=$3
 
-    echo ":== verify_mounted: $DEV $MPT"
+    echo ":= verify_mounted: $DEV $MPT"
 
     if findmnt -rn -t famfs -S "$DEV" --target "$MPT" >/dev/null 2>&1; then
-        echo ":== verify_mounted: famfs match on $DEV $MPT"
-        echo ":== verify_mounted: good on $DEV $MPT"
+        echo ":= verify_mounted: famfs match on $DEV $MPT"
+        echo ":= verify_mounted: good on $DEV $MPT"
         mount_alive "$MPT" || fail "mount not alive: $MSG"
         return 0
     fi
 
     if findmnt -rn -S "$DEV" --target "$MPT" >/dev/null 2>&1; then
-        echo ":== verify_mounted: generic match on $DEV $MPT"
-        echo ":== verify_mounted: good on $DEV $MPT"
+        echo ":= verify_mounted: generic match on $DEV $MPT"
+        echo ":= verify_mounted: good on $DEV $MPT"
         mount_alive "$MPT" || fail "mount not alive: $MSG"
         return 0
     fi

@@ -125,7 +125,7 @@ stripe_test_cp () {
     if (( rc == 0 )); then
         echo "...good"
     else
-        fail_fsck "Failed to verify $rc files (seed=$seed)" "-B $NBUCKETS"
+        fail_fsck ":= Failed to verify $rc files (seed=$seed)" "-B $NBUCKETS"
     fi
     echo "rc=$rc"
 
@@ -203,7 +203,7 @@ stripe_test () {
         # On an 8G daxdev, this will fill the device. For larger devices,
         # don't let the test run forever: bail out at 26 files.
         if (( counter > 26 )); then
-            echo ":== stripe_test: Not filling large file system"
+            echo ":= stripe_test: Not filling large file system"
             break
         fi
 	echo "bottom $counter"
