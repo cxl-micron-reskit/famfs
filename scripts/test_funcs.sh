@@ -43,7 +43,7 @@ emit_to_logs() {
     cmd=$(printf '%q ' "${argv[@]}")
     cmd="${cmd%" "}"     # trim trailing space
 
-    local msg="smoke: $TEST: $cmd"
+    local msg="$HARNESS: $TEST: $cmd"
 
     # famfs log
     logger -t famfs "$msg"

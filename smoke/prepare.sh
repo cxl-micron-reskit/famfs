@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+HARNESS="smoke"
 TEST="prepare"
 
 # Load header (defines: DEV, MPT, MKFS, FSCK, MOUNT, CLI, etc.)
@@ -25,7 +26,7 @@ if findmnt -rn -S "$DEV" --target "$MPT" >/dev/null 2>&1; then
 fi
 
 # Also unmount temp fuse mount if present
-sudo umount /tmp/famfs_fuse >/dev/null 2>&1 || true
+stop_on_crash sudo umount /tmp/famfs_fuse -- "crashed umounting /tmp/famfs_fuse"
 
 #
 # Basic mkfs tests

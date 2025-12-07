@@ -5,6 +5,7 @@ TEST="test_shadow_yaml"
 source smoke/test_header.sh
 source "$SCRIPTS/test_funcs.sh"
 
+HARNESS="smoke"
 start_test $TEST
 
 #set -x

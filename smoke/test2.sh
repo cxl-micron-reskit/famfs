@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+HARNESS="smoke"
 TEST="test2"
 
 source smoke/test_header.sh

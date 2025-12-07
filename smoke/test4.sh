@@ -2,6 +2,7 @@
 
 set -euo pipefail
 
+HARNESS="smoke"
 TEST="test4"
 
 source smoke/test_header.sh

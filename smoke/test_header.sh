@@ -13,6 +13,7 @@ RAW_MOUNT_OPTS=("-t" "famfs" "-o" "noatime" "-o" "dax=always")
 BIN=../debug
 RMMOD=0
 FAMFS_MOD="famfs.ko"
+LOG_CMDS="N"
 
 # Default subcommands
 CREAT=("creat")
@@ -59,6 +60,10 @@ while (( $# > 0 )); do
             ;;
 	-l|--log)
 	    LOG_CMDS="Y"
+	    ;;
+	-H|--harness)
+	    HARNESS="$1"
+	    shift
 	    ;;
         -v|--valgrind)
             VG=("valgrind"

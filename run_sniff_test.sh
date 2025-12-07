@@ -155,7 +155,9 @@ else
 fi
 
 # Run prepare.sh to clean up
-./smoke/prepare.sh ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV -m "$FAMFS_MODE" $NODAX_ARG $LOG_ARG || exit -1
+./smoke/prepare.sh -H sniff \
+		   ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV \
+		   -m "$FAMFS_MODE" $NODAX_ARG $LOG_ARG || exit -1
 echo ":== prepare success"
 
 # Now run the actual sniff test
