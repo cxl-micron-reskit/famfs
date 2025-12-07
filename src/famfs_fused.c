@@ -240,9 +240,7 @@ static void famfs_init(
 
 static void famfs_destroy(void *userdata)
 {
-	struct famfs_ctx *lo = (struct famfs_ctx*) userdata;
-
-	famfs_icache_destroy(&lo->icache);
+	(void)userdata; /* icache is destroyed in main() after fuse_session_unmount */
 }
 
 static void

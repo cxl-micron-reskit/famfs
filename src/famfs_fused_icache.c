@@ -44,15 +44,30 @@ int famfs_icache_init(
 
 void famfs_icache_destroy(struct famfs_icache *icache)
 {
+	pthread_mutex_lock(&icache->mutex);
 	while (icache->root.next != &icache->root) {
-		struct famfs_inode* next = icache->root.next;
+		struct famfs_inode *next = icache->root.next;
 
 		icache->root.next = next->next;
 		if (next && next != &icache->root)
 			famfs_inode_free(next);
 	}
-	if (icache->shadow_root)
+	if (icache->shadow_root) {
 		free(icache->shadow_root);
+		icache->shadow_root = NULL; /* Prevent double-free */
+	}
+	/* Clean up root inode resources */
+	if (icache->root.fd >= 0)
+		close(icache->root.fd);
+	if (icache->root.name)
+		free(icache->root.name);
+
+	pthread_mutex_unlock(&icache->mutex);
+	/*
+	 * Don't destroy mutexes - process is exiting anyway,
+	 * and this avoids a theoretical race between mutex_lock and
+	 * mutex_destroy.
+	 */
 }
 
 void famfs_icache_flock(struct famfs_inode *inode)
