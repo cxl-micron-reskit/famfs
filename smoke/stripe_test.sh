@@ -4,7 +4,6 @@
 set -e
 set -o pipefail
 
-HARNESS="smoke"
 TEST="stripe_test"
 
 source smoke/test_header.sh

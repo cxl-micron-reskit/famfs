@@ -4,7 +4,8 @@ CWD=$(pwd)
 BIN="$CWD/debug"
 SCRIPTS="$CWD/scripts"
 MOUNT_OPTS="-t famfs -o noatime -o dax=always "
-
+HARNESS="sniff"
+TEST="sniff"
 # Allow these variables to be set from the environment
 if [ -z "$MPT" ]; then
     MPT=/mnt/famfs
@@ -45,6 +46,7 @@ while (( $# > 0)); do
 	    ;;
 	(-l|--log)
 	    LOG_ARG="--log"
+	    LOG_CMDS="Y"
 	    ;;
 	(-r|--release)
 	    BIN="$CWD/release"
@@ -159,7 +161,7 @@ fi
 # Run prepare.sh to clean up
 ./smoke/prepare.sh -H sniff \
 		   ${MOD_ARG} $VGARG -b "$BIN" -s "$SCRIPTS" -d $DEV \
-		   -m "$FAMFS_MODE" $NODAX_ARG $LOG_ARG || exit -1
+		   -m "$FAMFS_MODE" $NODAX_ARG $LOG_ARG --harness sniff|| exit -1
 echo ":== prepare success"
 
 # Now run the actual sniff test
@@ -212,7 +214,7 @@ echo ":== Verifying large file copy"
 expect_good $CLI verify -S $LARGE_SEED -f "$LARGE_COPY" -- "Verify large file copy"
 
 # Cleanup
-sudo umount $MPT
+stop_on_crash sudo umount $MPT -- "umount should work"
 
 set +x
 echo ":==-------------------------------------------------------------------"

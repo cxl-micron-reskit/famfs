@@ -14,6 +14,7 @@ BIN=../debug
 RMMOD=0
 FAMFS_MOD="famfs.ko"
 LOG_CMDS="N"
+HARNESS="smoke"
 
 # Default subcommands
 CREAT=("creat")

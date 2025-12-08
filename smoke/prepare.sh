@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-HARNESS="smoke"
 TEST="prepare"
 
 # Load header (defines: DEV, MPT, MKFS, FSCK, MOUNT, CLI, etc.)
