@@ -133,6 +133,8 @@ echo ":==CWD:      $CWD"
 echo ":==BIN:      $BIN"
 echo ":==SCRIPTS:  $SCRIPTS"
 echo ":==*****************************************************************"
+show_dax_config "$DEV"
+echo ":==*****************************************************************"
 
 scripts/chk_memdev.sh "$DEV" || fail "Bad memory device $DEV"
 

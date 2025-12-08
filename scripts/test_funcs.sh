@@ -602,6 +602,89 @@ overwrite_page () {
     dd if=/dev/urandom of="$file" bs=4096 count=1 seek="$pgnum" conv=notrunc
 }
 
+# show_dax_config <daxdev>
+#
+# Display alignment and mode for a dax device.
+# Accepts either /dev/daxX.Y or daxX.Y format.
+# Calls fail() if device not found or alignment mismatch between sysfs and daxctl.
+#
+# Example:
+#   show_dax_config /dev/dax1.0
+#   show_dax_config dax2.0
+show_dax_config () {
+    local DEV_INPUT="$1"
+    local DEV
+    local SYSFS_ALIGN
+    local DAXCTL_ALIGN
+    local MODE
+    local SIZE
+    local STATE
+
+    if [ -z "$DEV_INPUT" ]; then
+        echo "Usage: show_dax_config <daxdev>"
+        return 1
+    fi
+
+    # Strip /dev/ prefix if present
+    DEV=$(basename "$DEV_INPUT")
+
+    # Verify device exists
+    if [ ! -e "/sys/bus/dax/devices/${DEV}" ]; then
+        fail "bad daxdev ${DEV}"
+    fi
+
+    # Read alignment from sysfs
+    SYSFS_ALIGN=$(cat "/sys/bus/dax/devices/${DEV}/align" 2>/dev/null)
+    SIZE=$(cat "/sys/bus/dax/devices/${DEV}/size" 2>/dev/null)
+
+    # Get alignment, mode and state from daxctl
+    DAXCTL_ALIGN=$(daxctl list 2>/dev/null | grep -A10 "\"chardev\":\"${DEV}\"" | grep "\"align\":" | head -1 | sed 's/.*"align":\([0-9]*\).*/\1/')
+    MODE=$(daxctl list 2>/dev/null | grep -A10 "\"chardev\":\"${DEV}\"" | grep "\"mode\":" | head -1 | cut -d'"' -f4)
+    STATE=$(daxctl list 2>/dev/null | grep -A10 "\"chardev\":\"${DEV}\"" | grep "\"state\":" | head -1 | cut -d'"' -f4)
+
+    # If no state field returned, device is enabled
+    [ -z "$STATE" ] && STATE="enabled"
+
+    # Verify alignment agreement between sysfs and daxctl
+    if [ -n "$SYSFS_ALIGN" ] && [ -n "$DAXCTL_ALIGN" ]; then
+        if [ "$SYSFS_ALIGN" != "$DAXCTL_ALIGN" ]; then
+            fail "dax ${DEV} alignment mismatch: sysfs=${SYSFS_ALIGN} daxctl=${DAXCTL_ALIGN}"
+        fi
+    fi
+
+    # Convert alignment to human-readable and verify it's a valid value
+    local ALIGN_HR
+    case "$SYSFS_ALIGN" in
+        4096)       ALIGN_HR="4KiB" ;;
+        2097152)    ALIGN_HR="2MiB" ;;
+        1073741824) ALIGN_HR="1GiB" ;;
+        *)          fail "dax ${DEV} invalid alignment: ${SYSFS_ALIGN}" ;;
+    esac
+
+    # Convert size to human-readable
+    local SIZE_HR
+    if [ -n "$SIZE" ]; then
+        if [ "$SIZE" -ge 1073741824 ]; then
+            SIZE_HR="$((SIZE / 1073741824)) GiB"
+        elif [ "$SIZE" -ge 1048576 ]; then
+            SIZE_HR="$((SIZE / 1048576)) MiB"
+        else
+            SIZE_HR="${SIZE} bytes"
+        fi
+    else
+        SIZE_HR="unknown"
+    fi
+
+    echo ":== DAX device: /dev/${DEV}"
+    echo ":==   Alignment: ${ALIGN_HR} (${SYSFS_ALIGN})"
+    echo ":==   Size:      ${SIZE_HR}"
+    echo ":==   Mode:      ${MODE:-unknown}"
+    echo ":==   State:     ${STATE}"
+
+    emit_to_logs "${DEV} Alignment: ${ALIGN_HR}"
+    emit_to_logs "${DEV} Mode:      ${MODE:-unknown}"
+}
+
 start_test () {
     local TEST=$1
     echo ":==----------------------------------------------------------------"
