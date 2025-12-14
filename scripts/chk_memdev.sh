@@ -51,6 +51,9 @@ if [ -c $DEV ]; then
     if [[ "$modeline" == *"devdax"* ]]; then
 	echo "$DEV is in devdax mode"
 	exit 0;
+    elif [[ "$modeline" == *"famfs"* ]]; then
+	echo "$DEV is in famfs mode"
+	exit 0;
     elif  [[ "$modeline" == *"system-ram"* ]]; then
 	echo "Error: $DEV is in system-ram mode: you need to reconfigure it"
 	echo "Try: sudo daxctl reconfigure-device --human --mode=devdax --force $DEV"
