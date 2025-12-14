@@ -136,9 +136,8 @@ SHADOW_TARGET=/tmp/smoke.shadow
 THIS_SHADOW=test4.shadow
 SH="$SHADOW_TARGET/$THIS_SHADOW"
 
-expect_good sudo mkdir -p "$SH/root"   -- "mkdir shadow tree"
-
 expect_good sudo rm -rf "$SH"          -- "cleanup old shadow"
+expect_good sudo mkdir -p "$SH/root"   -- "mkdir shadow tree"
 
 expect_good "${CLI[@]}" logplay -Ss "$SH" "$MPT" \
             -- "shadow logplay should work"
