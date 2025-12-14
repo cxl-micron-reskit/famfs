@@ -137,6 +137,14 @@ int famfs_parse_alloc_yaml(FILE *fp, struct famfs_interleave_param *interleave_p
 const char *yaml_event_str(int event_type);
 
 /* famfs_dax.c */
+enum famfs_daxdev_mode {
+	DAXDEV_MODE_UNKNOWN = 0,
+	DAXDEV_MODE_DEVICE_DAX,
+	DAXDEV_MODE_FAMFS,
+};
+
+enum famfs_daxdev_mode famfs_get_daxdev_mode(const char *daxdev);
+int famfs_set_daxdev_mode(const char *daxdev, enum famfs_daxdev_mode mode);
 int famfs_bounce_daxdev(const char *devname, int verbose);
 
 #endif /* _H_FAMFS_LIB */
