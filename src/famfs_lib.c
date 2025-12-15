@@ -2683,10 +2683,21 @@ famfs_map_log_by_path(
 	return logp;
 }
 
-int
-famfs_fsck(
-	const char *path_input,
-	bool nodax,
+/**
+ * famfs_fsck_mounted()
+ *
+ * Fsck a mounted famfs file system by accessing the superblock and log
+ * via their respective files.
+ *
+ * @path       - any path within the mounted famfs file system
+ * @use_mmap   - if true, mmap the sb/log files; if false, read into buffers
+ * @human      - human readable output
+ * @nbuckets   - number of buckets for histogram
+ * @verbose
+ */
+static int
+famfs_fsck_mounted(
+	const char *path,
 	int use_mmap,
 	int human,
 	int nbuckets,
@@ -2694,19 +2705,169 @@ famfs_fsck(
 {
 	struct famfs_superblock *sb = NULL;
 	struct famfs_log *logp = NULL;
-	const char *path = path_input;
+	char *mpt = find_mount_point(path);
+	char backing_dev[PATH_MAX];
+	char shadow_path[PATH_MAX];
+	int famfs_type;
+	int rc;
+
+	famfs_type = file_is_famfs(path);
+
+	/* Print the "mounted file system" header */
+	printf("famfs fsck:\n");
+	printf("  mount point: %s\n", mpt);
+	printf("  mount type:  %s\n", famfs_mount_type(famfs_type));
+	if (famfs_type == FAMFS_FUSE) {
+		if (famfs_path_is_mount_pt(mpt, backing_dev, shadow_path)) {
+			printf("  backing dev: %s\n", backing_dev);
+			printf("  shadow path: %s\n", shadow_path);
+		}
+	}
+	printf("\n");
+	free(mpt);
+
+	if (use_mmap) {
+		/* mmap the sb and log from their files */
+		sb = famfs_map_superblock_by_path(path,
+						  true /* check sb */,
+						  1 /* read only */);
+		if (!sb) {
+			fprintf(stderr, "%s: failed to map superblock "
+				"from file %s\n", __func__, path);
+			return -1;
+		}
+
+		logp = famfs_map_log_by_path(path, 1 /* read only */,
+					     true /* check_log */,
+					     NO_LOCK);
+		if (!logp) {
+			fprintf(stderr,
+				"%s: failed to map log from file %s\n",
+				__func__, path);
+			munmap(sb, FAMFS_SUPERBLOCK_SIZE);
+			return -1;
+		}
+	} else {
+		/* XXX
+		 * The historical reasons for performing fsck by reading the
+		 * superblock and log into buffers and then scanning those
+		 * may have soon outlived their utility. Probably should drop
+		 * this at some point.
+		 */
+		int sfd;
+		int lfd;
+
+		sfd = open_superblock_file_read_only(path, NULL, NULL);
+		if (sfd < 0 || mock_failure == MOCK_FAIL_OPEN_SB) {
+			fprintf(stderr,
+				"%s: failed to open superblock file\n",
+				__func__);
+			return -1;
+		}
+
+		/* Read a copy of the superblock */
+		sb = calloc(1, FAMFS_SUPERBLOCK_SIZE);
+		assert(sb);
+
+		rc = famfs_file_read(sfd, (char *)sb,
+				     FAMFS_SUPERBLOCK_SIZE, __func__,
+				     "superblock file", verbose);
+		if (rc != 0 || mock_failure == MOCK_FAIL_READ_SB) {
+			free(sb);
+			close(sfd);
+			fprintf(stderr,
+				"%s: error %d reading superblock file\n",
+				__func__, errno);
+			return -errno;
+		}
+		close(sfd);
+
+		lfd = open_log_file_read_only(path, NULL, -1,
+					      NULL, NO_LOCK);
+		if (lfd < 0 || mock_failure == MOCK_FAIL_OPEN_LOG) {
+			free(sb);
+			fprintf(stderr,
+				"%s: failed to open log file\n",
+				__func__);
+			return -1;
+		}
+
+		logp = calloc(1, sb->ts_log_len);
+		assert(logp);
+
+		/* Read a copy of the log */
+		rc = famfs_file_read(lfd, (char *)logp, sb->ts_log_len,
+				     __func__, "log file", verbose);
+		if (rc != 0
+		    || mock_failure == MOCK_FAIL_READ_FULL_LOG
+		    || mock_failure == MOCK_FAIL_READ_LOG) {
+			close(lfd);
+			fprintf(stderr,
+				"%s: error %d reading log file\n",
+				__func__, errno);
+			free(sb);
+			free(logp);
+			return -1;
+		}
+		close(lfd);
+	}
+
+	if (famfs_check_super(sb, NULL, NULL)) {
+		fprintf(stderr, "%s: no valid famfs superblock on path %s\n",
+			__func__, path);
+		rc = -1;
+		goto out;
+	}
+
+	rc = famfs_fsck_scan(sb, logp, human, nbuckets, verbose);
+
+out:
+	if (use_mmap) {
+		if (logp)
+			munmap(logp, sb->ts_log_len);
+		if (sb)
+			munmap(sb, FAMFS_SUPERBLOCK_SIZE);
+	} else {
+		if (logp)
+			free(logp);
+		if (sb)
+			free(sb);
+	}
+	return rc;
+}
+
+/**
+ * famfs_fsck_mounted()
+ *
+ * Fsck a famfs file system. 
+ *
+ * @path       - This can be the daxdev
+ *               or any path within the mounted famfs file system
+ * @use_mmap   - if true, mmap the sb/log files; if false, read into buffers
+ * @human      - human readable output
+ * @nbuckets   - number of buckets for histogram
+ * @verbose
+ */
+int
+famfs_fsck(
+	const char *path,
+	bool nodax,
+	int use_mmap,
+	int human,
+	int nbuckets,
+	int verbose)
+{
+	enum famfs_daxdev_mode initial_daxmode;
+	struct famfs_superblock *sb = NULL;
+	struct famfs_log *logp = NULL;
+	bool daxmode_required = false;
 	char *dummy_mpt = NULL;
 	struct stat st;
-	int famfs_type;
-	size_t size;
 	int rc;
 
 	assert(path);
 	assert(strlen(path) > 1);
 
-	/* If "path_input" is a daxdev and we're in nodax mode, we'll do a
-	 * dummy mount, and jump back here with path=<dummy_mpt> */
-restart:
 	rc = stat(path, &st);
 	if (rc < 0) {
 		fprintf(stderr, "%s: failed to stat path %s (%s)\n",
@@ -2715,17 +2876,37 @@ restart:
 	}
 
 	/*
-	 * Lots of options here;
-	 * * If a dax device we'll fsck that - but only if the fs is
-	 *   not currently mounted.
-	 * * If any file path from the mount point on down in a mounted famfs
-	 *   file system is specified, we will find the superblock and log files
-	 *   and fsck the mounted file system.
+	 * If a dax device, fsck directly from the device (unless nodax).
+	 * If any file/dir path within a mounted famfs, fsck via the files.
 	 */
 	switch (st.st_mode & S_IFMT) {
+	case S_IFREG:
+	case S_IFDIR:
+		/* if path is a file or dir, do the mounted version of fsck */
+		return famfs_fsck_mounted(path, use_mmap,
+					  human, nbuckets, verbose);
+
 	case S_IFBLK: /* fallthrough (allow block/pmem)*/
 	case S_IFCHR: {
 		char *mpt;
+		
+		daxmode_required = famfs_daxmode_required();
+		initial_daxmode = famfs_get_daxdev_mode(path);
+		if (initial_daxmode == DAXDEV_MODE_UNKNOWN) {
+			fprintf(stderr, "%s: bad mode for daxdev %s\n",
+				__func__, path);
+			return -ENXIO;
+		}
+		if (daxmode_required) {
+			rc = famfs_set_daxdev_mode(path, DAXDEV_MODE_FAMFS);
+			if (rc) {
+				fprintf(stderr,
+					"%s: failed to set %s to famfs mode\n",
+					__func__, path);
+				return -ENODEV;
+			}
+		}
+
 		/* Check if there is a mounted famfs file system on this device;
 		 * fail if so - if mounted, have to fsck by mount pt
 		 * rather than by device
@@ -2739,9 +2920,12 @@ restart:
 			return -EBUSY;
 		}
 
-		if (nodax) {
-			/* path is a daxdev, but nodax means we should do a
-			 * dummy mount and fsck via the mount point */
+		if (nodax || daxmode_required) {
+			/* Path is a daxdev, but either
+			 * 1) nodax told us not to mmap it directly
+			 * 2) daxmode_required means it's a famfs-mode daxdev
+			 *    which can't be raw-mmapped
+			 */
 			rc = famfs_dummy_mount(path,
 					       0 /* figure out log size */,
 					       &dummy_mpt, 0, 0);
@@ -2751,166 +2935,45 @@ restart:
 					__func__, path);
 				return rc;
 			}
-			path = dummy_mpt;
-			goto restart;
+			rc = famfs_fsck_mounted(dummy_mpt, use_mmap,
+						human, nbuckets, verbose);
+			goto out_umount;
+		}
 
-		} else {
-			/* If it's a device, we'll try to mmap superblock and
-			 * log from the device */
-			rc = famfs_get_device_size(path, &size, 0);
-			if (rc < 0)
-				return -1;
-
-			rc = famfs_mmap_superblock_and_log_raw(path, &sb, &logp,
+		/* mmap superblock and log directly from the device */
+		rc = famfs_mmap_superblock_and_log_raw(path, &sb, &logp,
 						       0 /* return log size */,
 						       1 /* read-only */);
-			if (rc)
-				return rc;
+		if (rc)
+			return rc;
+
+		if (famfs_check_super(sb, NULL, NULL)) {
+			fprintf(stderr,
+				"%s: no valid famfs superblock on device %s\n",
+				__func__, path);
+			rc = -1;
+			goto out_unmap;
 		}
 
-		break;
+		rc = famfs_fsck_scan(sb, logp, human, nbuckets, verbose);
+
+out_unmap:
+		if (logp)
+			munmap(logp, sb->ts_log_len);
+		if (sb)
+			munmap(sb, FAMFS_SUPERBLOCK_SIZE);
+		return rc;
 	}
-	case S_IFREG:
-	case S_IFDIR: {
-		char *mpt = find_mount_point(path);
-		char backing_dev[PATH_MAX];
-		char shadow_path[PATH_MAX];
-		famfs_type = file_is_famfs(path);
-
-		/*
-		 * More options: default is to read the superblock and log into
-		 * local buffers (which is useful to spot check that posix read
-		 * is not broken). But if the use_mmap open is provided, we will
-		 * mmap the superblock and logs files rather than reading them
-		 * into a local buffer.
-		 */
-
-		/* Print the "mounted file system" header */
-		printf("famfs fsck:\n");
-		printf("  mount point: %s\n", mpt);
-		printf("  mount type:  %s\n", famfs_mount_type(famfs_type));
-		if (famfs_type == FAMFS_FUSE) {
-			if (famfs_path_is_mount_pt(mpt, backing_dev,
-						   shadow_path)) {
-				printf("  backing dev: %s\n", backing_dev);
-				printf("  shadow path: %s\n", shadow_path);
-			}
-		}
-		printf("\n");
-		free(mpt);
-
-		if (use_mmap) {
-			/* If it's a file or directory, we'll try to mmap the sb
-			 * and log from their files
-			 *
-			 * Note that this tends to fail
-			 */
-			sb =   famfs_map_superblock_by_path(path,
-							    true /* check sb */,
-							    1 /* read only */);
-			if (!sb) {
-				fprintf(stderr, "%s: failed to map superblock "
-					"from file %s\n",
-					__func__, path);
-				return -1;
-			}
-
-			logp = famfs_map_log_by_path(path, 1 /* read only */,
-						     true /* check_log */,
-						     NO_LOCK);
-			if (!logp) {
-				fprintf(stderr,
-					"%s: failed to map log from file %s\n",
-					__func__, path);
-				return -1;
-			}
-			break;
-		} else {
-			int sfd;
-			int lfd;
-
-			sfd = open_superblock_file_read_only(path, NULL, NULL);
-			if (sfd < 0 || mock_failure == MOCK_FAIL_OPEN_SB) {
-				fprintf(stderr,
-					"%s: failed to open superblock file\n",
-					__func__);
-				return -1;
-			}
-
-			sb = calloc(1, FAMFS_SUPERBLOCK_SIZE);
-			assert(sb);
-
-			rc = famfs_file_read(sfd, (char *)sb,
-					     FAMFS_SUPERBLOCK_SIZE, __func__,
-					     "superblock file", verbose);
-			if (rc != 0 || mock_failure == MOCK_FAIL_READ_SB) {
-				free(sb);
-				close(sfd);
-				fprintf(stderr,
-					"%s: error %d reading superblock file\n",
-					__func__, errno);
-				return -errno;
-			}
-			close(sfd);
-
-			lfd = open_log_file_read_only(path, NULL, -1,
-						      NULL, NO_LOCK);
-			if (lfd < 0 || mock_failure == MOCK_FAIL_OPEN_LOG) {
-				free(sb);
-				close(sfd);
-				fprintf(stderr,
-					"%s: failed to open log file\n",
-					__func__);
-				return -1;
-			}
-
-			logp = calloc(1, sb->ts_log_len);
-			assert(logp);
-
-			/* Read a copy of the log */
-			rc = famfs_file_read(lfd, (char *)logp, sb->ts_log_len,
-					     __func__,
-					     "log file", verbose);
-			if (rc != 0
-			    || mock_failure == MOCK_FAIL_READ_FULL_LOG
-			    || mock_failure == MOCK_FAIL_READ_LOG) {
-				close(lfd);
-				rc = -1;
-				fprintf(stderr,
-					"%s: error %d reading log file\n",
-					__func__, errno);
-				goto err_out;
-			}
-			close(lfd);
-		}
-	}
-		break;
 
 	default:
 		fprintf(stderr, "invalid path or dax device: %s\n", path);
 		return -EINVAL;
 	}
 
-	if (famfs_check_super(sb, NULL, NULL)) {
-		fprintf(stderr, "%s: no valid famfs superblock on device %s\n",
-			__func__, path);
-		return -1;
-	}
-	rc = famfs_fsck_scan(sb, logp, human, nbuckets, verbose);
-err_out:
-	if (use_mmap) {
-		if (logp)
-			munmap(logp, sb->ts_log_len);
-		if (sb)
-			munmap(sb, FAMFS_SUPERBLOCK_SIZE);
-	} else {
-		if (sb)
-			free(sb);
-		if (logp)
-			free(logp);
-	}
+out_umount:
 	if (dummy_mpt) {
 		int umountrc = umount(dummy_mpt);
+
 		if (umountrc) {
 			fprintf(stderr,
 				"%s: %d umount failed for %s (rc=%d errno=%d)\n",
@@ -2918,6 +2981,17 @@ err_out:
 		} else {
 			printf("%s: umount successful for %s\n",
 			       __func__, dummy_mpt);
+		}
+	}
+	if (daxmode_required && initial_daxmode != DAXDEV_MODE_FAMFS) {
+		int xrc;
+
+		xrc = famfs_set_daxdev_mode(path, initial_daxmode);
+		if (xrc) {
+			fprintf(stderr,
+				"%s: failed to reset %s to original mode\n",
+				__func__, path);
+			return -ENODEV;
 		}
 	}
 	return rc;
