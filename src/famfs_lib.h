@@ -119,6 +119,7 @@ void famfs_dump_super(struct famfs_superblock *sb);
 int famfs_get_system_uuid(uuid_le *uuid_out);
 void famfs_print_uuid(const uuid_le *uuid);
 enum famfs_type famfs_get_kernel_type(int verbose);
+bool famfs_daxmode_required(void);
 void free_string_list(char **strings, int nstrings);
 char **tokenize_string(const char *input, const char *delimiter, int *out_count);
 void famfs_thpool_destroy(threadpool thp, useconds_t usec);

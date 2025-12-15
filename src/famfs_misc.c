@@ -35,6 +35,7 @@
 #include <setjmp.h>
 #include <signal.h>
 #include <stdint.h>
+#include <sys/utsname.h>
 
 #include <linux/famfs_ioctl.h>
 
@@ -417,6 +418,49 @@ famfs_get_kernel_type(int verbose)
 			__func__);
 
 	return NOT_FAMFS;
+}
+
+/**
+ * famfs_get_kernel_version() - Get the running kernel's major and minor version
+ * @major: Output pointer for major version number
+ * @minor: Output pointer for minor version number
+ *
+ * Returns 0 on success, -1 on failure.
+ */
+static int famfs_get_kernel_version(int *major, int *minor)
+{
+	struct utsname uts;
+
+	if (uname(&uts) < 0)
+		return -1;
+
+	if (sscanf(uts.release, "%d.%d", major, minor) != 2)
+		return -1;
+
+	return 0;
+}
+
+/**
+ * famfs_daxmode_required() - Check if kernel requires explicit dax mode setting
+ *
+ * Starting with kernel 6.15, famfs requires explicit binding to the fsdev_dax
+ * driver instead of device_dax.
+ *
+ * Returns true if kernel version >= 6.15, false otherwise.
+ */
+bool famfs_daxmode_required(void)
+{
+	int major, minor;
+
+	if (famfs_get_kernel_version(&major, &minor) < 0)
+		return false; /* On error, assume not required */
+
+	if (major > 6)
+		return true;
+	if (major == 6 && minor >= 15)
+		return true;
+
+	return false;
 }
 
 /**
