@@ -119,12 +119,7 @@ main(int argc, char *argv[])
 	famfs_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
 	famfs_log(FAMFS_LOG_NOTICE, "Starting famfs mkfs on device %s", daxdev);
 
-	if (!nodax)
-		rc = famfs_mkfs(daxdev, loglen, kill_super, force);
-	else
-		rc = famfs_mkfs_via_dummy_mount(daxdev, loglen,
-						kill_super, force);
-
+	rc = famfs_mkfs(daxdev, loglen, kill_super, nodax, force);
 	if (rc == 0)
 		famfs_log(FAMFS_LOG_NOTICE,
 			  "mkfs %s command successful on device %s",

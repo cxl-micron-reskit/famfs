@@ -2744,7 +2744,7 @@ restart:
 			 * dummy mount and fsck via the mount point */
 			rc = famfs_dummy_mount(path,
 					       0 /* figure out log size */,
-					       &dummy_mpt, 1, 1);
+					       &dummy_mpt, 0, 0);
 			if (rc) {
 				fprintf(stderr,
 					"%s: dummy mount failed for %s\n",
@@ -5287,7 +5287,8 @@ static bool famfs_mkfs_allowed(
 	return true;
 }
 
-int famfs_mkfs_via_dummy_mount(
+static int
+famfs_mkfs_via_dummy_mount(
 	const char *daxdev,
 	u64         log_len,
 	int         kill,
@@ -5314,7 +5315,7 @@ int famfs_mkfs_via_dummy_mount(
 		return -EINVAL;
 	}
 
-	rc = famfs_dummy_mount(daxdev, log_len, &mpt_out, 1, 1);
+	rc = famfs_dummy_mount(daxdev, log_len, &mpt_out, 0, 0);
 	if (rc) {
 		fprintf(stderr, "%s: dummy mount failed for %s\n",
 			__func__, daxdev);
@@ -5407,17 +5408,16 @@ out_umount:
 		fprintf(stderr,
 			"%s: %d umount failed for %s (rc=%d errno=%d)\n",
 			__func__, getpid(), mpt_out, umountrc, errno);
-	} else {
-		printf("%s: umount successful for %s\n", __func__, mpt_out);
 	}
 	return rc;
 }
 
 int
-famfs_mkfs(const char *daxdev,
-	   u64         log_len,
-	   int         kill,
-	   int         force)
+famfs_mkfs_rawdev(
+	const char *daxdev,
+	u64         log_len,
+	int         kill,
+	int         force)
 {
 	struct famfs_superblock *sb;
 	enum famfs_system_role role;
@@ -5477,6 +5477,50 @@ famfs_mkfs(const char *daxdev,
 			fprintf(stderr, "%s: failed to unmap log\n",
 				__func__);
 	}
+	return rc;
+}
+
+int
+famfs_mkfs(
+	const char *daxdev,
+	u64         log_len,
+	int         kill,
+	bool        nodax_in,
+	int         force)
+{
+	bool daxmode_required = famfs_daxmode_required();
+	bool no_raw_dax = nodax_in || daxmode_required;;
+	enum famfs_daxdev_mode initial_daxmode;
+	int rc;
+
+	initial_daxmode = famfs_get_daxdev_mode(daxdev);
+	if (initial_daxmode == DAXDEV_MODE_UNKNOWN) {
+		fprintf(stderr, "%s: bad mode for daxdev %s\n",
+			__func__, daxdev);
+		return -ENXIO;
+	}
+
+	if (daxmode_required) {
+		rc = famfs_set_daxdev_mode(daxdev, DAXDEV_MODE_FAMFS);
+		if (rc) {
+			fprintf(stderr, "%s: failed to set %s to famfs mode\n",
+				__func__, daxdev);
+			return -ENODEV;
+		}
+	}
+
+	if (no_raw_dax)
+		rc = famfs_mkfs_via_dummy_mount(daxdev, log_len, kill, force);
+	else
+		rc = famfs_mkfs_rawdev(daxdev, log_len, kill, force);
+
+
+	/* If we changed the daxmode, and we did NOT mkfs successfully,
+	 * put the daxdev back the way we found it
+	 */
+	if (rc && initial_daxmode != DAXDEV_MODE_FAMFS)
+		famfs_set_daxdev_mode(daxdev, initial_daxmode);
+
 	return rc;
 }
 

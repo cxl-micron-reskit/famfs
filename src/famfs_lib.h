@@ -100,9 +100,7 @@ int famfs_clone(const char *srcfile, const char *destfile);
 
 int famfs_mkdir(const char *dirpath, mode_t mode, uid_t uid, gid_t gid, int verbose);
 int famfs_mkdir_parents(const char *dirpath, mode_t mode, uid_t uid, gid_t gid, int verbose);
-int famfs_mkfs(const char *daxdev, u64 log_len, int kill, int force);
-int famfs_mkfs_via_dummy_mount(const char *daxdev, u64 log_len, int kill,
-			       int force);
+int famfs_mkfs(const char *daxdev, u64 log_len, int kill, bool nodax, int force);
 int famfs_check(const char *path, int verbose);
 
 int famfs_flush_file(const char *filename, int verbose);
