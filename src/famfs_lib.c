@@ -85,6 +85,8 @@ static int open_superblock_file_read_only(const char *path, size_t  *sizep,
 					  char *mpt_out);
 static char *famfs_relpath_from_fullpath(const char *mpt, char *fullpath);
 static void famfs_kill_superblock(struct famfs_superblock *sb);
+static struct famfs_log *famfs_map_log_by_path(
+	const char *path, int read_only, bool check_log, enum lock_opt lockopt);
 
 /* famfs v2 stuff (dual standalone / fuse) */
 
@@ -1914,6 +1916,35 @@ bad_log_fmap:
 }
 
 /**
+ * path_is_writable_dir()
+ *
+ * Check if a path is a writable directory.
+ *
+ * @path: Path to check
+ *
+ * Returns 0 if the path is a writable directory, or a negative error code.
+ */
+static int
+path_is_writable_dir(const char *path)
+{
+	struct stat st;
+
+	if (!path)
+		return -EINVAL;
+
+	if (stat(path, &st) < 0)
+		return -ENOENT;
+
+	if (!S_ISDIR(st.st_mode))
+		return -ENOTDIR;
+
+	if (access(path, W_OK) < 0)
+		return -EACCES;
+
+	return 0;
+}
+
+/**
  * famfs_dax_shadow_logplay()
  *
  * Play the log into a shadow famfs file system directly from a daxdev
@@ -1938,9 +1969,15 @@ famfs_dax_shadow_logplay(
 	int           testmode,
 	int           verbose)
 {
+	bool daxmode_required = famfs_daxmode_required();
+	enum famfs_daxdev_mode initial_daxmode;
+	struct famfs_log *logp = NULL;
 	enum famfs_system_role role;
 	struct famfs_superblock *sb;
-	struct famfs_log *logp;
+	char *realdaxdev = NULL;
+	char *mpt_out = NULL;
+	size_t log_size;
+	int fd = 0;
 	int rc;
 
 	assert(testmode == 0 || testmode == 1);
@@ -1950,19 +1987,102 @@ famfs_dax_shadow_logplay(
 		return -EINVAL;
 	}
 
-	rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &logp, 0,
-					       1 /* read-only */);
+	rc = path_is_writable_dir(shadowpath);
 	if (rc) {
-		fprintf(stderr, "%s: failed to map superblock and log from %s\n",
-			__func__, daxdev);
+		fprintf(stderr,
+			"%s: shadowpath %s is not a writable directory\n",
+			__func__, shadowpath);
 		return rc;
 	}
-	role = (client_mode) ? FAMFS_CLIENT : famfs_get_role(sb);
 
+	/* Calling famfs_get_daxdev_mode() gets the mode, but also is a great
+	 * test as to whether the daxdev is actually a daxdev - so dot it
+	 * before we try to access the daxdev
+	 */
+	initial_daxmode = famfs_get_daxdev_mode(daxdev);
+	if (initial_daxmode == DAXDEV_MODE_UNKNOWN) {
+		fprintf(stderr, "%s: bad mode for daxdev %s\n",
+			__func__, daxdev);
+		return -ENXIO;
+	}
+
+	if (!daxmode_required) {
+		/* Access the device via raw dax */
+		rc = famfs_mmap_superblock_and_log_raw(daxdev, &sb, &logp, 0,
+						       1 /* read-only */);
+		if (rc) {
+			fprintf(stderr,
+				"%s: failed to map superblock and log from %s\n",
+				__func__, daxdev);
+			return rc;
+		}
+		role = (client_mode) ? FAMFS_CLIENT : famfs_get_role(sb);
+
+		rc = __famfs_logplay(shadowpath, logp, dry_run,
+				     1 /* shadow mode */,
+				     1 + testmode /* shadow */,
+				     role, verbose);
+		return rc;
+	}
+
+	/* daxmode_required implies that raw dax access doesn't work;
+	 * Do a dummy mount for access
+	 */
+	rc = famfs_set_daxdev_mode(daxdev, DAXDEV_MODE_FAMFS);
+	if (rc) {
+		fprintf(stderr, "%s: failed to set %s to famfs mode\n",
+			__func__, daxdev);
+		return -ENODEV;
+	}
+
+	realdaxdev = realpath(daxdev, NULL);
+	rc = famfs_dummy_mount(realdaxdev,
+			       0 /* figure out log size */,
+			       &mpt_out,
+			       0, verbose);
+	if (rc) {
+                fprintf(stderr, "%s: Dummy mount failed\n", __func__);
+		rc = -1;
+		goto out_umount;
+	}
+
+	fd = open_log_file_read_only(mpt_out, &log_size, -1, NULL, NO_LOCK);
+	if (fd < 0) {
+		fprintf(stderr,
+			"%s: failed to open log file for filesystem %s\n",
+			__func__, mpt_out);
+		rc = -1;
+		goto out_umount;
+	}
+	logp = famfs_map_log_by_path(mpt_out, 1 /* read only */,
+				     true /* check the log */,
+				     NO_LOCK);
+	if (!logp) {
+		fprintf(stderr, "%s: failed to mmap log via %s\n",
+			__func__, mpt_out);
+		rc = -ENODEV;
+		goto out_umount;
+	}
 	rc = __famfs_logplay(shadowpath, logp, dry_run,
 			     1 /* shadow mode */,
 			     1 + testmode /* shadow */,
-			     role, verbose);
+			     FAMFS_MASTER, verbose);
+
+out_umount:
+	if (fd > 0)
+		close(fd);
+	if (logp)
+		munmap(logp, log_size);
+	if (mpt_out) {
+		int umountrc = umount(mpt_out);
+		if (umountrc) {
+			fprintf(stderr,
+				"%s: %d umount failed for %s (rc=%d errno=%d)\n",
+				__func__, getpid(), mpt_out, umountrc, errno);
+		}
+
+		free(mpt_out);
+	}
 	return rc;
 }
 
@@ -2006,6 +2126,16 @@ famfs_logplay(
 	size_t sb_size;
 	int lfd, sfd;
 	int rc;
+
+	if (shadowpath) {
+		rc = path_is_writable_dir(shadowpath);
+		if (rc) {
+			fprintf(stderr,
+				"%s: shadowpath %s is not a writable dir\n",
+				__func__, shadowpath);
+			return rc;
+		}
+	}
 
 	/* Open log from meta file */
 	lfd = open_log_file_read_only(fspath, &log_size, -1, mpt_out, NO_LOCK);
