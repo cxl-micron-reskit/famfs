@@ -426,6 +426,21 @@ verify_not_mounted () {
     echo ":= verify_not_mounted: good on $DEV $MPT"
 }
 
+verify_dev_not_mounted () {
+    local DEV=$1
+    local MSG=$2
+    local mounted_at
+
+    echo ":= verify_dev_not_mounted: $DEV"
+
+    mounted_at=$(findmnt -rn -S "$DEV" -o TARGET 2>/dev/null || true)
+    if [[ -n "$mounted_at" ]]; then
+        fail "verify_dev_not_mounted: $DEV is mounted at $mounted_at: $MSG"
+    fi
+
+    echo ":= verify_dev_not_mounted: good on $DEV"
+}
+
 # famfs_mount_alive <mountpoint>
 #
 # Returns:

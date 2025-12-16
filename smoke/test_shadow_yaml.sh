@@ -38,31 +38,41 @@ expect_fail "${CLI[@]}" logplay --shadow -d /dev/bogodax -- \
 
 expect_fail "${CLI[@]}" logplay --shadow "$SHADOWPATH/frob" --daxdev "$DEV" -vv -- \
     "shadow logplay to nonexistent shadow dir should fail if parent doesn't exist"
-
+verify_dev_not_mounted $DEV "$DEV mounted after failed dax logplay"
 expect_fail "${CLI[@]}" logplay --daxdev "$DEV" "$SHADOWPATH" -vv -- \
     "logplay should fail if --daxdev is set without --shadow"
+verify_dev_not_mounted $DEV "$DEV mounted after failed dax logplay 2"
+
+echo "next:" "${CLI[@]}" logplay --shadow /etc/passwd --daxdev "$DEV" -vv
 
 expect_fail "${CLI[@]}" logplay --shadow /etc/passwd --daxdev "$DEV" -vv -- \
     "shadow logplay to regular file should fail"
+verify_dev_not_mounted $DEV "$DEV mounted after failed dax logplay 3"
 
 # valid shadow dir
 sudo rm -rf "$SHADOWPATH"
 sudo mkdir -p "$SHADOWPATH"
+df -hT
 expect_good "${CLI[@]}" logplay --shadow "$SHADOWPATH" --daxdev "$DEV" -vv -- \
-    "shadow logplay to existing shadow dir should succeed"
+	    "shadow logplay to existing shadow dir should succeed"
+verify_dev_not_mounted $DEV "$DEV mounted after successful dax logplay"
+
 expect_good "${CLI[@]}" logplay --shadow "$SHADOWPATH" --daxdev "$DEV" -vv -- \
     "redo shadow logplay should succeed"
+verify_dev_not_mounted $DEV "$DEV mounted after successful dax logplay 2"
 
 # shadowtest → re-parse YAML
 sudo rm -rf "$SHADOWPATH"/*
 expect_good "${CLI[@]}" logplay --shadow "$SHADOWPATH" --shadowtest --daxdev "$DEV" -vv -- \
     "shadow logplay with yaml test should succeed"
+verify_dev_not_mounted $DEV "$DEV mounted after successful dax logplay 3"
 
 # shadow logplay without permissions
 sudo rm -rf /tmp/famfs2
 sudo mkdir /tmp/famfs2
 expect_fail "${CLI_NOSUDO[@]}" logplay --shadow /tmp/famfs2 --daxdev "$DEV" -vv -- \
     "shadow logplay to non-writable shadow dir should fail"
+verify_dev_not_mounted $DEV "$DEV mounted after failed dax logplay 4"
 sudo rm -rf /tmp/famfs2
 
 # Remount famfs after shadow tests
@@ -84,8 +94,13 @@ FUSE_MPT="/tmp/famfs_fuse"
 sudo rm -rf "$FUSE_SHADOW"
 mkdir -p "$FUSE_SHADOW" "$FUSE_MPT"
 
-expect_good "${CLI[@]}" logplay --shadow "$FUSE_SHADOW" --daxdev "$DEV" -vv -- \
-    "shadow logplay to $FUSE_SHADOW should succeed"
+
+#
+# This dax logplay is super squirrely; on older famfs it will succeed even
+# though DEV is mounted; on 6.18+ famfs, it will fail. Keeping the test but
+# changing to stop_on_crash
+stop_on_crash "${CLI[@]}" logplay --shadow "$FUSE_SHADOW" --daxdev "$DEV" -vv \
+	      -- "shadow logplay to $FUSE_SHADOW should succeed"
 
 expect_good "${FAMFS_FUSED[@]}" --help    -- "famfs_fused --help should succeed"
 expect_good "${FAMFS_FUSED[@]}" --version -- "famfs_fused --version should succeed"
