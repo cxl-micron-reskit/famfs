@@ -523,7 +523,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	if (rc) {
 		fprintf(stderr,
 			"famfs mount: err %d from mkmeta; unmounting\n", rc);
-		umount(realmpt);
+		famfs_umount(realmpt);
 		goto err_out;
 	}
 	/*

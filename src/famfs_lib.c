@@ -2074,11 +2074,12 @@ out_umount:
 	if (logp)
 		munmap(logp, log_size);
 	if (mpt_out) {
-		int umountrc = umount(mpt_out);
+		int umountrc = famfs_umount(mpt_out);
+
 		if (umountrc) {
 			fprintf(stderr,
-				"%s: %d umount failed for %s (rc=%d errno=%d)\n",
-				__func__, getpid(), mpt_out, umountrc, errno);
+				"%s: %d umount failed for %s (errno=%d)\n",
+				__func__, getpid(), mpt_out, errno);
 		}
 
 		free(mpt_out);
@@ -3102,12 +3103,12 @@ out_unmap:
 
 out_umount:
 	if (dummy_mpt) {
-		int umountrc = umount(dummy_mpt);
+		int umountrc = famfs_umount(dummy_mpt);
 
 		if (umountrc) {
 			fprintf(stderr,
-				"%s: %d umount failed for %s (rc=%d errno=%d)\n",
-				__func__, getpid(), dummy_mpt, umountrc, errno);
+				"%s: %d umount failed for %s (errno=%d)\n",
+				__func__, getpid(), dummy_mpt, errno);
 		} else {
 			printf("%s: umount successful for %s\n",
 			       __func__, dummy_mpt);
@@ -5607,11 +5608,11 @@ out_umount:
 				__func__);
 	}
 
-	umountrc = umount(mpt_out);
+	umountrc = famfs_umount(mpt_out);
 	if (umountrc) {
 		fprintf(stderr,
-			"%s: %d umount failed for %s (rc=%d errno=%d)\n",
-			__func__, getpid(), mpt_out, umountrc, errno);
+			"%s: %d umount failed for %s (errno=%d)\n",
+			__func__, getpid(), mpt_out, errno);
 	}
 	return rc;
 }

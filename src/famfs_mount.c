@@ -662,6 +662,43 @@ gen_dummy_mpt(void)
 }
 
 /**
+ * famfs_umount() - unmount with retry on EBUSY
+ *
+ * @mpt: mount point to unmount
+ *
+ * Retries umount up to 5 times with increasing delays if EBUSY is returned.
+ *
+ * Returns 0 on success, -1 on failure (errno is preserved from last attempt)
+ */
+int
+famfs_umount(const char *mpt)
+{
+	int max_retries = 10;
+	int delay_ms = 100;
+	int rc;
+	int i;
+
+	for (i = 0; i < max_retries; i++) {
+		rc = umount(mpt);
+		if (rc == 0)
+			return 0;
+
+		if (errno != EBUSY)
+			return -1;
+
+		printf("%s: retry %d\n", __func__, i + 1);
+		/* EBUSY - wait and retry */
+		if (i < max_retries - 1) {
+			usleep(delay_ms * 1000);
+			delay_ms *= 2; /* exponential backoff */
+		}
+	}
+
+	/* All retries exhausted */
+	return -1;
+}
+
+/**
  * famfs_mount_fuse() - mount a famfs file system via fuse
  *
  * @realdaxdev
@@ -925,11 +962,11 @@ out:
 	}
 	if (rc && mounted) {
 		fprintf(stderr, "%s: unmounting due to error\n", __func__);
-		umountrc = umount(realmpt);
+		umountrc = famfs_umount(realmpt);
 		if (umountrc) {
 			fprintf(stderr,
-				"%s: umount failed for %s (rc=%d errno=%d)\n",
-				__func__, realmpt, umountrc, errno);
+				"%s: umount failed for %s (errno=%d)\n",
+				__func__, realmpt, errno);
 			/* Expected by smoke tests in this instance */
 			rc = 99;
 		}
