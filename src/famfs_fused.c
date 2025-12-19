@@ -1310,20 +1310,6 @@ famfs_release(
 }
 
 static void
-famfs_flush(
-	fuse_req_t req,
-	fuse_ino_t nodeid,
-	struct fuse_file_info *fi)
-{
-	(void) nodeid;
-	(void) fi;
-
-	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
-
-	fuse_reply_err(req, 0);
-}
-
-static void
 famfs_fsync(
 	fuse_req_t req,
 	fuse_ino_t nodeid,
@@ -1544,7 +1530,7 @@ static const struct fuse_lowlevel_ops famfs_oper = {
 	.open		= famfs_open,
 	.read		= famfs_read,
 	/* .write */
-	.flush		= famfs_flush,
+	/* .flush */
 	.release	= famfs_release,
 	.fsync		= famfs_fsync,
 	.opendir	= famfs_opendir,
