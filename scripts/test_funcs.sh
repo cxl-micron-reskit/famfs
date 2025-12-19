@@ -583,7 +583,8 @@ famfs_recreate() {
 }
 
 famfs_fuse_supported() {
-    grep -c fuse_file_famfs /proc/kallsyms
+    # this function can't be optimized out because it's an iomap operation
+    grep -c famfs_fuse_iomap_begin /proc/kallsyms
 }
 
 famfs_v1_supported() {
