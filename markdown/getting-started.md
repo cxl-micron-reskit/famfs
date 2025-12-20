@@ -52,6 +52,7 @@ sudo dnf install -y systemd-devel
 sudo dnf install -y meson
 sudo dnf install -y libyaml-devel
 sudo dnf install -y daxctl-devel
+sudo dnf install -y libasan-static libubsan-static  # for sanitize builds
 ```
 Pay attention to error messages when you build, new dependencies may arise later, and
 different kernel installations may have different missing dependencies.
