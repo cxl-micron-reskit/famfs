@@ -119,3 +119,34 @@ CLI_NOSUDO=( "${VG[@]}" "$BIN/famfs" )
 FSCK=(  "sudo" "${VG[@]}" "$BIN/famfs" "fsck" "${FSCK_OPTS[@]}" )
 
 # RAW_MOUNT_OPTS, CREAT, VERIFY, CP remain as defined
+
+# ---------------------------------------------------------------------
+# Pre-flight check for kernel >= 6.15 (requires fsdev_dax driver)
+# ---------------------------------------------------------------------
+KERNEL_VERSION=$(uname -r)
+KERNEL_MAJOR=$(echo "$KERNEL_VERSION" | cut -d. -f1)
+KERNEL_MINOR=$(echo "$KERNEL_VERSION" | cut -d. -f2)
+
+if [[ "$KERNEL_MAJOR" -gt 6 ]] || [[ "$KERNEL_MAJOR" -eq 6 && "$KERNEL_MINOR" -ge 15 ]]; then
+    # Kernel >= 6.15 requires fsdev_dax driver for FUSE DAX passthrough
+    if [[ ! -d /sys/bus/dax/drivers/fsdev_dax ]]; then
+        echo "ERROR: Kernel $KERNEL_VERSION requires fsdev_dax driver but it's not loaded"
+        echo "       Try: sudo modprobe fsdev_dax"
+        return 1 2>/dev/null || exit 1
+    fi
+
+    # Check that we can switch drivers (requires sudo)
+    DEV_BASENAME=$(basename "$DEV")
+    if [[ -e "/sys/bus/dax/devices/$DEV_BASENAME/driver" ]]; then
+        CURRENT_DRIVER=$(basename "$(readlink /sys/bus/dax/devices/$DEV_BASENAME/driver)")
+        if [[ "$CURRENT_DRIVER" == "device_dax" ]]; then
+            # Test if we can write to unbind (need sudo)
+            if ! sudo test -w /sys/bus/dax/drivers/device_dax/unbind 2>/dev/null; then
+                echo "ERROR: Kernel $KERNEL_VERSION requires driver switching but sudo access to sysfs failed"
+                echo "       Ensure passwordless sudo is configured correctly"
+                return 1 2>/dev/null || exit 1
+            fi
+        fi
+    fi
+    echo "Pre-flight: Kernel $KERNEL_VERSION with fsdev_dax driver - OK"
+fi

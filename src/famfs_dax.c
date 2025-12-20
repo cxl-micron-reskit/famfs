@@ -167,6 +167,10 @@ int famfs_set_daxdev_mode(const char *daxdev, enum famfs_daxdev_mode mode)
 		rc = -errno;
 		fprintf(stderr, "%s: failed to open %s: %s\n",
 			__func__, unbind_path, strerror(errno));
+		if (errno == EACCES || errno == EPERM)
+			fprintf(stderr,
+				"%s: switching dax drivers requires root; try running with sudo\n",
+				__func__);
 		goto out;
 	}
 	if (fprintf(fp, "%s", devbasename) < 0) {
@@ -194,6 +198,19 @@ int famfs_set_daxdev_mode(const char *daxdev, enum famfs_daxdev_mode mode)
 		goto out;
 	}
 	fclose(fp);
+
+	/* Verify the mode actually changed */
+	current_mode = famfs_get_daxdev_mode(daxdev);
+	if (current_mode != mode) {
+		fprintf(stderr,
+			"%s: driver switch failed; expected %s but got %s\n",
+			__func__,
+			(mode == DAXDEV_MODE_FAMFS) ? "fsdev_dax" : "device_dax",
+			(current_mode == DAXDEV_MODE_FAMFS) ? "fsdev_dax" :
+			(current_mode == DAXDEV_MODE_DEVICE_DAX) ? "device_dax" :
+			"unknown");
+		rc = -EIO;
+	}
 
 out:
 	free(devname_copy);
