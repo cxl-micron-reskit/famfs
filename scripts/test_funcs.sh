@@ -571,7 +571,9 @@ famfs_recreate() {
     # destroy famfs file system, if any
     "${MKFS[@]}" /tmp/nonexistent && fail "famfs_recreate: mkfs on nonexistent dev should fail ($MSG)"
     "${MKFS[@]}" -f -k "$DEV"      || fail "famfs_recreate: mkfs/kill should succeed with --force ($MSG)"
+    verify_dev_not_mounted "$DEV" "famfs_recreate: dummy mount after mkfs/kill ($MSG)"
     "${MKFS[@]}" "$DEV"            || fail "famfs_recreate: mkfs ($MSG)"
+    verify_dev_not_mounted "$DEV" "famfs_recreate: dummy mount after mkfs ($MSG)"
 
     if [[ "$FAMFS_MODE" == "v1" ]]; then
         sudo modprobe "${FAMFS_MOD}" || fail "famfs_recreate: modprobe ($MSG)"

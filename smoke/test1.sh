@@ -18,6 +18,7 @@ verify_not_mounted "$DEV" "$MPT" "test1.sh"
 
 expect_fail "${FSCK[@]}" "$MPT" -- "fsck by path should fail when not mounted"
 expect_good "${FSCK[@]}" "$DEV" -- "fsck by dev should succeed when not mounted"
+verify_dev_not_mounted "$DEV" "$DEV lingering dummy mount after unmounted fsck"
 
 expect_good "${MOUNT[@]}" "$DEV" "$MPT" -- "mount should succeed test1 1"
 

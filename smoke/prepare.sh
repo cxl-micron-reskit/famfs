@@ -36,11 +36,15 @@ expect_fail "${MKFS[@]}" /tmp/nonexistent -- "mkfs on nonexistent dev should fai
 
 # If no filesystem is present, create one — ensure we do NOT crash
 stop_on_crash "${MKFS[@]}" "$DEV" -- "Safety mkfs"
-
+verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs?"
 expect_fail "${MKFS[@]}" -k "$DEV"       -- "mkfs/kill should fail without --force"
+verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (2)"
 expect_good "${MKFS[@]}" -f -k "$DEV"    -- "mkfs/kill should succeed with --force"
+verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (3)"
 expect_good "${MKFS[@]}" "$DEV"          -- "mkfs"
+verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (4)"
 expect_good "${MKFS[@]}" -f "$DEV"       -- "redo mkfs with -f should succeed"
+verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (5)"
 
 #
 # loglen sanity tests
@@ -48,19 +52,24 @@ expect_good "${MKFS[@]}" -f "$DEV"       -- "redo mkfs with -f should succeed"
 expect_fail "${MKFS[@]}" -f --loglen 1 "$DEV" -- "mkfs with loglen 1 should fail"
 LOG_LEN=$(expect_good "${FSCK[@]}" -v "$DEV" | grep "log_len" | awk '{print $2}')
 assert_equal "$LOG_LEN" "8388608" "Log size should not change after mkfs with bogus loglen"
+verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (6)"
 
 expect_fail "${MKFS[@]}" -f --loglen 11m "$DEV" -- "mkfs with loglen 11m should fail"
 LOG_LEN=$(expect_good "${FSCK[@]}" -v "$DEV" | grep "log_len" | awk '{print $2}')
 assert_equal "$LOG_LEN" "8388608" "Log size should not change after mkfs with bogus loglen 2"
+verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (7)"
+
 
 # Valid log length
 expect_good "${MKFS[@]}" -f --loglen 256m "$DEV" -- "mkfs should work with 256m log"
 LOG_LEN=$(expect_good "${FSCK[@]}" -v "$DEV" | grep "log_len" | awk '{print $2}')
 assert_equal "$LOG_LEN" "268435456" "Log should be 256M"
+verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (8)"
 
 expect_fail "${MKFS[@]}" "$DEV" -- "redo mkfs without -f should fail"
 LOG_LEN=$(expect_good "${FSCK[@]}" -v "$DEV" | grep "log_len" | awk '{print $2}')
 assert_equal "$LOG_LEN" "268435456" "Log size should not change after failed mkfs"
+verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (9)"
 
 expect_fail "${MKFS[@]}" -f --loglen 1m "$DEV" -- "mkfs should fail with 1m logsize"
 LOG_LEN=$(expect_good "${FSCK[@]}" -v "$DEV" | grep "log_len" | awk '{print $2}')
@@ -71,12 +80,14 @@ LOG_LEN=$(expect_good "${FSCK[@]}" -v "$DEV" | grep "log_len" | awk '{print $2}'
 assert_equal "$LOG_LEN" "8388608" "Log size should revert after -f mkfs"
 
 expect_fail "${MKFS[@]}" "$DEV" -- "mkfs redo should fail when fs exists"
+verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (10)"
 
 #
 # CLI & FSCK sanity
 #
 expect_good "${CLI[@]}" -h        -- "cli -h should succeed"
 expect_good "${FSCK[@]}" "$DEV"   -- "fsck"
+verify_dev_not_mounted $DEV "$DEV lingering dummy mount after fsck"
 
 #
 # Mount testing differs by mode
@@ -133,16 +144,17 @@ expect_good sudo umount "$MPT" -- "umount $MPT should succeed"
 verify_not_mounted "$DEV" "$MPT" "umount failed?"
 
 expect_good "${MKFS[@]}" -f "$DEV"    -- "mkfs should succeed with --force"
+verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (11)"
 expect_good "${MKFS[@]}" -f -k "$DEV" -- "mkfs/kill should succeed with --force (2)"
 
 # mount should now fail with bad superblock
 expect_fail_except --bad 99 \
     "${MOUNT[@]}" "$DEV" "$MPT" -- "mount should fail with bad superblock"
-
 verify_not_mounted "$DEV" "$MPT" "should not be mounted after failed mount"
 
 # create a clean filesystem
 expect_good "${MKFS[@]}" "$DEV" -- "clean mkfs should succeed"
+verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (12)"
 
 #
 # Mount without specifying fuse/no-fuse; let CLI auto-detect
