@@ -97,17 +97,19 @@ struct _uintptr_to_must_hold_fuse_ino_t_dummy_struct \
 void
 famfs_dump_opts(const struct famfs_ctx *fd)
 {
-	printf("%s:\n", __func__);
-	printf("    debug=%d\n", fd->debug);
-	printf("    writeback=%d\n", fd->writeback);
-	printf("    flock=%d\n", fd->flock);
-	printf("    xattr=%d\n", fd->xattr);
-	printf("    shadow=%s\n", fd->source);
-	printf("    daxdev=%s\n", fd->daxdev);
-	printf("    timeout=%f\n", fd->timeout);
-	printf("    cache=%d\n", fd->cache);
-	printf("    timeout_set=%d\n", fd->timeout_set);
-	printf("    pass_yaml=%d\n", fd->pass_yaml);
+	if (fd->debug) {
+		printf("%s:\n", __func__);
+		printf("    debug=%d\n", fd->debug);
+		printf("    writeback=%d\n", fd->writeback);
+		printf("    flock=%d\n", fd->flock);
+		printf("    xattr=%d\n", fd->xattr);
+		printf("    shadow=%s\n", fd->source);
+		printf("    daxdev=%s\n", fd->daxdev);
+		printf("    timeout=%f\n", fd->timeout);
+		printf("    cache=%d\n", fd->cache);
+		printf("    timeout_set=%d\n", fd->timeout_set);
+		printf("    pass_yaml=%d\n", fd->pass_yaml);
+	}
 
 	famfs_log(FAMFS_LOG_DEBUG, "%s:\n", __func__);
 	famfs_log(FAMFS_LOG_DEBUG, "    debug=%d\n", fd->debug);
@@ -162,9 +164,12 @@ static const struct fuse_opt famfs_opts[] = {
 	FUSE_OPT_END
 };
 
-void dump_fuse_args(struct fuse_args *args)
+void dump_fuse_args(struct fuse_args *args, int debug)
 {
 	int i;
+
+	if (!debug)
+		return;
 
 	printf("%s: %s\n", __func__, (args->allocated) ? "(allocated)": "");
 	for (i = 0; i<args->argc; i++)
@@ -1573,10 +1578,11 @@ void jg_print_fuse_opts(struct fuse_cmdline_opts *opts)
 	       "  clone_fd:          %d\n"
 	       "  max_idle_threads;  %d\n"
 		"  max_threads:       %d\n";
-	printf(format_str,
-	       opts->singlethread, opts->foreground, opts->debug,
-	       opts->nodefault_subtype, opts->mountpoint,
-	       opts->clone_fd, opts->max_idle_threads, opts->max_threads);
+	if (opts->debug)
+		printf(format_str,
+		       opts->singlethread, opts->foreground, opts->debug,
+		       opts->nodefault_subtype, opts->mountpoint,
+		       opts->clone_fd, opts->max_idle_threads, opts->max_threads);
 	famfs_log(FAMFS_LOG_DEBUG, format_str,
 		 opts->singlethread, opts->foreground, opts->debug,
 		 opts->nodefault_subtype, opts->mountpoint,
@@ -1649,7 +1655,7 @@ int main(int argc, char *argv[])
 		goto err_out1;
 	}
 
-	dump_fuse_args(&args);
+	dump_fuse_args(&args, opts.debug);
 
 	if (opts.mountpoint == NULL) {
 		printf("usage: %s [options] <mountpoint>\n", argv[0]);
@@ -1718,7 +1724,8 @@ int main(int argc, char *argv[])
 		ret = 1;
 		goto err_out1;
 	}
-	printf("timeout=%f\n", lo->timeout);
+	if (lo->debug)
+		printf("timeout=%f\n", lo->timeout);
 
 	ret = famfs_icache_init((void *)lo, &lo->icache, shadow_root);
 	if (ret) {
