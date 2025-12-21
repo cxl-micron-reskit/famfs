@@ -38,6 +38,10 @@
 #include "famfs_fused_icache.h"
 #include "famfs_rest.h"
 
+#ifdef FAMFS_COVERAGE
+extern void __gcov_dump(void);
+#endif
+
 /* We are re-using pointers to our `struct famfs_inode` and `struct
    famfs_dirp` elements as inodes. This means that we must be able to
    store uintptr_t values in a fuse_ino_t variable. The following
@@ -1796,5 +1800,9 @@ err_out1:
 		free(lo->daxdev_table);
 
 	free(lo->source);
+
+#ifdef FAMFS_COVERAGE
+	__gcov_dump();
+#endif
 	return ret ? 1 : 0;
 }

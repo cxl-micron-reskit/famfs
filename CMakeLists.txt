@@ -56,6 +56,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
       "--gcov-ignore-parse-errors=all" "--merge-mode-functions=separate"
     )
     append_coverage_compiler_flags()
+    add_compile_definitions(FAMFS_COVERAGE)
   endif()
 endif()
 
