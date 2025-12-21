@@ -24,6 +24,19 @@ define check_kernel_version
 endef
 
 #
+# CMake include path handling
+#
+# If /usr/include/linux/famfs_ioctl.h doesn't exist, we need to use the bundled
+# fallback in linux_include/. Pass -U to cmake to clear any stale cached path
+# that might point to a now-missing system header.
+#
+FAMFS_IOCTL_SYSTEM := /usr/include/linux/famfs_ioctl.h
+CMAKE_CACHE_CLEAR :=
+ifeq ($(wildcard $(FAMFS_IOCTL_SYSTEM)),)
+    CMAKE_CACHE_CLEAR := -ULINUX_INCLUDE_BASE -UHAVE_LINUX_FAMFS_IOCTL_H
+endif
+
+#
 # Determine the appropriate libfuse branch based on kernel version
 # - kernel <= 6.14: use famfs-6.14
 # - kernel >= 6.15: use famfs-6.MINOR (e.g., famfs-6.19 for kernel 6.19)
@@ -100,7 +113,7 @@ sanitize: cmake-modules threadpool mongoose
 	$(call check_kernel_version)
 	mkdir -p sanitize;
 	$(MAKE) libfuse BDIR="sanitize"
-	cd sanitize; cmake -DCMAKE_BUILD_TYPE=Debug \
+	cd sanitize; cmake $(CMAKE_CACHE_CLEAR) -DCMAKE_BUILD_TYPE=Debug \
         -DCMAKE_C_FLAGS="-fsanitize=address,undefined,leak -static-libasan -g -O1" \
         -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -static-libasan -g -O1" ..; \
 	$(MAKE)
@@ -111,7 +124,7 @@ debug:	cmake-modules threadpool mongoose
 	export BDIR="debug"
 	mkdir -p debug;
 	$(MAKE) libfuse BDIR="debug"
-	cd debug; cmake -DCMAKE_BUILD_TYPE=Debug ..; $(MAKE) #VERBOSE=1
+	cd debug; cmake $(CMAKE_CACHE_CLEAR) -DCMAKE_BUILD_TYPE=Debug ..; $(MAKE) #VERBOSE=1
 
 #
 # The coverage target will generate a debug build in the 'coverage' subdirectoroy
@@ -126,7 +139,7 @@ coverage:	cmake-modules threadpool mongoose
 	$(call check_kernel_version)
 	mkdir -p coverage;
 	$(MAKE) libfuse BDIR="coverage"
-	cd coverage; cmake -DCMAKE_BUILD_TYPE=Debug -DFAMFS_TEST_COVERAGE="yes" ..; $(MAKE)
+	cd coverage; cmake $(CMAKE_CACHE_CLEAR) -DCMAKE_BUILD_TYPE=Debug -DFAMFS_TEST_COVERAGE="yes" ..; $(MAKE)
 
 smoke_coverage_fuse:
 	script -e -c "./run_smoke.sh --coverage --fuse" \
@@ -163,7 +176,7 @@ release:	cmake-modules threadpool mongoose
 	$(call check_kernel_version)
 	mkdir -p release;
 	$(MAKE) libfuse BDIR="release"
-	cd release; cmake ..; $(MAKE)
+	cd release; cmake $(CMAKE_CACHE_CLEAR) ..; $(MAKE)
 
 #
 # Default target: build with auto-detected libfuse branch based on kernel version
