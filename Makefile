@@ -6,6 +6,47 @@ HOSTNAME := $(shell hostname)
 UID := $(shell id -u)
 GID := $(shell id -g)
 
+#
+# Kernel version detection
+#
+KERNEL_VERSION := $(shell uname -r)
+KERNEL_MAJOR := $(shell uname -r | cut -d. -f1)
+KERNEL_MINOR := $(shell uname -r | cut -d. -f2)
+
+#
+# Validate kernel version (must be >= 6.x)
+#
+define check_kernel_version
+	@if [ $(KERNEL_MAJOR) -lt 6 ]; then \
+		echo "Error: famfs requires kernel version >= 6.x (detected: $(KERNEL_VERSION))"; \
+		exit 1; \
+	fi
+endef
+
+#
+# Determine the appropriate libfuse branch based on kernel version
+# - kernel <= 6.14: use famfs-6.14
+# - kernel >= 6.15: use famfs-6.MINOR (e.g., famfs-6.19 for kernel 6.19)
+#
+# The build will fail if the required branch does not exist in the repo.
+#
+LIBFUSE_BRANCH_6_14 := famfs-6.14
+LIBFUSE_BRANCH_6_19 := famfs-6.19
+
+# Default branch selection based on running kernel
+# This can be overridden by passing LIBFUSE_BRANCH= on the command line
+ifeq ($(shell test $(KERNEL_MAJOR) -eq 6 -a $(KERNEL_MINOR) -le 14 && echo yes),yes)
+    LIBFUSE_BRANCH_AUTO := $(LIBFUSE_BRANCH_6_14)
+else
+    # For kernel >= 6.15, use kernel-version-specific branch
+    LIBFUSE_BRANCH_AUTO := famfs-6.$(KERNEL_MINOR)
+endif
+
+# Use auto-detected branch unless explicitly overridden
+LIBFUSE_BRANCH ?= $(LIBFUSE_BRANCH_AUTO)
+
+LIBFUSE_REPO := https://github.com/jagalactic/libfuse.git
+
 cmake-modules:
 	git clone https://github.com/jagalactic/cmake-modules.git
 
@@ -22,24 +63,41 @@ threadpool:
 mongoose:
 	git clone -b famfs-7.19 https://github.com/jagalactic/mongoose.git
 
-LIBFUSE_REPO := https://github.com/jagalactic/libfuse.git;
-LIBFUSE_BRANCH := famfs-6.14
-
+#
+# libfuse target: clone repo (if needed) and checkout the appropriate branch
+#
+# The branch is determined by:
+# 1. LIBFUSE_BRANCH if explicitly set on command line
+# 2. Otherwise, auto-detected based on kernel version
+#
+# The build will fail if the branch does not exist.
+#
 libfuse:
-	echo "Build: $(BDIR)"
+	@echo "Build dir: $(BDIR), libfuse branch: $(LIBFUSE_BRANCH)"
 	@if [ -z "$(BDIR)" ]; then \
 		echo "Error: BDIR macro empty"; \
-		exit -1; \
+		exit 1; \
 	fi
 	@if [ ! -d "libfuse" ]; then \
-		echo "cloning libfuse..."; \
-		git clone -b $(LIBFUSE_BRANCH) $(LIBFUSE_REPO) \
+		echo "Cloning libfuse..."; \
+		git clone $(LIBFUSE_REPO); \
 	fi
+	@echo "Checking out libfuse branch $(LIBFUSE_BRANCH)..."
+	@cd libfuse && git fetch origin && \
+		if ! git checkout $(LIBFUSE_BRANCH); then \
+			echo "Error: libfuse branch $(LIBFUSE_BRANCH) does not exist"; \
+			echo "Available branches:"; \
+			git branch -r | grep 'origin/famfs' | sed 's/origin\//  /'; \
+			exit 1; \
+		fi && \
+		git pull origin $(LIBFUSE_BRANCH) 2>/dev/null || true
 	mkdir -p $(BDIR)/libfuse
-	meson setup -Dexamples=false $(BDIR)/libfuse ./libfuse
+	meson setup -Dexamples=false $(BDIR)/libfuse ./libfuse --wipe 2>/dev/null || \
+		meson setup -Dexamples=false $(BDIR)/libfuse ./libfuse
 	meson compile -C $(BDIR)/libfuse
 
 sanitize: cmake-modules threadpool mongoose
+	$(call check_kernel_version)
 	mkdir -p sanitize;
 	$(MAKE) libfuse BDIR="sanitize"
 	cd sanitize; cmake -DCMAKE_BUILD_TYPE=Debug \
@@ -49,6 +107,7 @@ sanitize: cmake-modules threadpool mongoose
 
 
 debug:	cmake-modules threadpool mongoose
+	$(call check_kernel_version)
 	export BDIR="debug"
 	mkdir -p debug;
 	$(MAKE) libfuse BDIR="debug"
@@ -64,6 +123,7 @@ debug:	cmake-modules threadpool mongoose
 # The comand above will direct you to html files detailing the measured coverage
 #
 coverage:	cmake-modules threadpool mongoose
+	$(call check_kernel_version)
 	mkdir -p coverage;
 	$(MAKE) libfuse BDIR="coverage"
 	cd coverage; cmake -DCMAKE_BUILD_TYPE=Debug -DFAMFS_TEST_COVERAGE="yes" ..; $(MAKE)
@@ -100,11 +160,27 @@ coverage_nofuse: coverage
 coverage_dual:	coverage_test
 
 release:	cmake-modules threadpool mongoose
+	$(call check_kernel_version)
 	mkdir -p release;
 	$(MAKE) libfuse BDIR="release"
 	cd release; cmake ..; $(MAKE)
 
+#
+# Default target: build with auto-detected libfuse branch based on kernel version
+#
 all:	debug
+
+#
+# Explicit kernel version targets: build with specific libfuse branch
+# regardless of the running kernel version
+#
+all-6.14:
+	@echo "Building with libfuse branch $(LIBFUSE_BRANCH_6_14) (kernel 6.14 and earlier)"
+	$(MAKE) debug LIBFUSE_BRANCH="$(LIBFUSE_BRANCH_6_14)"
+
+all-6.19:
+	@echo "Building with libfuse branch $(LIBFUSE_BRANCH_6_19) (kernel 6.19)"
+	$(MAKE) debug LIBFUSE_BRANCH="$(LIBFUSE_BRANCH_6_19)"
 
 clean:
 	sudo rm -rf debug release coverage sanitize
@@ -182,4 +258,5 @@ teardown:
 	pwd
 	@./scripts/teardown.sh
 
-.PHONY:	test smoke debug release coverage chk_include libfuse libfuse_install sanitize
+.PHONY:	test smoke debug release coverage chk_include libfuse libfuse_install sanitize \
+	all all-6.14 all-6.19
