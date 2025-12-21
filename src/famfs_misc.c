@@ -404,7 +404,7 @@ enum famfs_type
 famfs_get_kernel_type(int verbose)
 {
 	/* First choice is fuse */
-	if (kernel_symbol_exists("fuse_file_famfs", "fuse", verbose))
+	if (kernel_symbol_exists("famfs_fuse_iomap_begin", "fuse", verbose))
 		return FAMFS_FUSE;
 
 	if (kernel_symbol_exists("famfs_create", "famfsv1", verbose))

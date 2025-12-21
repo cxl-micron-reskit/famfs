@@ -68,7 +68,7 @@ TEST(famfs, famfs_misc)
 	ASSERT_EQ(rc, 1);
 	rc = get_multiplier("mm");
 	ASSERT_EQ(rc, -1);
-	rc = kernel_symbol_exists("fuse_file_famfs", "fuse", 1);
+	rc = kernel_symbol_exists("famfs_fuse_iomap_begin", "fuse", 1);
 	EXPECT_TRUE(rc == 0 || rc == 1);
 	rc = kernel_symbol_exists("famfs_create", "famfs", 1);
 	EXPECT_TRUE(rc == 0 || rc == 1);
