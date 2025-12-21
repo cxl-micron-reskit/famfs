@@ -17,12 +17,21 @@ start_test $TEST
 expect_good sudo mkdir -p "$MPT" -- "mkdir $MPT"
 
 #
-# Ensure famfs is NOT mounted at $MPT
+# Ensure $DEV is NOT mounted anywhere, and $MPT is available
 #
-# Unmount only if $DEV is actually mounted at $MPT
-if findmnt -rn -S "$DEV" --target "$MPT" >/dev/null 2>&1; then
-    expect_good sudo umount "$MPT" -- "umount $MPT"
+# Fail if a different device is mounted exactly at $MPT
+# Note: don't use --target (which traverses up to parent mounts)
+mounted_dev=$(findmnt -rn -o SOURCE "$MPT" 2>/dev/null || true)
+if [[ -n "$mounted_dev" && "$mounted_dev" != "$DEV" ]]; then
+    echo "ERROR: $MPT is in use by a different device: $mounted_dev"
+    exit 1
 fi
+
+# Unmount $DEV from anywhere it might be mounted
+for mpt in $(findmnt -rn -S "$DEV" -o TARGET 2>/dev/null); do
+    echo "Unmounting $DEV from $mpt"
+    sudo umount "$mpt" 2>/dev/null || true
+done
 
 # Also unmount temp fuse mount if present
 stop_on_crash sudo umount /tmp/famfs_fuse -- "crashed umounting /tmp/famfs_fuse"
