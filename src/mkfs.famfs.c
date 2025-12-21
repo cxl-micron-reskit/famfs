@@ -59,6 +59,7 @@ struct option global_options[] = {
 	{"kill",        no_argument,       &kill_super,    'k'},
 	{"loglen",      required_argument, 0,              'l'},
 	{"nodax",       no_argument,       0,              'D'},
+	{"verbose",     no_argument,       0,              'v'},
 	{0, 0, 0, 0}
 };
 
@@ -69,6 +70,7 @@ main(int argc, char *argv[])
 	int rc = 0;
 	int force = 0;
 	int nodax = 0;
+	int verbose = 0;
 	char *daxdev = NULL;
 	u64 loglen = 0x800000;
 
@@ -101,6 +103,9 @@ main(int argc, char *argv[])
 		case 'D':
 			nodax = 1;
 			break;
+		case 'v':
+			verbose++;
+			break;
 		case 'h':
 		case '?':
 			print_usage(argc, argv);
@@ -119,7 +124,7 @@ main(int argc, char *argv[])
 	famfs_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
 	famfs_log(FAMFS_LOG_NOTICE, "Starting famfs mkfs on device %s", daxdev);
 
-	rc = famfs_mkfs(daxdev, loglen, kill_super, nodax, force);
+	rc = famfs_mkfs(daxdev, loglen, kill_super, nodax, force, verbose);
 	if (rc == 0)
 		famfs_log(FAMFS_LOG_NOTICE,
 			  "mkfs %s command successful on device %s",

@@ -511,8 +511,8 @@ int check_file_exists(
 						expected_size);
 					goto retry;
 				}
-
-				printf("%s: good size\n", __func__);
+				if (verbose)
+					printf("%s: good size\n", __func__);
 
 				if (size_out)
 					*size_out = st.st_size;

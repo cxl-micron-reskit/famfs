@@ -413,7 +413,8 @@ int
 famfs_get_device_size(
 	const char       *fname,
 	size_t           *size,
-	bool              char_only)
+	bool              char_only,
+	int               verbose)
 {
 	char spath[PATH_MAX];
 	FILE *sfile;
@@ -449,7 +450,9 @@ famfs_get_device_size(
 		return -EINVAL;
 	}
 
-	printf("%s: getting daxdev size from file %s\n", __func__, spath);
+	if (verbose)
+		printf("%s: getting daxdev size from file %s\n",
+		       __func__, spath);
 	sfile = fopen(spath, "r");
 	if (!sfile) {
 		fprintf(stderr, "%s: fopen on %s failed (%s)\n",
@@ -470,7 +473,9 @@ famfs_get_device_size(
 	if (is_blk)
 		size_i *= 512; /* blkdev size is in 512b blocks */
 
-	printf("%s: size=%ld\n", __func__, size_i);
+	if (verbose)
+		printf("%s: size=%ld\n", __func__, size_i);
+
 	*size = (size_t)size_i;
 	return 0;
 }
@@ -1207,7 +1212,8 @@ __famfs_mkmeta_superblock(
 		close(sbfd);
 	}
 
-	printf("%s: Superblock file successfully created\n", __func__);
+	if (verbose)
+		printf("%s: Superblock file successfully created\n", __func__);
 	return 0;
 }
 
@@ -1322,7 +1328,9 @@ __famfs_mkmeta_log(
 		}
 		close(logfd);
 	}
-	printf("%s: Meta log file successfully created\n", __func__);
+
+	if (verbose)
+		printf("%s: Meta log file successfully created\n", __func__);
 	return 0;
 }
 
@@ -5483,7 +5491,7 @@ static bool famfs_mkfs_allowed(
 			__func__, daxdev);
 		return false;
 	}
-	rc = famfs_get_device_size(daxdev, &devsize, 1);
+	rc = famfs_get_device_size(daxdev, &devsize, 1, 0);
 	if (rc)
 		return false;
 
@@ -5503,7 +5511,8 @@ famfs_mkfs_via_dummy_mount(
 	const char *daxdev,
 	u64         log_len,
 	int         kill,
-	int         force)
+	int         force,
+	int         verbose)
 {
 	struct famfs_superblock *sb = NULL;
 	struct famfs_log *logp = NULL;
@@ -5515,7 +5524,7 @@ famfs_mkfs_via_dummy_mount(
 
 	/* This will be checked again, but it's a valid way to check whether
 	 * daxdev is actually a dax device */
-	rc = famfs_get_device_size(daxdev, &devsize_out, 1);
+	rc = famfs_get_device_size(daxdev, &devsize_out, 1, verbose);
 	if (rc)
 		return rc;
 
@@ -5698,7 +5707,8 @@ famfs_mkfs(
 	u64         log_len,
 	int         kill,
 	bool        nodax_in,
-	int         force)
+	int         force,
+	int         verbose)
 {
 	bool daxmode_required = famfs_daxmode_required();
 	bool no_raw_dax = nodax_in || daxmode_required;;
@@ -5722,7 +5732,8 @@ famfs_mkfs(
 	}
 
 	if (no_raw_dax)
-		rc = famfs_mkfs_via_dummy_mount(daxdev, log_len, kill, force);
+		rc = famfs_mkfs_via_dummy_mount(daxdev, log_len, kill, force,
+						verbose);
 	else
 		rc = famfs_mkfs_rawdev(daxdev, log_len, kill, force);
 

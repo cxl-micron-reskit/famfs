@@ -364,7 +364,6 @@ do_famfs_cli_mount(int argc, char *argv[])
 			cachearg = optarg;
 			break;
 		case 'D':
-			printf("dummy = 1\n");
 			dummy = 1;
 			break;
 		}

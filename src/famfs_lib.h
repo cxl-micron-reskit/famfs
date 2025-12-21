@@ -65,7 +65,8 @@ int famfs_module_loaded(int verbose);
 enum famfs_system_role famfs_get_role_by_dev(const char *daxdev);
 void *famfs_mmap_whole_file(const char *fname, int read_only, size_t *sizep);
 
-extern int famfs_get_device_size(const char *fname, size_t *size, bool char_only);
+extern int famfs_get_device_size(const char *fname, size_t *size,
+	bool char_only, int verbose);
 int famfs_check_super(const struct famfs_superblock *sb,
 		      u64 *log_offset, u64 *log_size);
 enum famfs_system_role __famfs_get_role_and_logstats(
@@ -101,7 +102,8 @@ int famfs_clone(const char *srcfile, const char *destfile);
 
 int famfs_mkdir(const char *dirpath, mode_t mode, uid_t uid, gid_t gid, int verbose);
 int famfs_mkdir_parents(const char *dirpath, mode_t mode, uid_t uid, gid_t gid, int verbose);
-int famfs_mkfs(const char *daxdev, u64 log_len, int kill, bool nodax, int force);
+int famfs_mkfs(const char *daxdev, u64 log_len, int kill, bool nodax,
+	int force, int verbose);
 int famfs_check(const char *path, int verbose);
 
 int famfs_flush_file(const char *filename, int verbose);

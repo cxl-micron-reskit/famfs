@@ -846,7 +846,7 @@ famfs_mount_fuse(
 	 */
 	if (check_file_exists(realmpt, ".meta/.superblock",
 			      1000 /* timeout */,
-			      FAMFS_SUPERBLOCK_SIZE, &sb_size, verbose + 1)) {
+			      FAMFS_SUPERBLOCK_SIZE, &sb_size, verbose)) {
 		fprintf(stderr, "%s: superblock file failed to appear\n",
 			__func__);
 		rc = -1;
@@ -993,7 +993,8 @@ famfs_dummy_mount(
 		return -ENOMEM;
 	}
 
-	rc = famfs_get_device_size(realdaxdev, &size, 1 /* only char daxdevs */);
+	rc = famfs_get_device_size(realdaxdev, &size, 1 /* only char daxdevs */,
+				   verbose);
 	if (rc) {
 		fprintf(stderr, "%s: bad daxdev %s\n", __func__, realdaxdev);
 		free(mpt);
