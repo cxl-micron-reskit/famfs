@@ -869,68 +869,6 @@ famfs_fuse_mkdir(
 }
 
 static void
-famfs_symlink(
-	fuse_req_t req,
-	const char *link,
-	fuse_ino_t parent,
-	const char *name)
-{
-	(void)link;
-	(void)parent;
-	(void)name;
-
-	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
-	fuse_reply_err(req, ENOTSUP);
-}
-
-static void
-famfs_link(
-	fuse_req_t req,
-	fuse_ino_t nodeid,
-	fuse_ino_t parent,
-	const char *name)
-{
-	(void)nodeid;
-	(void)parent;
-	(void)name;
-
-	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
-	fuse_reply_err(req, ENOTSUP);
-}
-
-static void
-famfs_rmdir(
-	fuse_req_t req,
-	fuse_ino_t parent,
-	const char *name)
-{
-	(void)parent;
-	(void)name;
-
-	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
-	fuse_reply_err(req, ENOTSUP);
-}
-
-static void
-famfs_rename(
-	fuse_req_t req,
-	fuse_ino_t parent,
-	const char *name,
-	fuse_ino_t newparent,
-	const char *newname,
-	unsigned int flags)
-{
-	(void)parent;
-	(void)name;
-	(void)newparent;
-	(void)newname;
-	(void)flags;
-
-	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
-	fuse_reply_err(req, ENOTSUP);
-}
-
-static void
 famfs_unlink(
 	fuse_req_t req,
 	fuse_ino_t parent,
@@ -984,17 +922,6 @@ famfs_forget_multi(
 	for (i = 0; i < count; i++)
 		famfs_forget_one(req, forgets[i].ino, forgets[i].nlookup);
 	fuse_reply_none(req);
-}
-
-static void
-famfs_readlink(
-	fuse_req_t req,
-	fuse_ino_t nodeid)
-{
-	(void)nodeid;
-
-	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
-	fuse_reply_err(req, ENOTSUP);
 }
 
 struct famfs_dirp {
@@ -1215,23 +1142,6 @@ famfs_create(
 }
 
 static void
-famfs_fsyncdir(
-	fuse_req_t req,
-	fuse_ino_t nodeid,
-	int datasync,
-	struct fuse_file_info *fi)
-{
-	int res;
-	int fd = dirfd(famfs_dirp(fi)->dp);
-	(void) nodeid;
-	if (datasync)
-		res = fdatasync(fd);
-	else
-		res = fsync(fd);
-	fuse_reply_err(req, res == -1 ? errno : 0);
-}
-
-static void
 famfs_open(
 	fuse_req_t req,
 	fuse_ino_t nodeid,
@@ -1319,74 +1229,6 @@ famfs_release(
 }
 
 static void
-famfs_fsync(
-	fuse_req_t req,
-	fuse_ino_t nodeid,
-	int datasync,
-	struct fuse_file_info *fi)
-{
-	int res = 0;
-	(void) nodeid;
-	(void) datasync;
-	(void) fi;
-
-	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
-
-	fuse_reply_err(req, res == -1 ? errno : 0);
-}
-
-static void
-famfs_read(
-	fuse_req_t req,
-	fuse_ino_t nodeid,
-	size_t size,
-	off_t offset,
-	struct fuse_file_info *fi)
-{
-	struct fuse_bufvec buf = FUSE_BUFVEC_INIT(size);
-
-	if (famfs_debug(req))
-		famfs_log(FAMFS_LOG_DEBUG, "%s(nodeid=%lx, size=%zd, off=%lu)\n",
-			 __func__, nodeid, size, (unsigned long) offset);
-
-	buf.buf[0].flags = FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK;
-	buf.buf[0].fd = fi->fh;
-	buf.buf[0].pos = offset;
-
-	fuse_reply_data(req, &buf, FUSE_BUF_SPLICE_MOVE);
-}
-
-static void
-famfs_write_buf(
-	fuse_req_t req,
-	fuse_ino_t nodeid,
-	struct fuse_bufvec *in_buf,
-	off_t off,
-	struct fuse_file_info *fi)
-{
-	(void) nodeid;
-	ssize_t res;
-	struct fuse_bufvec out_buf = FUSE_BUFVEC_INIT(fuse_buf_size(in_buf));
-
-	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
-
-	out_buf.buf[0].flags = FUSE_BUF_IS_FD | FUSE_BUF_FD_SEEK;
-	out_buf.buf[0].fd = fi->fh;
-	out_buf.buf[0].pos = off;
-
-	if (famfs_debug(req))
-		famfs_log(FAMFS_LOG_DEBUG,
-			 "famfs_write(nodeid=%lx, size=%zd, off=%lu)\n",
-			 nodeid, out_buf.buf[0].size, (unsigned long) off);
-
-	res = fuse_buf_copy(&out_buf, in_buf, 0);
-	if(res < 0)
-		fuse_reply_err(req, -res);
-	else
-		fuse_reply_write(req, (size_t) res);
-}
-
-static void
 famfs_statfs(
 	fuse_req_t req,
 	fuse_ino_t nodeid)
@@ -1406,24 +1248,6 @@ famfs_statfs(
 	else
 		fuse_reply_statfs(req, &stbuf);
 	
-}
-
-static void
-famfs_fallocate(
-	fuse_req_t req,
-	fuse_ino_t nodeid,
-	int mode,
-	off_t offset,
-	off_t length,
-	struct fuse_file_info *fi)
-{
-	(void)nodeid;
-	(void)mode;
-	(void)offset;
-	(void)length;
-	(void)fi;
-	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
-	fuse_reply_err(req, EOPNOTSUPP);
 }
 
 static void
@@ -1474,53 +1298,6 @@ err_out:
 	fuse_reply_err(req, rc); /* if rc=0, this is a successful reply */
 }
 
-#ifdef HAVE_COPY_FILE_RANGE
-static void
-famfs_copy_file_range(
-	fuse_req_t req,
-	fuse_ino_t ino_in,
-	off_t off_in,
-	struct fuse_file_info *fi_in,
-	fuse_ino_t ino_out,
-	off_t off_out,
-	struct fuse_file_info *fi_out,
-	size_t len,
-	int flags)
-{
-	ssize_t res;
-
-	if (famfs_debug(req))
-		famfs_log(FAMFS_LOG_DEBUG, "famfs_copy_file_range(ino=%" PRIu64 "/fd=%lu, "
-				"off=%lu, ino=%" PRIu64 "/fd=%lu, "
-				"off=%lu, size=%zd, flags=0x%x)\n",
-			ino_in, fi_in->fh, off_in, ino_out, fi_out->fh, off_out,
-			len, flags);
-
-	res = copy_file_range(fi_in->fh, &off_in, fi_out->fh, &off_out, len,
-			      flags);
-	if (res < 0)
-		fuse_reply_err(req, errno);
-	else
-		fuse_reply_write(req, res);
-}
-#endif
-
-static void
-famfs_lseek(
-	fuse_req_t req,
-	fuse_ino_t nodeid,
-	off_t off,
-	int whence,
-	struct fuse_file_info *fi)
-{
-	(void)off;
-	(void)whence;
-	(void)fi;
-	(void)nodeid;
-
-	fuse_reply_lseek(req, 0);
-}
-
 static const struct fuse_lowlevel_ops famfs_oper = {
 	.init		= famfs_init,
 	.destroy	= famfs_destroy,
@@ -1528,24 +1305,24 @@ static const struct fuse_lowlevel_ops famfs_oper = {
 	.forget		= famfs_forget,
 	.getattr	= famfs_getattr,
 	.setattr	= famfs_setattr,
-	.readlink	= famfs_readlink,
+	/* .readlink */
 	.mknod		= famfs_mknod,
 	.mkdir		= famfs_fuse_mkdir,
 	.unlink		= famfs_unlink,
-	.rmdir		= famfs_rmdir,
-	.symlink	= famfs_symlink,
-	.rename		= famfs_rename,
-	.link		= famfs_link,
+	/* .rmdir */
+	/* .symlink */
+	/* .rename */
+	/* .link */
 	.open		= famfs_open,
-	.read		= famfs_read,
+	/* .read */
 	/* .write */
 	/* .flush */
 	.release	= famfs_release,
-	.fsync		= famfs_fsync,
+	/* .fsync */
 	.opendir	= famfs_opendir,
 	.readdir	= famfs_readdir,
 	.releasedir	= famfs_releasedir,
-	.fsyncdir	= famfs_fsyncdir,
+	/* .fsyncdir */
 	.statfs		= famfs_statfs,
 	/* .setxattr */
 	/* .getxattr */
@@ -1557,16 +1334,16 @@ static const struct fuse_lowlevel_ops famfs_oper = {
 	/* .setlk */
 	/* .ioctl */
 	/* .poll */
-	.write_buf      = famfs_write_buf,
+	/* .write_buf */
 	/* .retrieve_reply */
 	.forget_multi	= famfs_forget_multi,
 	.flock		= famfs_flock,
-	.fallocate	= famfs_fallocate,
+	/* .fallocate */
 	/* .readdirplus	= famfs_readdirplus, */
 #ifdef HAVE_COPY_FILE_RANGE
-	.copy_file_range = famfs_copy_file_range,
+	/* .copy_file_range */
 #endif
-	.lseek		= famfs_lseek,
+	/* .lseek */
 	.get_fmap       = famfs_get_fmap,
 	.get_daxdev     = famfs_get_daxdev,
 };
