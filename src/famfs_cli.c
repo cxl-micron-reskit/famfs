@@ -100,7 +100,6 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	int shadowtest = 0;
 	int client_mode = 0;
 	char *daxdev = NULL;
-	extern int mock_fstype;
 	char *shadowpath = NULL;
 
 	struct option logplay_options[] = {
@@ -116,7 +115,6 @@ do_famfs_cli_logplay(int argc, char *argv[])
 		{"shadowtest", no_argument,            0,  's'},
 		{"shadow",    required_argument,       0,  'S'},
 		{"daxdev",    required_argument,       0,  'd'},
-		{"mock",      no_argument,             0,  'M'},
 		{0, 0, 0, 0}
 	};
 
@@ -166,9 +164,6 @@ do_famfs_cli_logplay(int argc, char *argv[])
 			break;
 		case 'd':
 			daxdev = optarg;
-			break;
-		case 'M':
-			mock_fstype = FAMFS_V1;
 			break;
 		}
 	}
@@ -269,13 +264,13 @@ do_famfs_cli_mount(int argc, char *argv[])
 	char *shadowpath = NULL;
 	int use_mmap = 0;
 	char *mpt = NULL;
-	int fuse_mode = 0;
 	int remaining_args;
 	char *daxdev = NULL;
 	char *realmpt = NULL;
 	ssize_t timeout = -1;
 	char *cachearg = NULL;
 	char *realdaxdev = NULL;
+	enum famfs_type fuse_mode = NOT_FAMFS;
 	const char *famfs_mode = getenv("FAMFS_MODE");
 	unsigned long mflags = MS_NOATIME | MS_NOSUID | MS_NOEXEC | MS_NODEV;
 
@@ -666,7 +661,6 @@ int
 do_famfs_cli_fsck(int argc, char *argv[])
 {
 	int c;
-	extern int mock_fstype;
 	char *daxdev = NULL;
 	bool nodax = false;
 	int nbuckets = 0;
@@ -684,7 +678,6 @@ do_famfs_cli_fsck(int argc, char *argv[])
 		/* Un-publicized options */
 		{"mmap",        no_argument,             0,  'm'},
 		{"read",        no_argument,             0,  'r'},
-		{"mock",        no_argument,             0,  'M'},
 		{"nodax",       no_argument,             0,  'D'},
 
 		{0, 0, 0, 0}
@@ -713,9 +706,6 @@ do_famfs_cli_fsck(int argc, char *argv[])
 			break;
 		case 'v':
 			verbose++;
-			break;
-		case 'M':
-			mock_fstype = FAMFS_V1;
 			break;
 		case 'B':
 			nbuckets = strtoul(optarg, 0, 0);
