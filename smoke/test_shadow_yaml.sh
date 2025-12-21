@@ -92,7 +92,7 @@ expect_good "${CLI[@]}" mkdir            "$MPT/tmpdir"    -- "mkdir should succe
 FUSE_SHADOW="/tmp/s/root"
 FUSE_MPT="/tmp/famfs_fuse"
 sudo rm -rf "$FUSE_SHADOW"
-mkdir -p "$FUSE_SHADOW" "$FUSE_MPT"
+sudo mkdir -p "$FUSE_SHADOW" "$FUSE_MPT"
 
 
 #
