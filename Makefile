@@ -84,6 +84,7 @@ mongoose:
 # 2. Otherwise, auto-detected based on kernel version
 #
 # The build will fail if the branch does not exist.
+# Supports both git and jj repositories.
 #
 libfuse:
 	@echo "Build dir: $(BDIR), libfuse branch: $(LIBFUSE_BRANCH)"
@@ -96,14 +97,26 @@ libfuse:
 		git clone $(LIBFUSE_REPO); \
 	fi
 	@echo "Checking out libfuse branch $(LIBFUSE_BRANCH)..."
-	@cd libfuse && git fetch origin && \
-		if ! git checkout $(LIBFUSE_BRANCH); then \
-			echo "Error: libfuse branch $(LIBFUSE_BRANCH) does not exist"; \
-			echo "Available branches:"; \
-			git branch -r | grep 'origin/famfs' | sed 's/origin\//  /'; \
-			exit 1; \
-		fi && \
-		git pull origin $(LIBFUSE_BRANCH) 2>/dev/null || true
+	@cd libfuse && \
+		if [ -d ".jj" ]; then \
+			echo "libfuse is a jj repo, using jj commands..."; \
+			jj git fetch && \
+			if ! jj edit $(LIBFUSE_BRANCH); then \
+				echo "Error: libfuse branch $(LIBFUSE_BRANCH) does not exist"; \
+				echo "Available branches:"; \
+				jj branch list | grep 'famfs' | sed 's/^/  /'; \
+				exit 1; \
+			fi; \
+		else \
+			git fetch origin && \
+			if ! git checkout $(LIBFUSE_BRANCH); then \
+				echo "Error: libfuse branch $(LIBFUSE_BRANCH) does not exist"; \
+				echo "Available branches:"; \
+				git branch -r | grep 'origin/famfs' | sed 's/origin\//  /'; \
+				exit 1; \
+			fi && \
+			git pull origin $(LIBFUSE_BRANCH) 2>/dev/null || true; \
+		fi
 	mkdir -p $(BDIR)/libfuse
 	meson setup -Dexamples=false $(BDIR)/libfuse ./libfuse --wipe 2>/dev/null || \
 		meson setup -Dexamples=false $(BDIR)/libfuse ./libfuse
