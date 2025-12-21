@@ -2084,6 +2084,7 @@ out_umount:
 
 		free(mpt_out);
 	}
+	free(realdaxdev);
 	return rc;
 }
 
@@ -3113,6 +3114,7 @@ out_umount:
 			printf("%s: umount successful for %s\n",
 			       __func__, dummy_mpt);
 		}
+		free(dummy_mpt);
 	}
 	if (daxmode_required && initial_daxmode != DAXDEV_MODE_FAMFS) {
 		int xrc;
@@ -5614,6 +5616,7 @@ out_umount:
 			"%s: %d umount failed for %s (errno=%d)\n",
 			__func__, getpid(), mpt_out, errno);
 	}
+	free(mpt_out);
 	return rc;
 }
 

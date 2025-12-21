@@ -988,9 +988,15 @@ famfs_dummy_mount(
 	size_t size;
 	int rc;
 
+	if (!mpt) {
+		fprintf(stderr, "%s: failed to create dummy mount point\n", __func__);
+		return -ENOMEM;
+	}
+
 	rc = famfs_get_device_size(realdaxdev, &size, 1 /* only char daxdevs */);
 	if (rc) {
 		fprintf(stderr, "%s: bad daxdev %s\n", __func__, realdaxdev);
+		free(mpt);
 		return rc;
 	}
 
