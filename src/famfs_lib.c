@@ -1465,11 +1465,15 @@ famfs_mmap_whole_file(
 		return NULL;
 	}
 	if (!ptr_is_readable(addr)) {
-		famfs_log(FAMFS_LOG_ERR, "%s: mmap(%s) not readable\n",
+		famfs_log(FAMFS_LOG_ERR, "%s: mmap(%s) not readable "
+			  "** Kernel and libfuse are likely incompatible! **\n",
 			  __func__, fname);
-		fprintf(stderr,  "%s: mmap(%s) not readable\n",
+		fprintf(stderr,  "%s: mmap(%s) not readable "
+			  "** Kernel and libfuse are likely incompatible! **\n",
 			__func__, fname);
 		addr = NULL;
+		/* Even though it wasn't readable, it was mapped... */
+		munmap(addr, st.st_size);
 	}
 	close(fd);
 	return addr;
