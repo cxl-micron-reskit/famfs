@@ -52,7 +52,7 @@ expect_good "${MKFS[@]}" -f -k "$DEV"    -- "mkfs/kill should succeed with --for
 verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (3)"
 expect_good "${MKFS[@]}" "$DEV"          -- "mkfs"
 verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (4)"
-expect_good "${MKFS[@]}" -f "$DEV"       -- "redo mkfs with -f should succeed"
+expect_good "${MKFS[@]}" -v -f "$DEV"       -- "redo mkfs with -f should succeed"
 verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (5)"
 
 #
