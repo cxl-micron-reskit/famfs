@@ -76,6 +76,26 @@ threadpool:
 mongoose:
 	git clone -b famfs-7.19 https://github.com/jagalactic/mongoose.git
 
+NDCTL_REPO := https://github.com/jagalactic/ndctl.git
+NDCTL_BRANCH := famfs
+
+#
+# ndctl target: clone repo (if needed) and build
+#
+# On fresh clone, checks out the 'famfs' branch.
+# If directory already exists, does not change checkout but builds if necessary.
+#
+ndctl:
+	@if [ ! -d "ndctl" ]; then \
+		echo "Cloning ndctl..."; \
+		git clone -b $(NDCTL_BRANCH) $(NDCTL_REPO); \
+	fi
+	@if [ ! -d "ndctl/build" ]; then \
+		echo "Setting up ndctl build..."; \
+		meson setup ndctl/build ndctl; \
+	fi
+	@meson compile -C ndctl/build
+
 #
 # libfuse target: clone repo (if needed) and checkout the appropriate branch
 #
@@ -216,17 +236,17 @@ release:	cmake-modules threadpool mongoose
 #
 # Default target: build with auto-detected libfuse branch based on kernel version
 #
-all:	debug
+all:	ndctl debug
 
 #
 # Explicit kernel version targets: build with specific libfuse branch
 # regardless of the running kernel version
 #
-all-6.14:
+all-6.14:	ndctl
 	@echo "Building with libfuse branch $(LIBFUSE_BRANCH_6_14) (kernel 6.14 and earlier)"
 	$(MAKE) debug LIBFUSE_BRANCH="$(LIBFUSE_BRANCH_6_14)"
 
-all-6.19:
+all-6.19:	ndctl
 	@echo "Building with libfuse branch $(LIBFUSE_BRANCH_6_19) (kernel 6.19)"
 	$(MAKE) debug LIBFUSE_BRANCH="$(LIBFUSE_BRANCH_6_19)"
 
@@ -307,4 +327,4 @@ teardown:
 	@./scripts/teardown.sh
 
 .PHONY:	test smoke debug release coverage chk_include libfuse libfuse_install sanitize \
-	all all-6.14 all-6.19
+	all all-6.14 all-6.19 ndctl
