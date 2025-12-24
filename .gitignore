@@ -16,9 +16,10 @@ cmake-modules
 tmp/
 tools/
 stuff/
-libfuse/
+libfuse*/
 C-Thread-Pool/
 mongoose/
+ndctl*/
 TAGS
 #*
 .#*
