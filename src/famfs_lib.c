@@ -2981,12 +2981,13 @@ out:
 }
 
 /**
- * famfs_fsck_mounted()
+ * famfs_fsck()
  *
  * Fsck a famfs file system. 
  *
  * @path       - This can be the daxdev
  *               or any path within the mounted famfs file system
+ * @nodax      - Avoid raw dax access
  * @use_mmap   - if true, mmap the sb/log files; if false, read into buffers
  * @human      - human readable output
  * @nbuckets   - number of buckets for histogram
@@ -3033,7 +3034,8 @@ famfs_fsck(
 	case S_IFBLK: /* fallthrough (allow block/pmem)*/
 	case S_IFCHR: {
 		char *mpt;
-		
+
+		/* daxmode_required means the famfs mode of dax is required */
 		daxmode_required = famfs_daxmode_required();
 		initial_daxmode = famfs_get_daxdev_mode(path);
 		if (initial_daxmode == DAXDEV_MODE_UNKNOWN) {
