@@ -730,6 +730,7 @@ famfs_mount_fuse(
 	int debug,
 	int verbose)
 {
+	bool daxmode_required = famfs_daxmode_required();
 	u64 log_offset = FAMFS_SUPERBLOCK_SIZE;
 	char superblock_path[PATH_MAX] = {0};
 	struct famfs_superblock *sb = NULL;
@@ -810,6 +811,17 @@ famfs_mount_fuse(
 		goto out;
 	}
 
+	if (daxmode_required) {
+	  	/* Put daxdev in famfs mode */
+		famfs_log(FAMFS_LOG_DEBUG, "%s: putting %s in famfs mode\n",
+			  __func__, realdaxdev);
+		rc = famfs_set_daxdev_mode(realdaxdev, DAXDEV_MODE_FAMFS);
+		if (rc) {
+			fprintf(stderr, "%s: failed to set %s to famfs mode\n",
+				__func__, realdaxdev);
+			return -ENODEV;
+		}
+	}
 	if (bounce_dax) {
 		/* Not more access allowed to the raw daxdev after mkmeta! */
 		rc = famfs_bounce_daxdev(realdaxdev, verbose);
