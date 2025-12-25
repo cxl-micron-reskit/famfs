@@ -116,21 +116,6 @@ expect_fail "${FAMFS_FUSED[@]}" -o source=/etc/passwd "$FUSE_MPT" -- \
     "fused should fail with file as mpt"
 
 #
-# Extract kernel major/minor
-#
-kernel_version=$(uname -r)
-if [[ $kernel_version =~ ^([0-9]+)\.([0-9]+) ]]; then
-    major=${BASH_REMATCH[1]}
-    minor=${BASH_REMATCH[2]}
-else
-    echo "Error: Unable to parse kernel version: $kernel_version" >&2
-    exit 1
-fi
-
-echo "Major Version: $major"
-echo "Minor Version: $minor"
-
-#
 # Negative tests for operations not allowed in fuse/v1
 #
 if [[ "$FAMFS_MODE" == "fuse" ]]; then
@@ -144,7 +129,8 @@ if [[ "$FAMFS_MODE" == "fuse" ]]; then
     expect_fail sudo rm "$MPT/memfile"                   -- "rm fuse should fail"
     expect_fail sudo touch "$MPT/touchfile"              -- "touch fuse should fail"
 
-elif [[ "$FAMFS_MODE" == "v1" && "$major" -ge 6 && "$minor" -ge 12 ]]; then
+elif [[ "$FAMFS_MODE" == "v1" && \
+	    "$KERNEL_MAJOR" -ge 6 && "$KERNEL_MINOR" -ge 12 ]]; then
 
     expect_fail sudo truncate --size 0 "$MPT/memfile"    -- "truncate v1 should fail"
     expect_fail sudo ln "$MPT/newlink" "$MPT/memfile"    -- "hardlink v1 should fail"

@@ -36,15 +36,22 @@ done
 # Also unmount temp fuse mount if present
 stop_on_crash sudo umount /tmp/famfs_fuse -- "crashed umounting /tmp/famfs_fuse"
 
+DAXMODE=$(dax_get_mode $DEV "prepare 1")
+echo "DAXMODE: $DAXMODE"
+
 #
 # Basic mkfs tests
 #
 expect_good "${MKFS[@]}" -h         -- "mkfs -h should work"
+assert_daxmode_6.19 $DEV $DAXMODE "1"
 expect_fail "${MKFS[@]}"            -- "mkfs without dev argument should fail"
+assert_daxmode_6.19 $DEV $DAXMODE "2"
 expect_fail "${MKFS[@]}" /tmp/nonexistent -- "mkfs on nonexistent dev should fail"
+assert_daxmode_6.19 $DEV $DAXMODE "3"
 
 # If no filesystem is present, create one — ensure we do NOT crash
 stop_on_crash "${MKFS[@]}" "$DEV" -- "Safety mkfs"
+assert_daxmode_6.19 $DEV "famfs" "4"
 verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs?"
 expect_fail "${MKFS[@]}" -k "$DEV"       -- "mkfs/kill should fail without --force"
 verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (2)"
@@ -56,18 +63,32 @@ expect_good "${MKFS[@]}" -v -f "$DEV"       -- "redo mkfs with -f should succeed
 verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (5)"
 
 #
+# Set daxdev mode back to devdax
+#
+
+#
 # loglen sanity tests
 #
 expect_fail "${MKFS[@]}" -f --loglen 1 "$DEV" -- "mkfs with loglen 1 should fail"
+assert_daxmode_6.19 $DEV "famfs" "5"  # mkfs will have changed mode to famfs
+dax_reconfigure_mode $DEV "devdax"    # put back in devax mode and verify
+assert_daxmode_6.19 $DEV "devdax" "6"
 LOG_LEN=$(expect_good "${FSCK[@]}" -v "$DEV" | grep "log_len" | awk '{print $2}')
 assert_equal "$LOG_LEN" "8388608" "Log size should not change after mkfs with bogus loglen"
 verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (6)"
+
+# raw fsck above will changed to mode=famfs, but should put it back to devdax
+assert_daxmode_6.19 $DEV "devdax" "7"
+
 
 expect_fail "${MKFS[@]}" -f --loglen 11m "$DEV" -- "mkfs with loglen 11m should fail"
 LOG_LEN=$(expect_good "${FSCK[@]}" -v "$DEV" | grep "log_len" | awk '{print $2}')
 assert_equal "$LOG_LEN" "8388608" "Log size should not change after mkfs with bogus loglen 2"
 verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (7)"
 
+# mkfs should have changed the mode and not set it back (b/c if you made a
+# famfs file system, you probably want it in famfs mode...duh...
+assert_daxmode_6.19 $DEV "devdax" "8"
 
 # Valid log length
 expect_good "${MKFS[@]}" -f --loglen 256m "$DEV" -- "mkfs should work with 256m log"

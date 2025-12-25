@@ -620,6 +620,176 @@ overwrite_page () {
     dd if=/dev/urandom of="$file" bs=4096 count=1 seek="$pgnum" conv=notrunc
 }
 
+# get_daxctl_path
+#
+# Echo the path to a daxctl binary, preferring the local ndctl build
+# which has famfs mode support.
+#
+# Returns: echoes path to daxctl
+get_daxctl_path () {
+    if [[ -x "${SCRIPTS:-$(dirname "$0")}/../ndctl/build/daxctl/daxctl" ]]; then
+        echo "${SCRIPTS:-$(dirname "$0")}/../ndctl/build/daxctl/daxctl"
+    elif [[ -n "${DAXCTL_PATH:-}" && -x "$DAXCTL_PATH" ]]; then
+        echo "$DAXCTL_PATH"
+    else
+        echo "daxctl"
+    fi
+}
+
+# dax_get_mode <daxdev>
+#
+# Get the current mode of a dax device.
+# Uses the local ndctl build which has famfs mode support.
+#
+# Arguments:
+#   daxdev - DAX device path or name (e.g., /dev/dax2.0 or dax2.0)
+#
+# Returns:
+#   Echoes the mode (devdax, famfs, system-ram, or unknown)
+#   Calls fail() if device argument missing or device not found
+#
+# Example:
+#   mode=$(dax_get_mode /dev/dax1.0)
+#   mode=$(dax_get_mode dax2.0)
+dax_get_mode () {
+    local DEV_INPUT="$1"
+    local DEV
+    local DAXCTL
+    local MODE
+
+    if [[ -z "$DEV_INPUT" ]]; then
+        fail "dax_get_mode: no device specified"
+    fi
+
+    # Strip /dev/ prefix if present
+    DEV=$(basename "$DEV_INPUT")
+
+    # Verify device exists
+    if [[ ! -e "/sys/bus/dax/devices/${DEV}" ]]; then
+        fail "dax_get_mode: device ${DEV} not found"
+    fi
+
+    DAXCTL=$(get_daxctl_path)
+    MODE=$($DAXCTL list 2>/dev/null | grep -A10 "\"chardev\":\"${DEV}\"" | grep "\"mode\":" | head -1 | cut -d'"' -f4)
+
+    if [[ -z "$MODE" ]]; then
+        echo "unknown"
+        return 0
+    fi
+
+    echo "$MODE"
+    return 0
+}
+
+# assert_daxmode_6.19 <daxdev> <expected_mode>
+#
+# Assert that a dax device is in the expected mode, but only on kernel >= 6.19.
+# On older kernels, skip the check (no failure).
+#
+# Arguments:
+#   daxdev        - DAX device path or name (e.g., /dev/dax2.0 or dax2.0)
+#   expected_mode - Expected mode: devdax, famfs, or system-ram
+#
+# Returns:
+#   0 on success or if kernel < 6.19
+#   Calls fail() if mode doesn't match on kernel >= 6.19
+#
+# Example:
+#   assert_daxmode_6.19 /dev/dax1.0 famfs
+#   assert_daxmode_6.19 dax2.0 devdax
+assert_daxmode_6.19 () {
+    local DEV_INPUT="$1"
+    local EXPECTED_MODE="$2"
+    local MSG="$3"
+
+    if [[ "$KERNEL_MAJOR" -gt 6 ]] || [[ "$KERNEL_MAJOR" -eq 6 && "$KERNEL_MINOR" -ge 19 ]]; then
+        local CURRENT_MODE
+        CURRENT_MODE=$(dax_get_mode "$DEV_INPUT")
+
+        if [[ "$CURRENT_MODE" != "$EXPECTED_MODE" ]]; then
+            fail "assert_daxmode_6.19: ${DEV_INPUT} mode is '${CURRENT_MODE}', expected '${EXPECTED_MODE}' ($MSG)"
+        fi
+        echo ":= assert_daxmode_6.19: ${DEV_INPUT} mode is ${CURRENT_MODE} (as expected)"
+    else
+        echo ":= assert_daxmode_6.19: skipping (kernel ${KERNEL_MAJOR}.${KERNEL_MINOR} < 6.19)"
+    fi
+}
+
+# dax_reconfigure_mode <daxdev> <mode>
+#
+# Reconfigure a dax device to devdax, famfs, or system-ram mode.
+# Uses the local ndctl build which has famfs mode support.
+#
+# Arguments:
+#   daxdev - DAX device path or name (e.g., /dev/dax2.0 or dax2.0)
+#   mode   - Target mode: devdax, famfs, or system-ram
+#
+# Returns:
+#   0 on success, calls fail() on error
+#
+# Example:
+#   dax_reconfigure_mode /dev/dax1.0 famfs
+#   dax_reconfigure_mode dax2.0 devdax
+#   dax_reconfigure_mode dax2.0 system-ram
+dax_reconfigure_mode () {
+    local DEV_INPUT="$1"
+    local TARGET_MODE="$2"
+    local DEV
+    local CURRENT_MODE
+    local DAXCTL
+
+    if [[ -z "$DEV_INPUT" || -z "$TARGET_MODE" ]]; then
+        fail "dax_reconfigure_mode: Usage: dax_reconfigure_mode <daxdev> <mode>"
+    fi
+
+    # Strip /dev/ prefix if present
+    DEV=$(basename "$DEV_INPUT")
+
+    # Validate target mode
+    case "$TARGET_MODE" in
+        devdax|famfs|system-ram)
+            ;;
+        *)
+            fail "dax_reconfigure_mode: invalid mode '$TARGET_MODE' (must be devdax, famfs, or system-ram)"
+            ;;
+    esac
+
+    DAXCTL=$(get_daxctl_path)
+    echo ":= dax_reconfigure_mode: using daxctl: $DAXCTL"
+
+    # Verify device exists
+    if [[ ! -e "/sys/bus/dax/devices/${DEV}" ]]; then
+        fail "dax_reconfigure_mode: device ${DEV} not found"
+    fi
+
+    # Get current mode
+    CURRENT_MODE=$(dax_get_mode "$DEV")
+    echo ":= dax_reconfigure_mode: ${DEV} current mode: ${CURRENT_MODE}, target: ${TARGET_MODE}"
+
+    # Skip if already in target mode
+    if [[ "$CURRENT_MODE" == "$TARGET_MODE" ]]; then
+        echo ":= dax_reconfigure_mode: ${DEV} already in ${TARGET_MODE} mode"
+        return 0
+    fi
+
+    # Reconfigure the device
+    echo ":= dax_reconfigure_mode: reconfiguring ${DEV} to ${TARGET_MODE}..."
+    if ! sudo "$DAXCTL" reconfigure-device --human --mode="$TARGET_MODE" --force "$DEV"; then
+        fail "dax_reconfigure_mode: failed to reconfigure ${DEV} to ${TARGET_MODE}"
+    fi
+
+    # Verify the change took effect
+    local NEW_MODE
+    NEW_MODE=$(dax_get_mode "$DEV")
+
+    if [[ "$NEW_MODE" != "$TARGET_MODE" ]]; then
+        fail "dax_reconfigure_mode: verification failed - expected mode '${TARGET_MODE}', got '${NEW_MODE}'"
+    fi
+
+    echo ":= dax_reconfigure_mode: ${DEV} successfully reconfigured to ${TARGET_MODE}"
+    return 0
+}
+
 # show_dax_config <daxdev>
 #
 # Display alignment and mode for a dax device.
