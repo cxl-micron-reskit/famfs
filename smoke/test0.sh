@@ -216,7 +216,7 @@ if [[ "$FAMFS_MODE" == "v1" ]]; then
     # Post mount, re-create the meta files
     expect_good "${CLI[@]}" mkmeta "$DEV"      -- "mkmeta 2"
 else
-    "${MOUNT[@]}" --bouncedax "$DEV" "$MPT"    # hit the --bouncedax option
+    expect_good "${MOUNT[@]}" "$DEV" "$MPT" -- "remount fail"
     verify_mounted "$DEV" "$MPT" "test0 fuse mount"
 fi
 

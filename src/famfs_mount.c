@@ -708,7 +708,6 @@ famfs_umount(const char *mpt)
  * @logplay_use_mmap
  * @useraccess
  * @default_perm
- * @bounce_dax       - Disable and re-enable daxdev before proceeding with mount
  * @dummy            - Perform a mount and create meta files but don't verify
  *                     superblock and log, and don't play the log.
  * @dummy_log_size   - Size of log file for dummy mount
@@ -724,7 +723,6 @@ famfs_mount_fuse(
 	int logplay_use_mmap,
 	int useraccess,
 	int default_perm,
-	int bounce_dax,
 	int dummy,
 	u64 dummy_log_size,
 	int debug,
@@ -820,15 +818,6 @@ famfs_mount_fuse(
 			fprintf(stderr, "%s: failed to set %s to famfs mode\n",
 				__func__, realdaxdev);
 			return -ENODEV;
-		}
-	}
-	if (bounce_dax) {
-		/* Not more access allowed to the raw daxdev after mkmeta! */
-		rc = famfs_bounce_daxdev(realdaxdev, verbose);
-		if (rc) {
-			fprintf(stderr, "%s: failed to bounce daxdev %s\n",
-				__func__, realdaxdev);
-			return rc;
 		}
 	}
 
@@ -1017,7 +1006,6 @@ famfs_dummy_mount(
 	rc = famfs_mount_fuse(realdaxdev, mpt, NULL, 100, 0,
 			      1 /* useraccess */,
 			      1 /* default_perm */,
-			      0 /* bounce_dax */,
 			      1 /* dummy */,
 			      log_size,
 			      debug, verbose);

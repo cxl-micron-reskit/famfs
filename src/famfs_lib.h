@@ -50,7 +50,7 @@ char *famfs_get_shadow_root(const char *shadow_path, int verbose);
 int famfs_mount_fuse(const char *realdaxdev, const char *realmpt,
 		     const char *realshadow, ssize_t timeout,
 		     int logplay_use_fuse, int useraccess, int default_perm,
-		     int bounce_dax, int dummy, u64 dummy_log_size,
+		     int dummy, u64 dummy_log_size,
 		     int debug, int verbose);
 int famfs_dummy_mount(const char *realdaxdev, size_t log_len, char **mpt_out,
 		      int debug, int verbose);

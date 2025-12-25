@@ -42,22 +42,6 @@ static const char *basename_dev(const char *arg)
 }
 #endif
 
-static struct daxctl_dev *
-find_dax_by_name(struct daxctl_ctx *ctx, const char *want)
-{
-	struct daxctl_region *region;
-
-	daxctl_region_foreach(ctx, region) {
-		struct daxctl_dev *dev;
-		daxctl_dev_foreach(region, dev) {
-			const char *name = daxctl_dev_get_devname(dev); /* "daxX.Y" */
-			if (name && strcmp(name, want) == 0)
-				return dev;
-		}
-	}
-	return NULL;
-}
-
 /**
  * famfs_get_daxdev_mode() - Determine which driver is bound to a daxdev
  * @daxdev: Path to the dax device (e.g., "/dev/dax1.0" or "dax1.0")
@@ -216,82 +200,3 @@ out:
 	free(devname_copy);
 	return rc;
 }
-
-int famfs_bounce_daxdev(const char *name, int verbose)
-{
-	struct daxctl_ctx *ctx = NULL;
-	struct daxctl_dev *dev = NULL;
-	char *devname = strdup(name);
-	char *devbasename = basename(devname);
-	const char *realdevname;
-	int rc = 0;
-	(void)verbose;
-
-	rc = daxctl_new(&ctx);
-	if (rc) {
-		fprintf(stderr, "%s: daxctl_new() failed: %s\n",
-			__func__, strerror(-rc));
-		goto err_out;
-	}
-
-	dev = find_dax_by_name(ctx, devbasename);
-	if (!dev) {
-		fprintf(stderr, "%s: No such DAX device: %s\n",
-			__func__, devname);
-		rc = -ENODEV;
-		goto err_out;
-	}
-
-	/* Kinda circular, but correct */
-	realdevname = daxctl_dev_get_devname(dev);
-
-	/* Step 1: Disable (no-op if already disabled) */
-	rc = daxctl_dev_disable(dev);
-	if (rc) {
-		fprintf(stderr, "%s: failed to disable %s (errno=%d)\n",
-			__func__, realdevname, errno);
-		rc = -errno;
-		goto err_out;
-	}
-	printf("%s: disabled\n", realdevname);
-
-	/* Step 2: Enable in devdax mode */
-	rc = daxctl_dev_enable_devdax(dev);
-	if (rc) {
-		fprintf(stderr, "%s: dax_dev_enable(%s) failed (errno=%d)\n",
-			__func__, realdevname, errno);
-		rc = -errno;
-		goto err_out;
-	}
-
-	/* Optional: verify enabled */
-	if (!daxctl_dev_is_enabled(dev)) {
-		fprintf(stderr,
-			"%s: daxctl_dev_is_enabled(%s) errno=%d\n",
-			__func__, realdevname, errno);
-		rc = -1;
-		goto err_out;
-	}
-
-	printf("%s: re-enabled in devdax mode\n", realdevname);
-
-err_out:
-	if (ctx)
-		daxctl_unref(ctx);
-	free(devname);
-	return rc;
-}
-
-#ifdef STANDALONE
-int main(int argc, char **argv)
-{
-	if (argc != 2) {
-		fprintf(stderr, "Usage: %s daxX.Y | /dev/daxX.Y\n", argv[0]);
-		return 2;
-	}
-
-	arg_name = basename_dev(argv[1]);
-
-	return famfs_bounce_daxdev(arg_name);
-}
-#endif

@@ -244,8 +244,6 @@ famfs_mount_usage(int   argc,
 	       "    -p|--nodefaultperm - Do not apply normal posix permissions\n"
 	       "                         (don't use fuse default_permissions mount opt)\n"
 	       "    -S|--shadow=path   - Path to root of shadow filesystem\n"
-	       "    -b|--bouncedax     - Disable and re-enable the primary daxdev prior to mount\n"
-	       "                         (fuse only)\n"
 	       "\n", progname);
 }
 
@@ -258,7 +256,6 @@ do_famfs_cli_mount(int argc, char *argv[])
 	int debug = 0;
 	int verbose = 0;
 	int use_read = 0;
-	int bouncedax = 0;
 	int useraccess = 1;
 	int default_perm = 1;
 	char *shadowpath = NULL;
@@ -285,7 +282,6 @@ do_famfs_cli_mount(int argc, char *argv[])
 		{"verbose",    no_argument,            0,  'v'},
 		{"nouseraccess", no_argument,          0,  'u'},
 		{"nodefaultperm", no_argument,         0,  'p'},
-		{"bouncedax",   no_argument,           0,  'b'},
 		{"shadow",     required_argument,      0,  'S'},
 		{"dummy",      no_argument,            0,  'D'},
 
@@ -459,7 +455,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 		printf("daxdev=%s, mpt=%s\n", realdaxdev, realmpt);
 		rc = famfs_mount_fuse(realdaxdev, realmpt, shadowpath,
 				      timeout, use_mmap, useraccess,
-				      default_perm, bouncedax,
+				      default_perm,
 				      0, 0, /* not dummy mount */
 				      debug, verbose);
 		goto out;
@@ -493,15 +489,6 @@ do_famfs_cli_mount(int argc, char *argv[])
 			"famfs mount: failed to validate famfs file system\n");
 		rc = -1;
 		goto err_out;
-	}
-
-	if (bouncedax) {
-		rc = famfs_bounce_daxdev(realdaxdev, verbose);
-		if (rc) {
-			fprintf(stderr, "%s: failed to bounce daxdev %s\n",
-				__func__, realdaxdev);
-			return rc;
-		}
 	}
 
 	rc = mount(realdaxdev, realmpt, "famfs", mflags, "");

@@ -1866,10 +1866,3 @@ TEST(famfs, famfs_log_test) {
 	famfs_log_disable_syslog();
 	famfs_log(FAMFS_LOG_NOTICE, "%s:\n", __func__);
 }
-
-TEST(famfs, famfs_daxdev) {
-	int rc;
-	rc = famfs_bounce_daxdev("bogusdev", 2);
-	printf("famfs_bounce_daxdev = %d\n", rc);
-	ASSERT_NE(rc, 0);
-}
