@@ -96,6 +96,8 @@ enum famfs_daxdev_mode famfs_get_daxdev_mode(const char *daxdev)
  * @daxdev: Path to the dax device (e.g., "/dev/dax1.0" or "dax1.0")
  * @mode:   Target mode (DAXDEV_MODE_DEVICE_DAX or DAXDEV_MODE_FAMFS)
  *
+ * Retries up to 10 times with exponential backoff if EBUSY is returned.
+ *
  * Returns 0 on success, negative errno on failure.
  */
 int famfs_set_daxdev_mode(const char *daxdev, enum famfs_daxdev_mode mode)
@@ -105,10 +107,13 @@ int famfs_set_daxdev_mode(const char *daxdev, enum famfs_daxdev_mode mode)
 	char bind_path[PATH_MAX];
 	const char *unbind_drv;
 	const char *bind_drv;
-	char *devname_copy;
+	char *devname_copy = NULL;
 	char *devbasename;
+	int max_retries = 10;
+	int delay_ms = 100;
 	FILE *fp;
 	int rc = 0;
+	int i;
 
 	if (!daxdev)
 		return -EINVAL;
@@ -145,56 +150,84 @@ int famfs_set_daxdev_mode(const char *daxdev, enum famfs_daxdev_mode mode)
 	snprintf(bind_path, sizeof(bind_path),
 		 "/sys/bus/dax/drivers/%s/bind", bind_drv);
 
-	/* Unbind from current driver */
-	fp = fopen(unbind_path, "w");
-	if (!fp) {
-		rc = -errno;
-		fprintf(stderr, "%s: failed to open %s: %s\n",
-			__func__, unbind_path, strerror(errno));
-		if (errno == EACCES || errno == EPERM)
+	for (i = 0; i < max_retries; i++) {
+		rc = 0;
+
+		/* Unbind from current driver */
+		fp = fopen(unbind_path, "w");
+		if (!fp) {
+			rc = -errno;
+			if (errno == EBUSY)
+				goto retry;
+			fprintf(stderr, "%s: failed to open %s: %s\n",
+				__func__, unbind_path, strerror(errno));
+			if (errno == EACCES || errno == EPERM)
+				fprintf(stderr,
+					"%s: switching dax drivers requires root; try running with sudo\n",
+					__func__);
+			goto out;
+		}
+		if (fprintf(fp, "%s", devbasename) < 0) {
+			rc = -errno;
+			fclose(fp);
+			if (errno == EBUSY)
+				goto retry;
+			fprintf(stderr, "%s: failed to write to %s: %s\n",
+				__func__, unbind_path, strerror(errno));
+			goto out;
+		}
+		fclose(fp);
+
+		/* Bind to new driver */
+		fp = fopen(bind_path, "w");
+		if (!fp) {
+			rc = -errno;
+			if (errno == EBUSY)
+				goto retry;
+			fprintf(stderr, "%s: failed to open %s: %s\n",
+				__func__, bind_path, strerror(errno));
+			goto out;
+		}
+		if (fprintf(fp, "%s", devbasename) < 0) {
+			rc = -errno;
+			fclose(fp);
+			if (errno == EBUSY)
+				goto retry;
+			fprintf(stderr, "%s: failed to write to %s: %s\n",
+				__func__, bind_path, strerror(errno));
+			goto out;
+		}
+		fclose(fp);
+
+		/* Verify the mode actually changed */
+		current_mode = famfs_get_daxdev_mode(daxdev);
+		if (current_mode != mode) {
 			fprintf(stderr,
-				"%s: switching dax drivers requires root; try running with sudo\n",
-				__func__);
-		goto out;
-	}
-	if (fprintf(fp, "%s", devbasename) < 0) {
-		rc = -errno;
-		fprintf(stderr, "%s: failed to write to %s: %s\n",
-			__func__, unbind_path, strerror(errno));
-		fclose(fp);
-		goto out;
-	}
-	fclose(fp);
+				"%s: driver switch failed; expected %s but got %s\n",
+				__func__,
+				(mode == DAXDEV_MODE_FAMFS) ? "fsdev_dax" : "device_dax",
+				(current_mode == DAXDEV_MODE_FAMFS) ? "fsdev_dax" :
+				(current_mode == DAXDEV_MODE_DEVICE_DAX) ? "device_dax" :
+				"unknown");
+			rc = -EIO;
+			goto out;
+		}
 
-	/* Bind to new driver */
-	fp = fopen(bind_path, "w");
-	if (!fp) {
-		rc = -errno;
-		fprintf(stderr, "%s: failed to open %s: %s\n",
-			__func__, bind_path, strerror(errno));
+		/* Success */
+		rc = 0;
 		goto out;
-	}
-	if (fprintf(fp, "%s", devbasename) < 0) {
-		rc = -errno;
-		fprintf(stderr, "%s: failed to write to %s: %s\n",
-			__func__, bind_path, strerror(errno));
-		fclose(fp);
-		goto out;
-	}
-	fclose(fp);
 
-	/* Verify the mode actually changed */
-	current_mode = famfs_get_daxdev_mode(daxdev);
-	if (current_mode != mode) {
-		fprintf(stderr,
-			"%s: driver switch failed; expected %s but got %s\n",
-			__func__,
-			(mode == DAXDEV_MODE_FAMFS) ? "fsdev_dax" : "device_dax",
-			(current_mode == DAXDEV_MODE_FAMFS) ? "fsdev_dax" :
-			(current_mode == DAXDEV_MODE_DEVICE_DAX) ? "device_dax" :
-			"unknown");
-		rc = -EIO;
+retry:
+		if (i < max_retries - 1) {
+			printf("%s: retry %d (EBUSY)\n", __func__, i + 1);
+			usleep(delay_ms * 1000);
+			delay_ms *= 2; /* exponential backoff */
+		}
 	}
+
+	/* All retries exhausted */
+	fprintf(stderr, "%s: failed after %d retries (EBUSY)\n",
+		__func__, max_retries);
 
 out:
 	free(devname_copy);
