@@ -5511,7 +5511,7 @@ static bool famfs_mkfs_allowed(
 static int
 famfs_mkfs_via_dummy_mount(
 	const char *daxdev,
-	u64         log_len,
+	u64         log_len, /* already validated */
 	int         kill,
 	int         force,
 	int         verbose)
@@ -5529,13 +5529,6 @@ famfs_mkfs_via_dummy_mount(
 	rc = famfs_get_device_size(daxdev, &devsize_out, 1, verbose);
 	if (rc)
 		return rc;
-
-	/* Minimum log length is the FAMFS_LOG_LEN; And must be a power of 2 */
-	if (log_len & (log_len - 1) || log_len < FAMFS_LOG_LEN) {
-		fprintf(stderr, "%s: Error: invalid log length (%lld)\n",
-			__func__, log_len);
-		return -EINVAL;
-	}
 
 	rc = famfs_dummy_mount(daxdev, log_len, &mpt_out, 0, 0);
 	if (rc) {
@@ -5638,7 +5631,7 @@ out_umount:
 int
 famfs_mkfs_rawdev(
 	const char *daxdev,
-	u64         log_len,
+	u64         log_len, /* already validated */
 	int         kill,
 	int         force)
 {
@@ -5648,13 +5641,6 @@ famfs_mkfs_rawdev(
 	size_t devsize_out;
 	char *mpt = NULL;
 	int rc;
-
-	/* Minimum log length is the FAMFS_LOG_LEN; And must be a power of 2 */
-	if (log_len & (log_len - 1) || log_len < FAMFS_LOG_LEN) {
-		fprintf(stderr, "%s: Error: invalid log length (%lld)\n",
-			__func__, log_len);
-		return -EINVAL;
-	}
 
 	mpt = famfs_get_mpt_by_dev(daxdev);
 	if (mpt) {
@@ -5716,6 +5702,13 @@ famfs_mkfs(
 	bool no_raw_dax = nodax_in || daxmode_required;;
 	enum famfs_daxdev_mode initial_daxmode;
 	int rc;
+
+	/* Minimum log length is the FAMFS_LOG_LEN; And must be a power of 2 */
+	if (log_len & (log_len - 1) || log_len < FAMFS_LOG_LEN) {
+		fprintf(stderr, "%s: Error: invalid log length (%lld)\n",
+			__func__, log_len);
+		return -EINVAL;
+	}
 
 	initial_daxmode = famfs_get_daxdev_mode(daxdev);
 	if (initial_daxmode == DAXDEV_MODE_UNKNOWN) {
