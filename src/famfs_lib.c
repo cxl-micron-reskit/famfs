@@ -2040,7 +2040,7 @@ famfs_dax_shadow_logplay(
 	/* daxmode_required implies that raw dax access doesn't work;
 	 * Do a dummy mount for access
 	 */
-	rc = famfs_set_daxdev_mode(daxdev, DAXDEV_MODE_FAMFS);
+	rc = famfs_set_daxdev_mode(daxdev, DAXDEV_MODE_FAMFS, verbose);
 	if (rc) {
 		fprintf(stderr, "%s: failed to set %s to famfs mode\n",
 			__func__, daxdev);
@@ -3044,7 +3044,8 @@ famfs_fsck(
 			return -ENXIO;
 		}
 		if (daxmode_required) {
-			rc = famfs_set_daxdev_mode(path, DAXDEV_MODE_FAMFS);
+			rc = famfs_set_daxdev_mode(path, DAXDEV_MODE_FAMFS,
+						   verbose);
 			if (rc) {
 				fprintf(stderr,
 					"%s: failed to set %s to famfs mode\n",
@@ -3133,7 +3134,7 @@ out_umount:
 	if (daxmode_required && initial_daxmode != DAXDEV_MODE_FAMFS) {
 		int xrc;
 
-		xrc = famfs_set_daxdev_mode(path, initial_daxmode);
+		xrc = famfs_set_daxdev_mode(path, initial_daxmode, verbose);
 		if (xrc) {
 			fprintf(stderr,
 				"%s: failed to reset %s to original mode\n",
@@ -5718,7 +5719,7 @@ famfs_mkfs(
 	}
 
 	if (daxmode_required) {
-		rc = famfs_set_daxdev_mode(daxdev, DAXDEV_MODE_FAMFS);
+		rc = famfs_set_daxdev_mode(daxdev, DAXDEV_MODE_FAMFS, verbose);
 		if (rc) {
 			fprintf(stderr, "%s: failed to set %s to famfs mode\n",
 				__func__, daxdev);
@@ -5737,7 +5738,7 @@ famfs_mkfs(
 	 * put the daxdev back the way we found it
 	 */
 	if (rc && initial_daxmode != DAXDEV_MODE_FAMFS)
-		famfs_set_daxdev_mode(daxdev, initial_daxmode);
+		famfs_set_daxdev_mode(daxdev, initial_daxmode, verbose);
 
 	return rc;
 }

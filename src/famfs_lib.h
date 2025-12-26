@@ -146,7 +146,8 @@ enum famfs_daxdev_mode {
 };
 
 enum famfs_daxdev_mode famfs_get_daxdev_mode(const char *daxdev);
-int famfs_set_daxdev_mode(const char *daxdev, enum famfs_daxdev_mode mode);
+int famfs_set_daxdev_mode(const char *daxdev, enum famfs_daxdev_mode mode,
+	int verbose);
 int famfs_bounce_daxdev(const char *devname, int verbose);
 
 #endif /* _H_FAMFS_LIB */

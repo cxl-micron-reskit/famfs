@@ -100,7 +100,10 @@ enum famfs_daxdev_mode famfs_get_daxdev_mode(const char *daxdev)
  *
  * Returns 0 on success, negative errno on failure.
  */
-int famfs_set_daxdev_mode(const char *daxdev, enum famfs_daxdev_mode mode)
+int famfs_set_daxdev_mode(
+	const char *daxdev,
+	enum famfs_daxdev_mode mode,
+	int verbose)
 {
 	enum famfs_daxdev_mode current_mode;
 	char unbind_path[PATH_MAX];
@@ -115,6 +118,7 @@ int famfs_set_daxdev_mode(const char *daxdev, enum famfs_daxdev_mode mode)
 	int rc = 0;
 	int i;
 
+	printf("%s:\n", __func__);
 	if (!daxdev)
 		return -EINVAL;
 
@@ -201,33 +205,42 @@ int famfs_set_daxdev_mode(const char *daxdev, enum famfs_daxdev_mode mode)
 
 		/* Verify the mode actually changed */
 		current_mode = famfs_get_daxdev_mode(daxdev);
-		if (current_mode != mode) {
-			fprintf(stderr,
-				"%s: driver switch failed; expected %s but got %s\n",
-				__func__,
-				(mode == DAXDEV_MODE_FAMFS) ? "fsdev_dax" : "device_dax",
-				(current_mode == DAXDEV_MODE_FAMFS) ? "fsdev_dax" :
-				(current_mode == DAXDEV_MODE_DEVICE_DAX) ? "device_dax" :
-				"unknown");
-			rc = -EIO;
+		if (current_mode == mode) {
+			/* Success */
+			rc = 0;
 			goto out;
 		}
 
-		/* Success */
-		rc = 0;
-		goto out;
+		/*
+		 * Mode didn't change - this can happen if unbind was silently
+		 * blocked due to an active holder (kernel logs this but sysfs
+		 * write still returns success). Retry with backoff.
+		 */
+		rc = -EBUSY;
+		/* fall through to retry */
 
 retry:
 		if (i < max_retries - 1) {
-			printf("%s: retry %d (EBUSY)\n", __func__, i + 1);
+			if (verbose)
+				printf("%s: retry %d (mode=%s, target=%s)\n",
+				       __func__, i + 1,
+				       (current_mode == DAXDEV_MODE_FAMFS) ? "fsdev_dax" :
+				       (current_mode == DAXDEV_MODE_DEVICE_DAX) ? "device_dax" :
+				       "unknown",
+				       (mode == DAXDEV_MODE_FAMFS) ? "fsdev_dax" : "device_dax");
 			usleep(delay_ms * 1000);
 			delay_ms *= 2; /* exponential backoff */
 		}
 	}
 
 	/* All retries exhausted */
-	fprintf(stderr, "%s: failed after %d retries (EBUSY)\n",
-		__func__, max_retries);
+	current_mode = famfs_get_daxdev_mode(daxdev);
+	fprintf(stderr, "%s: failed after %d retries; expected %s but got %s\n",
+		__func__, max_retries,
+		(mode == DAXDEV_MODE_FAMFS) ? "fsdev_dax" : "device_dax",
+		(current_mode == DAXDEV_MODE_FAMFS) ? "fsdev_dax" :
+		(current_mode == DAXDEV_MODE_DEVICE_DAX) ? "device_dax" :
+		"unknown");
 
 out:
 	free(devname_copy);

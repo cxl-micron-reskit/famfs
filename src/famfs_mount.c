@@ -813,7 +813,8 @@ famfs_mount_fuse(
 	  	/* Put daxdev in famfs mode */
 		famfs_log(FAMFS_LOG_DEBUG, "%s: putting %s in famfs mode\n",
 			  __func__, realdaxdev);
-		rc = famfs_set_daxdev_mode(realdaxdev, DAXDEV_MODE_FAMFS);
+		rc = famfs_set_daxdev_mode(realdaxdev, DAXDEV_MODE_FAMFS,
+					   verbose);
 		if (rc) {
 			fprintf(stderr, "%s: failed to set %s to famfs mode\n",
 				__func__, realdaxdev);
