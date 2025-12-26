@@ -54,6 +54,19 @@ sudo dnf install -y libyaml-devel
 sudo dnf install -y daxctl-devel
 sudo dnf install -y libasan-static libubsan-static  # for sanitize builds
 ```
+
+#### Additional prerequisites for building ndctl from source
+
+If building the local ndctl (which has famfs dax mode support not yet upstream),
+these additional packages are required:
+```
+sudo dnf install -y kmod-devel
+sudo dnf install -y json-c-devel
+sudo dnf install -y libtraceevent-devel
+sudo dnf install -y libtracefs-devel
+sudo dnf install -y asciidoctor
+```
+
 Pay attention to error messages when you build, new dependencies may arise later, and
 different kernel installations may have different missing dependencies.
 
@@ -72,6 +85,19 @@ sudo apt install meson
 sudo apt install libyaml-dev
 sudo apt install libdaxctl-dev libndctl-dev
 ```
+
+#### Additional prerequisites for building ndctl from source
+
+If building the local ndctl (which has famfs dax mode support not yet upstream),
+these additional packages are required:
+```
+sudo apt install libkmod-dev
+sudo apt install libjson-c-dev
+sudo apt install libtraceevent-dev
+sudo apt install libtracefs-dev
+sudo apt install asciidoctor
+```
+
 Pay attention to error messages when you build, new dependencies may arise later, and
 different kernel installations may have different missing dependencies.
 
