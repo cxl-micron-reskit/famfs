@@ -71,14 +71,14 @@ verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (5)"
 #
 # Set daxdev mode back to devdax
 #
+dax_reconfigure_mode $DEV "devdax"
 
 #
 # loglen sanity tests
 #
 expect_fail "${MKFS[@]}" -f --loglen 1 "$DEV" -- "mkfs with loglen 1 should fail"
-assert_daxmode_6.19 $DEV "famfs" "5"  # mkfs will have changed mode to famfs
-dax_reconfigure_mode $DEV "devdax"    # put back in devax mode and verify
-assert_daxmode_6.19 $DEV "devdax" "6"
+# mkfs fails early (before mode switch) due to invalid loglen, so mode unchanged
+assert_daxmode_6.19 $DEV "devdax" "5"
 LOG_LEN=$(expect_good "${FSCK[@]}" -v "$DEV" | grep "log_len" | awk '{print $2}')
 assert_equal "$LOG_LEN" "8388608" "Log size should not change after mkfs with bogus loglen"
 verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (6)"
