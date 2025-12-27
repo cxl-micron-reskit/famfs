@@ -13,8 +13,27 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Install Dependencies
-      run: sudo apt-get update && sudo apt-get install -y build-essential && sudo apt-get install -y cmake && sudo apt-get install -y uuid-dev && sudo apt-get install -y zlib1g-dev && sudo apt-get install -y meson && sudo apt-get install -y libsystemd-dev && sudo apt-get install -y libdaxctl-dev
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          uuid-dev \
+          zlib1g-dev \
+          meson \
+          libsystemd-dev \
+          libdaxctl-dev \
+          libkmod-dev \
+          libjson-c-dev \
+          libtraceevent-dev \
+          libtracefs-dev \
+          asciidoctor \
+          libudev-dev \
+          libkeyutils-dev \
+          libiniparser-dev \
+          pkg-config
     - name: make
       run: make all
     - name: make test
       run: make test
+
