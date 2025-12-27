@@ -127,6 +127,9 @@ while (( $# > 0)); do
 	    BIN="$CWD/coverage"
 	    echo "hello coverage BIN=$BIN"
 	    ;;
+	(--with-pcq)
+	    FORCE_PCQ=1
+	    ;;
 	(-s|--sanitize)
 	    COVERAGE=1
 	    BIN="$CWD/sanitize"
@@ -325,7 +328,7 @@ else
     fi
 fi
 
-if [[ $COVERAGE -ne 1 ]]; then
+if [[ $COVERAGE -ne 1 ]] || [[ -n "$FORCE_PCQ" ]]; then
     if [ -z "$SKIP_PCQ" ]; then
 	# XXX: get test_pcq running properly in coverage test mode
 	./smoke/test_pcq.sh ${MOD_ARG} $VGARG \
@@ -335,10 +338,10 @@ if [[ $COVERAGE -ne 1 ]]; then
 	sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
 	sleep "${SLEEP_TIME}"
     else
-	echo ":== skipped test_pcq doe to run_smoke options"
+	echo ":== skipped test_pcq due to run_smoke options"
     fi
 else
-    echo ":== Skipped test_pcq due to coverage test (it's slow)"	
+    echo ":== Skipped test_pcq due to coverage test (use --with-pcq to override)"
 fi
 
 if [ -z "$SKIP_FIO" ]; then

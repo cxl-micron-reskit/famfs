@@ -200,8 +200,16 @@ smoke_coverage_fuse:
 	script -e -c "./run_smoke.sh --coverage --fuse" \
 			-O "smoke_coverage.fuse.$(HOSTNAME).log"
 
+smoke_coverage_fuse_pcq:
+	script -e -c "./run_smoke.sh --coverage --fuse --with-pcq" \
+			-O "smoke_coverage.fuse.$(HOSTNAME).log"
+
 smoke_coverage_nofuse:
 	script -e -c "./run_smoke.sh --coverage --nofuse" \
+			-O "smoke_coverage.nofuse.$(HOSTNAME).log"
+
+smoke_coverage_nofuse_pcq:
+	script -e -c "./run_smoke.sh --coverage --nofuse --with-pcq" \
 			-O "smoke_coverage.nofuse.$(HOSTNAME).log"
 
 unit_coverage:
@@ -220,12 +228,28 @@ coverage_fuse:	coverage
 	sudo chown -R "$(UID):$(GID)" coverage
 	$(MAKE) unit_coverage
 
+coverage_fuse_pcq:	coverage
+	$(MAKE) smoke_coverage_fuse_pcq
+	sudo chown -R "$(UID):$(GID)" coverage
+	$(MAKE) unit_coverage
+
 coverage_nofuse: coverage
 	$(MAKE) smoke_coverage_nofuse
 	sudo chown -R "$(UID):$(GID)" coverage
 	$(MAKE) unit_coverage
 
+coverage_nofuse_pcq: coverage
+	$(MAKE) smoke_coverage_nofuse_pcq
+	sudo chown -R "$(UID):$(GID)" coverage
+	$(MAKE) unit_coverage
+
 coverage_dual:	coverage_test
+
+coverage_dual_pcq:	coverage
+	$(MAKE) smoke_coverage_fuse_pcq
+	$(MAKE) smoke_coverage_nofuse_pcq
+	sudo chown -R "$(UID):$(GID)" coverage
+	$(MAKE) unit_coverage
 
 release:	cmake-modules threadpool mongoose
 	$(call check_kernel_version)
