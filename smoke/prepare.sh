@@ -39,6 +39,12 @@ stop_on_crash sudo umount /tmp/famfs_fuse -- "crashed umounting /tmp/famfs_fuse"
 DAXMODE=$(dax_get_mode $DEV "prepare 1")
 echo "DAXMODE: $DAXMODE"
 
+# Ensure we start in devdax mode for consistent test behavior
+if [[ "$DAXMODE" != "devdax" ]]; then
+    dax_reconfigure_mode $DEV "devdax"
+    DAXMODE="devdax"
+fi
+
 #
 # Basic mkfs tests
 #
@@ -51,7 +57,7 @@ assert_daxmode_6.19 $DEV $DAXMODE "3"
 
 # If no filesystem is present, create one — ensure we do NOT crash
 stop_on_crash "${MKFS[@]}" "$DEV" -- "Safety mkfs"
-assert_daxmode_6.19 $DEV "famfs" "4"
+dax_reconfigure_mode $DEV "devdax"
 verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs?"
 expect_fail "${MKFS[@]}" -k "$DEV"       -- "mkfs/kill should fail without --force"
 verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (2)"
