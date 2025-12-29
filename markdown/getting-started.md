@@ -101,7 +101,7 @@ sudo apt install libudev-dev
 sudo apt install libkeyutils-dev
 sudo apt install libiniparser-dev
 sudo apt install pkg-config
- ```
+```
 
 Pay attention to error messages when you build, new dependencies may arise later, and
 different kernel installations may have different missing dependencies.

@@ -1,5 +1,20 @@
 
 #
+# The famfs build uses "outlaw subrepos". We don't like git subrepo
+# functionality, so we check them out manually. The following subdirectories
+# are outlaw subrepos:
+#
+# * ndctl         - Used to build daxctl with fsdev/famfs support
+#                   (this should go away when fsdev/famfs support goes upstream)
+# * libfuse       - Libfuse with famfs support
+#                   (this may go away when famfs support goes upstream)
+# * cmake-modules - Used for cmake support of gcov coverage testing
+# * C-Thread-Pool - Thread pool library
+#                   TODO: have cmake check this out (no local mods)
+# * mongoose      - Used as rest server for famfs_fused
+#                   TODO: have cmake check this out (no local mods)
+
+#
 # Make the build fail fast if the famfs uapi include file is not installed
 #
 HOSTNAME := $(shell hostname)
