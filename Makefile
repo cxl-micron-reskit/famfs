@@ -301,6 +301,10 @@ test:
 	sudo rm -rf /tmp/famfs
 	cd debug; sudo ctest --output-on-failure
 
+# Run C-Thread-Pool unit tests
+threadpool-test:
+	cd C-Thread-Pool/tests && ./normal_compile.sh
+
 # Baseline smoke ***
 
 smoke_nofuse:	debug
@@ -365,5 +369,5 @@ teardown:
 	pwd
 	@./scripts/teardown.sh
 
-.PHONY:	test smoke debug release coverage chk_include libfuse libfuse_install sanitize \
+.PHONY:	test threadpool-test smoke debug release coverage chk_include libfuse libfuse_install sanitize \
 	all all-6.14 all-6.19 ndctl
