@@ -232,13 +232,13 @@ static void famfs_init(
 		famfs_log(FAMFS_LOG_NOTICE, "%s: Kernel is passthrough-capable\n",
 			 __func__);
 
-	if (conn->capable & FUSE_CAP_DAX_FMAP) {
+	if (conn->capable_ext & FUSE_CAP_DAX_FMAP) {
 		famfs_log(FAMFS_LOG_NOTICE,  "%s: Kernel is DAX_IOMAP-capable\n",
 			 __func__);
 		if (lo->daxdev) {
 			famfs_log(FAMFS_LOG_NOTICE,
 				 "%s: ENABLING DAX_IOMAP\n", __func__);
-			conn->want |= FUSE_CAP_DAX_FMAP;
+			conn->want_ext |= FUSE_CAP_DAX_FMAP;
 		} else {
 			famfs_log(FAMFS_LOG_NOTICE,
 				 "%s: disabling DAX_IOMAP (no daxdev)\n",
