@@ -1044,6 +1044,18 @@ famfs_readdir(
 	famfs_do_readdir(req, nodeid, size, offset, fi, 0);
 }
 
+static void famfs_readdirplus(
+	fuse_req_t req,
+	fuse_ino_t nodeid,
+	size_t size,
+	off_t offset,
+	struct fuse_file_info *fi)
+{
+	famfs_log(FAMFS_LOG_ERR, "%s: nodeid=%lx size=%ld offset=%ld\n",
+		  __func__, nodeid, size, offset);
+	famfs_do_readdir(req, nodeid, size, offset, fi, 1);
+}
+
 static void
 famfs_releasedir(
 	fuse_req_t req,
@@ -1268,7 +1280,7 @@ static const struct fuse_lowlevel_ops famfs_oper = {
 	.forget_multi	= famfs_forget_multi,
 	.flock		= famfs_flock,
 	/* .fallocate */
-	/* .readdirplus	= famfs_readdirplus, */
+	.readdirplus	= famfs_readdirplus,
 #ifdef HAVE_COPY_FILE_RANGE
 	/* .copy_file_range */
 #endif
