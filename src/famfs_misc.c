@@ -564,14 +564,16 @@ void free_string_list(char **strings, int nstrings)
 }
 
 /*
- * Splits a comma-separated string (no whitespace) into an array of strings.
+ * Splits a delimited string (no whitespace) into an array of strings.
  * - input: input string to split
+ * - delimiter: single character delimiter
  * - out_count: receives the number of tokens
  * Returns: array of strings (char **), or NULL on failure.
  * Caller must free each string and the array itself.
  */
-char **tokenize_string(const char *input, const char *delimiter, int *out_count)
+char **tokenize_string(const char *input, char delimiter, int *out_count)
 {
+	char delim_str[2] = {delimiter, '\0'};
 	char *copy;
 	char *token;
 	char **result;
@@ -580,8 +582,6 @@ char **tokenize_string(const char *input, const char *delimiter, int *out_count)
 	int i = 0;
 	int j;
 
-	assert(strlen(delimiter) == 1);
-
 	if (input == NULL || out_count == NULL)
 		return NULL;
 
@@ -589,10 +589,10 @@ char **tokenize_string(const char *input, const char *delimiter, int *out_count)
 	if (copy == NULL)
 		return NULL;
 
-	/* get a comma-count */
+	/* count delimiters to determine array size */
 	count = 1;
 	for (p = input; *p != '\0'; ++p) {
-		if (*p == ',')
+		if (*p == delimiter)
 			count++;
 	}
 
@@ -602,7 +602,7 @@ char **tokenize_string(const char *input, const char *delimiter, int *out_count)
 		return NULL;
 	}
 
-	token = strtok(copy, delimiter);
+	token = strtok(copy, delim_str);
 	while (token != NULL && i < count) {
 		result[i] = strdup(token);
 		if (result[i] == NULL) {
@@ -613,7 +613,7 @@ char **tokenize_string(const char *input, const char *delimiter, int *out_count)
 			return NULL;
 		}
 		i++;
-		token = strtok(NULL, delimiter);
+		token = strtok(NULL, delim_str);
 	}
 
 	free(copy);

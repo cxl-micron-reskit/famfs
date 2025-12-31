@@ -53,33 +53,6 @@ TEST(famfs, dummy)
 	ASSERT_EQ(0, 0);
 }
 
-TEST(famfs, famfs_misc)
-{
-	char **strings;
-	int rc;
-
-	rc = check_file_exists("/tmp", "this-file-should-not-exist", 1,
-			       0, NULL, 1);
-	ASSERT_EQ(rc, -1);
-	rc = famfs_flush_file("/tmp/this-file-should-not-exist", 1);
-	ASSERT_EQ(rc, 3);
-	free_string_list(NULL, 1);
-	rc = get_multiplier(NULL);
-	ASSERT_EQ(rc, 1);
-	rc = get_multiplier("mm");
-	ASSERT_EQ(rc, -1);
-	rc = kernel_symbol_exists("famfs_fuse_iomap_begin", "fuse", 1);
-	EXPECT_TRUE(rc == 0 || rc == 1);
-	rc = kernel_symbol_exists("famfs_create", "famfs", 1);
-	EXPECT_TRUE(rc == 0 || rc == 1);
-	rc = kernel_symbol_exists("famfs_create", "famfsv1", 1);
-	EXPECT_TRUE(rc == 0 || rc == 1);
-	rc = famfs_get_kernel_type(1);
-	EXPECT_TRUE(rc == FAMFS_FUSE || rc == FAMFS_V1 || rc == NOT_FAMFS);
-	strings = tokenize_string(NULL, ",", NULL);
-	EXPECT_TRUE(strings == NULL);
-}
-
 TEST(famfs, famfs_create_sys_uuid_file)
 {
 	char sys_uuid_file[PATH];
@@ -1865,4 +1838,243 @@ TEST(famfs, famfs_log_test) {
 
 	famfs_log_disable_syslog();
 	famfs_log(FAMFS_LOG_NOTICE, "%s:\n", __func__);
+}
+
+TEST(famfs, famfs_misc)
+{
+	char **strings;
+	int rc;
+
+	rc = check_file_exists("/tmp", "this-file-should-not-exist", 1,
+			       0, NULL, 1);
+	ASSERT_EQ(rc, -1);
+	rc = famfs_flush_file("/tmp/this-file-should-not-exist", 1);
+	ASSERT_EQ(rc, 3);
+	free_string_list(NULL, 1);
+	rc = get_multiplier(NULL);
+	ASSERT_EQ(rc, 1);
+	rc = get_multiplier("mm");
+	ASSERT_EQ(rc, -1);
+	rc = kernel_symbol_exists("famfs_fuse_iomap_begin", "fuse", 1);
+	EXPECT_TRUE(rc == 0 || rc == 1);
+	rc = kernel_symbol_exists("famfs_create", "famfs", 1);
+	EXPECT_TRUE(rc == 0 || rc == 1);
+	rc = kernel_symbol_exists("famfs_create", "famfsv1", 1);
+	EXPECT_TRUE(rc == 0 || rc == 1);
+	rc = famfs_get_kernel_type(1);
+	EXPECT_TRUE(rc == FAMFS_FUSE || rc == FAMFS_V1 || rc == NOT_FAMFS);
+	strings = tokenize_string(NULL, ',', NULL);
+	EXPECT_TRUE(strings == NULL);
+
+	/*
+	 * Test famfs_read_fd_to_buf()
+	 */
+	{
+		char *buf;
+		ssize_t size_out;
+		int fd;
+		const char *test_content = "Hello, famfs unit test!";
+		ssize_t content_len = strlen(test_content);
+
+		/* Create a temp file with known content */
+		system("rm -f /tmp/famfs_read_test");
+		fd = open("/tmp/famfs_read_test", O_RDWR | O_CREAT, 0644);
+		ASSERT_GT(fd, 0);
+		write(fd, test_content, content_len);
+		close(fd);
+
+		/* Test 1: Valid fd with content - should read successfully */
+		fd = open("/tmp/famfs_read_test", O_RDONLY);
+		ASSERT_GT(fd, 0);
+		buf = (char *)famfs_read_fd_to_buf(fd, 4096, &size_out);
+		ASSERT_NE(buf, (char *)NULL);
+		ASSERT_EQ(size_out, content_len);
+		ASSERT_EQ(memcmp(buf, test_content, content_len), 0);
+		free(buf);
+		close(fd);
+
+		/* Test 2: Read with max_size smaller than file - partial read */
+		fd = open("/tmp/famfs_read_test", O_RDONLY);
+		ASSERT_GT(fd, 0);
+		buf = (char *)famfs_read_fd_to_buf(fd, 10, &size_out);
+		ASSERT_NE(buf, (char *)NULL);
+		ASSERT_EQ(size_out, 10);
+		ASSERT_EQ(memcmp(buf, test_content, 10), 0);
+		free(buf);
+		close(fd);
+
+		/* Test 3: Read with max_size larger than file - reads available */
+		fd = open("/tmp/famfs_read_test", O_RDONLY);
+		ASSERT_GT(fd, 0);
+		buf = (char *)famfs_read_fd_to_buf(fd, 8192, &size_out);
+		ASSERT_NE(buf, (char *)NULL);
+		ASSERT_EQ(size_out, content_len);
+		free(buf);
+		close(fd);
+
+		/* Test 4: Empty file - should return buffer with size_out = 0 */
+		system("rm -f /tmp/famfs_read_empty");
+		fd = open("/tmp/famfs_read_empty", O_RDWR | O_CREAT, 0644);
+		ASSERT_GT(fd, 0);
+		close(fd);
+
+		fd = open("/tmp/famfs_read_empty", O_RDONLY);
+		ASSERT_GT(fd, 0);
+		buf = (char *)famfs_read_fd_to_buf(fd, 4096, &size_out);
+		ASSERT_NE(buf, (char *)NULL);
+		ASSERT_EQ(size_out, 0);
+		free(buf);
+		close(fd);
+
+		/* Test 5: Invalid fd (-1) - should return NULL */
+		buf = (char *)famfs_read_fd_to_buf(-1, 4096, &size_out);
+		ASSERT_EQ(buf, (char *)NULL);
+		ASSERT_EQ(size_out, 0);
+
+		/* Test 6: Read same file multiple times (pread uses offset 0) */
+		fd = open("/tmp/famfs_read_test", O_RDONLY);
+		ASSERT_GT(fd, 0);
+		buf = (char *)famfs_read_fd_to_buf(fd, 4096, &size_out);
+		ASSERT_NE(buf, (char *)NULL);
+		ASSERT_EQ(size_out, content_len);
+		free(buf);
+		/* Read again - pread should read from offset 0 again */
+		buf = (char *)famfs_read_fd_to_buf(fd, 4096, &size_out);
+		ASSERT_NE(buf, (char *)NULL);
+		ASSERT_EQ(size_out, content_len);
+		free(buf);
+		close(fd);
+
+		/* Cleanup */
+		system("rm -f /tmp/famfs_read_test /tmp/famfs_read_empty");
+	}
+}
+
+TEST(famfs, tokenize_string)
+{
+	char **strings;
+	int count;
+
+	/* Test 1: NULL input - should return NULL */
+	strings = tokenize_string(NULL, ',', &count);
+	ASSERT_EQ(strings, (char **)NULL);
+
+	/* Test 2: NULL out_count - should return NULL */
+	strings = tokenize_string("a,b,c", ',', NULL);
+	ASSERT_EQ(strings, (char **)NULL);
+
+	/* Test 3: Single token (no delimiter) */
+	strings = tokenize_string("hello", ',', &count);
+	ASSERT_NE(strings, (char **)NULL);
+	ASSERT_EQ(count, 1);
+	ASSERT_STREQ(strings[0], "hello");
+	free_string_list(strings, count);
+
+	/* Test 4: Multiple tokens with comma delimiter */
+	strings = tokenize_string("one,two,three", ',', &count);
+	ASSERT_NE(strings, (char **)NULL);
+	ASSERT_EQ(count, 3);
+	ASSERT_STREQ(strings[0], "one");
+	ASSERT_STREQ(strings[1], "two");
+	ASSERT_STREQ(strings[2], "three");
+	free_string_list(strings, count);
+
+	/* Test 5: Two tokens */
+	strings = tokenize_string("foo,bar", ',', &count);
+	ASSERT_NE(strings, (char **)NULL);
+	ASSERT_EQ(count, 2);
+	ASSERT_STREQ(strings[0], "foo");
+	ASSERT_STREQ(strings[1], "bar");
+	free_string_list(strings, count);
+
+	/* Test 6: Single character tokens */
+	strings = tokenize_string("a,b,c,d", ',', &count);
+	ASSERT_NE(strings, (char **)NULL);
+	ASSERT_EQ(count, 4);
+	ASSERT_STREQ(strings[0], "a");
+	ASSERT_STREQ(strings[1], "b");
+	ASSERT_STREQ(strings[2], "c");
+	ASSERT_STREQ(strings[3], "d");
+	free_string_list(strings, count);
+
+	/* Test 7: Empty string - strtok returns NULL, so count should be 0 */
+	strings = tokenize_string("", ',', &count);
+	ASSERT_NE(strings, (char **)NULL);
+	ASSERT_EQ(count, 0);
+	free_string_list(strings, count);
+
+	/* Test 8: String with only delimiter - strtok skips it */
+	strings = tokenize_string(",", ',', &count);
+	ASSERT_NE(strings, (char **)NULL);
+	ASSERT_EQ(count, 0);
+	free_string_list(strings, count);
+
+	/* Test 9: String starting with delimiter */
+	strings = tokenize_string(",hello,world", ',', &count);
+	ASSERT_NE(strings, (char **)NULL);
+	ASSERT_EQ(count, 2);
+	ASSERT_STREQ(strings[0], "hello");
+	ASSERT_STREQ(strings[1], "world");
+	free_string_list(strings, count);
+
+	/* Test 10: String ending with delimiter */
+	strings = tokenize_string("hello,world,", ',', &count);
+	ASSERT_NE(strings, (char **)NULL);
+	ASSERT_EQ(count, 2);
+	ASSERT_STREQ(strings[0], "hello");
+	ASSERT_STREQ(strings[1], "world");
+	free_string_list(strings, count);
+
+	/* Test 11: Multiple consecutive delimiters */
+	strings = tokenize_string("a,,b,,,c", ',', &count);
+	ASSERT_NE(strings, (char **)NULL);
+	ASSERT_EQ(count, 3);
+	ASSERT_STREQ(strings[0], "a");
+	ASSERT_STREQ(strings[1], "b");
+	ASSERT_STREQ(strings[2], "c");
+	free_string_list(strings, count);
+
+	/* Test 12: Tokens with spaces (spaces preserved) */
+	strings = tokenize_string("hello world,foo bar,baz", ',', &count);
+	ASSERT_NE(strings, (char **)NULL);
+	ASSERT_EQ(count, 3);
+	ASSERT_STREQ(strings[0], "hello world");
+	ASSERT_STREQ(strings[1], "foo bar");
+	ASSERT_STREQ(strings[2], "baz");
+	free_string_list(strings, count);
+
+	/* Test 13: Long tokens */
+	strings = tokenize_string("this_is_a_long_token,another_long_token_here", ',', &count);
+	ASSERT_NE(strings, (char **)NULL);
+	ASSERT_EQ(count, 2);
+	ASSERT_STREQ(strings[0], "this_is_a_long_token");
+	ASSERT_STREQ(strings[1], "another_long_token_here");
+	free_string_list(strings, count);
+
+	/* Test 14: Single token with no delimiter in string */
+	strings = tokenize_string("no_commas_here", ',', &count);
+	ASSERT_NE(strings, (char **)NULL);
+	ASSERT_EQ(count, 1);
+	ASSERT_STREQ(strings[0], "no_commas_here");
+	free_string_list(strings, count);
+
+	/* Test 15: Test with colon delimiter */
+	strings = tokenize_string("a:b:c", ':', &count);
+	ASSERT_NE(strings, (char **)NULL);
+	ASSERT_EQ(count, 3);
+	ASSERT_STREQ(strings[0], "a");
+	ASSERT_STREQ(strings[1], "b");
+	ASSERT_STREQ(strings[2], "c");
+	free_string_list(strings, count);
+
+	/* Test 16: Numeric tokens */
+	strings = tokenize_string("1,2,3,4,5", ',', &count);
+	ASSERT_NE(strings, (char **)NULL);
+	ASSERT_EQ(count, 5);
+	ASSERT_STREQ(strings[0], "1");
+	ASSERT_STREQ(strings[1], "2");
+	ASSERT_STREQ(strings[2], "3");
+	ASSERT_STREQ(strings[3], "4");
+	ASSERT_STREQ(strings[4], "5");
+	free_string_list(strings, count);
 }

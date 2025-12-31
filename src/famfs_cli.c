@@ -1734,7 +1734,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 			if (!mc)
 				mc = calloc(argc, sizeof(*mc));
 
-			strings = tokenize_string(optarg, ",", &nstrings);
+			strings = tokenize_string(optarg, ',', &nstrings);
 			if (!nstrings || nstrings < 2 || nstrings > 3) {
 				free_string_list(strings, nstrings);
 				fprintf(stderr,
@@ -2124,7 +2124,7 @@ do_famfs_cli_verify(int argc, char *argv[])
 			if (!mv)
 				mv = calloc(argc, sizeof(*mv));
 
-			strings = tokenize_string(optarg, ",", &nstrings);
+			strings = tokenize_string(optarg, ',', &nstrings);
 			if (nstrings !=2) {
 				free_string_list(strings, nstrings);
 				fprintf(stderr,

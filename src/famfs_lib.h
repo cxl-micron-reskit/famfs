@@ -132,7 +132,7 @@ void famfs_print_uuid(const uuid_le *uuid);
 enum famfs_type famfs_get_kernel_type(int verbose);
 bool famfs_daxmode_required(void);
 void free_string_list(char **strings, int nstrings);
-char **tokenize_string(const char *input, const char *delimiter, int *out_count);
+char **tokenize_string(const char *input, char delimiter, int *out_count);
 void famfs_thpool_destroy(threadpool thp, useconds_t usec);
 void log_file_mode(
 	const char *caller, const char *name, const struct stat *st,
