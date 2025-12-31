@@ -104,7 +104,6 @@ famfs_dump_opts(const struct famfs_ctx *fd)
 	if (fd->debug) {
 		printf("%s:\n", __func__);
 		printf("    debug=%d\n", fd->debug);
-		printf("    writeback=%d\n", fd->writeback);
 		printf("    flock=%d\n", fd->flock);
 		printf("    xattr=%d\n", fd->xattr);
 		printf("    shadow=%s\n", fd->source);
@@ -117,7 +116,6 @@ famfs_dump_opts(const struct famfs_ctx *fd)
 
 	famfs_log(FAMFS_LOG_DEBUG, "%s:\n", __func__);
 	famfs_log(FAMFS_LOG_DEBUG, "    debug=%d\n", fd->debug);
-	famfs_log(FAMFS_LOG_DEBUG, "    writeback=%d\n", fd->writeback);
 	famfs_log(FAMFS_LOG_DEBUG, "    flock=%d\n", fd->flock);
 	famfs_log(FAMFS_LOG_DEBUG, "    xattr=%d\n", fd->xattr);
 	famfs_log(FAMFS_LOG_DEBUG, "    shadow=%s\n", fd->source);
@@ -132,10 +130,6 @@ famfs_dump_opts(const struct famfs_ctx *fd)
  * These are the "-o" opts
  */
 static const struct fuse_opt famfs_opts[] = {
-	{ "writeback",
-	  offsetof(struct famfs_ctx, writeback), 1 },
-	{ "no_writeback",
-	  offsetof(struct famfs_ctx, writeback), 0 },
 	{ "shadow=%s",
 	  offsetof(struct famfs_ctx, source), 0 },
 	{ "source=%s",
@@ -184,8 +178,6 @@ void dump_fuse_args(struct fuse_args *args, int debug)
 static void famfs_fused_help(void)
 {
 	printf(
-"    -o writeback           Enable writeback\n"
-"    -o no_writeback        Disable write back\n"
 "    -o source=/home/dir    Source directory to be mounted (required)\n"
 "    -o shadow=/shadow/path Path to the famfs shadow tree\n"
 "    -o daxdev=/dev/dax0.0  Devdax backing device\n"
@@ -216,13 +208,6 @@ static void famfs_init(
 {
 	struct famfs_ctx *lo = (struct famfs_ctx*) userdata;
 
-	if (lo->writeback &&
-	    conn->capable & FUSE_CAP_WRITEBACK_CACHE) {
-		if (lo->debug)
-			famfs_log(FAMFS_LOG_DEBUG,
-				 "famfs_init: activating writeback\n");
-		conn->want |= FUSE_CAP_WRITEBACK_CACHE;
-	}
 	if (lo->flock && conn->capable & FUSE_CAP_FLOCK_LOCKS) {
 		if (lo->debug)
 			famfs_log(FAMFS_LOG_DEBUG,
@@ -1098,22 +1083,6 @@ famfs_open(
 
 	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
 
-	/* With writeback cache, kernel may send read requests even
-	   when userspace opened write-only */
-	if (lo->writeback && (fi->flags & O_ACCMODE) == O_WRONLY) {
-		fi->flags &= ~O_ACCMODE;
-		fi->flags |= O_RDWR;
-	}
-
-	/* With writeback cache, O_APPEND is handled by the kernel.
-	   This breaks atomicity (since the file may change in the
-	   underlying filesystem, so that the kernel's idea of the
-	   end of the file isn't accurate anymore). In this example,
-	   we just accept that. A more rigorous filesystem may want
-	   to return an error here */
-	if (lo->writeback && (fi->flags & O_APPEND))
-		fi->flags &= ~O_APPEND;
-
 	famfs_inode_getref(inode->icache, inode);
 	fi->fh = -1;
 
@@ -1344,7 +1313,6 @@ int main(int argc, char *argv[])
 
 	/* Default options */
 	lo->debug = 1; /* Temporary */
-	lo->writeback = 0;
 	lo->flock = 1; /* Need flock for log locking on master node */
 	lo->xattr = 0;
 	lo->cache = CACHE_NORMAL;

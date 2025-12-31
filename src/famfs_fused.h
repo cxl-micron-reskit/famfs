@@ -17,7 +17,6 @@ enum {
 
 struct famfs_ctx {
 	int debug;
-	int writeback;
 	int flock;
 	int xattr;
 	char *source;
