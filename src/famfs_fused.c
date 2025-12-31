@@ -203,10 +203,12 @@ static struct famfs_ctx *famfs_ctx_from_req(fuse_req_t req)
 	return (struct famfs_ctx *) fuse_req_userdata(req);
 }
 
+#if 0
 static bool famfs_debug(fuse_req_t req)
 {
 	return famfs_ctx_from_req(req)->debug != 0;
 }
+#endif
 
 static void famfs_init(
 	void *userdata,
@@ -693,10 +695,6 @@ famfs_lookup(
 	struct fuse_entry_param e;
 	int err;
 
-	if (famfs_debug(req))
-		famfs_log(FAMFS_LOG_DEBUG, "famfs_lookup(parent=%" PRIu64 ", name=%s)\n",
-			parent, name);
-
 	err = famfs_do_lookup(req, parent, name, &e, &fmeta);
 	if (err)
 		fuse_reply_err(req, err);
@@ -723,22 +721,11 @@ famfs_get_fmap(
 		err = ENOMEM;
 		goto out_err;
 	}
-	
-	/* The fuse v1 patch set uses the inode number as the nodeid, meaning
-	 * we have to search the list every time. */
-	inode = famfs_get_inode_from_nodeid(&lo->icache, nodeid);
-	if (inode) /* XXX drop when first fuse patch set is deprecated */
-		famfs_log(FAMFS_LOG_DEBUG, "%s: old kmod - found by i_ino\n",
-			 __func__);
 
-	dump_inode(__func__, inode, FAMFS_LOG_NOTICE);
-
-	/* If it's the v2 or later kmod, the nodeid is the address of the
-	 * famfs_inode. Retrieving it this way validates that there is indeed
-	 * an inode at that address.
+	/* The nodeid is the address of the famfs_inode. Retrieving it
+	 * this way validates that there is indeed an inode at that address.
 	 */
-	if (!inode)
-		inode = famfs_get_inode_from_nodeid(&lo->icache, nodeid);
+	inode = famfs_get_inode_from_nodeid(&lo->icache, nodeid);
 
 	if (!inode) {
 		famfs_log(FAMFS_LOG_ERR, "%s: inode 0x%ld not found\n",
@@ -765,22 +752,13 @@ famfs_get_fmap(
 		err = EINVAL;
 		goto out_err;
 	}
-#if 1
-	/* XXX revertme
-	 * For the moment we return fmap_bufsize because the v1 famfs-fuse
-	 * kernel patch set doesn't handle shorter replies. Revert this when
-	 * we no longer need to support shortening the reply to the actual
-	 * length of the fmap
-	 */
-	fmap_size = fmap_bufsize; /* override to 4K for v1 famfs-fuse kernel */
-#endif
+
 	err = fuse_reply_buf(req, fmap_message, fmap_size /* FMAP_MSG_MAX */);
 	if (err)
 		famfs_log(FAMFS_LOG_ERR, "%s: fuse_reply_buf returned err %d\n",
 			 __func__, err);
 
-	if (fmap_message)
-		free(fmap_message);
+	free(fmap_message);
 
 	famfs_inode_putref(inode);
 	return;
@@ -810,7 +788,9 @@ famfs_get_daxdev(
 
 	/* Fill in daxdev struct */
 	if (daxdev_index != 0) {
-		famfs_log(FAMFS_LOG_ERR, "%s: non-zero daxdev index\n", __func__);
+		/* XXX drop this test when we support more than one daxdev */
+		famfs_log(FAMFS_LOG_ERR, "%s: non-zero daxdev index\n",
+			  __func__);
 		err = EINVAL;
 		goto out_err;
 	}
@@ -820,65 +800,18 @@ famfs_get_daxdev(
 		goto out_err;
 	}
 
-	/* Right now we can only retrieve index 0... */
-	daxdev.index = 0;
 	strncpy(daxdev.name, fd->daxdev_table[daxdev_index].dd_daxdev,
 		FAMFS_DEVNAME_LEN - 1);
 
 	err = fuse_reply_buf(req, (void *)&daxdev, sizeof(daxdev));
 	if (err)
-		famfs_log(FAMFS_LOG_ERR, "%s: fuse_reply_buf returned err %d\n",
+		famfs_log(FAMFS_LOG_ERR,
+			  "%s: fuse_reply_buf returned err %d\n",
 			 __func__, err);
 	return;
 
 out_err:
 	fuse_reply_err(req, err);
-}
-
-static void
-famfs_mknod(
-	fuse_req_t req,
-	fuse_ino_t parent,
-	const char *name,
-	mode_t mode,
-	dev_t rdev)
-{
-	(void)req;
-	(void)parent;
-	(void)name;
-	(void)mode;
-	(void)rdev;
-
-	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
-	fuse_reply_err(req, ENOTSUP);
-}
-
-static void
-famfs_fuse_mkdir(
-	fuse_req_t req,
-	fuse_ino_t parent,
-	const char *name,
-	mode_t mode)
-{
-	(void)parent;
-	(void)name;
-	(void)mode;
-
-	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
-	fuse_reply_err(req, ENOTSUP);
-}
-
-static void
-famfs_unlink(
-	fuse_req_t req,
-	fuse_ino_t parent,
-	const char *name)
-{
-	(void)parent;
-	(void)name;
-
-	famfs_log(FAMFS_LOG_DEBUG, "%s: ENOTSUP\n", __func__);
-	fuse_reply_err(req, ENOTSUP);
 }
 
 static void
@@ -1153,10 +1086,6 @@ famfs_open(
 
 	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
 
-	if (famfs_debug(req))
-		famfs_log(FAMFS_LOG_DEBUG, "famfs_open(nodeid=%lx, flags=%d)\n",
-			nodeid, fi->flags);
-
 	/* With writeback cache, kernel may send read requests even
 	   when userspace opened write-only */
 	if (lo->writeback && (fi->flags & O_ACCMODE) == O_WRONLY) {
@@ -1306,9 +1235,9 @@ static const struct fuse_lowlevel_ops famfs_oper = {
 	.getattr	= famfs_getattr,
 	.setattr	= famfs_setattr,
 	/* .readlink */
-	.mknod		= famfs_mknod,
-	.mkdir		= famfs_fuse_mkdir,
-	.unlink		= famfs_unlink,
+	/* .mknod */
+	/* .mkdir */
+	/* .unlink */
 	/* .rmdir */
 	/* .symlink */
 	/* .rename */
