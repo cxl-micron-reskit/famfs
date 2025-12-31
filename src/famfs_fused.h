@@ -31,15 +31,4 @@ struct famfs_ctx {
 	struct famfs_icache icache;
 };
 
-
-#define FAMFS_ASSERT(FUNC, ASSERTION)					\
-    do {                                                                \
-        if (!(ASSERTION)) {                                             \
-		famfs_log(FAMFS_LOG_ERR,				\
-                    "%s: assertion failed: %s (in %s:%d)\n",            \
-                    FUNC, #ASSERTION, __FILE__, __LINE__);              \
-            assert(ASSERTION);                                          \
-        }                                                               \
-    } while (0)
-
 #endif /* FAMFS_FUSED_H */

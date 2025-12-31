@@ -731,3 +731,34 @@ int exit_val(int rc) {
 		return 127;
 	}
 }
+
+void *
+famfs_read_fd_to_buf(int fd, ssize_t max_size, ssize_t *size_out)
+{
+	char *buf;
+	ssize_t n;
+
+	if (max_size > FAMFS_YAML_MAX)
+		famfs_log(FAMFS_LOG_ERR, "%s: max_size=%lld > limit=%d\n",
+			 __func__, max_size, FAMFS_YAML_MAX);
+
+	buf = calloc(1, max_size + 8);
+	if (!buf) {
+		famfs_log(FAMFS_LOG_ERR, "%s: failed to malloc(%ld)\n",
+			 __func__, max_size);
+		return NULL;
+	}
+
+	n = pread(fd, buf, max_size, 0);
+	if (n < 0) {
+		famfs_log(FAMFS_LOG_ERR,
+		       "%s: failed to read max_size=%ld from fd(%d) errno %d\n",
+			 __func__, max_size, fd, errno);
+		free(buf);
+		*size_out = 0;
+		return NULL;
+	}
+	*size_out = n;
+
+	return buf;
+}

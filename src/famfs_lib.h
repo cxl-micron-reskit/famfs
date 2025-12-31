@@ -19,6 +19,16 @@
 #include "famfs_log.h"
 #include "thpool.h"
 
+#define FAMFS_ASSERT(FUNC, ASSERTION)					\
+    do {                                                                \
+        if (!(ASSERTION)) {                                             \
+		famfs_log(FAMFS_LOG_ERR,				\
+                    "%s: assertion failed: %s (in %s:%d)\n",            \
+                    FUNC, #ASSERTION, __FILE__, __LINE__);              \
+            assert(ASSERTION);                                          \
+        }                                                               \
+    } while (0)
+
 #define FAMFS_YAML_MAX 16384
 
 struct famfs_interleave_param {
@@ -128,6 +138,7 @@ void log_file_mode(
 	const char *caller, const char *name, const struct stat *st,
 	int log_level);
 int exit_val(int rc);
+void *famfs_read_fd_to_buf(int fd, ssize_t max_size, ssize_t *size_out);
 
 /* famfs_yaml.c */
 #include <yaml.h>
@@ -137,6 +148,9 @@ int famfs_parse_shadow_yaml(FILE *fp, struct famfs_log_file_meta *fm, int max_ex
 			    int max_strips, int verbose);
 int famfs_parse_alloc_yaml(FILE *fp, struct famfs_interleave_param *interleave_param, int verbose);
 const char *yaml_event_str(int event_type);
+int famfs_shadow_to_stat(void *yaml_buf, ssize_t bufsize,
+	const struct stat *shadow_stat, struct stat *stat_out,
+	 struct famfs_log_file_meta *fmeta_out, int verbose);
 
 /* famfs_dax.c */
 enum famfs_daxdev_mode {

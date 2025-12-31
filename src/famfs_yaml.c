@@ -1258,3 +1258,67 @@ err_out:
 	yaml_parser_delete(&parser);
 	return rc;
 }
+
+int
+famfs_shadow_to_stat(
+	void *yaml_buf,
+	ssize_t bufsize,
+	const struct stat *shadow_stat,
+	struct stat *stat_out,
+	struct famfs_log_file_meta *fmeta_out,
+	int verbose)
+{
+	struct famfs_log_file_meta fmeta = {0};
+	FILE *yaml_stream;
+	int rc;
+
+	FAMFS_ASSERT(__func__, fmeta_out);
+	if (bufsize < 100) /* This is imprecise... */
+		famfs_log(FAMFS_LOG_ERR,
+			 "File size=%ld: too small  to contain valid yaml\n",
+			 bufsize);
+
+	if (verbose)
+		famfs_log(FAMFS_LOG_DEBUG, "file yaml:\n%s\n", (char *)yaml_buf);
+
+	/* Make a stream for the yaml parser to use */
+	yaml_stream = fmemopen((void *)yaml_buf, bufsize, "r");
+	if (!yaml_stream) {
+		famfs_log(FAMFS_LOG_ERR,
+			 "failed to convert yaml_buf to stream (errno=%d\n",
+			 __func__, errno);
+		return -1;
+	}
+
+	rc = famfs_parse_shadow_yaml(yaml_stream, &fmeta,
+				     FAMFS_MAX_SIMPLE_EXTENTS,
+				     FAMFS_MAX_SIMPLE_EXTENTS, verbose);
+	if (rc) {
+		famfs_log(FAMFS_LOG_ERR, "%s: err from yaml parser rc=%d\n", __func__, rc);
+		return rc;
+	}
+
+	/* Fields we don't provide */
+	stat_out->st_dev     = shadow_stat->st_dev;
+	stat_out->st_rdev    = shadow_stat->st_rdev;
+	stat_out->st_blksize = shadow_stat->st_blksize;
+	stat_out->st_blocks  = shadow_stat->st_blocks;
+
+	/* Fields that come from the meta file stat */
+	stat_out->st_atime = shadow_stat->st_atime;
+	stat_out->st_mtime = shadow_stat->st_mtime;
+	stat_out->st_ctime = shadow_stat->st_ctime;
+	stat_out->st_ino   = shadow_stat->st_ino; /* Need a unique inode #; this is as good as any */
+
+	/* Fields that come from the shadow yaml */
+	stat_out->st_mode = fmeta.fm_mode | 0100000; /* octal; mark as regular file */
+	stat_out->st_uid  = fmeta.fm_uid;
+	stat_out->st_gid  = fmeta.fm_gid;
+	stat_out->st_size = fmeta.fm_size;
+
+	*fmeta_out = fmeta;
+
+	fclose(yaml_stream);
+
+	return 0;
+}
