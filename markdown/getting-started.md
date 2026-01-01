@@ -41,18 +41,21 @@ sudo dnf groupinstall -y "Development Tools"
 And here are the rest (that we can remember just now - send corrections
 please)
 ```
-sudo dnf install -y kernel-devel
-sudo dnf install -y cmake
-sudo dnf install -y g++
-sudo dnf install -y libuuid-devel
-sudo dnf install -y daxctl ndctl
-sudo dnf install -y gcovr
-sudo dnf install -y valgrind
-sudo dnf install -y systemd-devel
-sudo dnf install -y meson
-sudo dnf install -y libyaml-devel
-sudo dnf install -y daxctl-devel
-sudo dnf install -y libasan-static libubsan-static  # for sanitize builds
+sudo dnf install -y \
+    kernel-devel \
+    cmake \
+    g++ \
+    libuuid-devel \
+    daxctl \
+    ndctl \
+    gcovr \
+    valgrind \
+    systemd-devel \
+    meson \
+    libyaml-devel \
+    daxctl-devel \
+    libasan-static \
+    libubsan-static  # for sanitize builds
 ```
 
 #### Additional prerequisites for building ndctl from source
@@ -60,13 +63,14 @@ sudo dnf install -y libasan-static libubsan-static  # for sanitize builds
 If building the local ndctl (which has famfs dax mode support not yet upstream),
 these additional packages are required:
 ```
-sudo dnf install -y kmod-devel
-sudo dnf install -y json-c-devel
-sudo dnf install -y libtraceevent-devel
-sudo dnf install -y libtracefs-devel
-sudo dnf install -y asciidoctor
-sudo dnf install -y keyutils-libs-devel
-sudo dnf install -y iniparser-devel
+sudo dnf install -y \
+    kmod-devel \
+    json-c-devel \
+    libtraceevent-devel \
+    libtracefs-devel \
+    asciidoctor \
+    keyutils-libs-devel \
+    iniparser-devel
 ```
 
 Pay attention to error messages when you build, new dependencies may arise later, and
@@ -75,17 +79,20 @@ different kernel installations may have different missing dependencies.
 ### Ubuntu 23 Prerequisites
 
 ```
-sudo apt install build-essential
-sudo apt install cmake
-sudo apt install uuid-dev
-sudo apt install zlib1g-dev
-sudo apt install daxctl ndctl
-sudo apt install gcovr
-sudo apt install valgrind
-sudo apt install libsystemd-dev
-sudo apt install meson
-sudo apt install libyaml-dev
-sudo apt install libdaxctl-dev libndctl-dev
+sudo apt install -y \
+    build-essential \
+    cmake \
+    uuid-dev \
+    zlib1g-dev \
+    daxctl \
+    ndctl \
+    gcovr \
+    valgrind \
+    libsystemd-dev \
+    meson \
+    libyaml-dev \
+    libdaxctl-dev \
+    libndctl-dev
 ```
 
 #### Additional prerequisites for building ndctl from source
@@ -93,16 +100,16 @@ sudo apt install libdaxctl-dev libndctl-dev
 If building the local ndctl (which has famfs dax mode support not yet upstream),
 these additional packages are required:
 ```
-sudo apt install libkmod-dev
-sudo apt install libjson-c-dev
-sudo apt install libtraceevent-dev
-sudo apt install libtracefs-dev
-sudo apt install asciidoctor
-sudo apt install asciidoctor
-sudo apt install libudev-dev
-sudo apt install libkeyutils-dev
-sudo apt install libiniparser-dev
-sudo apt install pkg-config
+sudo apt install -y \
+    libkmod-dev \
+    libjson-c-dev \
+    libtraceevent-dev \
+    libtracefs-dev \
+    asciidoctor \
+    libudev-dev \
+    libkeyutils-dev \
+    libiniparser-dev \
+    pkg-config
 ```
 
 Pay attention to error messages when you build, new dependencies may arise later, and
