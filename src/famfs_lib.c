@@ -3038,21 +3038,6 @@ famfs_fsck(
 		/* daxmode_required means the famfs mode of dax is required */
 		daxmode_required = famfs_daxmode_required();
 		initial_daxmode = famfs_get_daxdev_mode(path);
-		if (initial_daxmode == DAXDEV_MODE_UNKNOWN) {
-			fprintf(stderr, "%s: bad mode for daxdev %s\n",
-				__func__, path);
-			return -ENXIO;
-		}
-		if (daxmode_required) {
-			rc = famfs_set_daxdev_mode(path, DAXDEV_MODE_FAMFS,
-						   verbose);
-			if (rc) {
-				fprintf(stderr,
-					"%s: failed to set %s to famfs mode\n",
-					__func__, path);
-				return -ENODEV;
-			}
-		}
 
 		/* Check if there is a mounted famfs file system on this device;
 		 * fail if so - if mounted, have to fsck by mount pt
@@ -3075,7 +3060,7 @@ famfs_fsck(
 			 */
 			rc = famfs_dummy_mount(path,
 					       0 /* figure out log size */,
-					       &dummy_mpt, 0, 0);
+					       &dummy_mpt, 0, verbose);
 			if (rc) {
 				fprintf(stderr,
 					"%s: dummy mount failed for %s\n",
@@ -5701,7 +5686,6 @@ famfs_mkfs(
 {
 	bool daxmode_required = famfs_daxmode_required();
 	bool no_raw_dax = nodax_in || daxmode_required;;
-	enum famfs_daxdev_mode initial_daxmode;
 	int rc;
 
 	/* Minimum log length is the FAMFS_LOG_LEN; And must be a power of 2 */
@@ -5709,22 +5693,6 @@ famfs_mkfs(
 		fprintf(stderr, "%s: Error: invalid log length (%lld)\n",
 			__func__, log_len);
 		return -EINVAL;
-	}
-
-	initial_daxmode = famfs_get_daxdev_mode(daxdev);
-	if (initial_daxmode == DAXDEV_MODE_UNKNOWN) {
-		fprintf(stderr, "%s: bad mode for daxdev %s\n",
-			__func__, daxdev);
-		return -ENXIO;
-	}
-
-	if (daxmode_required) {
-		rc = famfs_set_daxdev_mode(daxdev, DAXDEV_MODE_FAMFS, verbose);
-		if (rc) {
-			fprintf(stderr, "%s: failed to set %s to famfs mode\n",
-				__func__, daxdev);
-			return -ENODEV;
-		}
 	}
 
 	if (no_raw_dax)
@@ -5737,9 +5705,6 @@ famfs_mkfs(
 	/* If we changed the daxmode, and we did NOT mkfs successfully,
 	 * put the daxdev back the way we found it
 	 */
-	if (rc && initial_daxmode != DAXDEV_MODE_FAMFS)
-		famfs_set_daxdev_mode(daxdev, initial_daxmode, verbose);
-
 	return rc;
 }
 

@@ -42,6 +42,19 @@ static const char *basename_dev(const char *arg)
 }
 #endif
 
+const char *daxdev_mode_string(enum famfs_daxdev_mode mode)
+{
+	switch (mode) {
+	case DAXDEV_MODE_UNKNOWN:
+		return "UNKNOWN";
+	case DAXDEV_MODE_DEVICE_DAX:
+		return "devdax";
+	case DAXDEV_MODE_FAMFS:
+		return "famfs";
+	}
+	return "INVALID";
+}
+
 /**
  * famfs_get_daxdev_mode() - Determine which driver is bound to a daxdev
  * @daxdev: Path to the dax device (e.g., "/dev/dax1.0" or "dax1.0")
@@ -118,20 +131,31 @@ int famfs_set_daxdev_mode(
 	int rc = 0;
 	int i;
 
-	printf("%s:\n", __func__);
+	if (verbose)
+		printf("%s: change %s to mode %s\n", __func__,
+		       daxdev, daxdev_mode_string(mode));
 	if (!daxdev)
 		return -EINVAL;
 
-	if (mode != DAXDEV_MODE_DEVICE_DAX && mode != DAXDEV_MODE_FAMFS)
+	if (mode != DAXDEV_MODE_DEVICE_DAX && mode != DAXDEV_MODE_FAMFS) {
+		fprintf(stderr, "%s: invalid mode %d\n", __func__, mode);
 		return -EINVAL;
+	}
 
 	/* Check current mode */
 	current_mode = famfs_get_daxdev_mode(daxdev);
-	if (current_mode == mode)
+	if (current_mode == mode) {
+		if (verbose)
+			printf("%s: %s is already in mode %s\n", __func__,
+			       daxdev, daxdev_mode_string(mode));
 		return 0; /* Already in requested mode */
+	}
 
-	if (current_mode == DAXDEV_MODE_UNKNOWN)
+	if (current_mode == DAXDEV_MODE_UNKNOWN) {
+		fprintf(stderr, "%s: Can't change mode from %s\n",
+			__func__, daxdev_mode_string(DAXDEV_MODE_UNKNOWN));
 		return -ENODEV;
+	}
 
 	/* Get basename of device path */
 	devname_copy = strdup(daxdev);
@@ -148,6 +172,11 @@ int famfs_set_daxdev_mode(
 		unbind_drv = "fsdev_dax";
 		bind_drv = "device_dax";
 	}
+
+	if (verbose)
+		printf("%s: Changing mode from %s to %s\n", __func__,
+		       daxdev_mode_string(current_mode),
+		       daxdev_mode_string(mode));
 
 	snprintf(unbind_path, sizeof(unbind_path),
 		 "/sys/bus/dax/drivers/%s/unbind", unbind_drv);
@@ -207,6 +236,13 @@ int famfs_set_daxdev_mode(
 		current_mode = famfs_get_daxdev_mode(daxdev);
 		if (current_mode == mode) {
 			/* Success */
+			if (verbose)
+				printf("%s: Success: mode from from %s to %s\n",
+				       __func__,
+				       daxdev_mode_string(current_mode),
+				       daxdev_mode_string(mode));
+
+
 			rc = 0;
 			goto out;
 		}
@@ -220,14 +256,14 @@ int famfs_set_daxdev_mode(
 		/* fall through to retry */
 
 retry:
+		
 		if (i < max_retries - 1) {
 			if (verbose)
 				printf("%s: retry %d (mode=%s, target=%s)\n",
 				       __func__, i + 1,
-				       (current_mode == DAXDEV_MODE_FAMFS) ? "fsdev_dax" :
-				       (current_mode == DAXDEV_MODE_DEVICE_DAX) ? "device_dax" :
-				       "unknown",
-				       (mode == DAXDEV_MODE_FAMFS) ? "fsdev_dax" : "device_dax");
+				       daxdev_mode_string(current_mode),
+				       daxdev_mode_string(mode));
+
 			usleep(delay_ms * 1000);
 			delay_ms *= 2; /* exponential backoff */
 		}
