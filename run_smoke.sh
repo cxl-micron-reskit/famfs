@@ -257,58 +257,97 @@ SMOKE_ARGS=(-b "$BIN" -s "$SCRIPTS" -d "$DEV" -m "$FAMFS_MODE")
 [[ -n "$LOG_ARG" ]] && SMOKE_ARGS+=("$LOG_ARG")
 [[ "$COVERAGE" -eq 1 ]] && SMOKE_ARGS+=("--coverage")
 
+# Arrays to track test timing
+declare -a TEST_NAMES=()
+declare -a TEST_TIMES=()
+SMOKE_START_TIME=$(date +%s)
+
+# Format seconds as MM:SS
+format_time() {
+    local secs=$1
+    printf "%d:%02d" $((secs / 60)) $((secs % 60))
+}
+
+start_time=$(date +%s)
 ./smoke/prepare.sh "${SMOKE_ARGS[@]}" || exit -1
-echo ":== prepare success"
+elapsed=$(($(date +%s) - start_time))
+TEST_NAMES+=("prepare")
+TEST_TIMES+=("$elapsed")
+echo ":== prepare success ($(format_time $elapsed))"
 
 if [ -z "$SKIP_TEST0" ]; then
+    start_time=$(date +%s)
     ./smoke/test0.sh "${SMOKE_ARGS[@]}" || exit -1
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
-    echo ":== test0 success"
+    elapsed=$(($(date +%s) - start_time))
+    TEST_NAMES+=("test0")
+    TEST_TIMES+=("$elapsed")
+    echo ":== test0 success ($(format_time $elapsed))"
     sleep "${SLEEP_TIME}"
 else
     echo ":== skipped test0 due to run_smoke options"
 fi
 
 if [ -z "$SKIP_SHADOW_YAML" ]; then
+    start_time=$(date +%s)
     ./smoke/test_shadow_yaml.sh "${SMOKE_ARGS[@]}" || exit -1
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
-    echo ":== test_shadow_yaml success"
+    elapsed=$(($(date +%s) - start_time))
+    TEST_NAMES+=("test_shadow_yaml")
+    TEST_TIMES+=("$elapsed")
+    echo ":== test_shadow_yaml success ($(format_time $elapsed))"
     sleep "${SLEEP_TIME}"
 else
     echo ":== skipped test_shadow_yaml due to run_smoke options"
 fi
 
 if [ -z "$SKIP_TEST1" ]; then
+    start_time=$(date +%s)
     sudo ./smoke/test1.sh "${SMOKE_ARGS[@]}" || exit -1
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
-    echo ":== test1 success"
+    elapsed=$(($(date +%s) - start_time))
+    TEST_NAMES+=("test1")
+    TEST_TIMES+=("$elapsed")
+    echo ":== test1 success ($(format_time $elapsed))"
     sleep "${SLEEP_TIME}"
 else
     echo ":== skipped test1 due to run_smoke options"
 fi
 
 if [ -z "$SKIP_TEST2" ]; then
+    start_time=$(date +%s)
     ./smoke/test2.sh "${SMOKE_ARGS[@]}" || exit -1
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
-    echo ":== test2 success"
+    elapsed=$(($(date +%s) - start_time))
+    TEST_NAMES+=("test2")
+    TEST_TIMES+=("$elapsed")
+    echo ":== test2 success ($(format_time $elapsed))"
     sleep "${SLEEP_TIME}"
 else
     echo ":== skipped test2 due to run_smoke options"
 fi
 
 if [ -z "$SKIP_TEST3" ]; then
+    start_time=$(date +%s)
     ./smoke/test3.sh "${SMOKE_ARGS[@]}" || exit -1
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
-    echo ":== test3 success"
+    elapsed=$(($(date +%s) - start_time))
+    TEST_NAMES+=("test3")
+    TEST_TIMES+=("$elapsed")
+    echo ":== test3 success ($(format_time $elapsed))"
     sleep "${SLEEP_TIME}"
 else
     echo ":== skipped test3 due to run_smoke options"
 fi
 
 if [ -z "$SKIP_TEST4" ]; then
+    start_time=$(date +%s)
     ./smoke/test4.sh "${SMOKE_ARGS[@]}" || exit -1
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
-    echo ":== test4 success"
+    elapsed=$(($(date +%s) - start_time))
+    TEST_NAMES+=("test4")
+    TEST_TIMES+=("$elapsed")
+    echo ":== test4 success ($(format_time $elapsed))"
     sleep "${SLEEP_TIME}"
 else
     echo ":== skipped test4 due to run_smoke options"
@@ -316,17 +355,25 @@ fi
 
 if [ -z "$SKIP_ERRS" ]; then
     sleep "${SLEEP_TIME}"
+    start_time=$(date +%s)
     ./smoke/test_errors.sh "${SMOKE_ARGS[@]}" || exit -1
-    echo ":== test_errs success"
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
+    elapsed=$(($(date +%s) - start_time))
+    TEST_NAMES+=("test_errors")
+    TEST_TIMES+=("$elapsed")
+    echo ":== test_errors success ($(format_time $elapsed))"
 else
     echo ":== skipping test_errors.sh because -n|--noerrors was specified"
 fi
 
 if [ -z "$SKIP_STRIPE_TEST" ] && [ -z "$KABI_42"  ]; then
+    start_time=$(date +%s)
     ./smoke/stripe_test.sh "${SMOKE_ARGS[@]}" || exit -1
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
-    echo ":== stripe_test success"
+    elapsed=$(($(date +%s) - start_time))
+    TEST_NAMES+=("stripe_test")
+    TEST_TIMES+=("$elapsed")
+    echo ":== stripe_test success ($(format_time $elapsed))"
     sleep "${SLEEP_TIME}"
 else
     if [ -z "$KABI_42" ]; then
@@ -339,9 +386,13 @@ fi
 if [[ $COVERAGE -ne 1 ]] || [[ -n "$FORCE_PCQ" ]]; then
     if [ -z "$SKIP_PCQ" ]; then
 	# XXX: get test_pcq running properly in coverage test mode
+	start_time=$(date +%s)
 	./smoke/test_pcq.sh "${SMOKE_ARGS[@]}" || exit -1
-	echo ":== test_pcq success"
 	sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
+	elapsed=$(($(date +%s) - start_time))
+	TEST_NAMES+=("test_pcq")
+	TEST_TIMES+=("$elapsed")
+	echo ":== test_pcq success ($(format_time $elapsed))"
 	sleep "${SLEEP_TIME}"
     else
 	echo ":== skipped test_pcq due to run_smoke options"
@@ -351,9 +402,13 @@ else
 fi
 
 if [ -z "$SKIP_FIO" ]; then
+    start_time=$(date +%s)
     ./smoke/test_fio.sh "${SMOKE_ARGS[@]}" || exit -1
-    echo ":== test_fio success"
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
+    elapsed=$(($(date +%s) - start_time))
+    TEST_NAMES+=("test_fio")
+    TEST_TIMES+=("$elapsed")
+    echo ":== test_fio success ($(format_time $elapsed))"
     sleep "${SLEEP_TIME}"
 else
     echo ":== skipped test_fio due to run_smoke options"
@@ -362,6 +417,17 @@ fi
 sudo umount $MPT
 
 set +x
+SMOKE_END_TIME=$(date +%s)
+SMOKE_TOTAL=$((SMOKE_END_TIME - SMOKE_START_TIME))
+
+echo ":==-------------------------------------------------------------------"
+echo ":== Test Timing Summary"
+echo ":==-------------------------------------------------------------------"
+for i in "${!TEST_NAMES[@]}"; do
+    printf ":==  %-20s %s\n" "${TEST_NAMES[$i]}" "$(format_time ${TEST_TIMES[$i]})"
+done
+echo ":==-------------------------------------------------------------------"
+printf ":==  %-20s %s\n" "TOTAL" "$(format_time $SMOKE_TOTAL)"
 echo ":==-------------------------------------------------------------------"
 echo ":==run_smoke completed successfully ($(date))"
 echo ":==-------------------------------------------------------------------"
