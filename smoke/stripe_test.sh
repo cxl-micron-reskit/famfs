@@ -146,6 +146,7 @@ stripe_test_cp () {
 # stripe_test:
 #   Fill with striped files until daxdev is full-ish or until 26 files.
 #   Randomize and verify using seeds, then remount and re-verify.
+#   If NFILES > 0, create exactly that many files; if 0, fill until full.
 # ---------------------------------------------------------------------
 stripe_test () {
     local SIZE_MIN="$1"
@@ -154,6 +155,7 @@ stripe_test () {
     local NSTRIPS="$4"
     local NBUCKETS="$5"
     local BASE_SEED="$6"
+    local NFILES="${7:-0}"
 
     local counter=0
     local -a files=()
@@ -198,6 +200,12 @@ stripe_test () {
 
         files+=("$file_name")
         ((counter++))
+
+        # If NFILES > 0, stop after creating that many files
+        if (( NFILES > 0 && counter >= NFILES )); then
+            echo ":= stripe_test: Created requested $NFILES files"
+            break
+        fi
 
         # On an 8G daxdev, this will fill the device. For larger devices,
         # don't let the test run forever: bail out at 26 files.
@@ -376,11 +384,21 @@ echo "NSTRIPS: $NSTRIPS"
 
 expect_good df "$MPT" -- "df $MPT should work"
 
-stripe_test "$SIZE_MIN" "$SIZE_MAX" "$CHUNKSIZE" "$NSTRIPS" "$NBUCKETS" 42
+NFILES=0 # Fill up the file system
+if [[ "${COVERAGE:-0}" -eq 1 ]]; then
+    NFILES=2 # In coverage tests, just tests 2 files
+fi
+
+stripe_test "$SIZE_MIN" "$SIZE_MAX" "$CHUNKSIZE" "$NSTRIPS" "$NBUCKETS" \
+	    42 "$NFILES"
 
 famfs_recreate "stripe_test.sh 2"
-(( NFILES = 8 ))
 (( SIZE = 256 * 1048576 ))
+
+NFILES=8
+if [[ "${COVERAGE:-0}" -eq 1 ]]; then
+    NFILES=2 # In coverage tests, just tests 2 files
+fi
 
 stripe_test_cp "$SIZE" "$CHUNKSIZE" "$NSTRIPS" "$NBUCKETS" 42 "$NFILES"
 

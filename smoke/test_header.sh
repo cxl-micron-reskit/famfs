@@ -15,6 +15,7 @@ RMMOD=0
 FAMFS_MOD="famfs.ko"
 LOG_CMDS="N"
 HARNESS="smoke"
+COVERAGE=0
 
 # Default subcommands
 CREAT=("creat")
@@ -66,24 +67,28 @@ while (( $# > 0 )); do
 	    HARNESS="$1"
 	    shift
 	    ;;
-        -v|--valgrind)
-            VG=("valgrind"
-                "--leak-check=full"
-                "--show-leak-kinds=all"
-                "--track-origins=yes")
+	-c|--coverage)
+	    COVERAGE=1
+	    ;;
+	-v|--valgrind)
+	    VG=("valgrind"
+		"--leak-check=full"
+		"--show-leak-kinds=all"
+		"--track-origins=yes")
+	    COVERAGE=1
 
-            # Valgrind-friendly test modes
-            CREAT=("creat" "-t" "1")
-            VERIFY=("verify" "-t" "1")
-            CP=("cp" "-t" "0")
-            ;;
-        -n|--no-rmmod)
-            # corrected: flag means "do NOT unload module"
-            RMMOD=1
-            ;;
-        *)
-            echo "Unrecognized command-line arg: $flag"
-            ;;
+	    # Valgrind-friendly test modes
+	    CREAT=("creat" "-t" "1")
+	    VERIFY=("verify" "-t" "1")
+	    CP=("cp" "-t" "0")
+	    ;;
+	-n|--no-rmmod)
+	    # corrected: flag means "do NOT unload module"
+	    RMMOD=1
+	    ;;
+	*)
+	    echo "Unrecognized command-line arg: $flag"
+	    ;;
     esac
 done
 

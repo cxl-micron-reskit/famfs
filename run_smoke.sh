@@ -133,7 +133,7 @@ while (( $# > 0)); do
 	(-s|--sanitize)
 	    COVERAGE=1
 	    BIN="$CWD/sanitize"
-	    echo "hello coverage BIN=$BIN"
+	    echo "hello sanitize BIN=$BIN"
 	    ;;
 	(-v|--valgrind)
 	    echo "run_smoke: valgrind mode"
