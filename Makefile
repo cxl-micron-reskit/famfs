@@ -212,7 +212,7 @@ coverage:	cmake-modules threadpool mongoose
 	cd coverage; cmake $(CMAKE_CACHE_CLEAR) -DCMAKE_BUILD_TYPE=Debug -DFAMFS_TEST_COVERAGE="yes" ..; $(MAKE)
 
 smoke_coverage_fuse:
-	script -e -c "./run_smoke.sh --coverage --fuse" \
+	script -e -c "./run_smoke.sh --coverage --fuse --log" \
 			-O "smoke_coverage.fuse.$(HOSTNAME).log"
 
 smoke_coverage_fuse_pcq:
