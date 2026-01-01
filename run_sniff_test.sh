@@ -53,10 +53,12 @@ while (( $# > 0)); do
 	    echo "Using release BIN=$BIN"
 	    ;;
 	(-c|--coverage)
+	    COVERAGE=1
 	    BIN="$CWD/coverage"
 	    echo "Using coverage BIN=$BIN"
 	    ;;
 	(-s|--sanitize)
+	    COVERAGE=1
 	    BIN="$CWD/sanitize"
 	    echo "Using sanitize BIN=$BIN"
 	    ;;
@@ -164,6 +166,7 @@ SNIFF_ARGS=(-b "$BIN" -s "$SCRIPTS" -d "$DEV" -m "$FAMFS_MODE" -H sniff)
 [[ -n "$VGARG" ]] && SNIFF_ARGS+=("$VGARG")
 [[ -n "$NODAX_ARG" ]] && SNIFF_ARGS+=("$NODAX_ARG")
 [[ -n "$LOG_ARG" ]] && SNIFF_ARGS+=("$LOG_ARG")
+[[ "$COVERAGE" -eq 1 ]] && SNIFF_ARGS+=("--coverage")
 
 # Run prepare.sh to clean up
 ./smoke/prepare.sh "${SNIFF_ARGS[@]}" || exit -1
