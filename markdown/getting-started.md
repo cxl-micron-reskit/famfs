@@ -65,6 +65,8 @@ sudo dnf install -y json-c-devel
 sudo dnf install -y libtraceevent-devel
 sudo dnf install -y libtracefs-devel
 sudo dnf install -y asciidoctor
+sudo dnf install -y keyutils-libs-devel
+sudo dnf install -y iniparser-devel
 ```
 
 Pay attention to error messages when you build, new dependencies may arise later, and
