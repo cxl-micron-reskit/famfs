@@ -640,14 +640,28 @@ pcq_worker(void *arg)
 	switch (a->role) {
 	case PRODUCER:
 		a->result = run_producer(a);
+		if (a->result)
+			fprintf(stderr, "%s: producer failed (%d)\n",
+				__func__, a->result);
 		break;
 
 	case CONSUMER:
 		a->result = run_consumer(a);
+		if (a->result)
+			fprintf(stderr, "%s: producer failed (%d)\n",
+				__func__, a->result);
 		break;
 	case READONLY:
 		break;
 	}
+	/*
+	 * There are cases where we run (through separate pcq_worker calls)
+	 * both producer and consumer threads. If one of them fails (say it
+	 * can't open one of the files), we need the test to fail. Othereise
+	 * the *other* thread can run forever...
+	 */
+	if (a->result)
+		exit(1);
 	return rc;
 }
 

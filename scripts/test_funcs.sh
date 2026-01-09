@@ -772,11 +772,24 @@ dax_reconfigure_mode () {
         return 0
     fi
 
-    # Reconfigure the device
+    # Reconfigure the device with retry logic (device may be briefly busy after unmount)
+    local MAX_RETRIES=5
+    local RETRY_DELAY=1
+    local attempt
+
     echo ":= dax_reconfigure_mode: reconfiguring ${DEV} to ${TARGET_MODE}..."
-    if ! sudo "$DAXCTL" reconfigure-device --human --mode="$TARGET_MODE" --force "$DEV"; then
-        fail "dax_reconfigure_mode: failed to reconfigure ${DEV} to ${TARGET_MODE}"
-    fi
+    for ((attempt = 1; attempt <= MAX_RETRIES; attempt++)); do
+        if sudo "$DAXCTL" reconfigure-device --human --mode="$TARGET_MODE" --force "$DEV" 2>/dev/null; then
+            break
+        fi
+
+        if ((attempt < MAX_RETRIES)); then
+            echo ":= dax_reconfigure_mode: attempt $attempt failed (device busy?), retrying in ${RETRY_DELAY}s..."
+            sleep "$RETRY_DELAY"
+        else
+            fail "dax_reconfigure_mode: failed to reconfigure ${DEV} to ${TARGET_MODE} after ${MAX_RETRIES} attempts"
+        fi
+    done
 
     # Verify the change took effect
     local NEW_MODE
