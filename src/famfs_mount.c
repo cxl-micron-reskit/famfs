@@ -25,6 +25,7 @@
 #include <sys/statfs.h>
 #include <sys/mount.h>
 #include <sys/mman.h>
+#include <sys/xattr.h>
 
 #include "famfs_lib_internal.h"
 
@@ -160,15 +161,52 @@ shadow_path_from_opts(
 	return 0;  /* No matching argument found */
 }
 
+#define FAMFS_XATTR_SHADOW "user.famfs.shadow"
+
+/**
+ * famfs_get_shadow_from_xattr() - Get shadow path from xattr
+ * @path: Any path within a famfs mount
+ * @shadow_out: Output buffer for shadow path
+ * @shadow_size: Size of shadow_out buffer
+ *
+ * Retrieves the shadow path by reading the user.famfs.shadow extended
+ * attribute from the specified path. This works for FUSE-mounted famfs
+ * filesystems.
+ *
+ * Returns 0 on success, negative errno on failure.
+ */
+static int
+famfs_get_shadow_from_xattr(
+	const char *path,
+	char *shadow_out,
+	size_t shadow_size)
+{
+	ssize_t len;
+
+	if (!path || !shadow_out || shadow_size == 0)
+		return -EINVAL;
+
+	len = getxattr(path, FAMFS_XATTR_SHADOW, shadow_out, shadow_size - 1);
+	if (len < 0)
+		return -errno;
+
+	/* Null-terminate the result */
+	shadow_out[len] = '\0';
+	return 0;
+}
+
 /* XXX: this function should be renamed more descriptively */
 /**
  * famfs_path_is_mount_pt()
  *
- * check whether a path is a famfs mount point via /proc/mounts
+ * Check whether a path is a famfs mount point via /proc/mounts.
+ * For the shadow path, first tries xattr (user.famfs.shadow) which works
+ * for FUSE mounts, then falls back to parsing /proc/mounts mount options
+ * for v1 kernel mode compatibility.
  *
- * @path:
+ * @path: path to check
  * @dev_out: if non-null, the device name will be copied here
- * @shadow_out:
+ * @shadow_out: if non-null, the shadow path will be copied here
  *
  * Return values
  * 1 - the path is an active famfs mount point
@@ -244,13 +282,23 @@ famfs_path_is_mount_pt(
 			/* Path matches the mount point of this entry */
 
 			if (shadow_out) {
-				rc = shadow_path_from_opts(opts, shadow_path,
-							   sizeof(shadow_path));
-				if (rc)
-					strncpy(shadow_out, shadow_path,
-						PATH_MAX - 1);
-				else
-					shadow_out[0] = 0;
+				/* Try xattr first (works for FUSE mounts) */
+				rc = famfs_get_shadow_from_xattr(xpath,
+								shadow_out,
+								PATH_MAX);
+				if (rc != 0) {
+					/* Fall back to /proc/mounts parsing
+					 * (for v1 kernel mode or if xattr fails)
+					 */
+					rc = shadow_path_from_opts(opts,
+								   shadow_path,
+								   sizeof(shadow_path));
+					if (rc)
+						strncpy(shadow_out, shadow_path,
+							PATH_MAX - 1);
+					else
+						shadow_out[0] = 0;
+				}
 			}
 
 			free(xmpt);
