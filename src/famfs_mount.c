@@ -102,65 +102,6 @@ out:
 	return NULL;
 }
 
-/**
- * shadow_path_from_opts()
- *
- * Get shadow path from file system mount options (from the opts field in /proc/mounts)
- *
- * @opts             - mount options from a famfs /proc/mounts entry
- * @shadow_path_out  - string to receive shadow path
- * @shadow_path_size - input - size of shadow_path_out string
- *
- * Returns: 0 if shadow path not found
- *          1 if shadow path found (and returned in shadow_path_out)
- */
-static int
-shadow_path_from_opts(
-	const char *opts,
-	char *shadow_path_out,
-	size_t shadow_path_size)
-{
-	const char *start;
-	const char *end;
-	const char *keyword = "shadow=";
-	size_t keyword_len = strlen(keyword);
-
-	if (opts == NULL || shadow_path_out == NULL || shadow_path_size == 0) {
-		return 0;  /* Invalid opts */
-	}
-
-	start = end = opts;
-
-	while (*end != '\0') {
-		if (*end == ',' || *(end + 1) == '\0') {
-			/* Adjust end if it's the last character */
-			if (*(end + 1) == '\0')
-				end++;
-
-			/* Check if the segment starts with "shadow=" */
-			if ((end - start) >= (long int)keyword_len
-			    && strncmp(start, keyword, keyword_len) == 0) {
-				const char *value_start = start + keyword_len;
-				size_t value_length = end - value_start;
-
-				if (value_length >= shadow_path_size) {
-					return 0;  /* output buffer overflow */
-				}
-
-				strncpy(shadow_path_out, value_start, value_length);
-				shadow_path_out[value_length] = '\0';
-				return 1;  /* success */
-			}
-
-			/* Move to the next opt */
-			start = end + 1;
-		}
-		end++;
-	}
-
-	return 0;  /* No matching argument found */
-}
-
 #define FAMFS_XATTR_SHADOW "user.famfs.shadow"
 
 /**
@@ -200,13 +141,11 @@ famfs_get_shadow_from_xattr(
  * famfs_path_is_mount_pt()
  *
  * Check whether a path is a famfs mount point via /proc/mounts.
- * For the shadow path, first tries xattr (user.famfs.shadow) which works
- * for FUSE mounts, then falls back to parsing /proc/mounts mount options
- * for v1 kernel mode compatibility.
+ * Shadow path is retrieved via the user.famfs.shadow xattr.
  *
  * @path: path to check
  * @dev_out: if non-null, the device name will be copied here
- * @shadow_out: if non-null, the shadow path will be copied here
+ * @shadow_out: if non-null, the shadow path will be copied here (via xattr)
  *
  * Return values
  * 1 - the path is an active famfs mount point
@@ -236,7 +175,6 @@ famfs_path_is_mount_pt(
 		char mpt[XLEN];
 		char fstype[XLEN];
 		char opts[XLEN] = { 0 };
-		char shadow_path[PATH_MAX];
 		int  x0, x1;
 		char *xmpt = NULL;
 		char *xpath = NULL;
@@ -252,10 +190,7 @@ famfs_path_is_mount_pt(
 				goto out;
 
 			/* check for famfs in the actual fstype field */
-			if (!strstr(fstype, "famfs") && !strstr(opts, "famfs") && !strstr(fstype, "fuse") && !strstr(opts, "shadow")) 
-				continue;
-
-			if (strlen(opts) <= strlen("shadow="))
+			if (!strstr(fstype, "famfs") && !strstr(opts, "famfs") && !strstr(fstype, "fuse"))
 				continue; 
 
 			xmpt = realpath(mpt, NULL);
@@ -282,23 +217,11 @@ famfs_path_is_mount_pt(
 			/* Path matches the mount point of this entry */
 
 			if (shadow_out) {
-				/* Try xattr first (works for FUSE mounts) */
 				rc = famfs_get_shadow_from_xattr(xpath,
 								shadow_out,
 								PATH_MAX);
-				if (rc != 0) {
-					/* Fall back to /proc/mounts parsing
-					 * (for v1 kernel mode or if xattr fails)
-					 */
-					rc = shadow_path_from_opts(opts,
-								   shadow_path,
-								   sizeof(shadow_path));
-					if (rc)
-						strncpy(shadow_out, shadow_path,
-							PATH_MAX - 1);
-					else
-						shadow_out[0] = 0;
-				}
+				if (rc != 0)
+					shadow_out[0] = 0;
 			}
 
 			free(xmpt);
@@ -324,7 +247,7 @@ out:
 }
 
 /**
- * Check all famfs-related /proc/mounts entries to see of @shadowpath is already
+ * Check all famfs-related /proc/mounts entries to see if @shadowpath is already
  * in use.
  *
  * Return 1 if in use, 0 if not
@@ -362,11 +285,11 @@ shadow_path_in_use(const char *shadowpath)
 			if (!strstr(fstype, "famfs"))
 				continue;
 
-			rc = shadow_path_from_opts(opts, entry_shadow,
-						   sizeof(entry_shadow));
-			if (!rc)  /* no shadow path in the current entry */
+			/* Get shadow path via xattr */
+			rc = famfs_get_shadow_from_xattr(mpt, entry_shadow,
+							sizeof(entry_shadow));
+			if (rc != 0)  /* no shadow path for this mount */
 				continue;
-
 
 			/* We must avoid overlapping shadow paths. This means that
 			 * the shorter path is a match for the fist n characters of
