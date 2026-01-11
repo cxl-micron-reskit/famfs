@@ -1252,7 +1252,6 @@ int main(int argc, char *argv[])
 	struct fuse_cmdline_opts opts;
 	char *shadow_root = NULL;
 	struct fuse_session *se;
-	char shadow_opt[80];
 	int ret = -1;
 
 	/* Don't mask creation mode, kernel already did that */
@@ -1381,13 +1380,6 @@ int main(int argc, char *argv[])
 
 	if (fuse_set_signal_handlers(se) != 0)
 	    goto err_out2;
-
-	/* Add shadow arg to kernel mount opts */
-	snprintf(shadow_opt, sizeof(shadow_opt), "shadow=%s", lo->source);
-	if (fuse_add_kernel_mount_opt(se, shadow_opt))
-		famfs_log(FAMFS_LOG_ERR,
-			 "%s: failed to add kernel mount opt (%s)\n",
-			 __func__, shadow_opt);
 
 	if (fuse_session_mount(se, opts.mountpoint) != 0)
 		goto err_out3;
