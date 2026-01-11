@@ -1064,6 +1064,49 @@ famfs_statfs(
 	
 }
 
+#define FAMFS_XATTR_SHADOW "user.famfs.shadow"
+
+static void
+famfs_getxattr(
+	fuse_req_t req,
+	fuse_ino_t nodeid,
+	const char *name,
+	size_t size)
+{
+	struct famfs_ctx *lo = famfs_ctx_from_req(req);
+	const char *shadow_path = lo->source; /* Same as shadow= in mount opts */
+	size_t shadow_len;
+
+	(void)nodeid;
+
+	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx name=%s size=%zu\n",
+		  __func__, nodeid, name, size);
+
+	/* Only support the shadow xattr for now */
+	if (strcmp(name, FAMFS_XATTR_SHADOW) != 0) {
+		fuse_reply_err(req, ENODATA);
+		return;
+	}
+
+	if (!shadow_path) {
+		fuse_reply_err(req, ENODATA);
+		return;
+	}
+
+	shadow_len = strlen(shadow_path);
+
+	if (size == 0) {
+		/* Return the size needed */
+		fuse_reply_xattr(req, shadow_len);
+	} else if (size < shadow_len) {
+		/* Buffer too small */
+		fuse_reply_err(req, ERANGE);
+	} else {
+		/* Return the value */
+		fuse_reply_buf(req, shadow_path, shadow_len);
+	}
+}
+
 static void
 famfs_flock(
 	fuse_req_t req,
@@ -1139,7 +1182,7 @@ static const struct fuse_lowlevel_ops famfs_oper = {
 	/* .fsyncdir */
 	.statfs		= famfs_statfs,
 	/* .setxattr */
-	/* .getxattr */
+	.getxattr	= famfs_getxattr,
 	/* .listxattr */
 	/* .removexattr */
 	/* .access */
