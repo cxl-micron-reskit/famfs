@@ -512,6 +512,9 @@ found_inode:
 		famfs_log(FAMFS_LOG_DEBUG,
 			  "s: inode=%d already cached\n", inode->ino);
 
+		/* Use cached attrs (preserves chown/chmod changes) */
+		e->attr = inode->attr;
+
 		close(newfd);
 		newfd = -1;
 		rc = famfs_check_inode(inode, fmeta, e);

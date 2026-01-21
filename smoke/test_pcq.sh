@@ -51,16 +51,16 @@ expect_good "${PCQ[@]}" --create "${uargs[@]}" -v --bsize 256K --nbuckets 256  "
            -- "basic pcq create 4"
 
 # Set ownership to the non-privileged caller
-sudo chown "$id:$grp" "$MPT/q0"
-sudo chown "$id:$grp" "$MPT/q1"
-sudo chown "$id:$grp" "$MPT/q2"
-sudo chown "$id:$grp" "$MPT/q3"
-sudo chown "$id:$grp" "$MPT/q4"
-sudo chown "$id:$grp" "$MPT/q0.consumer"
-sudo chown "$id:$grp" "$MPT/q1.consumer"
-sudo chown "$id:$grp" "$MPT/q2.consumer"
-sudo chown "$id:$grp" "$MPT/q3.consumer"
-sudo chown "$id:$grp" "$MPT/q4.consumer"
+expect_good sudo chown "$id:$grp" "$MPT/q0" -- "chown q0"
+expect_good sudo chown "$id:$grp" "$MPT/q1" -- "chown q1"
+expect_good sudo chown "$id:$grp" "$MPT/q2" -- "chown q2"
+expect_good sudo chown "$id:$grp" "$MPT/q3" -- "chown q3"
+expect_good sudo chown "$id:$grp" "$MPT/q4" -- "chown q4"
+expect_good sudo chown "$id:$grp" "$MPT/q0.consumer" -- "chown q0.consumer"
+expect_good sudo chown "$id:$grp" "$MPT/q1.consumer" -- "chown q1.consumer"
+expect_good sudo chown "$id:$grp" "$MPT/q2.consumer" -- "chown q2.consumer"
+expect_good sudo chown "$id:$grp" "$MPT/q3.consumer" -- "chown q3.consumer"
+expect_good sudo chown "$id:$grp" "$MPT/q4.consumer" -- "chown q4.consumer"
 
 # From here on we run the non-sudo ${pcq} rather than the sudo ${PCQ}
 

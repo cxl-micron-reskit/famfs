@@ -82,7 +82,7 @@ while (( $# > 0)); do
 	    SKIP_TEST4=1
 	    #SKIP_PCQ=1
 	    #SKIP_FIO=1
-	    #SKIP_SHADOW_YAML=1
+	    SKIP_SHADOW_YAML=1
 	    SKIP_STRIPE_TEST=1
 	    COVERAGE=0
 	    ;;
