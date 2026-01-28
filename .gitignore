@@ -20,6 +20,8 @@ libfuse*/
 C-Thread-Pool/
 mongoose/
 ndctl*/
+perf/openclose_bench
+perf/mmap_bench
 TAGS
 #*
 .#*
