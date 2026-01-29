@@ -35,6 +35,9 @@ FAMFS_CREATE_SUBCMD="${FAMFS_CREATE_SUBCMD:-creat}"
 MMAP_SIZE_GB="${MMAP_SIZE_GB:-100}"
 MMAP_IO_SIZES="${MMAP_IO_SIZES:-4K,64K,1M}"
 
+# control max number of files
+MAX_FILES="${MAX_FILES:-10000}"
+
 # Drop caches before each measured test (careful on shared systems)
 DROP_CACHES="${DROP_CACHES:-1}"
 
@@ -60,7 +63,7 @@ echo "FAMFS_BIN: $FAMFS_BIN"
 echo "FAMFS_CREATE_SUBCMD: $FAMFS_CREATE_SUBCMD"
 echo "MMAP_SIZE_GB: $MMAP_SIZE_GB"
 echo "MMAP_IO_SIZES: $MMAP_IO_SIZES"
-echo
+echo "=========================================="
 
 ########################################
 # Utilities
@@ -118,6 +121,16 @@ famfs_create() {
 	local fsize="$2"
 	echo "[CREATE] $FAMFS_BIN $FAMFS_CREATE_SUBCMD -s $fsize $fpath"
 	sudo $FAMFS_BIN $FAMFS_CREATE_SUBCMD -s $fsize $fpath
+}
+
+check_for_max_files() {
+    local requested="$1"
+
+    if (( requested > MAX_FILES )); then
+        echo "$MAX_FILES"
+    else
+        echo "$requested"
+    fi
 }
 
 # Create N files using famfs_create
@@ -190,32 +203,53 @@ test_001_create_1_file() {
 test_002_create_100_files() {
 	reformat_and_mount
 	ensure_mounted
-	measure "CREATE_100" create_files 100 "t100" $((2 * 1024 * 1024))
+	COUNT=$(check_for_max_files 100)
+	if (( $COUNT < 100 )); then
+		echo "Skipping CREATE_100, requested file count exceeds max files"
+		return
+	fi
+	measure "CREATE_100" create_files "$COUNT" "t100" $((2 * 1024 * 1024))
 }
 
 # 3) Create 1000 files, measure time
 test_003_create_1000_files() {
 	reformat_and_mount
 	ensure_mounted
-	measure "CREATE_1000" create_files 1000 "t1000" $((2 * 1024 * 1024))
+	COUNT=$(check_for_max_files 1000)
+	if (( $COUNT < 1000 )); then
+		echo "Skipping CREATE_1000, requested file count exceeds max files"
+		return
+	fi
+	measure "CREATE_1000" create_files "$COUNT" "t1000" $((2 * 1024 * 1024))
 }
 
 # 4) Create 10000 files, measure time
 test_004_create_10000_files() {
 	reformat_and_mount
 	ensure_mounted
-	measure "CREATE_10000" create_files 10000 "t10000" $((2 * 1024 * 1024))
+	COUNT=$(check_for_max_files 10000)
+	if (( $COUNT < 10000 )); then
+		echo "Skipping CREATE_10000, requested file count exceeds max files"
+		return
+	fi
+	measure "CREATE_10000" create_files "$COUNT" "t10000" $((2 * 1024 * 1024))
 }
 
-# 5) Open and close the 10000 files
-test_005_openclose_10000() {
+# 6) Create max files, measure time
+test_005_create_max_files() {
+	reformat_and_mount
+	ensure_mounted
+	measure "CREATE_$MAX_FILES" create_files "$MAX_FILES" "t_$MAX_FILES" $((2 * 1024 * 1024))
+}
+# 6) Open and close the 10000 files
+test_006_openclose_max_files() {
 	# Do not reformat, re-use the files created in prev test
 	ensure_mounted
-	echo "[TEST] Open/Close 10000 files (t10000_1..t10000_10000)"
-	measure "OPENCLOSE_10000" "${WORK_DIR}/openclose_bench" "$MOUNT_DIR" "t10000" 10000
+	echo "[TEST] Open/Close $MAX_FILES files... "
+	measure "OPENCLOSE_MAX_FILES" "${WORK_DIR}/openclose_bench" "$MOUNT_DIR" "t_$MAX_FILES" "$MAX_FILES"
 }
 
-test_006_mmap() {
+test_007_mmap() {
 	reformat_and_mount
 	ensure_mounted
 	measure "CREATE_${MMAP_SIZE_GB}" famfs_create "$MOUNT_DIR/mmap_${MMAP_SIZE_GB}GB.bin" $((${MMAP_SIZE_GB} * 1024 * 1024 * 1024))
@@ -230,8 +264,9 @@ register_test "001" "Create 1 2MB file"                test_001_create_1_file
 register_test "002" "Create 100 files"                 test_002_create_100_files
 register_test "003" "Create 1000 files"                test_003_create_1000_files
 register_test "004" "Create 10000 files"               test_004_create_10000_files
-register_test "005" "Open/Close first 1000 files"      test_005_openclose_10000
-register_test "006" "${MMAP_SIZE_GB}GB mmap BW & IOPS" test_006_mmap
+register_test "005" "Create $MAX_FILES files"          test_005_create_max_files
+register_test "006" "Open/Close first 1000 files"      test_006_openclose_max_files
+register_test "007" "${MMAP_SIZE_GB}GB mmap BW & IOPS" test_007_mmap
 
 ########################################
 # Main
