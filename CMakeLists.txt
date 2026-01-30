@@ -150,7 +150,7 @@ target_compile_definitions(libmongoose
 add_executable(famfs src/famfs_cli.c)
 add_executable(mkfs.famfs src/mkfs.famfs.c)
 add_executable(pcq src/pcq.c)
-add_executable(famfs_fused src/famfs_fused.c src/famfs_rest.c)
+add_executable(famfs_fused src/famfs_fused.c src/famfs_fused_rest.c)
 
 find_package(PkgConfig REQUIRED)
 if (NOT PKG_CONFIG_FOUND)

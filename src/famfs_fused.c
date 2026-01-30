@@ -36,7 +36,7 @@
 #include "fuse_i.h"
 #include "famfs_fused.h"
 #include "famfs_fused_icache.h"
-#include "famfs_rest.h"
+#include "famfs_fused_rest.h"
 
 #ifdef FAMFS_COVERAGE
 extern void __gcov_dump(void);
