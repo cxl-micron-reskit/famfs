@@ -13,7 +13,7 @@ if (($count <= 0)); then
     exit -1;
 fi
 
-count=$(grep "ERROR SUMMARY" $1 | grep -cv "0 errors from 0 contexts (suppressed: 0 from 0)")
+count=$(grep "ERROR SUMMARY" $1 | grep -cv "0 errors from 0 contexts")
 #echo "$count"
 if (($count == 0)); then
     echo ":== Congratulations: no errors found by Valgrind"
@@ -24,7 +24,7 @@ echo ":== Error: Valgrind found errors..."
 echo
 
 lines=$(grep "ERROR SUMMARY" $1 | \
-	    grep -v "0 errors from 0 contexts (suppressed: 0 from 0" )
+	    grep -v "0 errors from 0 contexts" )
 
 echo "$lines" | while IFS= read -r line; do
     # Perform operations on each line
