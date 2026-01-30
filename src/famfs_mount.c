@@ -116,7 +116,7 @@ out:
  *
  * Returns 0 on success, negative errno on failure.
  */
-static int
+int
 famfs_get_shadow_from_xattr(
 	const char *path,
 	char *shadow_out,

@@ -112,11 +112,13 @@ int
 file_is_famfs(const char *fname)
 {
 	struct statfs fs;
+	char *local_path = NULL;
+	const char *check_path;
 
 	if (mock_fstype)
 		return mock_fstype;
 	if (statfs(fname, &fs)) {
-		char *local_path = strdup(fname);
+		local_path = strdup(fname);
 		local_path = dirname(local_path);
 		if (statfs(local_path, &fs)) {
 			fprintf(stderr,
@@ -125,23 +127,59 @@ file_is_famfs(const char *fname)
 			free(local_path);
 			return -1; /* fname not found */
 		}
-		free(local_path);
+		check_path = local_path;
+	} else {
+		check_path = fname;
 	}
 
 	switch (fs.f_type) {
 	case FAMFS_SUPER_MAGIC: /* deprecated but older v1 returns this */
+		free(local_path);
 		return FAMFS_V1;
 
 	case FAMFS_STATFS_MAGIC_V1:
+		free(local_path);
 		return FAMFS_V1;
 
-	case FUSE_SUPER_MAGIC:  /* accept fuse magic until it returns ouer own */
+	case FUSE_SUPER_MAGIC: {
+		/*
+		 * FUSE magic doesn't guarantee this is famfs. Verify by
+		 * getting the shadow path and checking the REST API.
+		 */
+		char shadow[PATH_MAX];
+		char sock_path[PATH_MAX];
+		char *response = NULL;
+		size_t shadow_len;
+		int rc;
+
+		rc = famfs_get_shadow_from_xattr(check_path, shadow,
+						 sizeof(shadow));
+		free(local_path);
+		if (rc < 0)
+			return NOT_FAMFS;
+
+		/* Socket is at $shadow/sock; ensure it fits */
+		shadow_len = strlen(shadow);
+		if (shadow_len + 6 > sizeof(sock_path)) /* 6 = strlen("/sock") + 1 */
+			return NOT_FAMFS;
+		memcpy(sock_path, shadow, shadow_len);
+		memcpy(sock_path + shadow_len, "/sock", 6);
+
+		rc = famfs_http_get_uds(sock_path, "/pid", &response,
+					NULL, NULL);
+		free(response);
+		if (rc < 0)
+			return NOT_FAMFS;
+
 		return FAMFS_FUSE;
+	}
 
 	case FAMFS_STATFS_MAGIC:
+		free(local_path);
 		return FAMFS_FUSE;
 	}
 	/* Not famfs */
+	free(local_path);
 	return NOT_FAMFS;
 }
 

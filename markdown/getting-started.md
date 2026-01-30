@@ -54,6 +54,7 @@ sudo dnf install -y \
     meson \
     libyaml-devel \
     daxctl-devel \
+    libcurl-devel \
     libasan-static \
     libubsan-static  # for sanitize builds
 ```
@@ -92,7 +93,8 @@ sudo apt install -y \
     meson \
     libyaml-dev \
     libdaxctl-dev \
-    libndctl-dev
+    libndctl-dev \
+    libcurl4-openssl-dev
 ```
 
 #### Additional prerequisites for building ndctl from source

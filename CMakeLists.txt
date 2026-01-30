@@ -158,8 +158,10 @@ if (NOT PKG_CONFIG_FOUND)
 endif()
 
 pkg_check_modules(DAXCTL REQUIRED libdaxctl)
+pkg_check_modules(CURL REQUIRED libcurl)
 
-target_link_libraries(libfamfs PRIVATE uuid z yaml ${DAXCTL_LIBRARIES})
+target_link_libraries(libfamfs PRIVATE uuid z yaml ${DAXCTL_LIBRARIES} ${CURL_LIBRARIES})
+target_include_directories(libfamfs PRIVATE ${CURL_INCLUDE_DIRS})
 target_include_directories(libfamfs PRIVATE ${DAXCTL_INCLUDE_DIRS})
 
 target_link_libraries(famfs libfamfs famfstest uuid z yaml)

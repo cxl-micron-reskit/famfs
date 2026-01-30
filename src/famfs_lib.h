@@ -56,6 +56,8 @@ enum famfs_type {
 };
 
 /* fuse-only functions */
+int famfs_get_shadow_from_xattr(const char *path, char *shadow_out,
+				size_t shadow_size);
 char *famfs_get_shadow_root(const char *shadow_path, int verbose);
 int famfs_mount_fuse(const char *realdaxdev, const char *realmpt,
 		     const char *realshadow, ssize_t timeout,
@@ -139,6 +141,8 @@ void log_file_mode(
 	int log_level);
 int exit_val(int rc);
 void *famfs_read_fd_to_buf(int fd, ssize_t max_size, ssize_t *size_out);
+int famfs_http_get_uds(const char *socket_path, const char *url_path,
+		       char **response, size_t *response_len, long *http_code);
 
 /* famfs_yaml.c */
 #include <yaml.h>

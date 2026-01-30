@@ -36,6 +36,7 @@
 #include <signal.h>
 #include <stdint.h>
 #include <sys/utsname.h>
+#include <curl/curl.h>
 
 #include <linux/famfs_ioctl.h>
 
@@ -761,4 +762,134 @@ famfs_read_fd_to_buf(int fd, ssize_t max_size, ssize_t *size_out)
 	*size_out = n;
 
 	return buf;
+}
+
+/*
+ * Callback for libcurl to accumulate response data into a buffer.
+ */
+struct curl_write_ctx {
+	char  *buf;
+	size_t size;
+	size_t alloc;
+};
+
+static size_t
+curl_write_cb(void *ptr, size_t size, size_t nmemb, void *userdata)
+{
+	struct curl_write_ctx *ctx = userdata;
+	size_t bytes = size * nmemb;
+	size_t needed = ctx->size + bytes + 1;
+
+	if (needed > ctx->alloc) {
+		size_t newalloc = ctx->alloc ? ctx->alloc * 2 : 4096;
+
+		while (newalloc < needed)
+			newalloc *= 2;
+		char *newbuf = realloc(ctx->buf, newalloc);
+
+		if (!newbuf)
+			return 0; /* Signal error to curl */
+		ctx->buf = newbuf;
+		ctx->alloc = newalloc;
+	}
+
+	memcpy(ctx->buf + ctx->size, ptr, bytes);
+	ctx->size += bytes;
+	ctx->buf[ctx->size] = '\0';
+
+	return bytes;
+}
+
+/**
+ * famfs_http_get_uds() - Perform an HTTP GET over a Unix domain socket
+ * @socket_path: Path to the Unix domain socket
+ * @url_path:    The URL path to request (e.g., "/api/status")
+ * @response:    Output pointer to receive the response body (caller must free)
+ * @response_len: Output pointer to receive the response length (may be NULL)
+ * @http_code:   Output pointer to receive the HTTP status code (may be NULL)
+ *
+ * Performs an HTTP GET request to a REST server listening on a Unix domain
+ * socket. The URL is constructed as "http://localhost<url_path>" but the
+ * actual connection goes through the Unix socket.
+ *
+ * Returns 0 on success, -errno on failure.
+ * On success, *response contains a malloc'd null-terminated string that the
+ * caller must free.
+ */
+int
+famfs_http_get_uds(
+	const char *socket_path,
+	const char *url_path,
+	char **response,
+	size_t *response_len,
+	long *http_code)
+{
+	CURL *curl;
+	CURLcode res;
+	struct curl_write_ctx ctx = {0};
+	char url[1024];
+	long code = 0;
+	int rc = 0;
+
+	if (!socket_path || !url_path || !response) {
+		famfs_log(FAMFS_LOG_ERR, "%s: invalid argument\n", __func__);
+		return -EINVAL;
+	}
+
+	*response = NULL;
+	if (response_len)
+		*response_len = 0;
+	if (http_code)
+		*http_code = 0;
+
+	/* Build URL - hostname is ignored when using Unix socket */
+	snprintf(url, sizeof(url), "http://localhost%s", url_path);
+
+	curl = curl_easy_init();
+	if (!curl) {
+		famfs_log(FAMFS_LOG_ERR, "%s: curl_easy_init failed\n", __func__);
+		return -ENOMEM;
+	}
+
+	curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, socket_path);
+	curl_easy_setopt(curl, CURLOPT_URL, url);
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write_cb);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &ctx);
+	curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+	curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+
+	res = curl_easy_perform(curl);
+	if (res != CURLE_OK) {
+		famfs_log(FAMFS_LOG_ERR, "%s: curl error: %s\n",
+			 __func__, curl_easy_strerror(res));
+		free(ctx.buf);
+		curl_easy_cleanup(curl);
+		switch (res) {
+		case CURLE_COULDNT_CONNECT:
+			return -ECONNREFUSED;
+		case CURLE_OPERATION_TIMEDOUT:
+			return -ETIMEDOUT;
+		default:
+			return -EIO;
+		}
+	}
+
+	curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &code);
+	curl_easy_cleanup(curl);
+
+	if (http_code)
+		*http_code = code;
+
+	if (code >= 400) {
+		famfs_log(FAMFS_LOG_ERR, "%s: HTTP error %ld for %s\n",
+			 __func__, code, url_path);
+		free(ctx.buf);
+		return -EIO;
+	}
+
+	*response = ctx.buf;
+	if (response_len)
+		*response_len = ctx.size;
+
+	return rc;
 }
