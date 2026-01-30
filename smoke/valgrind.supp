@@ -1,0 +1,29 @@
+# Valgrind suppression file for famfs
+#
+# These suppressions cover known false positives in glibc/pthread
+# thread-local storage allocation.
+
+# glibc pthread TLS allocation - reported as "possibly lost" but is
+# managed internally by glibc and not a real leak
+{
+   glibc-tls-allocate-dtv
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:calloc
+   ...
+   fun:allocate_dtv
+   fun:_dl_allocate_tls
+   fun:pthread_create@@GLIBC_*
+}
+
+# Alternate pattern without GLIBC version suffix
+{
+   glibc-tls-allocate-dtv-2
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:calloc
+   ...
+   fun:allocate_dtv
+   fun:_dl_allocate_tls
+   fun:pthread_create*
+}

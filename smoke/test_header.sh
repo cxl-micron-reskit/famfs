@@ -74,7 +74,8 @@ while (( $# > 0 )); do
 	    VG=("valgrind"
 		"--leak-check=full"
 		"--show-leak-kinds=all"
-		"--track-origins=yes")
+		"--track-origins=yes"
+		"--suppressions=$cwd/smoke/valgrind.supp")
 	    COVERAGE=1
 
 	    # Valgrind-friendly test modes
