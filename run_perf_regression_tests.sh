@@ -12,9 +12,8 @@ WORK_DIR="${WORK_DIR:-$PWD/perf}"
 LOG_FILE="${LOG_DIR}/famfs_perf_regression_${RUN_ID}.log"
 SUDO="${SUDO:-sudo}"
 SUMMARY_FILE="${SUMMARY_FILE:-$LOG_DIR/summary_${RUN_ID}.log}"
+FAMFS_MODE="${FAMFS_MODE:-fuse}"
 
-# Example: export FAMFS_BIN_DIR=/opt/famfs/bin
-# Can also set FAMFS_BIN_DIR from cmdline, if PWD is not in famfs/perf directory
 FAMFS_BIN_DIR="${FAMFS_BIN_DIR:-$PWD/debug}"
 
 # Default device: /dev/dax0.0 (user can override by setting FAMFS_DEV in env)
@@ -23,7 +22,7 @@ FAMFS_DEV="${FAMFS_DEV:-/dev/dax0.0}"
 FAMFS_BIN="${FAMFS_BIN:-${FAMFS_BIN_DIR:+$FAMFS_BIN_DIR/}famfs}"
 MKFS_CMD="${MKFS_CMD:-${FAMFS_BIN_DIR:+$FAMFS_BIN_DIR/}mkfs.famfs}"
 MKFS_KILL_CMD="${MKFS_KILL_CMD:-${FAMFS_BIN_DIR:+$FAMFS_BIN_DIR/}mkfs.famfs -f -k}"
-MOUNT_CMD_OPT="${MOUNT_CMD_OPT:-${FAMFS_BIN_DIR:+$FAMFS_BIN_DIR/}famfs mount --fuse}"
+MOUNT_CMD_OPT="${MOUNT_CMD_OPT:-${FAMFS_BIN_DIR:+$FAMFS_BIN_DIR/}famfs mount --$FAMFS_MODE}"
 UMOUNT_BIN="${UMOUNT_BIN:-umount}"
 FAMFS_MOUNT_CMD="${FAMFS_MOUNT_CMD:-$MOUNT_CMD_OPT $FAMFS_DEV $MOUNT_DIR}"
 
@@ -59,6 +58,7 @@ echo "FAMFS_BIN_DIR: ${FAMFS_BIN_DIR:-<not set>}"
 echo "MKFS_CMD: $MKFS_CMD"
 echo "MKFS_KILL_CMD: $MKFS_KILL_CMD"
 echo "FAMFS_MOUNT_CMD: $FAMFS_MOUNT_CMD"
+echo "FAMFS_MODE: $FAMFS_MODE"
 echo "FAMFS_BIN: $FAMFS_BIN"
 echo "FAMFS_CREATE_SUBCMD: $FAMFS_CREATE_SUBCMD"
 echo "MMAP_SIZE_GB: $MMAP_SIZE_GB"
@@ -89,6 +89,7 @@ measure() {
 	return "$rc"
 }
 
+
 ensure_mounted() {
 # Require that MOUNT_DIR is mounted; optionally tighten to require famfs type.
 	if ! mount | grep -q "on ${MOUNT_DIR}"; then
@@ -98,7 +99,7 @@ ensure_mounted() {
 }
 
 reformat_and_mount() {
-	echo "[REFORMAT] Attempting reformat and remount"
+	echo "[REFORMAT] Attempting unmount, reformat and remount"
 	$SUDO $UMOUNT_BIN "$MOUNT_DIR" || true
 	if [[ -n "$FAMFS_DEV" ]]; then
 		echo "[REFORMAT] Running: $SUDO $MKFS_KILL_CMD $FAMFS_DEV"
@@ -183,9 +184,6 @@ run_registered_tests() {
 		"$func"
 	done
 }
-
-########################################
-########################################
 
 ########################################
 # Individual tests (switched to famfs creat)
