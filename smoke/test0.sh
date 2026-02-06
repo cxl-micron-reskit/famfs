@@ -312,8 +312,8 @@ expect_good "${FSCK[@]}" -?        -- "fsck -? should succeed"
 expect_good "${FSCK[@]}" "$MPT"    -- "fsck should succeed -vv"
 expect_good "${FSCK[@]}" --human "$MPT" -- "fsck --human should succeed"
 
-SR="$HOME/smoke.shadow"
-mkdir -p "$SR/root"
+SR="/tmp/smoke.shadow"
+expect_good sudo mkdir -p "$SR/root" -- "failed to mkdir $SR/root"
 expect_good "${CLI[@]}" logplay --shadow "$SR" "$MPT" \
            -- "shadow logplay should work to $SR"
 
