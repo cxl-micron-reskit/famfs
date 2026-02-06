@@ -17,7 +17,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Global warning flags
-add_compile_options(-Wall -Wextra)
+add_compile_options(-Wall -Wextra -march=native)
 
 # Debug flags
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -ggdb")
@@ -194,6 +194,7 @@ else()
 endif()
 
 target_link_libraries(libfamfs PRIVATE uuid z yaml fcc ${DAXCTL_LIBRARIES} ${CURL_LIBRARIES})
+
 target_include_directories(libfamfs PRIVATE ${CURL_INCLUDE_DIRS})
 target_include_directories(libfamfs PRIVATE ${DAXCTL_INCLUDE_DIRS})
 
