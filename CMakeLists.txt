@@ -17,7 +17,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Global warning flags
-add_compile_options(-Wall -Wextra)
+add_compile_options(-Wall -Wextra -march=native)
 
 # Debug flags
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -ggdb")
@@ -139,6 +139,23 @@ target_include_directories(libicache_obj PUBLIC
 
 add_library(libicache STATIC $<TARGET_OBJECTS:libicache_obj>)
 
+# Add libfcc as a static library
+add_library(fcc STATIC
+    ${PROJECT_SOURCE_DIR}/src/fcc-x86_64.c
+#    ${PROJECT_SOURCE_DIR}/libfcc/fcc_arm64.c
+)
+
+# Include directories for libfcc
+target_include_directories(fcc
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/src
+        ${PROJECT_SOURCE_DIR}/C-Thread-Pool
+        ${PROJECT_SOURCE_DIR}/libfuse/include
+        ${PROJECT_SOURCE_DIR}/libfuse/lib
+        ${CMAKE_CURRENT_BINARY_DIR}/libfuse
+        ${LINUX_INCLUDE_BASE}
+)
+
 add_library(libmongoose mongoose/mongoose.c)
 
 
@@ -176,7 +193,7 @@ else()
     pkg_check_modules(DAXCTL REQUIRED libdaxctl)
 endif()
 
-target_link_libraries(libfamfs PRIVATE uuid z yaml ${DAXCTL_LIBRARIES} ${CURL_LIBRARIES})
+target_link_libraries(libfamfs PRIVATE uuid z yaml fcc ${DAXCTL_LIBRARIES} ${CURL_LIBRARIES})
 target_include_directories(libfamfs PRIVATE ${CURL_INCLUDE_DIRS})
 target_include_directories(libfamfs PRIVATE ${DAXCTL_INCLUDE_DIRS})
 

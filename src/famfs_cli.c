@@ -29,9 +29,9 @@
 
 #include "famfs_lib.h"
 #include "random_buffer.h"
-#include "mu_mem.h"
 #include "thpool.h"
 #include "famfs_log.h"
+#include "libfcc.h"
 
 /* Global option related stuff */
 

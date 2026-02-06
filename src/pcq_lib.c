@@ -34,8 +34,8 @@
 #include <pthread.h>
 
 #include "famfs_lib.h"
-#include "mu_mem.h"
 #include "random_buffer.h"
+#include "libfcc.h"
 #include "famfs.h"
 #include "pcq.h"
 
@@ -524,6 +524,8 @@ pcq_consumer_get(
 		}
 		if (!retries--) {
 			/* Out of retries; continue with bad crc */
+			fprintf(stderr, "%s: bad crc\n", __func__);
+			errs++;
 			good_crc = false;
 			break;
 		}

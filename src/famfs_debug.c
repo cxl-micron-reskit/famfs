@@ -39,7 +39,6 @@
 #include "famfs_meta.h"
 #include "famfs_lib.h"
 #include "famfs_lib_internal.h"
-#include "mu_mem.h"
 
 #define MSG_SIZE 8192
 

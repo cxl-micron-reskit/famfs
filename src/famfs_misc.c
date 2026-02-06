@@ -44,8 +44,9 @@
 #include "famfs_lib.h"
 #include "famfs_lib_internal.h"
 #include "bitmap.h"
-#include "mu_mem.h"
 #include "thpool.h"
+#include "libfcc.h"
+#include <sys/user.h>
 
 extern int mock_uuid;
 /**

@@ -39,8 +39,8 @@
 #include "famfs_meta.h"
 #include "famfs_lib.h"
 #include "famfs_lib_internal.h"
-#include "mu_mem.h"
 #include "thpool.h"
+#include "libfcc.h"
 
 int mock_kmod = 0; /* unit tests can set this to avoid ioctl calls and whatnot */
 int mock_fstype = 0;
