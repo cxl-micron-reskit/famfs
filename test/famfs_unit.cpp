@@ -160,7 +160,8 @@ TEST(famfs, famfs_super_test)
 	rc = famfs_check_super(sb, NULL, NULL);
 	ASSERT_EQ(rc, -1);
 
-	sb = (struct famfs_superblock *)calloc(1, sizeof(*sb));
+	//sb = (struct famfs_superblock *)calloc(1, sizeof(*sb));
+	sb = (struct famfs_superblock *)calloc(1, FAMFS_SUPERBLOCK_SIZE);
 	logp = (struct famfs_log *)calloc(1, FAMFS_LOG_LEN);
 
 	/* Make a fake file system with our fake sb and log */
