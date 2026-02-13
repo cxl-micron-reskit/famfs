@@ -148,9 +148,9 @@ file_is_famfs(const char *fname)
 		 */
 		char shadow[PATH_MAX];
 		char sock_path[PATH_MAX];
-		char *response = NULL;
 		size_t shadow_len;
 		int rc;
+		struct stat st;
 
 		rc = famfs_get_shadow_from_xattr(check_path, shadow,
 						 sizeof(shadow));
@@ -165,10 +165,14 @@ file_is_famfs(const char *fname)
 		memcpy(sock_path, shadow, shadow_len);
 		memcpy(sock_path + shadow_len, "/sock", 6);
 
-		rc = famfs_http_get_uds(sock_path, "/pid", &response,
-					NULL, NULL);
-		free(response);
-		if (rc < 0)
+		rc = stat(sock_path, &st);
+		if (rc < 0) {
+			fprintf(stderr, "%s: failed to stat file %s (%s)\n",
+					__func__, sock_path, strerror(errno));
+			return NOT_FAMFS;
+		}
+
+		if (!S_ISSOCK(st.st_mode))
 			return NOT_FAMFS;
 
 		return FAMFS_FUSE;
