@@ -107,7 +107,10 @@ ndctl:
 	fi
 	@if [ ! -d "ndctl/build" ]; then \
 		echo "Setting up ndctl build..."; \
-		meson setup ndctl/build ndctl; \
+		meson setup --default-library=both ndctl/build ndctl; \
+	elif [ ! -f "ndctl/build/daxctl/lib/libdaxctl.a" ]; then \
+		echo "Reconfiguring ndctl build for static libraries..."; \
+		meson setup --reconfigure --default-library=both ndctl/build ndctl; \
 	fi
 	@meson compile -C ndctl/build
 

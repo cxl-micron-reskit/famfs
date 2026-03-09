@@ -157,8 +157,18 @@ if (NOT PKG_CONFIG_FOUND)
     message(FATAL_ERROR "pkg-config not found. Install it (Fedora: pkgconf-pkg-config; Debian/Ubuntu: pkg-config).")
 endif()
 
-pkg_check_modules(DAXCTL REQUIRED libdaxctl)
 pkg_check_modules(CURL REQUIRED libcurl)
+
+set(NDCTL_BUILD_DIR "${PROJECT_SOURCE_DIR}/ndctl/build")
+set(DAXCTL_STATIC_LIB "${NDCTL_BUILD_DIR}/daxctl/lib/libdaxctl.a")
+
+if(EXISTS "${DAXCTL_STATIC_LIB}")
+    message(STATUS "Using local static libdaxctl: ${DAXCTL_STATIC_LIB}")
+    set(DAXCTL_LIBRARIES "${DAXCTL_STATIC_LIB}" uuid kmod)
+    set(DAXCTL_INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/ndctl")
+else()
+    pkg_check_modules(DAXCTL REQUIRED libdaxctl)
+endif()
 
 target_link_libraries(libfamfs PRIVATE uuid z yaml ${DAXCTL_LIBRARIES} ${CURL_LIBRARIES})
 target_include_directories(libfamfs PRIVATE ${CURL_INCLUDE_DIRS})
