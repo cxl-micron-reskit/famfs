@@ -294,6 +294,8 @@ all-6.19:	ndctl
 
 clean:
 	sudo rm -rf debug release coverage sanitize
+	rm -rf ndctl/build
+	rm -rf libfuse/build
 
 install:
 	cd debug; sudo $(MAKE) install
