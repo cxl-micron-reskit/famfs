@@ -8,9 +8,9 @@ cwd=$(pwd)
 # Defaults (safe, no empty-string arguments)
 # ---------------------------------------------------------------------
 VG=()                        # No valgrind by default
-SCRIPTS=../scripts
+SCRIPTS=${SCRIPTS:-../scripts}
 RAW_MOUNT_OPTS=("-t" "famfs" "-o" "noatime" "-o" "dax=always")
-BIN=../debug
+BIN=${BIN:-../debug}
 RMMOD=0
 FAMFS_MOD="famfs.ko"
 LOG_CMDS="N"
