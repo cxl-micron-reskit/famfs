@@ -63,6 +63,7 @@ const char *daxdev_mode_string(enum famfs_daxdev_mode mode)
  */
 enum famfs_daxdev_mode famfs_get_daxdev_mode(const char *daxdev)
 {
+	char devpath[PATH_MAX];
 	char syspath[PATH_MAX];
 	char linkbuf[PATH_MAX];
 	char *devname_copy;
@@ -73,27 +74,54 @@ enum famfs_daxdev_mode famfs_get_daxdev_mode(const char *daxdev)
 	if (!daxdev)
 		return DAXDEV_MODE_UNKNOWN;
 
-	/* Get basename of device path (handles both "/dev/dax1.0" and "dax1.0") */
+	/* Get basename of device path (handles "/dev/dax1.0" and "dax1.0") */
 	devname_copy = strdup(daxdev);
 	if (!devname_copy)
 		return DAXDEV_MODE_UNKNOWN;
 
 	devbasename = basename(devname_copy);
 
+	/* Verify the device exists in sysfs before going further */
+	snprintf(devpath, sizeof(devpath),
+		 "/sys/bus/dax/devices/%s", devbasename);
+	if (access(devpath, F_OK) != 0) {
+		fprintf(stderr, "%s: dax device '%s' not found in sysfs (%s)\n",
+			__func__, devbasename, devpath);
+		free(devname_copy);
+		return DAXDEV_MODE_UNKNOWN;
+	}
+
 	/* Construct sysfs driver symlink path */
-	snprintf(syspath, sizeof(syspath),
-		 "/sys/bus/dax/devices/%s/driver", devbasename);
+	if (snprintf(syspath, sizeof(syspath), "%s/driver", devpath)
+			>= (int)sizeof(syspath)) {
+		fprintf(stderr, "%s: sysfs path too long for '%s'\n",
+			__func__, daxdev);
+		free(devname_copy);
+		return DAXDEV_MODE_UNKNOWN;
+	}
 
 	/* Read the symlink */
 	len = readlink(syspath, linkbuf, sizeof(linkbuf) - 1);
 	free(devname_copy);
 
-	if (len < 0)
+	if (len < 0) {
+		if (errno == ENOENT)
+			fprintf(stderr,
+				"%s: '%s' exists but has no driver bound\n",
+				__func__, daxdev);
 		return DAXDEV_MODE_UNKNOWN;
+	}
+
+	/* Guard against a truncated readlink result */
+	if (len == (ssize_t)(sizeof(linkbuf) - 1)) {
+		fprintf(stderr, "%s: driver symlink path truncated for '%s'\n",
+			__func__, daxdev);
+		return DAXDEV_MODE_UNKNOWN;
+	}
 
 	linkbuf[len] = '\0';
 
-	/* Get basename of the link target (e.g., "device_dax" or "famfs") */
+	/* Get basename of the link target (e.g., "device_dax" or "fsdev_dax") */
 	driver_name = basename(linkbuf);
 
 	if (strcmp(driver_name, "device_dax") == 0)
@@ -101,6 +129,8 @@ enum famfs_daxdev_mode famfs_get_daxdev_mode(const char *daxdev)
 	else if (strcmp(driver_name, "fsdev_dax") == 0)
 		return DAXDEV_MODE_FAMFS;
 
+	fprintf(stderr, "%s: unrecognized driver '%s' for '%s'\n",
+		__func__, driver_name, daxdev);
 	return DAXDEV_MODE_UNKNOWN;
 }
 
