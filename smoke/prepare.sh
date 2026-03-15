@@ -39,10 +39,19 @@ stop_on_crash sudo umount /tmp/famfs_fuse -- "crashed umounting /tmp/famfs_fuse"
 DAXMODE=$(dax_get_mode $DEV "prepare 1")
 echo "DAXMODE: $DAXMODE"
 
-# Ensure we start in devdax mode for consistent test behavior
-if [[ "$DAXMODE" != "devdax" ]]; then
-    dax_reconfigure_mode $DEV "devdax"
-    DAXMODE="devdax"
+# On kernel >= 6.19, famfs dax mode is available; start there to avoid the
+# slow devdax<->famfs round-trip on large devices.  On older kernels devdax
+# is the only option, so keep the original behavior.
+if [[ "$KERNEL_MAJOR" -gt 6 ]] || [[ "$KERNEL_MAJOR" -eq 6 && "$KERNEL_MINOR" -ge 19 ]]; then
+    if [[ "$DAXMODE" != "famfs" ]]; then
+        dax_reconfigure_mode $DEV "famfs"
+        DAXMODE="famfs"
+    fi
+else
+    if [[ "$DAXMODE" != "devdax" ]]; then
+        dax_reconfigure_mode $DEV "devdax"
+        DAXMODE="devdax"
+    fi
 fi
 
 #
@@ -57,7 +66,6 @@ assert_daxmode_6.19 $DEV $DAXMODE "3"
 
 # If no filesystem is present, create one — ensure we do NOT crash
 stop_on_crash "${MKFS[@]}" "$DEV" -- "Safety mkfs"
-dax_reconfigure_mode $DEV "devdax"
 verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs?"
 expect_fail "${MKFS[@]}" -k "$DEV"       -- "mkfs/kill should fail without --force"
 verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (2)"
@@ -69,22 +77,17 @@ expect_good "${MKFS[@]}" -v -f "$DEV"       -- "redo mkfs with -f should succeed
 verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (5)"
 
 #
-# Set daxdev mode back to devdax
-#
-dax_reconfigure_mode $DEV "devdax"
-
-#
 # loglen sanity tests
 #
 expect_fail "${MKFS[@]}" -f --loglen 1 "$DEV" -- "mkfs with loglen 1 should fail"
 # mkfs fails early (before mode switch) due to invalid loglen, so mode unchanged
-assert_daxmode_6.19 $DEV "devdax" "5"
+assert_daxmode_6.19 $DEV "famfs" "5"
 LOG_LEN=$(expect_good "${FSCK[@]}" -v "$DEV" | grep "log_len" | awk '{print $2}')
 assert_equal "$LOG_LEN" "8388608" "Log size should not change after mkfs with bogus loglen"
 verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (6)"
 
-# raw fsck above will changed to mode=famfs, but should put it back to devdax
-assert_daxmode_6.19 $DEV "devdax" "7"
+# device started in famfs mode; raw fsck leaves it in famfs mode
+assert_daxmode_6.19 $DEV "famfs" "7"
 
 
 expect_fail "${MKFS[@]}" -f --loglen 11m "$DEV" -- "mkfs with loglen 11m should fail"
@@ -92,9 +95,8 @@ LOG_LEN=$(expect_good "${FSCK[@]}" -v "$DEV" | grep "log_len" | awk '{print $2}'
 assert_equal "$LOG_LEN" "8388608" "Log size should not change after mkfs with bogus loglen 2"
 verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (7)"
 
-# mkfs should have changed the mode and not set it back (b/c if you made a
-# famfs file system, you probably want it in famfs mode...duh...
-assert_daxmode_6.19 $DEV "devdax" "8"
+# failed mkfs (bad loglen) leaves mode unchanged
+assert_daxmode_6.19 $DEV "famfs" "8"
 
 # Valid log length
 expect_good "${MKFS[@]}" -f --loglen 256m "$DEV" -- "mkfs should work with 256m log"
