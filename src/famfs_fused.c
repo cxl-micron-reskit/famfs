@@ -255,7 +255,7 @@ famfs_getattr(
 
 	/*
 	 * Root inode is a special case that is not looked up before getattr.
-	 * All other indes have been looked up, and therefore already know
+	 * All other inodes have been looked up, and therefore already know
 	 * their attrs
 	 */
 	if (nodeid == FUSE_ROOT_ID) {
