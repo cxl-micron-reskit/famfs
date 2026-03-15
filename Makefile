@@ -182,7 +182,7 @@ libfuse:
 		meson compile -C $(BDIR)/libfuse; \
 	fi
 
-sanitize: cmake-modules threadpool mongoose
+sanitize: cmake-modules threadpool mongoose ndctl
 	$(call check_kernel_version)
 	mkdir -p sanitize;
 	$(MAKE) libfuse BDIR="sanitize"
@@ -192,7 +192,7 @@ sanitize: cmake-modules threadpool mongoose
 	$(MAKE)
 
 
-debug:	cmake-modules threadpool mongoose
+debug:	cmake-modules threadpool mongoose ndctl
 	$(call check_kernel_version)
 	export BDIR="debug"
 	mkdir -p debug;
