@@ -227,6 +227,8 @@ famfs_mount_usage(int   argc,
 	       "\n"
 	       "    %s mount [args] <memdevice> <mountpoint>\n"
 	       "\n"
+	       "Note: you normally must be root to perform a famfs mount\n"
+	       "\n"
 	       "Arguments:\n"
 	       "    -h|-?              - Print this message\n"
 	       "    -f|--fuse          - Use famfs via fuse. If specified, the mount will\n"
@@ -241,7 +243,7 @@ famfs_mount_usage(int   argc,
 	       "    -v|--verbose       - Print verbose output\n"
 	       "    -u|--nouseraccess  - Allow non-root access\n"
 	       "                         (don't use fuse allow_other mount opt)\n"
-	       "    -p|--nodefaultperm - Do not apply normal posix permissions\n"
+	       "    -p|--nodefaultperm - Do not apply normal posix default permissions\n"
 	       "                         (don't use fuse default_permissions mount opt)\n"
 	       "    -S|--shadow=path   - Path to root of shadow filesystem\n"
 	       "\n", progname);
@@ -405,6 +407,11 @@ do_famfs_cli_mount(int argc, char *argv[])
 			__func__);
 		famfs_mount_usage(argc, argv);
 		return -1;
+	}
+
+	if (geteuid() != 0) {
+		fprintf(stderr, "famfs mount: must run as root\n");
+		return 1;
 	}
 
 	daxdev = argv[optind++];

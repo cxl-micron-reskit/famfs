@@ -37,6 +37,8 @@ print_usage(int   argc,
 	       "Create a famfs file system with a 256MiB log\n"
 	       "    %s --loglen 256m /dev/dax0.0\n"
 	       "\n"
+	       "Note: You must be root to run mkfs.famfs\n"
+	       "\n"
 	       "Arguments:\n"
 	       "    -h|-?      - Print this message\n"
 	       "    -f|--force - Will create the file system even if there is already a valid superblock\n"
@@ -120,6 +122,11 @@ main(int argc, char *argv[])
 
 	/* TODO: multiple devices? */
 	daxdev = argv[optind++];
+
+	if (geteuid() != 0) {
+		fprintf(stderr, "mkfs.famfs: must run as root\n");
+		return 1;
+	}
 
 	famfs_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
 	famfs_log(FAMFS_LOG_NOTICE, "Starting famfs mkfs on device %s", daxdev);
