@@ -161,7 +161,8 @@ pcq_create(
 	assert(consumer_fname);
 
 	if (verbose)
-		printf("%s: creating queue  %s / %s\n", __func__, fname, consumer_fname);
+		printf("%s: creating queue  %s / %s\n",
+		       __func__, fname, consumer_fname);
 	/*
 	 * Fail if either file already exists
 	 */
@@ -169,7 +170,8 @@ pcq_create(
 	rc2 = stat(fname, &st);
 	if (rc == 0 || rc2 == 0) {
 		fprintf(stderr,
-			"%s: can't create pcq %s - something with that name already exists\n",
+			"%s: can't create pcq %s - "
+			"something with that name already exists\n",
 			__func__, fname);
 		rc = -1;
 		goto out;
@@ -180,7 +182,8 @@ pcq_create(
 	 */
 	fd = famfs_mkfile(consumer_fname, 0644, uid, gid, two_mb, NULL, 1);
 	if (fd < 0) {
-		fprintf(stderr, "%s: failed to create consumer file\n", __func__);
+		fprintf(stderr, "%s: failed to create consumer file\n",
+			__func__);
 		rc = -1;
 		goto out;
 	}
@@ -189,7 +192,8 @@ pcq_create(
 	/* Producer maps/creates consumer file first */
 	pcqc = famfs_mmap_whole_file(consumer_fname, 0 /* writable */, &csz);
 	if (!pcqc) {
-		fprintf(stderr, "%s: failed to create consumer file\n", __func__);
+		fprintf(stderr, "%s: failed to create consumer file\n",
+			__func__);
 		free(consumer_fname);
 		rc = -1;
 		goto out;
@@ -207,7 +211,8 @@ pcq_create(
 	 */
 	fd = famfs_mkfile(fname, 0644, 0, 0, size, NULL, 1);
 	if (fd < 0) {
-		fprintf(stderr, "%s: failed to create producer file\n", __func__);
+		fprintf(stderr, "%s: failed to create producer file\n",
+			__func__);
 		rc = -1;
 		goto out;
 	}
@@ -231,7 +236,8 @@ pcq_create(
 	if (verbose) {
 		printf("%s: sizeof(crc)=%ld\n", __func__, sizeof(unsigned long));
 		printf("%s: bucket_size=%lld\n", __func__, pcq->bucket_size);
-		printf("%s: payload_size=%ld\n", __func__, pcq_payload_size(pcq));
+		printf("%s: payload_size=%ld\n",
+		       __func__, pcq_payload_size(pcq));
 	}
 	munmap(pcq, psz);
 	munmap(pcqc, csz);
@@ -260,7 +266,8 @@ pcq_open(
 
 	rc = stat(consumer_fname, &st);
 	if (rc) {
-		fprintf(stderr, "%s: pcq files not found for queue %s\n", __func__, fname);
+		fprintf(stderr, "%s: pcq files not found for queue %s\n",
+			__func__, fname);
 		free(consumer_fname);
 		return NULL;
 	}
@@ -271,10 +278,12 @@ pcq_open(
 		return NULL;
 	}
 
-	pcqc = famfs_mmap_whole_file(consumer_fname, (role == CONSUMER) ? 0:1, &csz);
+	pcqc = famfs_mmap_whole_file(consumer_fname, (role == CONSUMER) ? 0:1,
+				     &csz);
 	if (!pcqc) {
 		munmap(pcq, psz);
-		fprintf(stderr, "%s: failed to create consumer file\n", __func__);
+		fprintf(stderr, "%s: failed to create consumer file\n",
+			__func__);
 		free(consumer_fname);
 		return NULL;
 	}
@@ -286,7 +295,8 @@ pcq_open(
 	if (verbose) {
 		printf("%s: sizeof(crc)=%ld\n", __func__, sizeof(unsigned long));
 		printf("%s: bucket_size=%lld\n", __func__, pcq->bucket_size);
-		printf("%s: payload_size=%ld\n", __func__, pcq_payload_size(pcq));
+		printf("%s: payload_size=%ld\n",
+		       __func__, pcq_payload_size(pcq));
 	}
 
 	free(consumer_fname);
@@ -376,11 +386,13 @@ pcq_producer_put(
 	*crcp = crc;
 
 	if (a->verbose) {
-		printf("%s: put_index=%lld seq=%lld\n", __func__, put_index, *seqp);
+		printf("%s: put_index=%lld seq=%lld\n",
+		       __func__, put_index, *seqp);
 		if (a->verbose > 1) {
 			printf("%s: bucket_size=%lld seq_offset=%lld "
 			       "crc_offset=%lld crc %lx/%lx\n",
-			       __func__, pcq->bucket_size, seq_offset, crc_offset,
+			       __func__, pcq->bucket_size,
+			       seq_offset, crc_offset,
 			       crc, *crcp);
 		}
 	}
@@ -420,7 +432,6 @@ pcq_consumer_get(
 	u64 *seq_out,
 	struct pcq_thread_arg *a)
 {
-	unsigned long crc;
 	struct pcq_consumer *pcqc = pcqh->pcqc;
 	int retries = CONSUMER_NRETRIES;
 	struct pcq *pcq = pcqh->pcq;
@@ -428,27 +439,30 @@ pcq_consumer_get(
 	bool retry_counted = false;
 	bool good_crc = true;
 	unsigned long *crcp;
+	bool empty = false;
 	void *bucket_addr;
+	unsigned long crc;
 	u64 seq_expect;
 	u64 get_index;
-	bool empty = false;
 	int errs = 0;
 	u64 *seqp;
 
 	assert(pcq->pcq_magic == PCQ_MAGIC);
 	assert(pcqc->pcq_consumer_magic == PCQ_CONSUMER_MAGIC);
 
-	/* Wait until there is in a message to consume (breaking out if we get stopped) */
+	/* Wait until there is in a message to consume
+	 * (breaking out when there is a message, or if we get stopped) */
 	do {
 		get_index = pcqc->consumer_index;
 
-		invalidate_processor_cache(&pcq->producer_index, sizeof(pcq->producer_index));
+		invalidate_processor_cache(&pcq->producer_index,
+					   sizeof(pcq->producer_index));
 		if (get_index != pcq->producer_index)
 			break;
 		else {
 			/* Queue looks empty */
 			if (!empty) {
-				/* count empty only once per call to this function */
+				/* count empty only once per call to this func */
 				empty = true;
 				a->nempty++;
 			}
@@ -471,8 +485,9 @@ pcq_consumer_get(
 
 
 	/*
-	 * Although we know there is an entry to retrieve, we might see a cache-incoherent
-	 * entry. If the crc is bad, invalidate the cache for the entry and retry
+	 * Although we know there is an entry to retrieve, we might see a
+	 * cache-incoherent entry. If the crc is bad, invalidate the cache for
+	 * the entry and retry
 	 */
 	while (true) {
 		crc = crc32(0L, Z_NULL, 0);
@@ -485,13 +500,14 @@ pcq_consumer_get(
 		crcp = (unsigned long *)((u64)entry_out + crc_offset);
 		seqp = (u64 *)((u64)entry_out + seq_offset);
 
-		crc = crc32(crc, entry_out, pcq_payload_size(pcq) + sizeof(*seqp));
+		crc = crc32(crc, entry_out,
+			    pcq_payload_size(pcq) + sizeof(*seqp));
 
 		if (crc == *crcp) /* Good crc, good entry */
 			break;
 
 		if (!retry_counted) {
-			/* count only one retry each time per call to this func */
+			/* count only one retry per call to this func */
 			retry_counted = true;
 			a->retries++;
 		}
@@ -511,7 +527,9 @@ pcq_consumer_get(
 
 	if (errs) {
 		/* This is fatal */
-		fprintf(stderr, "%s: bad msg after %d retries. cache coherency suspicious\n",
+		fprintf(stderr,
+			"%s: bad msg after %d retries. "
+			"Cache coherency suspicious\n",
 			__func__, CONSUMER_NRETRIES);
 		fprintf(stderr, "%s: seq=%lld\n", __func__, seq_expect);
 		a->stop_now = true;
@@ -521,12 +539,14 @@ pcq_consumer_get(
 	}
 
 	if (a->verbose) {
-		printf("%s: bucket=%lld seq=%lld\n", __func__, get_index, *seqp);
+		printf("%s: bucket=%lld seq=%lld\n",
+		       __func__, get_index, *seqp);
 	}
 
 	/* Update queue metadata */
 	pcqc->consumer_index = (pcqc->consumer_index + 1) % pcq->nbuckets;
-	flush_processor_cache(&pcqc->consumer_index, sizeof(pcqc->consumer_index));
+	flush_processor_cache(&pcqc->consumer_index,
+			      sizeof(pcqc->consumer_index));
 	a->nreceived++;
 
 	*seq_out = *seqp;
@@ -551,7 +571,8 @@ run_producer(struct pcq_thread_arg *a)
 
 	while (true) {
 		if (a->seed)
-			randomize_buffer(entry, pcq_payload_size(pcqh->pcq), a->seed);
+			randomize_buffer(entry, pcq_payload_size(pcqh->pcq),
+					 a->seed);
 		pstat = pcq_producer_put(pcqh, entry, a);
 		if (pstat == PCQ_PUT_FULL_NOWAIT) {
 			a->nerrors++;
@@ -604,11 +625,14 @@ run_consumer(struct pcq_thread_arg *a)
 
 		if (cstat == PCQ_GET_GOOD) {
 			if (a->seed) {
+				s64 payload_size = pcq_payload_size(pcqh->pcq);
+
 				ofs = validate_random_buffer(entry_out,
-							     pcq_payload_size(pcqh->pcq),
+							     payload_size,
 							     a->seed);
 				if (ofs != -1) {
-					fprintf(stderr, "%s: miscompare seq=%lld ofs=%ld\n",
+					fprintf(stderr, "%s: miscompare "
+						"seq=%lld ofs=%ld\n",
 						__func__, seqnum, ofs);
 					a->nerrors++;
 					continue;
@@ -683,11 +707,14 @@ void *status_worker(void *arg)
 
 		now = time(NULL);
 		local_now = localtime(&now);
-		strftime(time_str, sizeof(time_str), "%m-%d %H:%M:%S", local_now);
+		strftime(time_str, sizeof(time_str), "%m-%d %H:%M:%S",
+			 local_now);
 
-		printf("%s pcq=%s prod(nsent=%lld nfull=%lld) cons(nrcvd=%lld nempty=%lld "
+		printf("%s pcq=%s prod(nsent=%lld nfull=%lld) "
+		       "cons(nrcvd=%lld nempty=%lld "
 		       "nretries= %lld nerrors=%lld)\n", time_str,
-		       a->basename, a->p->nsent, a->p->nfull, a->c->nreceived, a->c->nempty,
+		       a->basename, a->p->nsent, a->p->nfull,
+		       a->c->nreceived, a->c->nempty,
 		       a->p->nerrors + a->c->retries, a->c->nerrors);
 
 		if (a->stop_now)
@@ -714,8 +741,10 @@ get_queue_info(const char *fname, FILE *statusfile, int verbose)
 		goto out;
 	}
 	nmessages = pcq_nmessages(pcqh);
-	printf("%s: queue %s contains %lld messages p next_seq %lld c next_seq %lld\n",
-	       __func__, fname, nmessages, pcqh->pcq->next_seq, pcqh->pcqc->next_seq);
+	printf("%s: queue %s contains %lld messages "
+	       "p next_seq %lld c next_seq %lld\n",
+	       __func__, fname, nmessages, pcqh->pcq->next_seq,
+	       pcqh->pcqc->next_seq);
 
 
 out:

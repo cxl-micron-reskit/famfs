@@ -264,7 +264,8 @@ main(int argc, char **argv)
 			else if (strcmp(optarg, "n") == 0)
 				role = pcq_perm_none;
 			else {
-				fprintf(stderr, "%s: invalid --setperm arg (%s)\n",
+				fprintf(stderr,
+					"%s: invalid --setperm arg (%s)\n",
 					__func__, optarg);
 				pcq_usage(argc, argv);
 				return 1;
@@ -309,14 +310,16 @@ main(int argc, char **argv)
 	}
 	if (drain && (wait || producer || nmessages || runtime)) {
 		fprintf(stderr,
-			"%s: drain can't be used with producer, time or nmessages options\n\n",
+			"%s: drain can't be used with producer, "
+			"time or nmessages options\n\n",
 			argv[0]);
 		pcq_usage(argc, argv);
 		return 1;
 	}
 	if (runtime && nmessages) {
 		fprintf(stderr,
-			"%s: the --nmessages and --time args cannot be used together\n\n",
+			"%s: the --nmessages and --time args "
+			"cannot be used together\n\n",
 			__func__);
 		pcq_usage(argc, argv);
 		return 1;
@@ -334,7 +337,8 @@ main(int argc, char **argv)
 	}
 	if (role != pcq_perm_nop && (create || producer || consumer || drain)) {
 		fprintf(stderr,
-			"--setperm is incompatible with --create|--drain|--producer|--consumer");
+			"--setperm is incompatible with "
+			"--create|--drain|--producer|--consumer");
 		pcq_usage(argc, argv);
 		return 1;
 	}
@@ -358,7 +362,8 @@ main(int argc, char **argv)
 
 		printf("pcq:    %s\n", filename);
 		rc = run_consumer(&ta);
-		printf("pcq drain: nreceived=%lld nerrors=%lld nempty=%lld retries=%lld\n",
+		printf("pcq drain: nreceived=%lld nerrors=%lld "
+		       "nempty=%lld retries=%lld\n",
 		       ta.nreceived, ta.nerrors, ta.nempty, ta.retries);
 		if (ta.nerrors) {
 			if (statusfile) {
@@ -369,7 +374,8 @@ main(int argc, char **argv)
 		}
 
 		if (statusfile) {
-			printf("pcq: drained %lld messages from queue %s, with no errors\n",
+			printf("pcq: drained %lld messages from queue %s, "
+			       "with no errors\n",
 			       ta.nreceived, filename);
 			fprintf(statusfile, "%lld", ta.nreceived);
 			fclose(statusfile);
@@ -390,9 +396,11 @@ main(int argc, char **argv)
 		prod.seed = seed;
 		prod.wait = wait;
 		prod.verbose = verbose;
-		rc = pthread_create(&producer_thread, NULL, pcq_worker, (void *)&prod);
+		rc = pthread_create(&producer_thread, NULL, pcq_worker,
+				    (void *)&prod);
 		if (rc) {
-			fprintf(stderr, "%s: failed to start producer thread\n", __func__);
+			fprintf(stderr, "%s: failed to start producer thread\n",
+				__func__);
 		}
 	}
 
@@ -408,9 +416,11 @@ main(int argc, char **argv)
 		cons.seed = seed;
 		cons.wait = wait;
 		cons.verbose = verbose;
-		rc = pthread_create(&consumer_thread, NULL, pcq_worker, (void *)&cons);
+		rc = pthread_create(&consumer_thread, NULL, pcq_worker,
+				    (void *)&cons);
 		if (rc) {
-			fprintf(stderr, "%s: failed to start consumer thread\n", __func__);
+			fprintf(stderr, "%s: failed to start consumer thread\n",
+				__func__);
 		}
 	}
 
@@ -421,9 +431,11 @@ main(int argc, char **argv)
 		status.interval = status_interval;
 		status.stop_now = 0;
 		
-		rc = pthread_create(&status_thread, NULL, status_worker, (void *)&status);
+		rc = pthread_create(&status_thread, NULL, status_worker,
+				    (void *)&status);
 		if (rc) {
-			fprintf(stderr, "%s: failed to start consumer thread\n", __func__);
+			fprintf(stderr, "%s: failed to start consumer thread\n",
+				__func__);
 		}
 	}
 
@@ -437,32 +449,37 @@ main(int argc, char **argv)
 	if (producer) {
 		rc = pthread_join(producer_thread, NULL);
 		if (rc)
-			fprintf(stderr, "%s: failed to join producer thread\n", __func__);
+			fprintf(stderr, "%s: failed to join producer thread\n",
+				__func__);
 	}
 	if (consumer) {
 		rc = pthread_join(consumer_thread, NULL);
 		if (rc)
-			fprintf(stderr, "%s: failed to join consumer thread\n", __func__);
+			fprintf(stderr, "%s: failed to join consumer thread\n",
+				__func__);
 	}
 	if (status_interval) {
 		status.stop_now = 1;
 		rc = pthread_join(status_thread, NULL);
 		if (rc)
-			fprintf(stderr, "%s: failed to join consumer thread\n", __func__);
+			fprintf(stderr, "%s: failed to join consumer thread\n",
+				__func__);
 	}
 
 	printf("pcq:    %s\n", filename);
 	printf("pcq producer: nsent=%lld nerrors=%lld nfull=%lld\n",
 	       prod.nsent, prod.nerrors, prod.nfull);
-	printf("pcq consumer: nreceived=%lld nerrors=%lld nempty=%lld retries=%lld\n",
+	printf("pcq consumer: nreceived=%lld nerrors=%lld "
+	       "nempty=%lld retries=%lld\n",
 	       cons.nreceived, cons.nerrors, cons.nempty, cons.retries);
 
 	if (prod.nerrors || cons.nerrors) {
 		if (statusfile) {
-			/* If there are errors, the statusfile will contain the negative
-			 * sum of the producer and consumer errors
+			/* If there are errors, the statusfile will contain the
+			 * negative sum of the producer and consumer errors
 			 */
-			fprintf(statusfile, "%lld", -(prod.nerrors + cons.nerrors));
+			fprintf(statusfile, "%lld",
+				-(prod.nerrors + cons.nerrors));
 			fclose(statusfile);
 		}
 		return exit_val((int)(prod.nerrors + cons.nerrors));
