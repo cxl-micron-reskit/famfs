@@ -455,26 +455,27 @@ pcq_consumer_get(
 	do {
 		get_index = pcqc->consumer_index;
 
+		/* We likely have a stale copy of the produdcer index in the
+		 * processor cache; Invalidate it before referencing it */
 		invalidate_processor_cache(&pcq->producer_index,
 					   sizeof(pcq->producer_index));
 		if (get_index != pcq->producer_index)
-			break;
+			break; /* There is at least one message */
+
+		/* Queue looks empty */
+		if (!empty) {
+			/* count empty only once per call to this func */
+			empty = true;
+			a->nempty++;
+		}
+		if (a->stop_now)
+			return PCQ_GET_STOPPED;
+		else if (a->wait)
+	 		sched_yield();
 		else {
-			/* Queue looks empty */
-			if (!empty) {
-				/* count empty only once per call to this func */
-				empty = true;
-				a->nempty++;
-			}
-			if (a->stop_now)
-				return PCQ_GET_STOPPED;
-			else if (a->wait)
-				sched_yield();
-			else {
-				if (a->verbose > 1)
-					printf("%s: queue empty\n", __func__);
-				return PCQ_GET_EMPTY;
-			}
+			if (a->verbose > 1)
+				printf("%s: queue empty\n", __func__);
+			return PCQ_GET_EMPTY;
 		}
 	} while (true);
 
@@ -483,7 +484,6 @@ pcq_consumer_get(
 			       (get_index * pcq->bucket_size));
 	seq_expect = pcqc->next_seq++;
 
-
 	/*
 	 * Although we know there is an entry to retrieve, we might see a
 	 * cache-incoherent entry. If the crc is bad, invalidate the cache for
@@ -491,7 +491,8 @@ pcq_consumer_get(
 	 */
 	while (true) {
 		crc = crc32(0L, Z_NULL, 0);
-		invalidate_processor_cache(bucket_addr, pcq->bucket_size);
+		/* First we try to retrieve the msg without invalidating the
+		 * cpu cache; if it's invalid, we'll invalidate and retry */
 		memcpy(entry_out, bucket_addr, pcq->bucket_size);
 
 		/* Check crc and seq number */
@@ -506,6 +507,16 @@ pcq_consumer_get(
 		if (crc == *crcp) /* Good crc, good entry */
 			break;
 
+		/* The message was put in the queue by the producer. In cases
+		 * where the producer is on a different server and the mem
+		 * is not HW coherent, it's possible that we will find stale
+		 * data in our cpu cache where the message should be. First
+		 * attempt to get the message did not invalidate the cache;
+		 * if the CRC wasn't good, invalidate the cache an try again.
+		 * If 'retries' is non-zero, that means we encountered a stale
+		 * cache line that had to be invalidated and retried.
+		 */
+		invalidate_processor_cache(bucket_addr, pcq->bucket_size);
 		if (!retry_counted) {
 			/* count only one retry per call to this func */
 			retry_counted = true;
