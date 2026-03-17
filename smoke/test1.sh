@@ -371,7 +371,18 @@ expect_good "${CLI[@]}" cp "$MPT/A/B/C/w/x/y/z/"* "$MPT" \
 
 sudo touch /tmp/emptyfile
 expect_fail "${CLI[@]}" cp /tmp/emptyfile "$MPT/emptyfile2" \
-           -- "cp with empty source file should fail"
+            -- "cp with empty source file should fail"
+
+# Test for a bug found 3/2026
+expect_good sudo echo "file 1" > /tmp/file1.txt -- "make file1"
+expect_good sudo echo "file 2" > /tmp/file2.txt -- "make file2"
+expect_good sudo echo "file 3" > /tmp/file3.txt -- "make file3"
+expect_good "${CLI[@]}" cp /tmp/file1.txt "$MPT" -- "normal cp file1.txt"
+expect_good "${CLI[@]}" cp /tmp/file2.txt "$MPT/" -- "cp trailing / file2.txt"
+expect_good "${CLI[@]}" cp /tmp/file3.txt "$MPT/." -- "cp trailing /."
+expect_good sudo cmp /tmp/file1.txt "$MPT/file1.txt" -- "cmp file1"
+expect_good sudo cmp /tmp/file2.txt "$MPT/file2.txt" -- "cmp file2"
+expect_good sudo cmp /tmp/file3.txt "$MPT/file3.txt" -- "cmp file3"
 
 expect_good "${FSCK[@]}" "$MPT"   -- "fsck should succeed"
 expect_good "${FSCK[@]}" -m "$MPT" -- "fsck -mh should succeed"
