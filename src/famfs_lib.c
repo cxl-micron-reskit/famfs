@@ -4767,16 +4767,20 @@ famfs_cp(struct famfs_locked_log *lp,
 		switch (deststat.st_mode & S_IFMT) {
 		case S_IFDIR: {
 			char destpath[PATH_MAX];
+			char realdest[PATH_MAX];
 			char src[PATH_MAX];
 
 			if (verbose > 1)
 				printf("%s: (%s) -> (%s/)\n", __func__,
 				       srcfile, destfile);
 
-			/* Destination is directory;  get the realpath and
-			 * append the basename from the source
+			/* Destination is directory; get the realpath and
+			 * append the basename from the source.
+			 * Use realdest (not destfile) in the snprintf so that
+			 * a trailing slash on destfile doesn't produce a
+			 * double-slash path that breaks relpath extraction.
 			 */
-			if (realpath(destfile, destpath) == 0 ||
+			if (realpath(destfile, realdest) == 0 ||
 					mock_failure == MOCK_FAIL_GENERIC) {
 				fprintf(stderr,
 					"%s: failed to rationalize dest path "
@@ -4784,8 +4788,13 @@ famfs_cp(struct famfs_locked_log *lp,
 				return 1;
 			}
 			strncpy(src, srcfile, PATH_MAX - 1);
-			snprintf(destpath, PATH_MAX - 1, "%s/%s",
-				 destfile, basename(src));
+			if (snprintf(destpath, PATH_MAX - 1, "%s/%s",
+				     realdest, basename(src)) >= PATH_MAX - 1) {
+				fprintf(stderr,
+					"%s: destination path too long\n",
+					__func__);
+				return 1;
+			}
 			strncpy(actual_destfile, destpath, PATH_MAX - 1);
 			break;
 		}
