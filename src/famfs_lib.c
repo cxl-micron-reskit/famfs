@@ -4800,12 +4800,7 @@ famfs_cp(struct famfs_locked_log *lp,
 		}
 		default:
 		strncpy(actual_destfile, destfile, PATH_MAX - 1);
-#if 0
-			fprintf(stderr, "%s: error: dest file (%s) exists "
-				"and is not a directory\n",
-				__func__, destfile);
-			return -EEXIST;
-#endif
+
 		}
 	} else {
 		/* File does not exist;
