@@ -178,6 +178,12 @@ target_link_libraries(famfs libfamfs famfstest uuid z yaml)
 target_link_libraries(mkfs.famfs libfamfs uuid z yaml)
 target_link_libraries(pcq libpcq libfamfs uuid z famfstest yaml)
 
+set_target_properties(famfs_fused
+	PROPERTIES
+		INSTALL_RPATH "/usr/local/lib64"
+		BUILD_WITH_INSTALL_RPATH TRUE
+)
+
 target_link_libraries(famfs_fused
     PRIVATE
         libfamfs
@@ -229,6 +235,7 @@ message("multichase: ${CMAKE_CURRENT_BINARY_DIR}")
 install(TARGETS famfs DESTINATION /usr/local/bin)
 install(TARGETS mkfs.famfs DESTINATION /usr/local/bin)
 install(TARGETS pcq DESTINATION /usr/local/bin)
+install(TARGETS famfs_fused DESTINATION /usr/local/bin)
 
 #Install library and header files? Maybe later...
 

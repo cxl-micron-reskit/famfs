@@ -79,7 +79,7 @@ cmake-modules:
 	git clone https://github.com/jagalactic/cmake-modules.git
 
 libfuse_install:
-	meson install -C $(BUILD)/libfuse
+	meson install -C $(BDIR)/libfuse
 
 threadpool:
 	@echo "Clone C-Thread-Pool"
