@@ -32,7 +32,7 @@ expect_fail "${CLI[@]}" creat -r -S 1 "$MPT/test1"         -- "creat without siz
 #-------------------------------------------------------------------------x
 # This command causes the first warning from 6.17
 expect_fail "${CLI[@]}" creat -S -s 10 "$MPT/badf"         -- "creat with -S but no -r should fail"
-expect_good "${CLI[@]}" creat -r -s 4096 -S 1 "$MPT/test1" -- "creat test1"
+expect_good "${CLI[@]}" creat -vv -r -s 4096 -S 1 "$MPT/test1" -- "creat test1"
 expect_fail "${CLI[@]}" creat "$MPT/.meta"                 -- "creat an existing directory should fail"
 expect_fail "${CLI[@]}" creat -S 1 -r -m "$MPT/zork,4K,1"  -- "multi and single mode should fail"
 expect_fail "${CLI[@]}" creat -t 1000 -m "$MPT/zork,4K,1"  -- "threadct=1000 should fail"
