@@ -25,17 +25,27 @@ set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -ggdb")
 #
 # Locate famfs ioctl headers.
 #
-# Always use the bundled copy in linux_include/.  This avoids any
-# machine-specific path being baked into the cmake-generated Makefiles,
-# which breaks cross-machine builds (e.g. building on one node and running
-# 'sudo make install' on another that lacks the system header).
+# Prefer the system header when present: it reflects the KABI version of the
+# running kernel, which determines which ioctl path the code compiles for
+# (FAMFS_KABI_VERSION > 42 selects v2 ioctls at compile time).  Using the
+# wrong KABI version causes ioctl failures at runtime.
 #
-# The bundled header is required only for the v1 (standalone) kernel interface
-# on kernels <= 6.14; on newer kernels it is still included but the FUSE path
-# does not depend on it at runtime.
+# Use if(EXISTS) rather than find_path/check_include_file so that the result
+# is never cached — a stale cache entry pointing at /usr/include from a
+# previous build would be wrong on machines where the header is absent.
 #
-set(LINUX_INCLUDE_BASE "${CMAKE_SOURCE_DIR}/linux_include")
-message(STATUS "Using bundled famfs_ioctl.h from linux_include/")
+# The bundled copy in linux_include/ is the fallback for machines that have
+# no system famfs_ioctl.h (e.g. kernel >= 6.15 FUSE-only nodes).  It carries
+# the latest KABI version.  'sudo make install' uses 'cmake --install' which
+# never rebuilds, so the install machine never needs the header at all.
+#
+if(EXISTS "/usr/include/linux/famfs_ioctl.h")
+    set(LINUX_INCLUDE_BASE "/usr/include")
+    message(STATUS "Using system famfs_ioctl.h from /usr/include")
+else()
+    set(LINUX_INCLUDE_BASE "${CMAKE_SOURCE_DIR}/linux_include")
+    message(STATUS "Using bundled famfs_ioctl.h from linux_include/")
+endif()
 
 add_compile_definitions(_DEFAULT_SOURCE _XOPEN_SOURCE=700)
 
