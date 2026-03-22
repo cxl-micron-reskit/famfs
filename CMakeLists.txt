@@ -23,17 +23,19 @@ add_compile_options(-Wall -Wextra)
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0 -ggdb")
 
 #
-# Locate famfs ioctl headers
+# Locate famfs ioctl headers.
 #
-find_path(LINUX_INCLUDE_BASE
-    NAMES linux/famfs_ioctl.h
-    PATHS /usr/include "${PROJECT_SOURCE_DIR}/linux_include"
-    NO_DEFAULT_PATH
-)
-
-if (NOT LINUX_INCLUDE_BASE)
-    message(FATAL_ERROR "Could not find linux/famfs_ioctl.h in either system or fallback path (${PROJECT_SOURCE_DIR}/linux_include)")
-endif()
+# Always use the bundled copy in linux_include/.  This avoids any
+# machine-specific path being baked into the cmake-generated Makefiles,
+# which breaks cross-machine builds (e.g. building on one node and running
+# 'sudo make install' on another that lacks the system header).
+#
+# The bundled header is required only for the v1 (standalone) kernel interface
+# on kernels <= 6.14; on newer kernels it is still included but the FUSE path
+# does not depend on it at runtime.
+#
+set(LINUX_INCLUDE_BASE "${CMAKE_SOURCE_DIR}/linux_include")
+message(STATUS "Using bundled famfs_ioctl.h from linux_include/")
 
 add_compile_definitions(_DEFAULT_SOURCE _XOPEN_SOURCE=700)
 
@@ -60,12 +62,6 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   endif()
 endif()
 
-include(CheckIncludeFile)
-check_include_file("linux/famfs_ioctl.h" HAVE_LINUX_FAMFS_IOCTL_H)
-if (NOT HAVE_LINUX_FAMFS_IOCTL_H)
-    message(STATUS "Using bundled famfs_ioctl.h from linux_include/")
-    set(LINUX_INCLUDE_BASE "${CMAKE_SOURCE_DIR}/linux_include")
-endif()
 
 add_library(libfamfs
     src/famfs_lib.c
@@ -181,7 +177,6 @@ target_link_libraries(pcq libpcq libfamfs uuid z famfstest yaml)
 set_target_properties(famfs_fused
 	PROPERTIES
 		INSTALL_RPATH "/usr/local/lib64"
-		BUILD_WITH_INSTALL_RPATH TRUE
 )
 
 target_link_libraries(famfs_fused

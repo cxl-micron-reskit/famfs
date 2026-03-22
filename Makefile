@@ -298,7 +298,7 @@ clean:
 	rm -rf libfuse/build
 
 install:
-	cd debug; sudo $(MAKE) install
+	sudo cmake --install debug
 	$(MAKE) libfuse_install BDIR="debug"
 
 # Run the unit tests
