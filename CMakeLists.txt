@@ -204,8 +204,9 @@ target_link_libraries(pcq libpcq libfamfs uuid z famfstest yaml)
 
 set_target_properties(famfs_fused
 	PROPERTIES
+		BUILD_WITH_INSTALL_RPATH FALSE
+		CMAKE_SKIP_BUILD_RPATH FALSE
 		INSTALL_RPATH "/usr/local/lib64"
-		BUILD_WITH_INSTALL_RPATH TRUE
 )
 
 target_link_libraries(famfs_fused
