@@ -41,7 +41,8 @@ static inline void x86_flush_clflush(uintptr_t addr)
 
 /* Use CLFLUSHOPT (optimized flush) to flush and */
 /* invalidate a cache line (non-serializing) */
-static inline void x86_flush_clflushopt(uintptr_t addr)
+static void __attribute__((target("clflushopt")))
+x86_flush_clflushopt(uintptr_t addr)
 {
 	/* CLFLUSHOPT has opcode 66 0F AE /7 */
 	/*__asm__ volatile(".byte 0x66, 0x0f, 0xae, 0x31" : "+m" (*(volatile char *)addr)); */
