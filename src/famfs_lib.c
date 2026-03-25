@@ -4487,9 +4487,6 @@ out_locked:
 	if (cleanup) {
 		/* cf is shared and can't be cleaned up until all threads
 		 * have finished with it */
-
-		flush_processor_cache(destp, cp->size);
-
 		free(cp->cf->srcname);
 		free(cp->cf->destname);
 		munmap(destp, cp->size);
