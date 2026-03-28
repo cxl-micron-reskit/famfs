@@ -54,7 +54,7 @@ endif
 #
 # Determine the appropriate libfuse branch based on kernel version
 # - kernel <= 6.14: use famfs-6.14
-# - kernel >= 6.15: use famfs-6.MINOR (e.g., famfs-6.19 for kernel 6.19)
+# - kernel >= 6.15: use famfs-6.19
 #
 # The build will fail if the required branch does not exist in the repo.
 #
@@ -66,8 +66,8 @@ LIBFUSE_BRANCH_6_19 := famfs-6.19
 ifeq ($(shell test $(KERNEL_MAJOR) -eq 6 -a $(KERNEL_MINOR) -le 14 && echo yes),yes)
     LIBFUSE_BRANCH_AUTO := $(LIBFUSE_BRANCH_6_14)
 else
-    # For kernel >= 6.15, use kernel-version-specific branch
-    LIBFUSE_BRANCH_AUTO := famfs-6.$(KERNEL_MINOR)
+    # For kernel 6.15+: use famfs-6.19
+    LIBFUSE_BRANCH_AUTO := $(LIBFUSE_BRANCH_6_19)
 endif
 
 # Use auto-detected branch unless explicitly overridden
