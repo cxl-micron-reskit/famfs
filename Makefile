@@ -276,21 +276,21 @@ release:	cmake-modules threadpool mongoose
 	cd release; cmake $(CMAKE_CACHE_CLEAR) ..; $(MAKE)
 
 #
-# Default target: build with auto-detected libfuse branch based on kernel version
+# Default target: build with famfs-6.19 libfuse branch (kernel >= 6.15)
 #
-all:	ndctl debug
+all:	ndctl
+	@echo "Building with libfuse branch $(LIBFUSE_BRANCH_6_19) (kernel >= 6.15)"
+	$(MAKE) debug LIBFUSE_BRANCH="$(LIBFUSE_BRANCH_6_19)"
 
 #
 # Explicit kernel version targets: build with specific libfuse branch
 # regardless of the running kernel version
 #
-all-6.14:	ndctl
-	@echo "Building with libfuse branch $(LIBFUSE_BRANCH_6_14) (kernel 6.14 and earlier)"
+all-old:	ndctl
+	@echo "Building with libfuse branch $(LIBFUSE_BRANCH_6_14) (kernel <= 6.14)"
 	$(MAKE) debug LIBFUSE_BRANCH="$(LIBFUSE_BRANCH_6_14)"
 
-all-6.19:	ndctl
-	@echo "Building with libfuse branch $(LIBFUSE_BRANCH_6_19) (kernel 6.19)"
-	$(MAKE) debug LIBFUSE_BRANCH="$(LIBFUSE_BRANCH_6_19)"
+all-6.19:	all
 
 clean:
 	sudo rm -rf debug release coverage sanitize
@@ -375,4 +375,4 @@ teardown:
 	@./scripts/teardown.sh
 
 .PHONY:	test threadpool-test smoke debug release coverage chk_include libfuse libfuse_install sanitize \
-	all all-6.14 all-6.19 ndctl
+	all all-old all-6.19 ndctl
