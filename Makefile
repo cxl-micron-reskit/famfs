@@ -59,7 +59,7 @@ endif
 # The build will fail if the required branch does not exist in the repo.
 #
 LIBFUSE_BRANCH_6_14 := famfs-6.14
-LIBFUSE_BRANCH_6_19 := famfs-6.19
+LIBFUSE_BRANCH_6_19 := famfs
 
 # Default branch selection based on running kernel
 # This can be overridden by passing LIBFUSE_BRANCH= on the command line
