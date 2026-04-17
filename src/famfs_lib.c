@@ -2082,6 +2082,13 @@ famfs_dax_shadow_logplay(
 	/* daxmode_required implies that raw dax access doesn't work;
 	 * Do a dummy mount for access
 	 */
+	if (famfs_module_loaded(0)) {
+		fprintf(stderr,
+			"%s: shadow logplay not supported for unmounted famfsv1\n",
+			__func__);
+		return -ENOTSUP;
+	}
+
 	rc = famfs_set_daxdev_mode(daxdev, DAXDEV_MODE_FAMFS, verbose);
 	if (rc) {
 		fprintf(stderr, "%s: failed to set %s to famfs mode\n",
@@ -3100,9 +3107,14 @@ famfs_fsck(
 			 * 2) daxmode_required means it's a famfs-mode daxdev
 			 *    which can't be raw-mmapped
 			 */
-			rc = famfs_dummy_mount(path,
-					       0 /* figure out log size */,
-					       &dummy_mpt, 0, verbose);
+			if (famfs_module_loaded(0))
+				rc = famfs_dummy_mount_v1(path,
+							  0 /* figure out log size */,
+							  &dummy_mpt, 0, verbose);
+			else
+				rc = famfs_dummy_mount(path,
+						       0 /* figure out log size */,
+						       &dummy_mpt, 0, verbose);
 			if (rc) {
 				fprintf(stderr,
 					"%s: dummy mount failed for %s\n",
@@ -5559,7 +5571,10 @@ famfs_mkfs_via_dummy_mount(
 	if (rc)
 		return rc;
 
-	rc = famfs_dummy_mount(daxdev, log_len, &mpt_out, 0, 0);
+	if (famfs_module_loaded(0))
+		rc = famfs_dummy_mount_v1(daxdev, log_len, &mpt_out, 0, 0);
+	else
+		rc = famfs_dummy_mount(daxdev, log_len, &mpt_out, 0, 0);
 	if (rc) {
 		fprintf(stderr, "%s: dummy mount failed for %s\n",
 			__func__, daxdev);

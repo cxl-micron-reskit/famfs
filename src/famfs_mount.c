@@ -997,3 +997,144 @@ famfs_dummy_mount(
 	*mpt_out = mpt; /* Caller must free mpt */
 	return 0;
 }
+
+/**
+ * famfs_dummy_mount_v1() - Perform a temporary famfsv1 mount to a tmpdir
+ *
+ * Used when the daxdev cannot be mmapped directly (kernel >= 7.0 famfs mode),
+ * giving callers access to superblock and log via the kernel-backed meta files.
+ *
+ * @realdaxdev: realpath of the dax device
+ * @log_len:    If nonzero, skip superblock validation and use this as the log
+ *              size (mkfs case). If zero, validate the superblock and derive
+ *              the log size from it (fsck case).
+ * @mpt_out:    Returns the tmpdir mount point; caller must umount and free.
+ * @debug:
+ * @verbose:
+ */
+int
+famfs_dummy_mount_v1(
+	const char *realdaxdev,
+	u64         log_len,
+	char      **mpt_out,
+	int         debug,
+	int         verbose)
+{
+	unsigned long mflags = MS_NOATIME | MS_NOSUID | MS_NOEXEC | MS_NODEV;
+	char superblock_path[PATH_MAX] = {0};
+	struct famfs_superblock *sb = NULL;
+	enum famfs_system_role role = FAMFS_NOSUPER;
+	u64 log_offset = FAMFS_SUPERBLOCK_SIZE;
+	u64 log_size = log_len;
+	size_t sb_size;
+	char *mpt_check;
+	char *mpt;
+	int rc;
+
+	assert(mpt_out);
+
+	mpt = gen_dummy_mpt();
+	if (!mpt) {
+		fprintf(stderr, "%s: failed to create dummy mount point\n",
+			__func__);
+		return -ENOMEM;
+	}
+
+	mpt_check = famfs_get_mpt_by_dev(realdaxdev);
+	if (mpt_check) {
+		fprintf(stderr, "%s: cannot mount while %s is mounted on %s\n",
+			__func__, realdaxdev, mpt_check);
+		free(mpt_check);
+		free(mpt);
+		return -EBUSY;
+	}
+
+	if (famfs_daxmode_required()) {
+		rc = famfs_set_daxdev_mode(realdaxdev, DAXDEV_MODE_FAMFS, verbose);
+		if (rc) {
+			fprintf(stderr, "%s: failed to set %s to famfs mode\n",
+				__func__, realdaxdev);
+			free(mpt);
+			return -ENODEV;
+		}
+	}
+
+	if (!famfs_module_loaded(1)) {
+		fprintf(stderr, "%s: famfs kernel module is not loaded\n",
+			__func__);
+		free(mpt);
+		return -ENODEV;
+	}
+
+	rc = mount(realdaxdev, mpt, "famfs", mflags, "");
+	if (rc) {
+		fprintf(stderr, "%s: mount failed for %s at %s (errno=%d)\n",
+			__func__, realdaxdev, mpt, errno);
+		free(mpt);
+		return -errno;
+	}
+
+	rc = __famfs_mkmeta_superblock(mpt, 0 /* not shadow */, verbose);
+	if (rc) {
+		fprintf(stderr, "%s: failed to create superblock meta file\n",
+			__func__);
+		goto out_umount;
+	}
+
+	snprintf(superblock_path, PATH_MAX - 1, "%s/.meta/.superblock", mpt);
+	sb = (struct famfs_superblock *)famfs_mmap_whole_file(superblock_path,
+							      1 /* read_only */,
+							      &sb_size);
+	if (!sb) {
+		fprintf(stderr, "%s: failed to mmap superblock via %s\n",
+			__func__, superblock_path);
+		rc = -EIO;
+		goto out_umount;
+	}
+
+	role = __famfs_get_role_and_logstats(sb, &log_offset, &log_size);
+
+	if (log_len == 0) {
+		/* fsck/read case: superblock must be valid */
+		if (role == FAMFS_NOSUPER) {
+			fprintf(stderr,
+				"%s: no valid famfs superblock on %s\n",
+				__func__, realdaxdev);
+			munmap(sb, FAMFS_SUPERBLOCK_SIZE);
+			rc = -EPERM;
+			goto out_umount;
+		}
+	} else {
+		/* mkfs case: skip validation, use caller-provided log size */
+		log_size = log_len;
+		role = FAMFS_MASTER;
+	}
+
+	munmap(sb, FAMFS_SUPERBLOCK_SIZE);
+	sb = NULL;
+
+	if (log_size > 0) {
+		rc = __famfs_mkmeta_log(mpt, log_offset, log_size,
+					role, 0 /* not shadow */, verbose);
+		if (rc) {
+			fprintf(stderr,
+				"%s: failed to create log meta file\n",
+				__func__);
+			goto out_umount;
+		}
+	}
+
+	if (verbose)
+		printf("%s: dummy v1 mount of %s at %s\n",
+		       __func__, realdaxdev, mpt);
+
+	*mpt_out = mpt;
+	return 0;
+
+out_umount:
+	if (sb)
+		munmap(sb, FAMFS_SUPERBLOCK_SIZE);
+	famfs_umount(mpt);
+	free(mpt);
+	return rc;
+}

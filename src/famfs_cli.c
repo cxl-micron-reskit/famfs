@@ -269,6 +269,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	ssize_t timeout = -1;
 	char *cachearg = NULL;
 	char *realdaxdev = NULL;
+	bool daxmode_required = false;
 	enum famfs_type fuse_mode = NOT_FAMFS;
 	const char *famfs_mode = getenv("FAMFS_MODE");
 	unsigned long mflags = MS_NOATIME | MS_NOSUID | MS_NOEXEC | MS_NODEV;
@@ -473,11 +474,25 @@ do_famfs_cli_mount(int argc, char *argv[])
 	 * From here down, it's a standalone famfs mount
 	 */
 
+	daxmode_required = famfs_daxmode_required();
+
 	if (dummy) {
-		fprintf(stderr, "famfs mount: dummy mode is fuse-only\n");
-		rc = -1;
-		goto err_out;
+		if (daxmode_required) {
+			char *mpt_out;
+
+			rc = famfs_dummy_mount_v1(realdaxdev, 0, &mpt_out,
+						  debug, verbose);
+			if (rc == 0)
+				printf("Successful dummy mount at %s\n", mpt_out);
+			free(mpt_out);
+		} else {
+			fprintf(stderr,
+				"famfs mount: famfsv1 dummy mount requires kernel >= 7.0\n");
+			rc = -1;
+		}
+		goto out;
 	}
+
 	if (!famfs_module_loaded(1)) {
 		fprintf(stderr,
 			"famfs mount: famfs kernel module is not loaded!\n");
@@ -486,16 +501,27 @@ do_famfs_cli_mount(int argc, char *argv[])
 		goto err_out;
 	}
 
-	/* This functions as a verification that the daxdev contains a valid
-	 * famfs file system. Need to fail out before calling the system mount()
-	 * if it's not a valid famfs file system.
-	 */
-	rc = famfs_get_role_by_dev(realdaxdev);
-	if (rc < 0 || rc == FAMFS_NOSUPER) {
-		fprintf(stderr,
-			"famfs mount: failed to validate famfs file system\n");
-		rc = -1;
-		goto err_out;
+	if (daxmode_required) {
+		/* kernel >= 7.0: switch daxdev to famfs mode before mount;
+		 * superblock validation happens post-mount via famfs_mkmeta_standalone()
+		 */
+		rc = famfs_set_daxdev_mode(realdaxdev, DAXDEV_MODE_FAMFS, verbose);
+		if (rc) {
+			fprintf(stderr,
+				"famfs mount: failed to set %s to famfs mode\n",
+				realdaxdev);
+			rc = -1;
+			goto err_out;
+		}
+	} else {
+		/* pre-7.0: validate by directly mmapping the daxdev */
+		rc = famfs_get_role_by_dev(realdaxdev);
+		if (rc < 0 || rc == FAMFS_NOSUPER) {
+			fprintf(stderr,
+				"famfs mount: failed to validate famfs file system\n");
+			rc = -1;
+			goto err_out;
+		}
 	}
 
 	rc = mount(realdaxdev, realmpt, "famfs", mflags, "");

@@ -66,6 +66,8 @@ int famfs_mount_fuse(const char *realdaxdev, const char *realmpt,
 		     int debug, int verbose);
 int famfs_dummy_mount(const char *realdaxdev, size_t log_len, char **mpt_out,
 		      int debug, int verbose);
+int famfs_dummy_mount_v1(const char *realdaxdev, u64 log_len, char **mpt_out,
+			 int debug, int verbose);
 int famfs_umount(const char *mpt);
 
 /* famfs_lib dual v1/v2 functions */
