@@ -29,6 +29,23 @@
 
 #include "famfs_lib_internal.h"
 
+/*
+ * How long to wait for the FUSE daemon to show signs of life before checking
+ * whether it has crashed.  On any normal system the daemon should create its
+ * socket and start serving within a couple of seconds; 15 seconds gives
+ * ample room for a heavily loaded machine.
+ */
+#define FUSE_DAEMON_GRACE_SECS    15
+
+/*
+ * After the grace period, if the daemon is confirmed alive via its REST
+ * socket, allow this many additional seconds for the superblock/log files
+ * to appear via the FUSE mount.  These files are backed by DAX memory and
+ * should appear almost instantly once the daemon is running, so this is
+ * intentionally conservative rather than the previous 1000-second value.
+ */
+#define FUSE_DAEMON_EXTRA_SECS    30
+
 /* XXX TODO:
  * three funcs in this file share code that's very similar:
  * * famfs_get_mpt_by_dev
@@ -685,6 +702,57 @@ famfs_umount(const char *mpt)
  * @debug
  * @verbose
  */
+
+/**
+ * famfs_fuse_daemon_alive() - Check whether the famfs_fused daemon is running.
+ * @shadow: Shadow directory path (the socket lives at <shadow>/sock).
+ * @verbose: Verbosity level.
+ *
+ * The famfs_fused daemon creates a Unix domain socket at <shadow>/sock for its
+ * REST diagnostic interface.  Socket creation happens in a separate thread, so
+ * the socket may appear after the FUSE mount is established; it is NOT a
+ * substitute for watching the superblock file.  This function is used as a
+ * health check after a grace period: if the superblock file has not appeared
+ * and the daemon cannot be contacted via its socket, the daemon has almost
+ * certainly crashed and the mount should be aborted rather than waiting for
+ * the full poll timeout.
+ *
+ * Returns 1 if the daemon appears alive, 0 if it appears dead or unreachable.
+ */
+static int
+famfs_fuse_daemon_alive(const char *shadow, int verbose)
+{
+	char sock_path[PATH_MAX];
+	struct stat st;
+	char *response = NULL;
+	long http_code = 0;
+	int rc;
+
+	snprintf(sock_path, sizeof(sock_path), "%s/sock", shadow);
+
+	if (stat(sock_path, &st) < 0 || !S_ISSOCK(st.st_mode)) {
+		if (verbose)
+			fprintf(stderr,
+				"%s: socket not found at %s\n",
+				__func__, sock_path);
+		return 0;
+	}
+
+	/* Socket file exists; probe the REST server */
+	rc = famfs_http_get_uds(sock_path, "/icache_stats",
+				&response, NULL, &http_code);
+	free(response);
+	if (rc < 0 || http_code != 200) {
+		if (verbose)
+			fprintf(stderr,
+				"%s: daemon socket present but not responding "
+				"(rc=%d http=%ld)\n",
+				__func__, rc, http_code);
+		return 0;
+	}
+	return 1;
+}
+
 int
 famfs_mount_fuse(
 	const char *realdaxdev,
@@ -799,17 +867,44 @@ famfs_mount_fuse(
 		goto out;
 	}
 
-	/* Verify that the superblock meta file has appeared
-	 * (i.e. the initial fuse mount was successful, and our fuse server
-	 * (famfs_fused) has discovered the superblock meta file)
+	/* Wait for the superblock meta file to appear via the FUSE mount.
+	 *
+	 * Phase 1: give the daemon a grace period to start up.
+	 * Phase 2: if the superblock is still missing after the grace period,
+	 *   probe the daemon's REST socket.  A missing or unresponsive socket
+	 *   means the daemon has crashed; abort immediately rather than
+	 *   waiting for the full timeout.  If the socket is responsive, the
+	 *   daemon is alive but slow; allow extra time.
+	 *
+	 * Note: the socket is created by a separate thread and may appear
+	 * slightly after the FUSE mount is established, so a missing socket
+	 * during the grace period is not itself an error — only a missing
+	 * socket *after* the grace period is diagnostic.
 	 */
 	if (check_file_exists(realmpt, ".meta/.superblock",
-			      1000 /* timeout */,
+			      FUSE_DAEMON_GRACE_SECS,
 			      FAMFS_SUPERBLOCK_SIZE, &sb_size, verbose)) {
-		fprintf(stderr, "%s: superblock file failed to appear\n",
-			__func__);
-		rc = -1;
-		goto out;
+		/* Grace period expired without a superblock — check daemon */
+		if (!famfs_fuse_daemon_alive(local_shadow, verbose)) {
+			fprintf(stderr,
+				"%s: famfs_fused appears to have crashed "
+				"(no response on %s/sock)\n",
+				__func__, local_shadow);
+			rc = -1;
+			goto out;
+		}
+		/* Daemon is alive; allow extra time for the file to appear */
+		if (check_file_exists(realmpt, ".meta/.superblock",
+				      FUSE_DAEMON_EXTRA_SECS,
+				      FAMFS_SUPERBLOCK_SIZE, &sb_size, verbose)) {
+			fprintf(stderr,
+				"%s: superblock file failed to appear "
+				"(daemon alive, timeout after %ds)\n",
+				__func__,
+				FUSE_DAEMON_GRACE_SECS + FUSE_DAEMON_EXTRA_SECS);
+			rc = -1;
+			goto out;
+		}
 	}
 
 	/* Sanity-check and then mmap the superblock via its file */
@@ -874,12 +969,14 @@ famfs_mount_fuse(
 			goto out;
 		}
 	
-		/* Wait for the log file to appear before playing the log
+		/* Wait for the log meta file to appear.  By this point the daemon
+		 * is confirmed alive (it served the superblock), so the log file
+		 * should appear quickly; use a modest timeout.
 		 */
 		if (check_file_exists(realmpt, ".meta/.log",
-				      1000 /* timeout */,
+				      FUSE_DAEMON_EXTRA_SECS,
 				      log_size, &log_size_out, verbose)) {
-			fprintf(stderr, "%s: superblock file failed to appear\n",
+			fprintf(stderr, "%s: log file failed to appear\n",
 				__func__);
 			rc = -1;
 			goto out;

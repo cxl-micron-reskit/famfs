@@ -54,6 +54,17 @@ A V1-only check: stats `/sys/module/famfs` then `/sys/module/famfsv1`.  Used as 
 to confirm the module is actually loaded before attempting `mount(2)`.  Not used for mode
 *selection*.
 
+### `famfs_fuse_daemon_alive()` — `famfs_mount.c` (static)
+
+Used during the FUSE mount superblock poll.  Stats `<shadow>/sock` and performs a live
+HTTP GET to `/icache_stats` over the Unix domain socket.  Returns 1 if the daemon
+responds with HTTP 200, 0 otherwise.
+
+`famfs_fused` creates its REST socket in a separate thread, so the socket may lag the
+FUSE mount by a small amount.  This function is only called after a 15-second grace
+period, by which time a healthy daemon will always have created the socket.  A missing
+or unresponsive socket after the grace period reliably indicates a crash.
+
 ### `famfs_daxmode_required()` — `famfs_misc.c`
 
 Reads kernel version via `uname()`.  Returns `true` if `major > 6 || (major == 6 &&
@@ -190,10 +201,13 @@ mkfs.famfs main()
                       -> famfs_dummy_mount()
                            -> famfs_mount_fuse(dummy=1)
                                 -> famfs_start_fuse_daemon()  [fork + execv famfs_fused]
-                                -> check_file_exists()        [poll for .meta/.superblock]
+                                -> check_file_exists() 15s    [poll for .meta/.superblock]
+                                   timeout? -> famfs_fuse_daemon_alive() [stat + REST /sock]
+                                     dead?  -> abort immediately
+                                     alive? -> check_file_exists() 30s more
                                 -> mmap superblock
                                 -> __famfs_mkmeta_log()
-                                -> check_file_exists()        [poll for .meta/.log]
+                                -> check_file_exists() 30s    [poll for .meta/.log]
                  -> mmap sb+log via dummy mount meta files
                  -> __famfs_mkfs()                      [write sb+log to media]
                  -> famfs_umount()
@@ -259,16 +273,6 @@ famfs logplay do_famfs_cli_logplay()
 ---
 
 ## Remaining Known Issues
-
-### Issue 5 — FUSE daemon launch is fire-and-forget; 1000-second poll
-
-`famfs_mount_fuse()` forks, execs `famfs_fused`, then polls for `.meta/.superblock` to
-appear with a 1000-second timeout.  If the daemon crashes silently, the parent hangs for
-~16 minutes.  There is no `waitpid()`.
-
-**Recommendation:** Call `waitpid(WNOHANG)` in the poll loop to detect a crashed child
-and return immediately with a clear error.  The long timeout may be appropriate for large
-devices but should at minimum emit periodic progress output.
 
 ### Issue 6 — `famfs_dax_shadow_logplay()` hardcodes `FAMFS_MASTER`
 
