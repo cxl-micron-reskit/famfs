@@ -275,6 +275,18 @@ TEST_NAMES+=("prepare")
 TEST_TIMES+=("$elapsed")
 echo ":== prepare success ($(format_time $elapsed))"
 
+if [ -z "$SKIP_DAXMODE" ]; then
+    start_time=$(date +%s)
+    ./smoke/test_daxmode.sh "${SMOKE_ARGS[@]}" || exit -1
+    elapsed=$(($(date +%s) - start_time))
+    TEST_NAMES+=("test_daxmode")
+    TEST_TIMES+=("$elapsed")
+    echo ":== test_daxmode success ($(format_time $elapsed))"
+    sleep "${SLEEP_TIME}"
+else
+    echo ":== skipped test_daxmode due to run_smoke options"
+fi
+
 if [ -z "$SKIP_TEST0" ]; then
     start_time=$(date +%s)
     ./smoke/test0.sh "${SMOKE_ARGS[@]}" || exit -1

@@ -55,6 +55,20 @@ else
 fi
 
 #
+# Test mkfs --set-daxmode (kernel >= 7.0 only, once per run)
+#
+# Switch to devdax via daxctl to create the precondition, then verify that
+# mkfs --set-daxmode can switch back to famfs mode on its own.
+#
+if [[ "$KERNEL_MAJOR" -ge 7 ]]; then
+    dax_reconfigure_mode "$DEV" "devdax"
+    assert_daxmode_6.19 "$DEV" "devdax" "prepare: pre-condition devdax for mkfs --set-daxmode test"
+    expect_good "${MKFS[@]}" --set-daxmode -f "$DEV" \
+        -- "prepare: mkfs --set-daxmode should switch to famfs mode and format"
+    assert_daxmode_6.19 "$DEV" "famfs" "prepare: device should be famfs after mkfs --set-daxmode"
+fi
+
+#
 # Basic mkfs tests
 #
 expect_good "${MKFS[@]}" -h         -- "mkfs -h should work"
