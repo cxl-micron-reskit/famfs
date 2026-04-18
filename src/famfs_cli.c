@@ -280,8 +280,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	char *cachearg = NULL;
 	char *realdaxdev = NULL;
 	bool daxmode_required = false;
-	enum famfs_type fuse_mode = NOT_FAMFS;
-	const char *famfs_mode = getenv("FAMFS_MODE");
+	enum famfs_type fuse_mode = FAMFS_MODE_UNSET;
 	unsigned long mflags = MS_NOATIME | MS_NOSUID | MS_NOEXEC | MS_NODEV;
 
 	struct option mount_options[] = {
@@ -304,9 +303,6 @@ do_famfs_cli_mount(int argc, char *argv[])
 		{"cache",      required_argument,      0,  'c'},
 		{0, 0, 0, 0}
 	};
-
-	if (famfs_mode)
-		printf("%s: FAMFS_MODE=%s (ignored)\n", __func__, famfs_mode);
 
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
@@ -448,8 +444,12 @@ do_famfs_cli_mount(int argc, char *argv[])
 		}
 	}
 
-	if (fuse_mode == 0)
-		fuse_mode = famfs_get_kernel_type(verbose);
+	/* If neither --fuse nor --nofuse was given, consult FAMFS_MODE env var
+	 * then auto-detect from /proc/kallsyms (FUSE preferred over V1).
+	 * Explicit CLI flags always take priority over the environment variable.
+	 */
+	if (fuse_mode == FAMFS_MODE_UNSET)
+		fuse_mode = famfs_select_mode(verbose);
 	if (fuse_mode == NOT_FAMFS) {
 		fprintf(stderr, "%s: kernel not famfs-enabled\n", __func__);
 		rc = -1;
@@ -506,7 +506,8 @@ do_famfs_cli_mount(int argc, char *argv[])
 			free(mpt_out);
 		} else {
 			fprintf(stderr,
-				"famfs mount: famfsv1 dummy mount requires kernel >= 7.0\n");
+				"famfs mount: V1 dummy mount requires kernel >= 6.15 "
+				"(device must be in famfs-dax mode)\n");
 			rc = -1;
 		}
 		goto out;
@@ -521,13 +522,13 @@ do_famfs_cli_mount(int argc, char *argv[])
 	}
 
 	if (daxmode_required) {
-		/* kernel >= 7.0: ensure famfs mode before mount() syscall */
+		/* kernel >= 6.15: ensure device is in famfs-dax mode before mount() */
 		rc = famfs_check_or_set_daxmode(realdaxdev, set_daxmode,
 						"famfs mount", verbose);
 		if (rc)
 			goto err_out;
 	} else {
-		/* pre-7.0: validate by directly mmapping the daxdev */
+		/* kernel < 6.15: validate by directly mmapping the daxdev */
 		rc = famfs_get_role_by_dev(realdaxdev);
 		if (rc < 0 || rc == FAMFS_NOSUPER) {
 			fprintf(stderr,

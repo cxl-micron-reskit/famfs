@@ -423,6 +423,54 @@ famfs_get_kernel_type(int verbose)
 }
 
 /**
+ * famfs_select_mode() - Choose between FUSE and V1 (standalone) famfs mode.
+ *
+ * This is the single authoritative policy function for mode selection.  All
+ * code that needs to pick a mount implementation should call this rather than
+ * calling famfs_get_kernel_type() or famfs_module_loaded() directly.
+ *
+ * Selection order (first match wins):
+ *   1. FAMFS_MODE environment variable — set by test harnesses or operators
+ *      who want to pin a specific mode.  Valid values (case-sensitive):
+ *        "fuse"  → FAMFS_FUSE  (use famfs_fused FUSE daemon)
+ *        "v1"    → FAMFS_V1   (use standalone famfsv1/famfs kernel module)
+ *      Any other value is ignored with a warning and detection continues.
+ *      Note: explicit CLI flags (--fuse / --nofuse) take priority over
+ *      FAMFS_MODE and must be applied by the caller before calling this
+ *      function.
+ *   2. Auto-detection via famfs_get_kernel_type() — scans /proc/kallsyms
+ *      for famfs symbols.  FUSE is preferred over V1 when both are present.
+ *
+ * Returns FAMFS_FUSE, FAMFS_V1, or NOT_FAMFS (kernel has no famfs support).
+ */
+enum famfs_type
+famfs_select_mode(int verbose)
+{
+	const char *mode_env = getenv("FAMFS_MODE");
+
+	if (mode_env) {
+		if (strcmp(mode_env, "fuse") == 0) {
+			if (verbose)
+				printf("%s: FAMFS_MODE=fuse → using FUSE mode\n",
+				       __func__);
+			return FAMFS_FUSE;
+		} else if (strcmp(mode_env, "v1") == 0) {
+			if (verbose)
+				printf("%s: FAMFS_MODE=v1 → using V1 mode\n",
+				       __func__);
+			return FAMFS_V1;
+		} else {
+			fprintf(stderr,
+				"%s: unrecognized FAMFS_MODE value '%s' "
+				"(valid: 'fuse', 'v1'); ignoring\n",
+				__func__, mode_env);
+		}
+	}
+
+	return famfs_get_kernel_type(verbose);
+}
+
+/**
  * famfs_get_kernel_version() - Get the running kernel's major and minor version
  * @major: Output pointer for major version number
  * @minor: Output pointer for minor version number

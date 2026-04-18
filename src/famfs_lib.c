@@ -2100,7 +2100,7 @@ famfs_dax_shadow_logplay(
 		return rc;
 
 	realdaxdev = realpath(daxdev, NULL);
-	if (famfs_module_loaded(0))
+	if (famfs_select_mode(0) == FAMFS_V1)
 		rc = famfs_dummy_mount_v1(realdaxdev,
 					  0 /* figure out log size */,
 					  &mpt_out, 0, verbose);
@@ -3114,7 +3114,7 @@ famfs_fsck(
 			if (rc)
 				return rc;
 
-			if (famfs_module_loaded(0))
+			if (famfs_select_mode(0) == FAMFS_V1)
 				rc = famfs_dummy_mount_v1(path,
 							  0 /* figure out log size */,
 							  &dummy_mpt, 0, verbose);
@@ -5568,7 +5568,7 @@ famfs_mkfs_via_dummy_mount(
 	if (rc)
 		return rc;
 
-	if (famfs_module_loaded(0))
+	if (famfs_select_mode(0) == FAMFS_V1)
 		rc = famfs_dummy_mount_v1(daxdev, log_len, &mpt_out, 0, 0);
 	else
 		rc = famfs_dummy_mount(daxdev, log_len, &mpt_out, 0, 0);

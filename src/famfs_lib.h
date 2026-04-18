@@ -50,9 +50,10 @@ enum famfs_extent_type {
 #endif
 
 enum famfs_type {
-	NOT_FAMFS=0,
-	FAMFS_V1,
-	FAMFS_FUSE,
+	FAMFS_MODE_UNSET = -1, /* sentinel: no explicit mode has been chosen yet */
+	NOT_FAMFS = 0,         /* kernel has no famfs support */
+	FAMFS_V1,              /* standalone famfs kernel module */
+	FAMFS_FUSE,            /* FUSE-based famfs (famfs_fused daemon) */
 };
 
 /* fuse-only functions */
@@ -134,6 +135,7 @@ void famfs_dump_super(struct famfs_superblock *sb);
 int famfs_get_system_uuid(uuid_le *uuid_out);
 void famfs_print_uuid(const uuid_le *uuid);
 enum famfs_type famfs_get_kernel_type(int verbose);
+enum famfs_type famfs_select_mode(int verbose);
 bool famfs_daxmode_required(void);
 void free_string_list(char **strings, int nstrings);
 char **tokenize_string(const char *input, char delimiter, int *out_count);
