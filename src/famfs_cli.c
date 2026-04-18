@@ -99,22 +99,24 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	int use_read = 0;
 	int shadowtest = 0;
 	int client_mode = 0;
+	bool set_daxmode = false;
 	char *daxdev = NULL;
 	char *shadowpath = NULL;
 
 	struct option logplay_options[] = {
 		/* Public options */
-		{"dryrun",    no_argument,             0,  'n'},
-		{"verbose",   no_argument,             0,  'v'},
+		{"dryrun",      no_argument,             0,  'n'},
+		{"verbose",     no_argument,             0,  'v'},
+		{"set-daxmode", no_argument,             0,  'M'},
 
 		/* These options are for testing and are not listed
 		 * in the help above */
-		{"mmap",      no_argument,             0,  'm'},
-		{"read",      no_argument,             0,  'r'},
-		{"client",    no_argument,             0,  'c'},
-		{"shadowtest", no_argument,            0,  's'},
-		{"shadow",    required_argument,       0,  'S'},
-		{"daxdev",    required_argument,       0,  'd'},
+		{"mmap",        no_argument,             0,  'm'},
+		{"read",        no_argument,             0,  'r'},
+		{"client",      no_argument,             0,  'c'},
+		{"shadowtest",  no_argument,             0,  's'},
+		{"shadow",      required_argument,       0,  'S'},
+		{"daxdev",      required_argument,       0,  'd'},
 		{0, 0, 0, 0}
 	};
 
@@ -122,7 +124,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+vrcmnhSd:?M",
+	while ((c = getopt_long(argc, argv, "+vrcmnhSd:M?",
 				logplay_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -165,6 +167,9 @@ do_famfs_cli_logplay(int argc, char *argv[])
 		case 'd':
 			daxdev = optarg;
 			break;
+		case 'M':
+			set_daxmode = true;
+			break;
 		}
 	}
 
@@ -201,7 +206,7 @@ do_famfs_cli_logplay(int argc, char *argv[])
 	if (daxdev)
 		rc = famfs_dax_shadow_logplay(shadowpath, dry_run,
 					      client_mode, daxdev,
-					      shadowtest, verbose);
+					      shadowtest, set_daxmode, verbose);
 	else
 		rc = famfs_logplay(fspath, use_mmap, dry_run, client_mode,
 				   shadowpath, shadowtest, verbose);
@@ -246,6 +251,10 @@ famfs_mount_usage(int   argc,
 	       "    -p|--nodefaultperm - Do not apply normal posix default permissions\n"
 	       "                         (don't use fuse default_permissions mount opt)\n"
 	       "    -S|--shadow=path   - Path to root of shadow filesystem\n"
+	       "    -M|--set-daxmode   - Switch daxdev to famfs mode if needed (kernel >= 7.0 only).\n"
+	       "                         Without this flag, mount fails with a clear message if the\n"
+	       "                         device is not already in famfs mode. The device is left in\n"
+	       "                         famfs mode after a successful mount.\n"
 	       "\n", progname);
 }
 
@@ -260,6 +269,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	int use_read = 0;
 	int useraccess = 1;
 	int default_perm = 1;
+	bool set_daxmode = false;
 	char *shadowpath = NULL;
 	int use_mmap = 0;
 	char *mpt = NULL;
@@ -287,6 +297,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 		{"nodefaultperm", no_argument,         0,  'p'},
 		{"shadow",     required_argument,      0,  'S'},
 		{"dummy",      no_argument,            0,  'D'},
+		{"set-daxmode", no_argument,           0,  'M'},
 
 		/* un-advertised options */
 		{"remount",    no_argument,            0,  'R'},
@@ -301,7 +312,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+h?RrfFmvupbdt:c:S:D",
+	while ((c = getopt_long(argc, argv, "+h?RrfFmvupbdt:c:S:DM",
 				mount_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -359,6 +370,9 @@ do_famfs_cli_mount(int argc, char *argv[])
 			break;
 		case 'D':
 			dummy = 1;
+			break;
+		case 'M':
+			set_daxmode = true;
 			break;
 		}
 	}
@@ -446,6 +460,11 @@ do_famfs_cli_mount(int argc, char *argv[])
 		verbose_to_log_level(verbose);
 
 	if (fuse_mode == FAMFS_FUSE) {
+		rc = famfs_check_or_set_daxmode(realdaxdev, set_daxmode,
+						"famfs mount", verbose);
+		if (rc)
+			goto err_out;
+
 		if (dummy) {
 			char *mpt_out;
 			rc = famfs_dummy_mount(realdaxdev,
@@ -502,17 +521,11 @@ do_famfs_cli_mount(int argc, char *argv[])
 	}
 
 	if (daxmode_required) {
-		/* kernel >= 7.0: switch daxdev to famfs mode before mount;
-		 * superblock validation happens post-mount via famfs_mkmeta_standalone()
-		 */
-		rc = famfs_set_daxdev_mode(realdaxdev, DAXDEV_MODE_FAMFS, verbose);
-		if (rc) {
-			fprintf(stderr,
-				"famfs mount: failed to set %s to famfs mode\n",
-				realdaxdev);
-			rc = -1;
+		/* kernel >= 7.0: ensure famfs mode before mount() syscall */
+		rc = famfs_check_or_set_daxmode(realdaxdev, set_daxmode,
+						"famfs mount", verbose);
+		if (rc)
 			goto err_out;
-		}
 	} else {
 		/* pre-7.0: validate by directly mmapping the daxdev */
 		rc = famfs_get_role_by_dev(realdaxdev);
@@ -668,8 +681,11 @@ famfs_fsck_usage(int argc,
 	       "    %s [args] <mount point>\n"
 	       "\n"
 	       "Arguments:\n"
-	       "    -?           - Print this message\n"
-	       "    -v|--verbose - Print debugging output while executing the command\n"
+	       "    -?            - Print this message\n"
+	       "    -v|--verbose  - Print debugging output while executing the command\n"
+	       "    -M|--set-daxmode - Switch daxdev to famfs mode if needed (kernel >= 7.0,\n"
+	       "                       unmounted device only). Without this flag, fsck fails\n"
+	       "                       with a clear message if the mode is wrong.\n"
 	       "\n"
 	       "Exit codes:\n"
 	       "  0  - No errors were found\n"
@@ -683,6 +699,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	int c;
 	char *daxdev = NULL;
 	bool nodax = false;
+	bool set_daxmode = false;
 	int nbuckets = 0;
 	int use_mmap = 0;
 	int use_read = 0;
@@ -690,15 +707,16 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	int human = 0; /* -h is no longer --help... */
 
 	struct option fsck_options[] = {
-		{"human",       no_argument,             0,  'h'},
-		{"verbose",     no_argument,             0,  'v'},
-		{"force",       no_argument,             0,  'f'},
-		{"nbuckets",    required_argument,       0,  'B'},
+		{"human",        no_argument,             0,  'h'},
+		{"verbose",      no_argument,             0,  'v'},
+		{"force",        no_argument,             0,  'f'},
+		{"nbuckets",     required_argument,       0,  'B'},
+		{"set-daxmode",  no_argument,             0,  'M'},
 
 		/* Un-publicized options */
-		{"mmap",        no_argument,             0,  'm'},
-		{"read",        no_argument,             0,  'r'},
-		{"nodax",       no_argument,             0,  'D'},
+		{"mmap",         no_argument,             0,  'm'},
+		{"read",         no_argument,             0,  'r'},
+		{"nodax",        no_argument,             0,  'D'},
 
 		{0, 0, 0, 0}
 	};
@@ -733,6 +751,9 @@ do_famfs_cli_fsck(int argc, char *argv[])
 		case 'D':
 			nodax = true;
 			break;
+		case 'M':
+			set_daxmode = true;
+			break;
 		case '?':
 			famfs_fsck_usage(argc, argv);
 			return 0;
@@ -758,7 +779,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 
 	daxdev = argv[optind++];
 	return famfs_fsck(daxdev, nodax, use_mmap, human,
-			  nbuckets, verbose);
+			  nbuckets, set_daxmode, verbose);
 }
 
 

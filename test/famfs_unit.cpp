@@ -793,29 +793,29 @@ TEST(famfs, famfs_log)
 	 */
 	/* This should fail due to null daxdev */
 	system("rm -rf /tmp/famfs_shadow");
-	rc = famfs_dax_shadow_logplay("/tmp/famfs_shadow", 0, 0, NULL, 1, 0);
+	rc = famfs_dax_shadow_logplay("/tmp/famfs_shadow", 0, 0, NULL, 1, false, 0);
 	ASSERT_NE(rc, 0);
 
 	/* This should fail due to bogus daxdev, but create /tmp/famfs_shadow */
-	rc = famfs_dax_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 1, 0);
+	rc = famfs_dax_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 1, false, 0);
 	ASSERT_NE(rc, 0);
 
 	/* This should fail due to bogus daxdev (but /tmp/famfs_shadow will be there already) */
-	rc = famfs_dax_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 1, 0);
+	rc = famfs_dax_shadow_logplay("/tmp/famfs_shadow", 0, 0, "/dev/bogo_dax", 1, false, 0);
 	ASSERT_NE(rc, 0);
 
 	/* This should fail due to shadow fs path being a file and not a directory */
 	system("rm -rf /tmp/famfs_shadow");
 	system("touch /tmp/famfs_shadow"); /* create file where shadow dir should be */
 	rc = famfs_dax_shadow_logplay("/tmp/famfs_shadow", 0, 0,
-				      "/dev/bogo_dax", 1, 0);
+				      "/dev/bogo_dax", 1, false, 0);
 	ASSERT_NE(rc, 0);
 	system("rm -f /tmp/famfs_shadow");
 
 	/* This should fail daxdev being bogus */
 	system("mkdir -p /tmp/famfs_shadow/root");
 	rc = famfs_dax_shadow_logplay("/tmp/famfs_shadow", 0, 0,
-				      "/dev/bogo_dax", 1, 0);
+				      "/dev/bogo_dax", 1, false, 0);
 	ASSERT_NE(rc, 0);
 
 	/*
@@ -902,13 +902,13 @@ TEST(famfs, famfs_log)
 	ASSERT_EQ(rc, 0);
 
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", false /* !nodax */,
-			1 /* mmap */, 1, 0, 1);
+			1 /* mmap */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_EQ(rc, 0);
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_EQ(rc, 0);
 	rc = famfs_fsck("/tmp/nonexistent-file", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0);
 
 	/* Save good copies of the log and superblock */
@@ -917,48 +917,48 @@ TEST(famfs, famfs_log)
 
 	truncate("/tmp/famfs/.meta/.superblock", 8192);
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0); /* Superblock file is short; this should fail */
 
 	truncate("/tmp/famfs/.meta/.superblock", 7);
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0);
 
 	truncate("/tmp/famfs/.meta/.log", 8192);
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0);
 
 	unlink("/tmp/famfs/.meta/.log");
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0);
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", false /* !nodax */,
-			1 /* mmap */, 1, 0, 1);
+			1 /* mmap */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0);
 	unlink("/tmp/famfs/.meta/.superblock");
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0);
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", false /* !nodax */,
-			1 /* mmap */, 1, 0, 1);
+			1 /* mmap */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0);
 
 	system("chmod 200 /tmp/famfs/.meta/.log");
 	rc = famfs_fsck("/tmp/famfs/.meta/.log", false /* !nodax */,
-			1 /* mmap */, 1, 0, 1);
+			1 /* mmap */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0);
 	rc = famfs_fsck("/tmp/famfs/.meta/.log", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0);
 
 	system("chmod 200 /tmp/famfs/.meta/.superblock");
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", false /* !nodax */,
-			1 /* mmap */, 1, 0, 1);
+			1 /* mmap */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0);
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0);
 
 	system("cp /tmp/famfs/.meta/.log.save /tmp/famfs/.meta/.log");
@@ -981,45 +981,45 @@ TEST(famfs, famfs_log)
 
 	mock_failure = MOCK_FAIL_OPEN_SB;
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0);
 	mock_failure = MOCK_FAIL_NONE;
 
 	mock_failure = MOCK_FAIL_READ_SB;
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0);
 	mock_failure = MOCK_FAIL_NONE;
 
 	mock_failure = MOCK_FAIL_OPEN_LOG;
 	rc = famfs_fsck("/tmp/famfs/.meta/.log", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0);
 	mock_failure = MOCK_FAIL_NONE;
 
 	mock_failure = MOCK_FAIL_READ_LOG;
 	rc = famfs_fsck("/tmp/famfs/.meta/.log", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0);
 	mock_failure = MOCK_FAIL_NONE;
 
 	mock_failure = MOCK_FAIL_READ_FULL_LOG;
 	rc = famfs_fsck("/tmp/famfs/.meta/.log", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0);
 	mock_failure = MOCK_FAIL_NONE;
 
 	/* create a invalide block device to fail _get_Device_size*/
 	system("mknod -m 200 /tmp/testblock b 3 3");
 	rc = famfs_fsck("/tmp/testblock", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0);
 	system("rm /tmp/testblock");
 
 	/* create a non-reg, non-block, non char device, i.e. pipe device*/
 	system("mknod -m 200 /tmp/testpipe p");
 	rc = famfs_fsck("/tmp/testpipe", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_NE(rc, 0);
 	system("rm /tmp/testpipe");
 
@@ -1064,14 +1064,14 @@ TEST(famfs, famfs_log_overflow_mkdir_p)
 
 	/* Let's check how many log entries are left */
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_EQ(rc, 0);
 
 	famfs_dump_log(logp);
 
 	/* Let's check how many log entries are left */
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_EQ(rc, 0);
 
 	rc = __famfs_logplay("/tmp/famfs", logp, 0, 0, 0, FAMFS_MASTER, 0);
@@ -1209,14 +1209,14 @@ TEST(famfs, famfs_log_overflow_files)
 
 	/* Let's check how many log entries are left */
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_EQ(rc, 0);
 
 	famfs_dump_log(logp);
 
 	/* Let's check how many log entries are left */
 	rc = famfs_fsck("/tmp/famfs/.meta/.superblock", false /* !nodax */,
-			0 /* read */, 1, 0, 1);
+			0 /* read */, 1, 0, false /* !set_daxmode */, 1);
 	ASSERT_EQ(rc, 0);
 
 	rc = __famfs_logplay("/tmp/famfs", logp, 0, 0, 0, FAMFS_MASTER, 0);

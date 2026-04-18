@@ -91,7 +91,7 @@ famfs_get_role_and_logstats(const struct famfs_superblock *sb,
 			    u64 *log_offsetp, u64 *log_sizep);
 int famfs_fsck(const char *devname, bool nodax,
 	       int use_mmap, int human,
-	       int nbuckets, int verbose);
+	       int nbuckets, bool set_daxmode, int verbose);
 
 int famfs_mkmeta_standalone(const char *devname, int verbose);
 int __famfs_mkmeta_superblock(const char *mpt, int shadow, int verbose);
@@ -103,7 +103,7 @@ int famfs_logplay(
 	const char *shadowpath, int shadowtest, int verbose);
 int famfs_dax_shadow_logplay(
 	const char *shadowpath, int dry_run, int client_mode, const char *daxdev,
-	int testmode, int verbose);
+	int testmode, bool set_daxmode, int verbose);
 
 int famfs_mkfile(const char *filename, mode_t mode,
 		 uid_t uid, gid_t gid, size_t size,
@@ -117,7 +117,7 @@ int famfs_clone(const char *srcfile, const char *destfile);
 int famfs_mkdir(const char *dirpath, mode_t mode, uid_t uid, gid_t gid, int verbose);
 int famfs_mkdir_parents(const char *dirpath, mode_t mode, uid_t uid, gid_t gid, int verbose);
 int famfs_mkfs(const char *daxdev, u64 log_len, int kill, bool nodax,
-	int force, int verbose);
+	int force, bool set_daxmode, int verbose);
 int famfs_check(const char *path, int verbose);
 
 int famfs_flush_file(const char *filename, int verbose);
@@ -160,7 +160,8 @@ int famfs_shadow_to_stat(void *yaml_buf, ssize_t bufsize,
 
 /* famfs_dax.c */
 enum famfs_daxdev_mode {
-	DAXDEV_MODE_UNKNOWN = 0,
+	DAXDEV_MODE_UNKNOWN = 0,  /* device not found in sysfs */
+	DAXDEV_MODE_UNBOUND,      /* device exists but no driver bound */
 	DAXDEV_MODE_DEVICE_DAX,
 	DAXDEV_MODE_FAMFS,
 };
@@ -168,6 +169,7 @@ enum famfs_daxdev_mode {
 enum famfs_daxdev_mode famfs_get_daxdev_mode(const char *daxdev);
 int famfs_set_daxdev_mode(const char *daxdev, enum famfs_daxdev_mode mode,
 	int verbose);
-int famfs_bounce_daxdev(const char *devname, int verbose);
+int famfs_check_or_set_daxmode(const char *daxdev, bool set_daxmode,
+	const char *caller_cmd, int verbose);
 
 #endif /* _H_FAMFS_LIB */

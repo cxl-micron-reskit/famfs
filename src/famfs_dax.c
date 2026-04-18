@@ -47,6 +47,8 @@ const char *daxdev_mode_string(enum famfs_daxdev_mode mode)
 	switch (mode) {
 	case DAXDEV_MODE_UNKNOWN:
 		return "UNKNOWN";
+	case DAXDEV_MODE_UNBOUND:
+		return "unbound";
 	case DAXDEV_MODE_DEVICE_DAX:
 		return "devdax";
 	case DAXDEV_MODE_FAMFS:
@@ -105,10 +107,12 @@ enum famfs_daxdev_mode famfs_get_daxdev_mode(const char *daxdev)
 	free(devname_copy);
 
 	if (len < 0) {
-		if (errno == ENOENT)
+		if (errno == ENOENT) {
 			fprintf(stderr,
 				"%s: '%s' exists but has no driver bound\n",
 				__func__, daxdev);
+			return DAXDEV_MODE_UNBOUND;
+		}
 		return DAXDEV_MODE_UNKNOWN;
 	}
 
@@ -135,11 +139,15 @@ enum famfs_daxdev_mode famfs_get_daxdev_mode(const char *daxdev)
 }
 
 /**
- * famfs_set_daxdev_mode() - Change the driver bound to a daxdev
+ * famfs_set_daxdev_mode() - Change the mode of a dax device via libdaxctl
  * @daxdev: Path to the dax device (e.g., "/dev/dax1.0" or "dax1.0")
  * @mode:   Target mode (DAXDEV_MODE_DEVICE_DAX or DAXDEV_MODE_FAMFS)
  *
- * Retries up to 10 times with exponential backoff if EBUSY is returned.
+ * Uses libdaxctl to properly reconfigure the device mode, including
+ * disabling the device, changing the mode attribute, and re-enabling
+ * with the correct driver.  Raw sysfs bind/unbind is insufficient because
+ * the kernel driver refuses to bind unless the device's configured mode
+ * matches the driver (and returns an error that fclose() silently drops).
  *
  * Returns 0 on success, negative errno on failure.
  */
@@ -148,167 +156,150 @@ int famfs_set_daxdev_mode(
 	enum famfs_daxdev_mode mode,
 	int verbose)
 {
-	enum famfs_daxdev_mode current_mode;
-	char unbind_path[PATH_MAX];
-	char bind_path[PATH_MAX];
-	const char *unbind_drv;
-	const char *bind_drv;
-	char *devname_copy = NULL;
-	char *devbasename;
-	int max_retries = 10;
-	int delay_ms = 100;
-	FILE *fp;
-	int rc = 0;
-	int i;
+	struct daxctl_region *region;
+	struct daxctl_ctx *ctx;
+	struct daxctl_dev *dev;
+	char *devname_copy;
+	const char *devbasename;
+	int found = 0;
+	int rc = -ENODEV;
 
-	if (verbose)
-		printf("%s: change %s to mode %s\n", __func__,
-		       daxdev, daxdev_mode_string(mode));
 	if (!daxdev)
 		return -EINVAL;
-
 	if (mode != DAXDEV_MODE_DEVICE_DAX && mode != DAXDEV_MODE_FAMFS) {
 		fprintf(stderr, "%s: invalid mode %d\n", __func__, mode);
 		return -EINVAL;
 	}
 
-	/* Check current mode */
-	current_mode = famfs_get_daxdev_mode(daxdev);
-	if (current_mode == mode) {
-		if (verbose)
-			printf("%s: %s is already in mode %s\n", __func__,
-			       daxdev, daxdev_mode_string(mode));
-		return 0; /* Already in requested mode */
-	}
-
-	if (current_mode == DAXDEV_MODE_UNKNOWN) {
-		fprintf(stderr, "%s: Can't change mode from %s\n",
-			__func__, daxdev_mode_string(DAXDEV_MODE_UNKNOWN));
-		return -ENODEV;
-	}
-
-	/* Get basename of device path */
 	devname_copy = strdup(daxdev);
 	if (!devname_copy)
 		return -ENOMEM;
-
 	devbasename = basename(devname_copy);
 
-	/* Determine unbind/bind paths based on mode transition */
-	if (mode == DAXDEV_MODE_FAMFS) {
-		unbind_drv = "device_dax";
-		bind_drv = "fsdev_dax";
-	} else {
-		unbind_drv = "fsdev_dax";
-		bind_drv = "device_dax";
+	if (daxctl_new(&ctx) < 0) {
+		fprintf(stderr, "%s: failed to create daxctl context\n",
+			__func__);
+		free(devname_copy);
+		return -ENOMEM;
 	}
 
 	if (verbose)
-		printf("%s: Changing mode from %s to %s\n", __func__,
-		       daxdev_mode_string(current_mode),
-		       daxdev_mode_string(mode));
+		printf("%s: switching %s to %s mode via libdaxctl\n",
+		       __func__, devbasename, daxdev_mode_string(mode));
 
-	snprintf(unbind_path, sizeof(unbind_path),
-		 "/sys/bus/dax/drivers/%s/unbind", unbind_drv);
-	snprintf(bind_path, sizeof(bind_path),
-		 "/sys/bus/dax/drivers/%s/bind", bind_drv);
+	daxctl_region_foreach(ctx, region) {
+		daxctl_dev_foreach(region, dev) {
+			if (strcmp(daxctl_dev_get_devname(dev), devbasename) != 0)
+				continue;
 
-	for (i = 0; i < max_retries; i++) {
-		rc = 0;
+			found = 1;
 
-		/* Unbind from current driver */
-		fp = fopen(unbind_path, "w");
-		if (!fp) {
-			rc = -errno;
-			if (errno == EBUSY)
-				goto retry;
-			fprintf(stderr, "%s: failed to open %s: %s\n",
-				__func__, unbind_path, strerror(errno));
-			if (errno == EACCES || errno == EPERM)
+			/*
+			 * Mirror the daxctl reconfigure-device pattern:
+			 * disable the device (unbind from current driver)
+			 * before re-enabling in the target mode.
+			 * daxctl_dev_enable_famfs/devdax() alone does NOT
+			 * handle the disable step.
+			 */
+			if (daxctl_dev_is_enabled(dev)) {
+				rc = daxctl_dev_disable(dev);
+				if (rc < 0) {
+					fprintf(stderr,
+						"%s: failed to disable %s: %s\n",
+						__func__, devbasename,
+						strerror(-rc));
+					goto done;
+				}
+			}
+
+			if (mode == DAXDEV_MODE_FAMFS)
+				rc = daxctl_dev_enable_famfs(dev);
+			else
+				rc = daxctl_dev_enable_devdax(dev);
+
+			if (rc < 0)
 				fprintf(stderr,
-					"%s: switching dax drivers requires root; try running with sudo\n",
-					__func__);
-			goto out;
-		}
-		if (fprintf(fp, "%s", devbasename) < 0) {
-			rc = -errno;
-			fclose(fp);
-			if (errno == EBUSY)
-				goto retry;
-			fprintf(stderr, "%s: failed to write to %s: %s\n",
-				__func__, unbind_path, strerror(errno));
-			goto out;
-		}
-		fclose(fp);
-
-		/* Bind to new driver */
-		fp = fopen(bind_path, "w");
-		if (!fp) {
-			rc = -errno;
-			if (errno == EBUSY)
-				goto retry;
-			fprintf(stderr, "%s: failed to open %s: %s\n",
-				__func__, bind_path, strerror(errno));
-			goto out;
-		}
-		if (fprintf(fp, "%s", devbasename) < 0) {
-			rc = -errno;
-			fclose(fp);
-			if (errno == EBUSY)
-				goto retry;
-			fprintf(stderr, "%s: failed to write to %s: %s\n",
-				__func__, bind_path, strerror(errno));
-			goto out;
-		}
-		fclose(fp);
-
-		/* Verify the mode actually changed */
-		current_mode = famfs_get_daxdev_mode(daxdev);
-		if (current_mode == mode) {
-			/* Success */
-			if (verbose)
-				printf("%s: Success: mode from from %s to %s\n",
-				       __func__,
-				       daxdev_mode_string(current_mode),
+					"%s: failed to enable %s in %s mode: %s\n",
+					__func__, devbasename,
+					daxdev_mode_string(mode),
+					strerror(-rc));
+			else if (verbose)
+				printf("%s: %s is now in %s mode\n",
+				       __func__, devbasename,
 				       daxdev_mode_string(mode));
-
-
-			rc = 0;
-			goto out;
-		}
-
-		/*
-		 * Mode didn't change - this can happen if unbind was silently
-		 * blocked due to an active holder (kernel logs this but sysfs
-		 * write still returns success). Retry with backoff.
-		 */
-		rc = -EBUSY;
-		/* fall through to retry */
-
-retry:
-		
-		if (i < max_retries - 1) {
-			if (verbose)
-				printf("%s: retry %d (mode=%s, target=%s)\n",
-				       __func__, i + 1,
-				       daxdev_mode_string(current_mode),
-				       daxdev_mode_string(mode));
-
-			usleep(delay_ms * 1000);
-			delay_ms *= 2; /* exponential backoff */
+			goto done;
 		}
 	}
-
-	/* All retries exhausted */
-	current_mode = famfs_get_daxdev_mode(daxdev);
-	fprintf(stderr, "%s: failed after %d retries; expected %s but got %s\n",
-		__func__, max_retries,
-		(mode == DAXDEV_MODE_FAMFS) ? "fsdev_dax" : "device_dax",
-		(current_mode == DAXDEV_MODE_FAMFS) ? "fsdev_dax" :
-		(current_mode == DAXDEV_MODE_DEVICE_DAX) ? "device_dax" :
-		"unknown");
-
-out:
+done:
+	daxctl_unref(ctx);
 	free(devname_copy);
+
+	if (!found) {
+		fprintf(stderr, "%s: device %s not found\n",
+			__func__, devbasename);
+		return -ENODEV;
+	}
 	return rc;
+}
+
+/**
+ * famfs_check_or_set_daxmode() - Enforce that a daxdev is in famfs mode.
+ *
+ * On kernels where famfs mode is not required (< 7.0), this is always a
+ * no-op and returns 0.
+ *
+ * On kernels where famfs mode IS required (>= 7.0):
+ *   - If @set_daxmode is true and the device is not already in famfs mode,
+ *     switch it.  The device is left in famfs mode after the call.
+ *   - If @set_daxmode is false and the device is not already in famfs mode,
+ *     print an actionable error and return -EPERM.
+ *   - If the device is already in famfs mode, succeed regardless of
+ *     @set_daxmode.
+ *
+ * @daxdev:      Path to dax device (e.g. "/dev/dax0.0")
+ * @set_daxmode: true if the caller explicitly requested a mode switch
+ * @caller_cmd:  Command name for error messages (e.g. "famfs mount")
+ * @verbose:
+ */
+int famfs_check_or_set_daxmode(
+	const char *daxdev,
+	bool        set_daxmode,
+	const char *caller_cmd,
+	int         verbose)
+{
+	enum famfs_daxdev_mode mode;
+
+	if (!famfs_daxmode_required())
+		return 0;
+
+	mode = famfs_get_daxdev_mode(daxdev);
+
+	if (mode == DAXDEV_MODE_FAMFS)
+		return 0;
+
+	if (mode == DAXDEV_MODE_UNKNOWN) {
+		/* Device not found in sysfs at all */
+		fprintf(stderr,
+			"%s: dax device %s not found\n",
+			caller_cmd, daxdev);
+		return -ENODEV;
+	}
+
+	/* Device is in device_dax or unbound state; famfs mode is required */
+	if (!set_daxmode) {
+		fprintf(stderr,
+			"\n%s: %s is in %s mode; famfs mode is required"
+			" on kernel 7.0+.\n"
+			"Re-run with --set-daxmode to switch drivers:\n"
+			"  sudo %s --set-daxmode %s ...\n"
+			"Warning: mode switching may take significant time on"
+			" large devices.\n"
+			"The device will remain in famfs mode after the"
+			" operation.\n\n",
+			caller_cmd, daxdev, daxdev_mode_string(mode),
+			caller_cmd, daxdev);
+		return -EPERM;
+	}
+
+	return famfs_set_daxdev_mode(daxdev, DAXDEV_MODE_FAMFS, verbose);
 }

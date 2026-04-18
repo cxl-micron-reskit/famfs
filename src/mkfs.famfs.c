@@ -40,11 +40,14 @@ print_usage(int   argc,
 	       "Note: You must be root to run mkfs.famfs\n"
 	       "\n"
 	       "Arguments:\n"
-	       "    -h|-?      - Print this message\n"
-	       "    -f|--force - Will create the file system even if there is already a valid superblock\n"
-	       "    -k|--kill  - Will 'kill' existing superblock (also requires -f)\n"
-	       "    -l|--loglen <loglen> - Default loglen: 8 MiB\n"
-	       "                           Valid range: >= 8 MiB\n"
+	       "    -h|-?             - Print this message\n"
+	       "    -f|--force        - Will create the file system even if there is already a valid superblock\n"
+	       "    -k|--kill         - Will 'kill' existing superblock (also requires -f)\n"
+	       "    -l|--loglen <len> - Default loglen: 8 MiB; valid range: >= 8 MiB\n"
+	       "    -M|--set-daxmode  - Switch daxdev to famfs mode if needed (kernel >= 7.0 only).\n"
+	       "                        Without this flag, mkfs fails with a clear message if the\n"
+	       "                        device is not already in famfs mode. The device is left in\n"
+	       "                        famfs mode after the operation.\n"
 	       "\n",
 	       progname, progname);
 }
@@ -61,6 +64,7 @@ struct option global_options[] = {
 	{"kill",        no_argument,       &kill_super,    'k'},
 	{"loglen",      required_argument, 0,              'l'},
 	{"nodax",       no_argument,       0,              'D'},
+	{"set-daxmode", no_argument,       0,              'M'},
 	{"verbose",     no_argument,       0,              'v'},
 	{0, 0, 0, 0}
 };
@@ -73,6 +77,7 @@ main(int argc, char *argv[])
 	int force = 0;
 	int nodax = 0;
 	int verbose = 0;
+	bool set_daxmode = false;
 	char *daxdev = NULL;
 	u64 loglen = 0x800000;
 
@@ -81,7 +86,7 @@ main(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+fkl:Dh?",
+	while ((c = getopt_long(argc, argv, "+fkl:DMh?",
 				global_options, &optind)) != EOF) {
 		char *endptr;
 		s64 mult;
@@ -104,6 +109,9 @@ main(int argc, char *argv[])
 			break;
 		case 'D':
 			nodax = 1;
+			break;
+		case 'M':
+			set_daxmode = true;
 			break;
 		case 'v':
 			verbose++;
@@ -131,7 +139,7 @@ main(int argc, char *argv[])
 	famfs_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
 	famfs_log(FAMFS_LOG_NOTICE, "Starting famfs mkfs on device %s", daxdev);
 
-	rc = famfs_mkfs(daxdev, loglen, kill_super, nodax, force, verbose);
+	rc = famfs_mkfs(daxdev, loglen, kill_super, nodax, force, set_daxmode, verbose);
 	if (rc == 0)
 		famfs_log(FAMFS_LOG_NOTICE,
 			  "mkfs %s command successful on device %s",

@@ -699,7 +699,6 @@ famfs_mount_fuse(
 	int debug,
 	int verbose)
 {
-	bool daxmode_required = famfs_daxmode_required();
 	u64 log_offset = FAMFS_SUPERBLOCK_SIZE;
 	char superblock_path[PATH_MAX] = {0};
 	struct famfs_superblock *sb = NULL;
@@ -778,19 +777,6 @@ famfs_mount_fuse(
 			__func__, local_shadow);
 		rc = -1;
 		goto out;
-	}
-
-	if (daxmode_required) {
-	  	/* Put daxdev in famfs mode */
-		famfs_log(FAMFS_LOG_DEBUG, "%s: putting %s in famfs mode\n",
-			  __func__, realdaxdev);
-		rc = famfs_set_daxdev_mode(realdaxdev, DAXDEV_MODE_FAMFS,
-					   verbose);
-		if (rc) {
-			fprintf(stderr, "%s: failed to set %s to famfs mode\n",
-				__func__, realdaxdev);
-			return -ENODEV;
-		}
 	}
 
 	/* Start the fuse daemon, which mounts the FS */
@@ -1047,16 +1033,6 @@ famfs_dummy_mount_v1(
 		free(mpt_check);
 		free(mpt);
 		return -EBUSY;
-	}
-
-	if (famfs_daxmode_required()) {
-		rc = famfs_set_daxdev_mode(realdaxdev, DAXDEV_MODE_FAMFS, verbose);
-		if (rc) {
-			fprintf(stderr, "%s: failed to set %s to famfs mode\n",
-				__func__, realdaxdev);
-			free(mpt);
-			return -ENODEV;
-		}
 	}
 
 	if (!famfs_module_loaded(1)) {
