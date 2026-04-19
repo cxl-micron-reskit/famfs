@@ -317,6 +317,19 @@ expect_good sudo mkdir -p "$SR/root" -- "failed to mkdir $SR/root"
 expect_good "${CLI[@]}" logplay --shadow "$SR" "$MPT" \
            -- "shadow logplay should work to $SR"
 
+#
+# Test FAMFS_MODE=bogusvalue: should print a warning and fall through to
+# auto-detection.  Requires an unmounted daxdev so famfs_select_mode() is
+# called (the mounted-path code does not need mode selection).
+# Only exercised in v1 mode; fuse mode would trigger a full daemon spawn.
+#
+if [[ "$FAMFS_MODE" == "v1" ]]; then
+    expect_good sudo "$UMOUNT" "$MPT" -- "umount before FAMFS_MODE bogus-value test"
+    expect_good sudo env FAMFS_MODE=bogusvalue "$BIN/famfs" fsck "$DEV" \
+        -- "fsck with bogus FAMFS_MODE should warn and succeed via auto-detect"
+    "${MOUNT[@]}" "$DEV" "$MPT" || fail "remount after FAMFS_MODE bogus-value test"
+fi
+
 set +x
 finish_test $TEST
 exit 0

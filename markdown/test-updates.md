@@ -57,7 +57,7 @@ warning on stderr.
 
 **Priority:** Low — trivial to add, mostly confirms the warning message doesn't regress.
 
-**Status:** TODO
+**Status:** DONE — added at end of `smoke/test0.sh`, gated on `FAMFS_MODE=v1`.
 
 ---
 
