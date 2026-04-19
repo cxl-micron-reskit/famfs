@@ -2079,3 +2079,54 @@ TEST(famfs, tokenize_string)
 	ASSERT_STREQ(strings[4], "5");
 	free_string_list(strings, count);
 }
+
+TEST(famfs, famfs_select_mode)
+{
+	extern int mock_kernel_type;
+	enum famfs_type result;
+	const char *saved_env = getenv("FAMFS_MODE");
+
+	/* Preserve any FAMFS_MODE set by the test harness */
+	if (saved_env)
+		saved_env = strdup(saved_env);
+
+	/* --- env var cases: these bypass famfs_get_kernel_type() entirely --- */
+
+	setenv("FAMFS_MODE", "fuse", 1);
+	result = famfs_select_mode(0);
+	EXPECT_EQ(result, FAMFS_FUSE);
+
+	setenv("FAMFS_MODE", "v1", 1);
+	result = famfs_select_mode(0);
+	EXPECT_EQ(result, FAMFS_V1);
+
+	/* --- invalid env var: warning printed, falls through to get_kernel_type --- */
+
+	mock_kernel_type = FAMFS_V1;
+	setenv("FAMFS_MODE", "bogusvalue", 1);
+	result = famfs_select_mode(0);
+	EXPECT_EQ(result, FAMFS_V1); /* fell through to mock_kernel_type */
+	mock_kernel_type = 0;
+
+	/* --- unset env var: falls through to get_kernel_type --- */
+
+	unsetenv("FAMFS_MODE");
+	mock_kernel_type = FAMFS_FUSE;
+	result = famfs_select_mode(0);
+	EXPECT_EQ(result, FAMFS_FUSE);
+	mock_kernel_type = 0;
+
+	unsetenv("FAMFS_MODE");
+	mock_kernel_type = FAMFS_V1;
+	result = famfs_select_mode(0);
+	EXPECT_EQ(result, FAMFS_V1);
+	mock_kernel_type = 0;
+
+	/* Restore original FAMFS_MODE */
+	if (saved_env) {
+		setenv("FAMFS_MODE", saved_env, 1);
+		free((void *)saved_env);
+	} else {
+		unsetenv("FAMFS_MODE");
+	}
+}

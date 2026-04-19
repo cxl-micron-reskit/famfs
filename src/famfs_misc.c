@@ -49,6 +49,8 @@
 #include <sys/user.h>
 
 extern int mock_uuid;
+int mock_kernel_type = 0; /* unit tests: if nonzero, famfs_get_kernel_type() returns this */
+
 /**
  * get_multiplier()
  *
@@ -405,6 +407,9 @@ kernel_symbol_exists(
 enum famfs_type
 famfs_get_kernel_type(int verbose)
 {
+	if (mock_kernel_type)
+		return (enum famfs_type)mock_kernel_type;
+
 	/* First choice is fuse */
 	if (kernel_symbol_exists("famfs_fuse_iomap_begin", "fuse", verbose))
 		return FAMFS_FUSE;

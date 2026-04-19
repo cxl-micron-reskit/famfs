@@ -22,7 +22,7 @@ Cases to cover:
 
 **Priority:** High — low cost, high confidence.
 
-**Status:** TODO
+**Status:** DONE
 
 ---
 
