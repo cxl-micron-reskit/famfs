@@ -169,15 +169,21 @@ directly — no mode detection needed, both FUSE and V1 expose identical meta fi
 
 ## Module Loading Policy
 
-**The CLI never calls `modprobe`.** When V1 is needed and the module is not loaded, the
-code prints a hint (`"try 'sudo modprobe famfs'"`) and returns an error.  Module loading
-is entirely the operator's (or init system's) responsibility.
+By default **the CLI never calls `modprobe`**.  When V1 is needed and the module is not
+loaded, the code prints a hint (`"try 'sudo modprobe famfs'"`) and returns an error.
+Module loading is otherwise the operator's (or init system's) responsibility.
+
+The opt-in `--load-module` / `-L` flag on `famfs mount` and `famfs fsck` calls
+`famfs_load_module()`, which tries `modprobe famfs` then `modprobe famfsv1`.  It is
+applied before the `famfs_module_loaded()` safety guard so that a subsequent V1 mount
+succeeds without further user intervention.  The flag is intentionally opt-in to avoid
+surprising privilege escalation.
 
 Practical consequence: on a system where both FUSE and V1 are available but the V1
 module has not yet been loaded, `famfs_select_mode()` returns `FAMFS_FUSE` (since V1
 symbols won't be in `/proc/kallsyms` for an unloaded module).  Setting `FAMFS_MODE=v1`
 when the module is not loaded will cause `famfs_dummy_mount_v1()` to fail with a clear
-error and a `modprobe` hint.
+error and a `modprobe` hint — unless `--load-module` was also given.
 
 ---
 
@@ -275,14 +281,4 @@ famfs logplay do_famfs_cli_logplay()
 
 ## Remaining Known Issues
 
-### Issue 7 — No `--load-module` option
-
-### Issue 7 — No `--load-module` option
-
-The CLI never calls `modprobe`.  Setting `FAMFS_MODE=v1` when the module is not loaded
-will fail with a clear error, but there is no way to ask the CLI to load the module
-itself.
-
-**Recommendation (optional):** Add a `--load-module` / `-L` flag to `famfs mount` (and
-possibly `famfs fsck`) that calls `modprobe famfs` (or `famfsv1`) before attempting a V1
-mount.  Keep it opt-in to avoid surprising privilege escalation.
+None.

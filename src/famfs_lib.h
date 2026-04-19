@@ -77,6 +77,7 @@ int file_is_famfs(const char *fname);
 
 /* famfs_lib v1 functions */
 int famfs_module_loaded(int verbose);
+int famfs_load_module(int verbose);
 enum famfs_system_role famfs_get_role_by_dev(const char *daxdev);
 void *famfs_mmap_whole_file(const char *fname, int read_only, size_t *sizep);
 

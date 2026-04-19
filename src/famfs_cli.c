@@ -255,6 +255,9 @@ famfs_mount_usage(int   argc,
 	       "                         Without this flag, mount fails with a clear message if the\n"
 	       "                         device is not already in famfs mode. The device is left in\n"
 	       "                         famfs mode after a successful mount.\n"
+	       "    -L|--load-module   - Call modprobe to load the famfs V1 kernel module before\n"
+	       "                         attempting a V1 mount. Without this flag, mount fails with\n"
+	       "                         a hint if the module is not loaded. Only affects V1 mounts.\n"
 	       "\n", progname);
 }
 
@@ -270,6 +273,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	int useraccess = 1;
 	int default_perm = 1;
 	bool set_daxmode = false;
+	bool load_module = false;
 	char *shadowpath = NULL;
 	int use_mmap = 0;
 	char *mpt = NULL;
@@ -297,6 +301,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 		{"shadow",     required_argument,      0,  'S'},
 		{"dummy",      no_argument,            0,  'D'},
 		{"set-daxmode", no_argument,           0,  'M'},
+		{"load-module", no_argument,           0,  'L'},
 
 		/* un-advertised options */
 		{"remount",    no_argument,            0,  'R'},
@@ -308,7 +313,7 @@ do_famfs_cli_mount(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+h?RrfFmvupbdt:c:S:DM",
+	while ((c = getopt_long(argc, argv, "+h?RrfFmvupbdt:c:S:DML",
 				mount_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -369,6 +374,9 @@ do_famfs_cli_mount(int argc, char *argv[])
 			break;
 		case 'M':
 			set_daxmode = true;
+			break;
+		case 'L':
+			load_module = true;
 			break;
 		}
 	}
@@ -512,6 +520,9 @@ do_famfs_cli_mount(int argc, char *argv[])
 		}
 		goto out;
 	}
+
+	if (load_module)
+		famfs_load_module(verbose);
 
 	if (!famfs_module_loaded(1)) {
 		fprintf(stderr,
@@ -687,6 +698,8 @@ famfs_fsck_usage(int argc,
 	       "    -M|--set-daxmode - Switch daxdev to famfs mode if needed (kernel >= 7.0,\n"
 	       "                       unmounted device only). Without this flag, fsck fails\n"
 	       "                       with a clear message if the mode is wrong.\n"
+	       "    -L|--load-module - Call modprobe to load the famfs V1 kernel module before\n"
+	       "                       checking an unmounted device. Only affects V1 path.\n"
 	       "\n"
 	       "Exit codes:\n"
 	       "  0  - No errors were found\n"
@@ -701,6 +714,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	char *daxdev = NULL;
 	bool nodax = false;
 	bool set_daxmode = false;
+	bool load_module = false;
 	int nbuckets = 0;
 	int use_mmap = 0;
 	int use_read = 0;
@@ -713,6 +727,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 		{"force",        no_argument,             0,  'f'},
 		{"nbuckets",     required_argument,       0,  'B'},
 		{"set-daxmode",  no_argument,             0,  'M'},
+		{"load-module",  no_argument,             0,  'L'},
 
 		/* Un-publicized options */
 		{"mmap",         no_argument,             0,  'm'},
@@ -726,7 +741,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+vh?mrfMB:D",
+	while ((c = getopt_long(argc, argv, "+vh?mrfMLB:D",
 				fsck_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -755,6 +770,9 @@ do_famfs_cli_fsck(int argc, char *argv[])
 		case 'M':
 			set_daxmode = true;
 			break;
+		case 'L':
+			load_module = true;
+			break;
 		case '?':
 			famfs_fsck_usage(argc, argv);
 			return 0;
@@ -779,6 +797,10 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	}
 
 	daxdev = argv[optind++];
+
+	if (load_module)
+		famfs_load_module(verbose);
+
 	return famfs_fsck(daxdev, nodax, use_mmap, human,
 			  nbuckets, set_daxmode, verbose);
 }

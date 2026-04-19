@@ -262,6 +262,28 @@ famfs_module_loaded(int verbose)
 	return 1;
 }
 
+/**
+ * famfs_load_module() - try to load the famfs V1 kernel module via modprobe
+ *
+ * Tries "famfs" first, then "famfsv1". Returns 0 if either succeeds.
+ */
+int
+famfs_load_module(int verbose)
+{
+	if (system("modprobe famfs") == 0) {
+		if (verbose)
+			printf("%s: loaded module 'famfs'\n", __func__);
+		return 0;
+	}
+	if (system("modprobe famfsv1") == 0) {
+		if (verbose)
+			printf("%s: loaded module 'famfsv1'\n", __func__);
+		return 0;
+	}
+	fprintf(stderr, "%s: failed to load famfs or famfsv1 module\n", __func__);
+	return -1;
+}
+
 int
 __file_is_famfs_v1(int fd)
 {
