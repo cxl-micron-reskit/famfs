@@ -2115,6 +2115,41 @@ famfs_dax_shadow_logplay(
 		goto out_umount;
 	}
 
+	/* Read the role from the superblock meta file exposed by the dummy
+	 * mount.  The raw-dax path reads it directly from the mapped device;
+	 * here we use the same file-based approach as famfs_mkmeta_standalone()
+	 * so both paths honour client_mode consistently.
+	 */
+	{
+		char superblock_path[PATH_MAX];
+		struct famfs_superblock *sb_dummy;
+		size_t sb_size;
+
+		snprintf(superblock_path, sizeof(superblock_path),
+			 "%s/.meta/.superblock", mpt_out);
+		sb_dummy = (struct famfs_superblock *)famfs_mmap_whole_file(
+			superblock_path, 1 /* read_only */, &sb_size);
+		if (!sb_dummy) {
+			fprintf(stderr,
+				"%s: failed to mmap superblock via %s\n",
+				__func__, mpt_out);
+			rc = -EIO;
+			goto out_umount;
+		}
+		role = famfs_get_role(sb_dummy);
+		munmap(sb_dummy, sb_size);
+
+		if (role == FAMFS_NOSUPER) {
+			fprintf(stderr,
+				"%s: no valid superblock on %s\n",
+				__func__, daxdev);
+			rc = -EINVAL;
+			goto out_umount;
+		}
+		if (client_mode)
+			role = FAMFS_CLIENT;
+	}
+
 	fd = open_log_file_read_only(mpt_out, &log_size, -1, NULL, NO_LOCK);
 	if (fd < 0) {
 		fprintf(stderr,
@@ -2135,7 +2170,7 @@ famfs_dax_shadow_logplay(
 	rc = __famfs_logplay(shadowpath, logp, dry_run,
 			     1 /* shadow mode */,
 			     1 + testmode /* shadow */,
-			     FAMFS_MASTER, verbose);
+			     role, verbose);
 
 out_umount:
 	if (fd > 0)

@@ -261,7 +261,8 @@ famfs logplay do_famfs_cli_logplay()
                  -> famfs_check_or_set_daxmode()
                  -> famfs_select_mode(0) == FAMFS_V1:   famfs_dummy_mount_v1()
                     else:                               famfs_dummy_mount()
-                 -> __famfs_logplay(..., FAMFS_MASTER, ...)
+                 -> mmap .meta/.superblock → famfs_get_role() [honours client_mode]
+                 -> __famfs_logplay(..., role, ...)
                  -> famfs_umount()
   -> else (mounted fs):
        -> famfs_logplay(mpt, ...)
@@ -274,15 +275,7 @@ famfs logplay do_famfs_cli_logplay()
 
 ## Remaining Known Issues
 
-### Issue 6 — `famfs_dax_shadow_logplay()` hardcodes `FAMFS_MASTER`
-
-In the dummy-mount code path the role is hardcoded to `FAMFS_MASTER`.  The raw-dax path
-reads the role from the superblock.  Since the dummy mount exposes the superblock as a
-file, the role could be read from it instead.
-
-**Recommendation:** After the dummy mount, read the role from the superblock meta file
-rather than hardcoding `FAMFS_MASTER`.  This would allow client-mode shadow logplay via
-a daxdev.
+### Issue 7 — No `--load-module` option
 
 ### Issue 7 — No `--load-module` option
 
