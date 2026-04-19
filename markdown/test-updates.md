@@ -79,7 +79,13 @@ Gate on kernel >= 7.0 (dummy-mount path).  Steps:
 **Priority:** Medium — the role-reading code path is new and exercises the dummy-mount
 superblock mmap.
 
-**Status:** TODO
+**Note:** In shadow mode, `__famfs_logplay()` creates YAML metadata files regardless of
+role; the master/client distinction does not change the shadow output.  Both invocations
+(with and without `--client`) produce identical YAML.  The test verifies neither crashes
+or fails, exercising the previously untested `--client` path through
+`famfs_dax_shadow_logplay()` on the dummy-mount code path.
+
+**Status:** DONE — Test 4 added to `smoke/test_daxmode.sh` (kernel >= 7.0).
 
 ---
 

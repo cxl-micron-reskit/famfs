@@ -92,6 +92,25 @@ expect_good "${CLI[@]}" logplay --shadow "$SHADOWPATH" \
 assert_daxmode_6.19 "$DEV" "famfs" "test_daxmode: device should be famfs after logplay --set-daxmode"
 
 #
+# Test 4: shadow logplay --client (exercises the client_mode override in
+# famfs_dax_shadow_logplay() on the dummy-mount path).
+#
+# In shadow mode __famfs_logplay() creates YAML metadata files regardless of
+# role, so both master and client shadow logplay produce the same output.
+# The goal here is to exercise the --client code path (previously untested
+# on the dummy-mount path) and verify it does not crash or fail.
+#
+echo ""
+echo ":=== test_daxmode: TEST 4: shadow logplay --client (dummy-mount path) ==="
+assert_daxmode_6.19 "$DEV" "famfs" "test_daxmode: pre-condition famfs for client logplay test"
+
+expect_good "${CLI[@]}" logplay --shadow "$SHADOWPATH" --daxdev "$DEV" -vv \
+    -- "test_daxmode: shadow logplay (master role) should succeed on dummy-mount path"
+
+expect_good "${CLI[@]}" logplay --shadow "$SHADOWPATH" --daxdev "$DEV" --client -vv \
+    -- "test_daxmode: shadow logplay --client (client role override) should succeed"
+
+#
 # Negative tests: commands without --set-daxmode should fail when device is in devdax mode.
 # One daxctl switch sets up all three checks.
 #
