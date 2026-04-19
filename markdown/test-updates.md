@@ -42,7 +42,8 @@ Tests:
 
 **Priority:** Medium — most visible gap given the code just landed.
 
-**Status:** TODO
+**Status:** DONE — `smoke/test_load_module.sh`, wired into `run_smoke.sh` after `test_daxmode`.
+Skips gracefully when `FAMFS_MODE != v1` or module unload not enabled (`RMMOD=0`).
 
 ---
 

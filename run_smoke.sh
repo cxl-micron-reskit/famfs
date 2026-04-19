@@ -287,6 +287,18 @@ else
     echo ":== skipped test_daxmode due to run_smoke options"
 fi
 
+if [ -z "$SKIP_LOAD_MODULE" ]; then
+    start_time=$(date +%s)
+    ./smoke/test_load_module.sh "${SMOKE_ARGS[@]}" || exit -1
+    elapsed=$(($(date +%s) - start_time))
+    TEST_NAMES+=("test_load_module")
+    TEST_TIMES+=("$elapsed")
+    echo ":== test_load_module success ($(format_time $elapsed))"
+    sleep "${SLEEP_TIME}"
+else
+    echo ":== skipped test_load_module due to run_smoke options"
+fi
+
 if [ -z "$SKIP_TEST0" ]; then
     start_time=$(date +%s)
     ./smoke/test0.sh "${SMOKE_ARGS[@]}" || exit -1
