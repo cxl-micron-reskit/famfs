@@ -1114,6 +1114,8 @@ famfs_dummy_mount_v1(
 	char *mpt;
 	int rc;
 
+	(void)debug;
+
 	assert(mpt_out);
 
 	mpt = gen_dummy_mpt();
