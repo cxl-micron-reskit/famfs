@@ -28,6 +28,7 @@
 #include <linux/famfs_ioctl.h>
 
 #include "famfs_lib.h"
+#include "famfs_config.h"
 #include "random_buffer.h"
 #include "thpool.h"
 #include "famfs_log.h"
@@ -855,6 +856,9 @@ int
 do_famfs_cli_cp(int argc, char *argv[])
 {
 	struct famfs_interleave_param interleave_param = { 0 };
+	struct famfs_config cfg;
+	char shadow_path[PATH_MAX];
+	char *dest_path;
 	uid_t uid = getuid();
 	gid_t gid = getgid();
 	mode_t current_umask;
@@ -867,10 +871,9 @@ do_famfs_cli_cp(int argc, char *argv[])
 	int set_stripe = 0;
 	s64 mult;
 	int thread_ct = 0;
+	int cmdline_stripe = 0; /* Track if stripe params set on cmdline */
 
 	extern int cp_compare;
-
-	interleave_param.chunk_size = 0x200000; /* 2MiB default chunk */
 
 	struct option cp_options[] = {
 		/* These options set a */
@@ -928,7 +931,7 @@ do_famfs_cli_cp(int argc, char *argv[])
 			break;
 
 		case 'C':
-			set_stripe++;
+			cmdline_stripe++;
 			interleave_param.chunk_size = strtoull(optarg,
 							       &endptr, 0);
 			mult = get_multiplier(endptr);
@@ -937,12 +940,12 @@ do_famfs_cli_cp(int argc, char *argv[])
 			break;
 
 		case 'N':
-			set_stripe++;
+			cmdline_stripe++;
 			interleave_param.nstrips = strtoull(optarg, 0, 0);
 			break;
 
 		case 'B':
-			set_stripe++;
+			cmdline_stripe++;
 			interleave_param.nbuckets = strtoull(optarg, 0, 0);
 			break;
 		}
@@ -956,6 +959,26 @@ do_famfs_cli_cp(int argc, char *argv[])
 		famfs_cp_usage(argc, argv);
 		return -1;
 	}
+
+	/* Get destination path (last argument) and try to get shadow_path */
+	dest_path = argv[argc - 1];
+	shadow_path[0] = '\0';
+	famfs_get_shadow_from_xattr(dest_path, shadow_path, sizeof(shadow_path));
+
+	/* Load config with shadow_path (if found) and apply as defaults */
+	famfs_config_load(&cfg, shadow_path[0] ? shadow_path : NULL, verbose);
+	if (!cmdline_stripe) {
+		/* Only apply config defaults if no cmdline stripe params */
+		interleave_param.chunk_size = 0x200000; /* 2MiB default chunk */
+		famfs_config_apply_interleave(&cfg, &interleave_param);
+		if (cfg.nbuckets_set || cfg.nstrips_set)
+			set_stripe = 1;
+	} else {
+		set_stripe = 1;
+	}
+	if (cfg.threadct_set && thread_ct == 0)
+		thread_ct = cfg.threadct;
+
 	if (set_stripe && interleave_param.nstrips > FAMFS_MAX_SIMPLE_EXTENTS) {
 		fprintf(stderr,
 			"famfs cp error: nstrips(%lld) > %d \n",
@@ -1697,6 +1720,8 @@ int
 do_famfs_cli_creat(int argc, char *argv[])
 {
 	struct famfs_interleave_param interleave_param = { 0 };
+	struct famfs_config cfg;
+	char shadow_path[PATH_MAX];
 	long threadct = sysconf(_SC_NPROCESSORS_ONLN);;
 	struct multi_creat *mc = NULL;
 	uid_t uid = geteuid();
@@ -1705,6 +1730,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 	int multi_count = 0;
 	mode_t mode = 0644;
 	int set_stripe = 0;
+	int cmdline_stripe = 0;
 	int randomize = 0;
 	int verbose = 0;
 	size_t fsize = 0;
@@ -1712,8 +1738,6 @@ do_famfs_cli_creat(int argc, char *argv[])
 	int rc = 0;
 	s64 mult;
 	int c;
-
-	interleave_param.chunk_size = 0x200000; /* 2MiB default chunk */
 
 	struct option creat_options[] = {
 		/* These options set a flag. */
@@ -1776,7 +1800,7 @@ do_famfs_cli_creat(int argc, char *argv[])
 			break;
 			/* Interleaving Options */
 		case 'C':
-			set_stripe++;
+			cmdline_stripe++;
 			interleave_param.chunk_size = strtoull(optarg,
 							       &endptr, 0);
 			mult = get_multiplier(endptr);
@@ -1785,12 +1809,12 @@ do_famfs_cli_creat(int argc, char *argv[])
 			break;
 
 		case 'N':
-			set_stripe++;
+			cmdline_stripe++;
 			interleave_param.nstrips = strtoull(optarg, 0, 0);
 			break;
 
 		case 'B':
-			set_stripe++;
+			cmdline_stripe++;
 			interleave_param.nbuckets = strtoull(optarg, 0, 0);
 			break;
 			/* Multi-creat options */
@@ -1858,6 +1882,33 @@ do_famfs_cli_creat(int argc, char *argv[])
 			"Error seed (-S) without randomize (-r) argument\n");
 		return -1;
 	}
+
+	/* Get filename and try to get shadow_path for per-mount config */
+	shadow_path[0] = '\0';
+	if (!mc && optind <= (argc - 1)) {
+		/* Single file - get shadow from target path */
+		famfs_get_shadow_from_xattr(argv[optind], shadow_path,
+					    sizeof(shadow_path));
+	} else if (mc && multi_count > 0) {
+		/* Multi file - get shadow from first file's path */
+		famfs_get_shadow_from_xattr(mc[0].fname, shadow_path,
+					    sizeof(shadow_path));
+	}
+
+	/* Load config with shadow_path (if found) and apply as defaults */
+	famfs_config_load(&cfg, shadow_path[0] ? shadow_path : NULL, verbose);
+	if (!cmdline_stripe) {
+		/* Only apply config defaults if no cmdline stripe params */
+		interleave_param.chunk_size = 0x200000; /* 2MiB default chunk */
+		famfs_config_apply_interleave(&cfg, &interleave_param);
+		if (cfg.nbuckets_set || cfg.nstrips_set)
+			set_stripe = 1;
+	} else {
+		set_stripe = 1;
+	}
+	if (cfg.threadct_set && threadct == sysconf(_SC_NPROCESSORS_ONLN))
+		threadct = cfg.threadct;
+
 	if (set_stripe && interleave_param.nstrips > FAMFS_MAX_SIMPLE_EXTENTS) {
 		fprintf(stderr,
 			"famfs creat error: nstrips(%lld) > %d \n",
@@ -2492,6 +2543,207 @@ do_famfs_cli_chkread(int argc, char *argv[])
 
 /********************************************************************/
 
+void
+famfs_config_usage(int argc, char *argv[])
+{
+	char *progname = argv[0];
+	(void)argc;
+
+	printf("\n"
+	       "famfs config: Get and set famfs configuration options\n"
+	       "\n"
+	       "Configuration is loaded from (in order of increasing priority):\n"
+	       "    /etc/famfs.conf        - system-wide configuration\n"
+	       "    ~/.famfs/famfs.conf    - per-user configuration\n"
+	       "    <shadow_path>/config   - per-mount configuration (highest priority)\n"
+	       "\n"
+	       "List all configuration:\n"
+	       "    %s config --list\n"
+	       "    %s config --list --show-origin\n"
+	       "    %s config --list --shadow-path /run/famfs/.meta\n"
+	       "\n"
+	       "Get a configuration value:\n"
+	       "    %s config --get <key>\n"
+	       "    %s config --get <key> --shadow-path /run/famfs/.meta\n"
+	       "\n"
+	       "Set a configuration value:\n"
+	       "    %s config --global --set <key> <value>\n"
+	       "    %s config --system --set <key> <value>   # requires root\n"
+	       "    %s config --local --shadow-path <path> --set <key> <value>\n"
+	       "\n"
+	       "Arguments:\n"
+	       "    -l|--list              - List all configuration values\n"
+	       "    -g|--get <key>         - Get a specific value\n"
+	       "    -s|--set <key> <value> - Set a value\n"
+	       "    -u|--unset <key>       - Remove a value\n"
+	       "    --global               - Use per-user config (~/.famfs/famfs.conf)\n"
+	       "    --system               - Use system config (/etc/famfs.conf)\n"
+	       "    --local                - Use per-mount config (<shadow_path>/config)\n"
+	       "    --shadow-path <path>   - Shadow path for per-mount config\n"
+	       "    --show-origin          - Show source file for each value\n"
+	       "    -h|-?                  - Print this message\n"
+	       "\n"
+	       "Configuration keys:\n"
+	       "    interleave.nbuckets    - Number of buckets for interleaved allocation\n"
+	       "    interleave.nstrips     - Number of strips for interleaved allocation\n"
+	       "    interleave.chunk_size  - Chunk size (e.g., 2M, 256K)\n"
+	       "    core.verbose           - Default verbosity level\n"
+	       "    core.threadct          - Default thread count\n"
+	       "\n"
+	       "Config file format (YAML):\n"
+	       "    interleave:\n"
+	       "      nbuckets: 8\n"
+	       "      nstrips: 6\n"
+	       "      chunk_size: 2M\n"
+	       "    core:\n"
+	       "      verbose: 0\n"
+	       "      threadct: 4\n"
+	       "\n",
+	       progname, progname, progname, progname, progname,
+	       progname, progname, progname);
+}
+
+int
+do_famfs_cli_config(int argc, char *argv[])
+{
+	enum famfs_config_scope scope = FAMFS_CONFIG_SCOPE_USER;
+	int scope_set = 0;
+	int show_origin = 0;
+	int do_list = 0;
+	int do_get = 0;
+	int do_set = 0;
+	int do_unset = 0;
+	char *key = NULL;
+	char *value = NULL;
+	char *shadow_path = NULL;
+	char value_buf[512];
+	int c;
+	int rc;
+
+	struct option config_options[] = {
+		{"list",        no_argument,       0,  'l'},
+		{"get",         required_argument, 0,  'g'},
+		{"set",         required_argument, 0,  's'},
+		{"unset",       required_argument, 0,  'u'},
+		{"global",      no_argument,       0,  'G'},
+		{"system",      no_argument,       0,  'S'},
+		{"local",       no_argument,       0,  'L'},
+		{"shadow-path", required_argument, 0,  'p'},
+		{"show-origin", no_argument,       0,  'o'},
+		{0, 0, 0, 0}
+	};
+
+	while ((c = getopt_long(argc, argv, "+lg:s:u:GSLp:oh?",
+				config_options, &optind)) != EOF) {
+		switch (c) {
+		case 'l':
+			do_list = 1;
+			break;
+		case 'g':
+			do_get = 1;
+			key = optarg;
+			break;
+		case 's':
+			do_set = 1;
+			key = optarg;
+			break;
+		case 'u':
+			do_unset = 1;
+			key = optarg;
+			break;
+		case 'G':
+			scope = FAMFS_CONFIG_SCOPE_USER;
+			scope_set = 1;
+			break;
+		case 'S':
+			scope = FAMFS_CONFIG_SCOPE_SYSTEM;
+			scope_set = 1;
+			break;
+		case 'L':
+			scope = FAMFS_CONFIG_SCOPE_LOCAL;
+			scope_set = 1;
+			break;
+		case 'p':
+			shadow_path = optarg;
+			break;
+		case 'o':
+			show_origin = 1;
+			break;
+		case 'h':
+		case '?':
+			famfs_config_usage(argc, argv);
+			return 0;
+		}
+	}
+
+	/* Validate options */
+	if ((do_list + do_get + do_set + do_unset) > 1) {
+		fprintf(stderr,
+			"Error: --list, --get, --set, --unset are mutually exclusive\n");
+		return -EINVAL;
+	}
+
+	if ((do_list + do_get + do_set + do_unset) == 0)
+		do_list = 1; /* Default to list */
+
+	/* Local scope requires shadow_path */
+	if (scope == FAMFS_CONFIG_SCOPE_LOCAL && !shadow_path) {
+		fprintf(stderr,
+			"Error: --local requires --shadow-path <path>\n");
+		return -EINVAL;
+	}
+
+	if (do_set) {
+		if (optind >= argc) {
+			fprintf(stderr, "Error: --set requires a value\n");
+			famfs_config_usage(argc, argv);
+			return -EINVAL;
+		}
+		value = argv[optind++];
+	}
+
+	if (do_list) {
+		return famfs_config_list(scope_set ? scope : -1,
+					 shadow_path, show_origin, stdout);
+	}
+
+	if (do_get) {
+		rc = famfs_config_get(key, -1, shadow_path,
+				      value_buf, sizeof(value_buf));
+		if (rc == 0) {
+			printf("%s\n", value_buf);
+			return 0;
+		}
+		return rc;
+	}
+
+	if (do_set) {
+		if (!scope_set) {
+			fprintf(stderr,
+				"Error: --set requires --global, --system, or --local\n");
+			return -EINVAL;
+		}
+		rc = famfs_config_set(key, value, scope, shadow_path);
+		if (rc == 0)
+			printf("Set %s = %s in %s config\n", key, value,
+			       famfs_config_scope_name(scope));
+		return rc;
+	}
+
+	if (do_unset) {
+		if (!scope_set) {
+			fprintf(stderr,
+				"Error: --unset requires --global, --system, or --local\n");
+			return -EINVAL;
+		}
+		return famfs_config_unset(key, scope, shadow_path);
+	}
+
+	return 0;
+}
+
+/********************************************************************/
+
 
 struct famfs_cli_cmd {
 	char *cmd;
@@ -2517,6 +2769,7 @@ famfs_cli_cmd famfs_cli_cmds[] = {
 	{"getmap",  do_famfs_cli_getmap,  famfs_getmap_usage},
 	{"clone",   do_famfs_cli_clone,   famfs_clone_usage},
 	{"chkread", do_famfs_cli_chkread, famfs_chkread_usage},
+	{"config",  do_famfs_cli_config,  famfs_config_usage},
 
 	{NULL, NULL, NULL}
 };
