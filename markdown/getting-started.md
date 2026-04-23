@@ -40,6 +40,8 @@ sudo dnf groupinstall -y "Development Tools"
 ```
 And here are the rest (that we can remember just now - send corrections
 please)
+
+Add following repo to install *-devel packages like libyaml-devel.
 ```
 sudo dnf install -y \
     kernel-devel \
@@ -57,6 +59,20 @@ sudo dnf install -y \
     libcurl-devel \
     libasan-static \
     libubsan-static  # for sanitize builds
+
+``
+```
+
+
+if you face issues with "install -y libyaml libyaml-devel" On RHEL9 add try following 
+
+```
+sudo subscription-manager repos --enable codeready-builder-for-rhel-9-$(arch)-rpms
+sudo dnf install -y epel-release
+sudo dnf makecache
+sudo dnf install -y libyaml libyaml-devel
+sudo dnf install -y ghc-libyaml-devel ghc-yaml-devel
+``
 ```
 
 #### Additional prerequisites for building ndctl from source
