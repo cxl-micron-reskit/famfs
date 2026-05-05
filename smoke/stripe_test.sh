@@ -298,7 +298,7 @@ stripe_test () {
     echo
     echo "Unmount and remount to test logplay for interleaved files"
     echo
-    expect_good sudo "$UMOUNT" "$MPT" -- "umount should work"
+    expect_good umount_retry "$MPT" -- "umount should work"
     verify_not_mounted "$DEV" "$MPT" "stripe_test umount should have succeeded"
     expect_good "${MOUNT[@]}" "$DEV" "$MPT" -- "remount should work"
     verify_mounted "$DEV" "$MPT" "stripe_test remount should have succeeded"

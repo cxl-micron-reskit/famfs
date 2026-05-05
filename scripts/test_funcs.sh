@@ -408,6 +408,26 @@ assert_file_size () {
     fi
 }
 
+# Try `sudo $UMOUNT $mpt`; if it fails, sleep 1s and try once more.
+# Returns the exit status of the (last) umount attempt so the caller
+# (typically `expect_good`) can classify the result normally.
+umount_retry () {
+    local mpt=$1
+
+    if [[ -z $mpt ]]; then
+        echo "umount_retry: missing mountpoint" >&2
+        return 1
+    fi
+
+    if sudo "$UMOUNT" "$mpt"; then
+        return 0
+    fi
+
+    echo "umount_retry: first umount of $mpt failed; retrying after 1s" >&2
+    sleep 1
+    sudo "$UMOUNT" "$mpt"
+}
+
 verify_not_mounted () {
     local DEV=$1
     local MPT=$2
