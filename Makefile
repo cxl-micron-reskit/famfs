@@ -208,7 +208,7 @@ debug:	cmake-modules threadpool mongoose ndctl
 #
 # The comand above will direct you to html files detailing the measured coverage
 #
-coverage:	cmake-modules threadpool mongoose
+coverage:	cmake-modules threadpool mongoose ndctl
 	$(call check_kernel_version)
 	mkdir -p coverage;
 	$(MAKE) libfuse BDIR="coverage"
