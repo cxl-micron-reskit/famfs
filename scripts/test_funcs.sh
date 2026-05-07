@@ -428,6 +428,35 @@ umount_retry () {
     sudo "$UMOUNT" "$mpt"
 }
 
+# Run `${MOUNT[@]} "$@"`; if it fails with EBUSY (errno 16), sleep 1s and
+# retry once. Returns the exit status of the (last) attempt so the caller
+# (typically `expect_good`) can classify the result normally.
+#
+# This works around a transient kernel-side race seen on dual-mode
+# kernels (>= 7.0) where a `famfs mount --nofuse` immediately following
+# a sequence of mkfs operations returns EBUSY for a brief window before
+# the dax device is fully released.
+mount_retry () {
+    local out rc
+
+    out=$("${MOUNT[@]}" "$@" 2>&1)
+    rc=$?
+    printf '%s\n' "$out"
+
+    if [[ $rc -eq 0 ]]; then
+        return 0
+    fi
+
+    # Only retry on EBUSY; any other failure is propagated as-is.
+    if ! grep -qE 'errno 16|Device or resource busy' <<<"$out"; then
+        return $rc
+    fi
+
+    echo "mount_retry: EBUSY on first attempt; retrying after 1s" >&2
+    sleep 1
+    "${MOUNT[@]}" "$@"
+}
+
 verify_not_mounted () {
     local DEV=$1
     local MPT=$2

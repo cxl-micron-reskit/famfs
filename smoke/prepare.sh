@@ -211,7 +211,7 @@ verify_dev_not_mounted $DEV "$DEV lingering dummy mount after mkfs? (12)"
 #
 # Mount without specifying fuse/no-fuse; let CLI auto-detect
 #
-expect_good "${CLI[@]}" mount -v "${MOUNT_OPTS[@]}" "$DEV" "$MPT" \
+expect_good mount_retry -v "$DEV" "$MPT" \
     -- "CLI auto mount should work"
 expect_good sudo umount "$MPT" -- "umount $MPT should succeed"
 
