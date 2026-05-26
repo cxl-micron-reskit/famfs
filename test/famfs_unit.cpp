@@ -31,6 +31,7 @@ extern "C" {
 #include <fuse_lowlevel.h>
 #include "famfs_fused_icache.h"
 #include "famfs_fused.h"
+extern int mock_failure;
 }
 
 /****+++++++++++++++++++++++++++++++++++++++++++++
@@ -377,7 +378,6 @@ TEST(famfs, __famfs_cp)
 	u64 device_size = 1024 * 1024 * 256;
 	struct famfs_locked_log ll;
 	struct famfs_superblock *sb;
-	extern int mock_failure;
 	struct famfs_log *logp;
 	extern int mock_kmod, mock_fstype;
 	int rc;
@@ -743,7 +743,6 @@ TEST(famfs, famfs_log)
 	u64 device_size = 1024 * 1024 * 1024;
 	struct famfs_superblock *sb;
 	struct famfs_locked_log ll;
-	extern int mock_failure;
 	struct famfs_log *logp;
 	extern int mock_kmod;
 	extern int mock_role;
@@ -1087,7 +1086,6 @@ TEST(famfs, famfs_clone) {
 	struct famfs_locked_log ll;
 	struct famfs_superblock *sb;
 	struct famfs_log *logp;
-	extern int mock_failure;
 	extern int mock_role;
 	extern int mock_kmod;
 	char filename[PATH_MAX * 2];
@@ -1231,7 +1229,6 @@ TEST(famfs, famfs_cp) {
 	struct famfs_locked_log ll;
 	struct famfs_superblock *sb;
 	struct famfs_log *logp;
-	extern int mock_failure;
 	extern int mock_kmod;
 	char src[PATH_MAX * 2];
 	char dest[PATH_MAX * 2];
