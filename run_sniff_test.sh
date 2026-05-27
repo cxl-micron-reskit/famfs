@@ -118,10 +118,12 @@ else
 fi
 
 # Figure out the module name(s)
-V1PATH="/lib/modules/$(uname -r)/kernel/fs/famfs"
-if [ -f "${V1PATH}/famfs.ko" ]; then
+# Detect the v1 module name agnostically to module compression
+# (famfs.ko / famfsv1.ko / .ko.zst / ...) and to in-tree vs out-of-tree
+# builds: probe by name via modprobe, which resolves modules.dep.
+if   modprobe -n famfs   >/dev/null 2>&1; then
     MOD_ARG=("--module" "famfs")
-elif [ -f "${V1PATH}/famfsv1.ko" ]; then
+elif modprobe -n famfsv1 >/dev/null 2>&1; then
     MOD_ARG=("--module" "famfsv1")
 else
     MOD_ARG=()

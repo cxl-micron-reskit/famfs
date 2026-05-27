@@ -12,7 +12,7 @@ SCRIPTS=${SCRIPTS:-../scripts}
 RAW_MOUNT_OPTS=("-t" "famfs" "-o" "noatime" "-o" "dax=always")
 BIN=${BIN:-../debug}
 RMMOD=0
-FAMFS_MOD="famfs.ko"
+FAMFS_MOD="famfs"
 LOG_CMDS="N"
 HARNESS="smoke"
 COVERAGE=0
