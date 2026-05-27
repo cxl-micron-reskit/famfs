@@ -1340,7 +1340,7 @@ int
 do_famfs_cli_clone(int argc, char *argv[])
 {
 	int c;
-	int verbose = 0;
+	int verbose __attribute__((unused)) = 0;
 	char *srcfile = NULL;
 	char *destfile = NULL;
 	char srcfullpath[PATH_MAX];

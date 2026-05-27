@@ -946,6 +946,7 @@ famfs_mount_fuse(
 			goto out;
 			break;
 		default:
+			break;
 		}
 	}
 
