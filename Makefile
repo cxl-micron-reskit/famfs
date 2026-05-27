@@ -76,7 +76,10 @@ LIBFUSE_BRANCH ?= $(LIBFUSE_BRANCH_AUTO)
 LIBFUSE_REPO := https://github.com/jagalactic/libfuse.git
 
 cmake-modules:
-	git clone https://github.com/jagalactic/cmake-modules.git
+	@if [ ! -d "cmake-modules" ]; then \
+		echo "cloning cmake-modules..."; \
+		git clone https://github.com/jagalactic/cmake-modules.git; \
+	fi
 
 libfuse_install:
 	meson install -C $(BDIR)/libfuse
@@ -89,7 +92,10 @@ threadpool:
 	fi
 
 mongoose:
-	git clone -b famfs-7.19 https://github.com/jagalactic/mongoose.git
+	@if [ ! -d "mongoose" ]; then \
+		echo "cloning mongoose..."; \
+		git clone -b famfs-7.19 https://github.com/jagalactic/mongoose.git; \
+	fi
 
 NDCTL_REPO := https://github.com/jagalactic/ndctl.git
 NDCTL_BRANCH := famfs
