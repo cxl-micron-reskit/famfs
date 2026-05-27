@@ -1475,6 +1475,7 @@ famfs_mkmeta_standalone(
 		goto out;
 		break;
 	default:
+		break;
 	}
 
 	rc = __famfs_mkmeta_log(mpt, sb->ts_log_offset, sb->ts_log_len,

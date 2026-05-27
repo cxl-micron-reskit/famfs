@@ -170,6 +170,8 @@ target_compile_definitions(libmongoose
     PUBLIC MG_ENABLE_UNIX=1
 )
 
+add_subdirectory(testlib)
+
 add_executable(famfs src/famfs_cli.c)
 add_executable(mkfs.famfs src/mkfs.famfs.c)
 add_executable(pcq src/pcq.c)
@@ -234,7 +236,6 @@ add_subdirectory(${CMAKE_BINARY_DIR}/googletest-src
 
 enable_testing()
 
-add_subdirectory(testlib)
 add_subdirectory(test)
 
 include(ExternalProject)

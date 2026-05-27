@@ -370,7 +370,7 @@ famfs_do_lookup(
 	struct stat st;
 	int parentfd;
 	int saverr;
-	int newfd;
+	int newfd = -1;
 	int res;
 
 	famfs_log(FAMFS_LOG_DEBUG,
