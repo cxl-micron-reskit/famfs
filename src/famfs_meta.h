@@ -38,7 +38,7 @@
 #define FAMFS_STATFS_MAGIC     0x87b282fd /* fuse statfs magic number*/
 #endif
 
-#define FAMFS_CURRENT_VERSION  47
+#define FAMFS_CURRENT_VERSION  48
 
 #define FAMFS_LOG_OFFSET    0x200000 /* 2MiB */
 #define FAMFS_LOG_LEN       0x800000 /* 8MiB */
@@ -59,7 +59,7 @@ static inline size_t round_size_to_alloc_unit(u64 size)
 #define FAMFS_DEVNAME_LEN 64
 
 #define FAMFS_OMF_VER_MAJOR 2
-#define FAMFS_OMF_VER_MINOR 1
+#define FAMFS_OMF_VER_MINOR 2 /* +FAMFS_LOG_ADD_DAXDEV (additive, backward-compatible) */
 
 struct famfs_daxdev {
 	size_t              dd_size;
@@ -163,6 +163,7 @@ enum famfs_log_entry_type {
 	FAMFS_LOG_FILE,    /* This type of log entry creates a file */
 	FAMFS_LOG_MKDIR,
 	FAMFS_LOG_DELETE,
+	FAMFS_LOG_ADD_DAXDEV, /* Adds a (secondary) daxdev to the filesystem */
 	FAMFS_LOG_INVALID,
 };
 
@@ -197,12 +198,30 @@ struct famfs_log_file_meta {
 	struct  famfs_log_fmap fm_fmap;
 };
 
+/*
+ * This log entry adds a (secondary) daxdev to the filesystem.
+ *
+ * The entry is keyed by dd_uuid, NOT by a device path: the path
+ * (/dev/dax*) is per-host, while the uuid is the only invariant that
+ * survives log replay on another node. Resolving the uuid back to a local
+ * devname is a separate (later) step, so no device path is stored here.
+ *
+ * dd_size is u64 (not size_t) because log entries are on-media and replayed
+ * across hosts that may differ in word size.
+ */
+struct famfs_log_add_daxdev {
+	u64     dd_size;   /* size of the daxdev in bytes */
+	uuid_le dd_uuid;   /* uuid of the daxdev (the invariant key) */
+	u32     dd_index;  /* intended daxdev index (dense, in log order) */
+};
+
 struct famfs_log_entry {
 	u64     famfs_log_entry_seqnum;
 	u32     famfs_log_entry_type;
 	union {
 		struct famfs_log_file_meta     famfs_fm;
 		struct famfs_log_mkdir         famfs_md;
+		struct famfs_log_add_daxdev    famfs_dd;
 	};
 	unsigned long famfs_log_entry_crc;
 };

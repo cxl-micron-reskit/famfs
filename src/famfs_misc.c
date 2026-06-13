@@ -143,6 +143,23 @@ famfs_dump_logentry(
 		break;
 	}
 
+	case FAMFS_LOG_ADD_DAXDEV: {
+		/* Multi-daxdev phase 1: dump the entry's fields. Dumping is
+		 * complete here; the behavioral work for this entry type lives
+		 * in the logplay (Multi-daxdev phase 4) and build_bitmap
+		 * (Multi-daxdev phase 6/9) arms, not here. */
+		const struct famfs_log_add_daxdev *dd = &le->famfs_dd;
+		uuid_t uu;
+		char uuid_str[37];
+
+		memcpy(uu, &dd->dd_uuid, sizeof(uu));
+		uuid_unparse(uu, uuid_str);
+		printf("%s: %d add_daxdev: index=%d size=%lld uuid=%s\n",
+		       prefix, index, dd->dd_index, (long long)dd->dd_size,
+		       uuid_str);
+		break;
+	}
+
 	case FAMFS_LOG_DELETE:
 	default:
 		printf("\tError unrecognized log entry type\n");

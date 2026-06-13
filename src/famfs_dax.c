@@ -32,6 +32,8 @@
 #include <daxctl/libdaxctl.h>
 
 #include "famfs_lib.h"
+#include "famfs_meta.h"
+#include "famfs_lib_internal.h"
 
 #ifdef STANDALONE
 static const char *basename_dev(const char *arg)
@@ -302,4 +304,80 @@ int famfs_check_or_set_daxmode(
 	}
 
 	return famfs_set_daxdev_mode(daxdev, DAXDEV_MODE_FAMFS, verbose);
+}
+
+/*
+ * famfs_daxdev_table_add()
+ *
+ * Append the daxdev described by a FAMFS_LOG_ADD_DAXDEV log entry to an
+ * in-memory daxdev table.
+ *
+ * This is the pure, path-agnostic accumulation helper from Multi-daxdev
+ * phase 1. It operates on a plain 'struct famfs_daxdev' array
+ * plus a count - deliberately NOT on a famfs_ctx or a famfs_locked_log - so
+ * that the fuse path, the standalone path, and the unit tests can all share
+ * it. It has no dependency on logplay, the resolver, meta files, or the
+ * shadow/standalone split: it reads only the on-media structs.
+ *
+ * Slot 0 (the primary) is the caller's to seed from the superblock; this
+ * helper only appends secondaries, and requires that ADD_DAXDEV entries be
+ * dense and in index order (entry N occupies slot N).
+ *
+ * @table:  daxdev array; slot 0 already seeded with the primary
+ * @ndevs:  in/out count of valid slots (caller inits to 1 for the primary)
+ * @max:    capacity of @table (number of slots)
+ * @le:     a log entry of type FAMFS_LOG_ADD_DAXDEV
+ *
+ * On success returns 0 and appends one slot. On any failure the table and
+ * count are left unchanged:
+ *   -EINVAL  bad args, or @le is not a FAMFS_LOG_ADD_DAXDEV entry
+ *   -ENOSPC  the table is full (*ndevs == max)
+ *   -ERANGE  the entry's dd_index is not the next slot (entries must be
+ *            dense and arrive in index order)
+ *   -EEXIST  the entry's dd_uuid already appears in the table (duplicate)
+ */
+int
+famfs_daxdev_table_add(
+	struct famfs_daxdev          *table,
+	int                          *ndevs,
+	int                           max,
+	const struct famfs_log_entry *le)
+{
+	const struct famfs_log_add_daxdev *dd;
+	int i;
+
+	if (!table || !ndevs || !le || *ndevs < 0)
+		return -EINVAL;
+
+	if (le->famfs_log_entry_type != FAMFS_LOG_ADD_DAXDEV)
+		return -EINVAL;
+
+	if (*ndevs >= max)
+		return -ENOSPC;
+
+	dd = &le->famfs_dd;
+
+	/* Entries must arrive dense and in index order: the entry's dd_index
+	 * must be exactly the slot it is about to occupy.
+	 */
+	if (dd->dd_index != (u32)*ndevs)
+		return -ERANGE;
+
+	/* A daxdev uuid must be unique within a filesystem. */
+	for (i = 0; i < *ndevs; i++) {
+		if (memcmp(&table[i].dd_uuid, &dd->dd_uuid,
+			   sizeof(dd->dd_uuid)) == 0)
+			return -EEXIST;
+	}
+
+	memset(&table[*ndevs], 0, sizeof(table[*ndevs]));
+	table[*ndevs].dd_size = dd->dd_size;
+	memcpy(&table[*ndevs].dd_uuid, &dd->dd_uuid, sizeof(dd->dd_uuid));
+	/* dd_daxdev (the local devname) is intentionally left empty: it is
+	 * host-local and resolved later (Multi-daxdev phase 3/4/8), never
+	 * carried in the log.
+	 */
+
+	(*ndevs)++;
+	return 0;
 }

@@ -1838,6 +1838,162 @@ TEST(famfs, famfs_log_test) {
 	famfs_log(FAMFS_LOG_NOTICE, "%s:\n", __func__);
 }
 
+/*
+ * Multi-daxdev phase 1: the FAMFS_LOG_ADD_DAXDEV log entry, exercised through the real
+ * append path. We append via __famfs_add_daxdev() (which calls
+ * famfs_append_log(), stamping the seqnum and CRC) - never hand-stamping a
+ * CRC - then round-trip the entry through famfs_validate_log_entry() and
+ * confirm the OMF version constants moved as documented.
+ */
+TEST(famfs, famfs_log_add_daxdev_entry)
+{
+	struct famfs_log *logp;
+	struct famfs_log_entry *le;
+	uuid_le uuid;
+	int rc;
+
+	/* OMF version constants bumped for the additive log entry type */
+	ASSERT_EQ(FAMFS_OMF_VER_MAJOR, 2);
+	ASSERT_EQ(FAMFS_OMF_VER_MINOR, 2);
+	ASSERT_EQ(FAMFS_CURRENT_VERSION, 48);
+
+	/* A minimal in-memory log - no device, fs, or root required */
+	logp = (struct famfs_log *)calloc(1, FAMFS_LOG_LEN);
+	ASSERT_NE(logp, (struct famfs_log *)NULL);
+	logp->famfs_log_magic = FAMFS_LOG_MAGIC;
+	logp->famfs_log_len = FAMFS_LOG_LEN;
+	logp->famfs_log_next_seqnum = 0;
+	logp->famfs_log_next_index = 0;
+	logp->famfs_log_last_index =
+		((FAMFS_LOG_LEN - offsetof(struct famfs_log, entries))
+		 / sizeof(struct famfs_log_entry)) - 1;
+
+	/* Append an ADD_DAXDEV entry; the append path stamps seqnum + CRC */
+	memset(&uuid, 0xab, sizeof(uuid));
+	rc = __famfs_add_daxdev(logp, 0x40000000ULL /* 1 GiB */, &uuid, 1);
+	ASSERT_EQ(rc, 0);
+	ASSERT_EQ(logp->famfs_log_next_index, 1);
+
+	/* The appended entry is a well-formed ADD_DAXDEV entry at index 0 */
+	le = &logp->entries[0];
+	ASSERT_EQ(le->famfs_log_entry_type, (u32)FAMFS_LOG_ADD_DAXDEV);
+	ASSERT_EQ(le->famfs_dd.dd_size, 0x40000000ULL);
+	ASSERT_EQ(le->famfs_dd.dd_index, (u32)1);
+	ASSERT_EQ(memcmp(&le->famfs_dd.dd_uuid, &uuid, sizeof(uuid)), 0);
+
+	/* Round-trips through validation (seqnum + CRC were stamped by append) */
+	rc = famfs_validate_log_entry(le, 0);
+	ASSERT_EQ(rc, 0);
+
+	/* Corrupt the CRC -> validation must fail */
+	le->famfs_log_entry_crc ^= 0x1;
+	rc = famfs_validate_log_entry(le, 0);
+	ASSERT_NE(rc, 0);
+
+	free(logp);
+}
+
+/*
+ * Multi-daxdev phase 1: the pure accumulation helper - feed ADD_DAXDEV entries through
+ * famfs_daxdev_table_add() and confirm the table fills in encounter order,
+ * the count advances, and the documented rejection cases hold. No logplay,
+ * resolver, or shadow tree involved.
+ */
+TEST(famfs, famfs_daxdev_table_accumulate)
+{
+	struct famfs_daxdev table[5];   /* primary + 4 secondaries */
+	struct famfs_log_entry le;
+	int ndevs = 1;                  /* slot 0 = primary, caller-seeded */
+	int rc, i;
+
+	/* Seed the primary in slot 0 */
+	memset(table, 0, sizeof(table));
+	table[0].dd_size = 0x100000000ULL;
+	memset(&table[0].dd_uuid, 0x01, sizeof(table[0].dd_uuid));
+
+	/* Append 4 secondaries; each lands in the next slot, in order */
+	for (i = 1; i <= 4; i++) {
+		memset(&le, 0, sizeof(le));
+		le.famfs_log_entry_type = FAMFS_LOG_ADD_DAXDEV;
+		le.famfs_dd.dd_index = i;
+		le.famfs_dd.dd_size = 0x40000000ULL * i;
+		memset(&le.famfs_dd.dd_uuid, 0x10 + i, sizeof(le.famfs_dd.dd_uuid));
+
+		rc = famfs_daxdev_table_add(table, &ndevs, 5, &le);
+		ASSERT_EQ(rc, 0);
+		ASSERT_EQ(ndevs, i + 1);
+		ASSERT_EQ(table[i].dd_size, 0x40000000ULL * (u64)i);
+	}
+
+	/* uuids landed in encounter order; devname slot left empty */
+	for (i = 1; i <= 4; i++) {
+		uuid_le expect;
+		char empty[FAMFS_DEVNAME_LEN];
+
+		memset(&expect, 0x10 + i, sizeof(expect));
+		memset(empty, 0, sizeof(empty));
+		ASSERT_EQ(memcmp(&table[i].dd_uuid, &expect, sizeof(expect)), 0);
+		ASSERT_EQ(memcmp(table[i].dd_daxdev, empty, sizeof(empty)), 0);
+	}
+	ASSERT_EQ(ndevs, 5);
+
+	/* Overflow: table is full -> -ENOSPC, count unchanged */
+	memset(&le, 0, sizeof(le));
+	le.famfs_log_entry_type = FAMFS_LOG_ADD_DAXDEV;
+	le.famfs_dd.dd_index = ndevs;
+	memset(&le.famfs_dd.dd_uuid, 0xfe, sizeof(le.famfs_dd.dd_uuid));
+	rc = famfs_daxdev_table_add(table, &ndevs, 5, &le);
+	ASSERT_EQ(rc, -ENOSPC);
+	ASSERT_EQ(ndevs, 5);
+
+	/* Conflicting index (not the next slot) -> -ERANGE, count unchanged */
+	{
+		struct famfs_daxdev t2[3];
+		int nd = 1;
+
+		memset(t2, 0, sizeof(t2));
+		memset(&t2[0].dd_uuid, 0x01, sizeof(t2[0].dd_uuid));
+
+		memset(&le, 0, sizeof(le));
+		le.famfs_log_entry_type = FAMFS_LOG_ADD_DAXDEV;
+		le.famfs_dd.dd_index = 2; /* should be 1 */
+		memset(&le.famfs_dd.dd_uuid, 0x22, sizeof(le.famfs_dd.dd_uuid));
+		rc = famfs_daxdev_table_add(t2, &nd, 3, &le);
+		ASSERT_EQ(rc, -ERANGE);
+		ASSERT_EQ(nd, 1);
+	}
+
+	/* Duplicate uuid (matches an existing slot) -> -EEXIST, count unchanged */
+	{
+		struct famfs_daxdev t2[3];
+		int nd = 1;
+
+		memset(t2, 0, sizeof(t2));
+		memset(&t2[0].dd_uuid, 0x55, sizeof(t2[0].dd_uuid));
+
+		memset(&le, 0, sizeof(le));
+		le.famfs_log_entry_type = FAMFS_LOG_ADD_DAXDEV;
+		le.famfs_dd.dd_index = 1;
+		memset(&le.famfs_dd.dd_uuid, 0x55, sizeof(le.famfs_dd.dd_uuid));
+		rc = famfs_daxdev_table_add(t2, &nd, 3, &le);
+		ASSERT_EQ(rc, -EEXIST);
+		ASSERT_EQ(nd, 1);
+	}
+
+	/* Wrong entry type -> -EINVAL, count unchanged */
+	{
+		struct famfs_daxdev t2[3];
+		int nd = 1;
+
+		memset(t2, 0, sizeof(t2));
+		memset(&le, 0, sizeof(le));
+		le.famfs_log_entry_type = FAMFS_LOG_MKDIR;
+		rc = famfs_daxdev_table_add(t2, &nd, 3, &le);
+		ASSERT_EQ(rc, -EINVAL);
+		ASSERT_EQ(nd, 1);
+	}
+}
+
 TEST(famfs, famfs_misc)
 {
 	char **strings;

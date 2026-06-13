@@ -263,6 +263,22 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 			/* Ignore directory log entries - no space is used */
 			break;
 
+		case FAMFS_LOG_ADD_DAXDEV:
+			/* Multi-daxdev phase 1: an ADD_DAXDEV entry allocates no
+			 * space, so there is nothing to mark in the bitmap - skip
+			 * it, the same as FAMFS_LOG_MKDIR. (Without this arm the
+			 * default below would flag every such entry as a "bad
+			 * type".)
+			 *
+			 * TODO (Multi-daxdev phase 6/9): this arm grows real work.
+			 * The entry announces a new daxdev (dd_uuid, dd_size);
+			 * once the allocator and fsck go per-device, this is where
+			 * that device's bitmap gets set up/sized and its capacity
+			 * folded into the accounting. For Multi-daxdev phase 1 it
+			 * is a deliberate no-op.
+			 */
+			break;
+
 		default:
 			fprintf(stderr,
 				"%s: log entry %lld of %lld: bad type (%d)\n",

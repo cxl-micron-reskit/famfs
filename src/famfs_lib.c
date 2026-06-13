@@ -2556,6 +2556,49 @@ famfs_log_dir_creation(
 }
 
 /**
+ * __famfs_add_daxdev()
+ *
+ * Append a FAMFS_LOG_ADD_DAXDEV entry to the log. Analogous to
+ * famfs_log_dir_creation() / famfs_log_file_creation(): it builds the entry
+ * and hands it to famfs_append_log(), which stamps the seqnum and CRC. No
+ * caller ever hand-stamps the CRC.
+ *
+ * The entry is keyed by the daxdev uuid (the invariant), not a device path:
+ * the path is per-host, the uuid survives log replay on another node.
+ *
+ * This is exported (via famfs_lib_internal.h) so unit tests can append real,
+ * validly-CRC'd entries without exporting the CRC helper. Multi-daxdev
+ * phase 5's famfs_add_daxdev() wraps this with devname -> uuid resolution.
+ *
+ * Returns 0 on success, -ENOMEM if the log is full.
+ */
+int
+__famfs_add_daxdev(
+	struct famfs_log *logp,
+	u64               dd_size,
+	const uuid_le    *dd_uuid,
+	u32               dd_index)
+{
+	struct famfs_log_entry le = {0};
+	struct famfs_log_add_daxdev *dd = &le.famfs_dd;
+
+	assert(logp);
+	assert(dd_uuid);
+
+	if (famfs_log_full(logp)) {
+		fprintf(stderr, "%s: log full\n", __func__);
+		return -ENOMEM;
+	}
+
+	le.famfs_log_entry_type = FAMFS_LOG_ADD_DAXDEV;
+	dd->dd_size  = dd_size;
+	dd->dd_index = dd_index;
+	memcpy(&dd->dd_uuid, dd_uuid, sizeof(dd->dd_uuid));
+
+	return famfs_append_log(logp, &le);
+}
+
+/**
  * find_real_parent_path()
  *
  * travel up a path until a real component is found.

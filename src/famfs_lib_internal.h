@@ -150,6 +150,10 @@ int famfs_create_sys_uuid_file(char *sys_uuid_file);
 int famfs_get_system_uuid(uuid_le *uuid_out);
 void famfs_print_role_string(int role);
 int famfs_validate_log_entry(const struct famfs_log_entry *le, u64 index);
+int __famfs_add_daxdev(struct famfs_log *logp, u64 dd_size,
+		       const uuid_le *dd_uuid, u32 dd_index);
+int famfs_daxdev_table_add(struct famfs_daxdev *table, int *ndevs, int max,
+			   const struct famfs_log_entry *le);
 int famfs_cp(struct famfs_locked_log *lp, const char *srcfile, const char *destfile,
 		mode_t mode, uid_t uid, gid_t gid, int verbose);
 
