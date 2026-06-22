@@ -13,8 +13,13 @@ fi
 if [ -z "$DEV" ]; then
     DEV="/dev/dax0.0"
 fi
-if [ -z "$ERRS" ]; then
-    ERRS=1
+# test_errors.sh deliberately drives famfs into error states, so it is not
+# run by default. Enable it with --with-errors (or -E/--justerrors), or by
+# setting ERRS=1 in the environment.
+if [ "$ERRS" == "1" ]; then
+    SKIP_ERRS=
+else
+    SKIP_ERRS=1
 fi
 
 # Check if we have password-less sudi, which is required
@@ -50,7 +55,10 @@ while (( $# > 0)); do
 	    LOG_ARG="--log"
 	    ;;
 	(-e|--noerrors)
-	    SKIP_ERRS=0
+	    SKIP_ERRS=1
+	    ;;
+	(--with-errors|--errors)
+	    SKIP_ERRS=
 	    ;;
 	(--jmg) # For debugging an intermittent segfault in test1.sh
 	    SKIP_SHADOW_YAML=1
@@ -64,6 +72,7 @@ while (( $# > 0)); do
 	    SKIP_TEST4=1
 	    SKIP_PCQ=1
 	    SKIP_FIO=1
+	    SKIP_ERRS=
 	    ;;
 	(-f|--justfio)
 	    SKIP_TEST0=1
@@ -206,7 +215,11 @@ echo ":==MODE:     $FAMFS_MODE"
 echo ":==CWD:      $CWD"
 echo ":==BIN:      $BIN"
 echo ":==SCRIPTS:  $SCRIPTS"
-echo ":==ERRS:     $ERRS"
+if [ -z "$SKIP_ERRS" ]; then
+    echo ":==ERRS:     enabled"
+else
+    echo ":==ERRS:     disabled (default; enable with --with-errors)"
+fi
 echo ":==*****************************************************************"
 
 scripts/chk_memdev.sh "$DEV" || fail "Bad memory device $DEV"
@@ -389,7 +402,7 @@ if [ -z "$SKIP_ERRS" ]; then
     TEST_TIMES+=("$elapsed")
     echo ":== test_errors success ($(format_time $elapsed))"
 else
-    echo ":== skipping test_errors.sh because -n|--noerrors was specified"
+    echo ":== skipping test_errors.sh (not run by default; enable with --with-errors)"
 fi
 
 if [ -z "$SKIP_STRIPE_TEST" ] && [ -z "$KABI_42"  ]; then
