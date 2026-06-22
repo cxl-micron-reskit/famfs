@@ -220,7 +220,7 @@ verify_not_mounted "$DEV" "$MPT" "umount failed?"
 #
 # Final mount tests
 #
-expect_good "${MOUNT[@]}" "$DEV" "$MPT" -- "mount of clean file system should succeed"
+expect_good mount_retry "$DEV" "$MPT" -- "mount of clean file system should succeed"
 expect_fail "${MOUNT[@]}" "$DEV" "$MPT" -- "Double mount should fail"
 
 verify_mounted "$DEV" "$MPT" "mount failed?"

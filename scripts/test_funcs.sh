@@ -628,7 +628,7 @@ famfs_recreate() {
         sudo modprobe "${FAMFS_MOD}" || fail "famfs_recreate: modprobe ($MSG)"
     fi
 
-    "${MOUNT[@]}" "$DEV" "$MPT"    || fail "famfs_recreate: famfs mount ($MSG)"
+    mount_retry "$DEV" "$MPT"     || fail "famfs_recreate: famfs mount ($MSG)"
 
     verify_mounted "$DEV" "$MPT" "famfs_recreate ($MSG)"
 }
