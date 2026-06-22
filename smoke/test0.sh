@@ -216,7 +216,7 @@ if [[ "$FAMFS_MODE" == "v1" ]]; then
     # Post mount, re-create the meta files
     expect_good "${CLI[@]}" mkmeta "$DEV"      -- "mkmeta 2"
 else
-    expect_good "${MOUNT[@]}" "$DEV" "$MPT" -- "remount fail"
+    expect_good mount_retry "$DEV" "$MPT" -- "remount fail"
     verify_mounted "$DEV" "$MPT" "test0 fuse mount"
 fi
 
@@ -327,7 +327,7 @@ if [[ "$FAMFS_MODE" == "v1" ]]; then
     expect_good sudo "$UMOUNT" "$MPT" -- "umount before FAMFS_MODE bogus-value test"
     expect_good sudo env FAMFS_MODE=bogusvalue "$BIN/famfs" fsck "$DEV" \
         -- "fsck with bogus FAMFS_MODE should warn and succeed via auto-detect"
-    "${MOUNT[@]}" "$DEV" "$MPT" || fail "remount after FAMFS_MODE bogus-value test"
+    mount_retry "$DEV" "$MPT" || fail "remount after FAMFS_MODE bogus-value test"
 fi
 
 set +x

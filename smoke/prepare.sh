@@ -162,7 +162,7 @@ if [[ "$FAMFS_MODE" == "v1" ]]; then
 
 else
     # FUSE mode mount
-    expect_good "${MOUNT[@]}" -vv "$DEV" "$MPT" -- "famfs fuse mount should work"
+    expect_good mount_retry -vv "$DEV" "$MPT" -- "famfs fuse mount should work"
 fi
 
 expect_good grep famfs /proc/mounts -- "No famfs mounted"

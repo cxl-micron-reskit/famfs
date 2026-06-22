@@ -70,7 +70,7 @@ fi
 expect_good sudo "$UMOUNT" "$MPT" -- "umount"
 verify_not_mounted "$DEV" "$MPT" "test2.sh"
 
-expect_good "${MOUNT[@]}" "$DEV" "$MPT" -- "mount should succeed"
+expect_good mount_retry "$DEV" "$MPT" -- "mount should succeed"
 verify_mounted "$DEV" "$MPT" "test2.sh"
 
 expect_fail sudo cmp "$MPT/bigtest10" "$MPT/bigtest11" \

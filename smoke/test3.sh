@@ -153,7 +153,7 @@ set -e
 verify_not_mounted "$DEV" "$MPT" "test3"
 sleep 1
 
-expect_good "${MOUNT[@]}" "$DEV" "$MPT" -- "remount test3"
+expect_good mount_retry "$DEV" "$MPT" -- "remount test3"
 verify_mounted "$DEV" "$MPT" "test3 x"
 
 set +e

@@ -81,7 +81,7 @@ expect_good   "${CLI[@]}" verify -S 10 -f "$MPT/clone1" -- "reverify clone1"
 expect_good   sudo "$UMOUNT" "$MPT" -- "umount"
 verify_not_mounted "$DEV" "$MPT" "test_errors.sh"
 
-expect_good   "${MOUNT[@]}" "$DEV" "$MPT" \
+expect_good   mount_retry "$DEV" "$MPT" \
              -- "mount after unmount"
 verify_mounted "$DEV" "$MPT" "test_errors remount"
 
@@ -115,7 +115,7 @@ expect_fail "${FSCK[@]}" "$MPT" \
 # v2-specific redundant mount behavior (also applies to v1 logically)
 #
 expect_good sudo "$UMOUNT" "$MPT" -- "umount before remount tests"
-expect_good "${MOUNT[@]}" "$DEV" "$MPT" -- "normal mount"
+expect_good mount_retry "$DEV" "$MPT" -- "normal mount"
 
 expect_fail "${MOUNT[@]}" "$DEV" "$MPT" -- "redundant remount 1"
 expect_fail "${MOUNT[@]}" "$DEV" "$MPT" -- "redundant remount 2"
@@ -131,7 +131,7 @@ expect_good sudo "$UMOUNT" "$MPT" \
             -- "umount after redundant mounts"
 verify_not_mounted "$DEV" "$MPT" "should be unmounted"
 
-expect_good "${MOUNT[@]}" "$DEV" "$MPT" \
+expect_good mount_retry "$DEV" "$MPT" \
             -- "mount after redundant tests"
 
 #

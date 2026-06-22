@@ -58,7 +58,7 @@ expect_good sudo rmmod "$LOADED_MOD" \
 expect_fail "${MOUNT[@]}" "$DEV" "$MPT" \
     -- "test_load_module: mount without --load-module should fail (module unloaded)"
 
-expect_good "${MOUNT[@]}" --load-module "$DEV" "$MPT" \
+expect_good mount_retry --load-module "$DEV" "$MPT" \
     -- "test_load_module: mount --load-module should reload module and succeed"
 
 verify_mounted "$DEV" "$MPT" \

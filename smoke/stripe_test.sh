@@ -300,7 +300,7 @@ stripe_test () {
     echo
     expect_good umount_retry "$MPT" -- "umount should work"
     verify_not_mounted "$DEV" "$MPT" "stripe_test umount should have succeeded"
-    expect_good "${MOUNT[@]}" "$DEV" "$MPT" -- "remount should work"
+    expect_good mount_retry "$DEV" "$MPT" -- "remount should work"
     verify_mounted "$DEV" "$MPT" "stripe_test remount should have succeeded"
 
     #

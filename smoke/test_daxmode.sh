@@ -58,7 +58,7 @@ echo ":=== test_daxmode: TEST 1: famfs mount --set-daxmode ==="
 dax_reconfigure_mode "$DEV" "devdax"
 assert_daxmode_6.19 "$DEV" "devdax" "test_daxmode: pre-condition devdax for mount test"
 
-expect_good "${MOUNT[@]}" --set-daxmode "$DEV" "$MPT" \
+expect_good mount_retry --set-daxmode "$DEV" "$MPT" \
     -- "test_daxmode: mount --set-daxmode should switch to famfs and mount"
 assert_daxmode_6.19 "$DEV" "famfs" "test_daxmode: device should be famfs after mount --set-daxmode"
 verify_mounted "$DEV" "$MPT" "test_daxmode: mount --set-daxmode: filesystem not mounted?"

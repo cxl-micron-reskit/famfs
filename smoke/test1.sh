@@ -20,7 +20,7 @@ expect_fail "${FSCK[@]}" "$MPT" -- "fsck by path should fail when not mounted"
 expect_good "${FSCK[@]}" "$DEV" -- "fsck by dev should succeed when not mounted"
 verify_dev_not_mounted "$DEV" "$DEV lingering dummy mount after unmounted fsck"
 
-expect_good "${MOUNT[@]}" "$DEV" "$MPT" -- "mount should succeed test1 1"
+expect_good mount_retry "$DEV" "$MPT" -- "mount should succeed test1 1"
 
 expect_good "${FSCK[@]}" "$MPT" -- "fsck by path should succeed when mounted"
 
@@ -229,7 +229,7 @@ fi
 
 expect_good sudo "$UMOUNT" "$MPT" -- "umount"
 verify_not_mounted "$DEV" "$MPT" "test1.sh"
-expect_good "${MOUNT[@]}" "$DEV" "$MPT" -- "mount should succeed test1 2"
+expect_good mount_retry "$DEV" "$MPT" -- "mount should succeed test1 2"
 verify_mounted "$DEV" "$MPT" "test1.sh"
 
 # re-check the custom cp mode/uid/gid on one of the files

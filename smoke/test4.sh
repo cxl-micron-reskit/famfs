@@ -63,7 +63,7 @@ expect_fail   "${CLI[@]}" logplay --shadow "$SHADOWPATH" --shadow "$SHADOWPATH" 
 #
 # famfs mount tests
 #
-expect_good   "${MOUNT[@]}" -vvv "$DEV" "$MPT" -- "mount should succeed"
+expect_good   mount_retry -vvv "$DEV" "$MPT" -- "mount should succeed"
 expect_fail   "${MOUNT[@]}" -vvv "$DEV" "$MPT" \
               -- "mount should fail when already mounted"
 
@@ -99,7 +99,7 @@ verify_not_mounted "$DEV" "$MPT" "test4 bad mount attempts"
 expect_fail   "${MOUNT[@]}" -rm -vvv "$DEV" "$MPT" \
               -- "mount with -r and -m should fail"
 
-expect_good   "${MOUNT[@]}" -r -vvv "$DEV" "$MPT" \
+expect_good   mount_retry -r -vvv "$DEV" "$MPT" \
               -- "mount -r should succeed"
 
 verify_mounted "$DEV" "$MPT" "test4.sh 2nd remount"
@@ -121,11 +121,11 @@ if [[ "$FAMFS_MODE" == "v1" ]]; then
     fi
 fi
 
-expect_good "${MOUNT[@]}" -vv "$DEV" "$MPT" \
+expect_good mount_retry -vv "$DEV" "$MPT" \
             -- "mount after reload"
 
 if [[ "$FAMFS_MODE" == "v1" ]]; then
-    expect_good "${MOUNT[@]}" -R "$DEV" "$MPT" \
+    expect_good mount_retry -R "$DEV" "$MPT" \
                 -- "mount -R should succeed when clean"
 fi
 

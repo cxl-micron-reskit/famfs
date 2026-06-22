@@ -76,7 +76,7 @@ verify_dev_not_mounted $DEV "$DEV mounted after failed dax logplay 4"
 sudo rm -rf /tmp/famfs2
 
 # Remount famfs after shadow tests
-expect_good "${MOUNT[@]}" "$DEV" "$MPT" -- "remount after shadow yaml test should work"
+expect_good mount_retry "$DEV" "$MPT" -- "remount after shadow yaml test should work"
 verify_mounted "$DEV" "$MPT" "$TEST.sh mounted 2"
 
 #
