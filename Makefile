@@ -52,6 +52,19 @@ ifeq ($(wildcard $(FAMFS_IOCTL_SYSTEM)),)
 endif
 
 #
+# Error tests (smoke/test_errors.sh, via run_smoke.sh) are skipped by default
+# so that interactive "make smoke*" runs stay quick. CI enables them by passing
+# WITH_ERRORS=1 on the make command line, which appends --with-errors to every
+# run_smoke.sh invocation below. A command-line WITH_ERRORS propagates to the
+# recursive sub-makes (smoke_dual, coverage_*, smoke_sanitize/valgrind_dual)
+# via MAKEFLAGS, so setting it once on the top-level target is enough.
+#
+ERRFLAG :=
+ifdef WITH_ERRORS
+    ERRFLAG := --with-errors
+endif
+
+#
 # Determine the appropriate libfuse branch based on kernel version
 # - kernel <= 6.14: use famfs-6.14
 # - kernel >= 6.15: use famfs-6.19
@@ -221,19 +234,19 @@ coverage:	cmake-modules threadpool mongoose ndctl
 	cd coverage; cmake $(CMAKE_CACHE_CLEAR) -DCMAKE_BUILD_TYPE=Debug -DFAMFS_TEST_COVERAGE="yes" ..; $(MAKE)
 
 smoke_coverage_fuse:
-	script -e -c "./run_smoke.sh --coverage --fuse --log" \
+	script -e -c "./run_smoke.sh --coverage --fuse --log $(ERRFLAG)" \
 			-O "smoke_coverage.fuse.$(HOSTNAME).log"
 
 smoke_coverage_fuse_pcq:
-	script -e -c "./run_smoke.sh --coverage --fuse --with-pcq" \
+	script -e -c "./run_smoke.sh --coverage --fuse --with-pcq $(ERRFLAG)" \
 			-O "smoke_coverage.fuse.$(HOSTNAME).log"
 
 smoke_coverage_nofuse:
-	script -e -c "./run_smoke.sh --coverage --nofuse" \
+	script -e -c "./run_smoke.sh --coverage --nofuse $(ERRFLAG)" \
 			-O "smoke_coverage.nofuse.$(HOSTNAME).log"
 
 smoke_coverage_nofuse_pcq:
-	script -e -c "./run_smoke.sh --coverage --nofuse --with-pcq" \
+	script -e -c "./run_smoke.sh --coverage --nofuse --with-pcq $(ERRFLAG)" \
 			-O "smoke_coverage.nofuse.$(HOSTNAME).log"
 
 unit_coverage:
@@ -319,10 +332,10 @@ threadpool-test:
 # Baseline smoke ***
 
 smoke_nofuse:	debug
-	script -e -c "./run_smoke.sh --nofuse" -O "smoke.$(HOSTNAME).nofuse.log"
+	script -e -c "./run_smoke.sh --nofuse $(ERRFLAG)" -O "smoke.$(HOSTNAME).nofuse.log"
 
 smoke_fuse:	debug
-	script -e -c "./run_smoke.sh --fuse" -O "smoke.$(HOSTNAME).fuse.log"
+	script -e -c "./run_smoke.sh --fuse $(ERRFLAG)" -O "smoke.$(HOSTNAME).fuse.log"
 
 smoke:	debug
 	make smoke_nofuse
@@ -335,12 +348,12 @@ smoke_dual:	debug
 # Sanitize ***
 
 smoke_sanitize_nofuse:	sanitize
-	script -e -c "./run_smoke.sh --nofuse --sanitize" \
+	script -e -c "./run_smoke.sh --nofuse --sanitize $(ERRFLAG)" \
 				-O "smoke.$(HOSTNAME).san.nofuse.log"
 	scripts/check_sanitizer_output.sh "smoke.$(HOSTNAME).san.nofuse.log"
 
 smoke_sanitize_fuse:	sanitize
-	script -e -c "./run_smoke.sh --fuse --sanitize" \
+	script -e -c "./run_smoke.sh --fuse --sanitize $(ERRFLAG)" \
 				-O "smoke.$(HOSTNAME).san.fuse.log"
 	scripts/check_sanitizer_output.sh "smoke.$(HOSTNAME).san.fuse.log"
 
@@ -353,20 +366,20 @@ smoke_sanitize_dual:	smoke_sanitize
 # Valgrind ***
 
 smoke_valgrind_nofuse:	debug
-	script -e -c "./run_smoke.sh --valgrind --nofuse" \
+	script -e -c "./run_smoke.sh --valgrind --nofuse $(ERRFLAG)" \
 				-O "smoke.$(HOSTNAME).vg.nofuse.log"
 	scripts/check_valgrind_output.sh "smoke.$(HOSTNAME).vg.nofuse.log"
 
 smoke_valgrind_fuse:	debug
-	script -e -c "./run_smoke.sh --valgrind --fuse" \
+	script -e -c "./run_smoke.sh --valgrind --fuse $(ERRFLAG)" \
 				-O "smoke.$(HOSTNAME).vg.fuse.log"
 	scripts/check_valgrind_output.sh "smoke.$(HOSTNAME).vg.fuse.log"
 
 smoke_valgrind: debug
 	valgrind --version
-	script -e -c "./run_smoke.sh --valgrind --nofuse" \
+	script -e -c "./run_smoke.sh --valgrind --nofuse $(ERRFLAG)" \
 				-O "smoke.$(HOSTNAME).vg.nofuse.log"
-	script -e -c "./run_smoke.sh --valgrind --fuse" \
+	script -e -c "./run_smoke.sh --valgrind --fuse $(ERRFLAG)" \
 				-O "smoke.$(HOSTNAME).vg.fuse.log"
 	scripts/check_valgrind_output.sh "smoke.$(HOSTNAME).vg.nofuse.log"
 	scripts/check_valgrind_output.sh "smoke.$(HOSTNAME).vg.fuse.log"
