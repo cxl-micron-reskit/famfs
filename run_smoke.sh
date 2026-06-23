@@ -13,6 +13,29 @@ fi
 if [ -z "$DEV" ]; then
     DEV="/dev/dax0.0"
 fi
+
+# Always tear down the famfs mount when this script exits: on success, on a
+# failed test (tests run as "... || exit -1"), and on an abort (Jenkins sends
+# SIGTERM). Without this, a killed or failed run leaves famfs_fused mounted,
+# holding the build's libfuse .so open; the next build's "make clean" then
+# cannot delete it over NFS ("Device or resource busy") and the job stays
+# wedged until the mount is cleared by hand. The mount check makes this a
+# no-op when nothing is mounted (e.g. the normal umount near the end ran).
+cleanup_famfs() {
+    if mount | grep -q " $MPT "; then
+        echo ":== cleanup: unmounting $MPT on exit"
+        sudo umount "$MPT" 2>/dev/null \
+            || sudo fusermount -u "$MPT" 2>/dev/null \
+            || sudo umount -l "$MPT" 2>/dev/null
+    fi
+}
+trap cleanup_famfs EXIT
+# Turn an abort (SIGINT/SIGTERM) into a normal exit so the EXIT trap runs; an
+# untrapped signal would skip it and orphan the mount - exactly what wedged
+# the sanitize jobs when a build was killed mid-run.
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 # test_errors.sh deliberately drives famfs into error states, so it is not
 # run by default. Enable it with --with-errors (or -E/--justerrors), or by
 # setting ERRS=1 in the environment.
