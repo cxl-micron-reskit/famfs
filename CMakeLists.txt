@@ -1,10 +1,22 @@
 
 cmake_minimum_required(VERSION 3.10...3.28)
 
-project(famfs C CXX )
+# To build with clang (which detects different issues than gcc), uncomment
+# the line below. It MUST come before project(): CMake identifies and caches
+# the compiler during project(), so setting CMAKE_C_COMPILER *after* project()
+# makes every reconfigure disagree with the cache and spins cmake in an
+# infinite reconfigure loop ("You have changed variables that require your
+# cache to be deleted"). Alternatively, leave this commented and pass it on
+# the cmake command line instead: -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+#
+# Set both C and CXX: a mixed clang-C / gcc-CXX build leaves
+# CMAKE_COMPILER_IS_GNUCXX true, which turns on gcc-style --coverage
+# instrumentation (test/CMakeLists.txt) on clang-compiled C objects and then
+# fails to link clang's profiling runtime (undefined llvm_gcov_* symbols).
+#set(CMAKE_C_COMPILER clang)
+#set(CMAKE_CXX_COMPILER clang++)
 
-# Uncomment for clang - which detects different issues than gcc...
-# set(CMAKE_C_COMPILER clang)
+project(famfs C CXX )
 
 # Require a modern C standard
 set(CMAKE_C_STANDARD 11)
