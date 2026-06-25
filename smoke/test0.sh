@@ -318,16 +318,18 @@ expect_good "${CLI[@]}" logplay --shadow "$SR" "$MPT" \
            -- "shadow logplay should work to $SR"
 
 #
-# Test FAMFS_MODE=bogusvalue: should print a warning and fall through to
-# auto-detection.  Requires an unmounted daxdev so famfs_select_mode() is
-# called (the mounted-path code does not need mode selection).
+# An explicit mode flag must override the FAMFS_MODE env (even a bogus value).
+# fsck on an unmounted daxdev does an internal dummy mount; -F/--nofuse must
+# pin it to standalone v1, rather than honoring FAMFS_MODE or falling through
+# to the fuse-preferring auto-detect.  Requires an unmounted daxdev so mode
+# selection actually happens (the mounted-path code does not select a mode).
 # Only exercised in v1 mode; fuse mode would trigger a full daemon spawn.
 #
 if [[ "$FAMFS_MODE" == "v1" ]]; then
-    expect_good sudo "$UMOUNT" "$MPT" -- "umount before FAMFS_MODE bogus-value test"
-    expect_good sudo env FAMFS_MODE=bogusvalue "$BIN/famfs" fsck "$DEV" \
-        -- "fsck with bogus FAMFS_MODE should warn and succeed via auto-detect"
-    mount_retry "$DEV" "$MPT" || fail "remount after FAMFS_MODE bogus-value test"
+    expect_good sudo "$UMOUNT" "$MPT" -- "umount before FAMFS_MODE override test"
+    expect_good sudo env FAMFS_MODE=bogusvalue "$BIN/famfs" fsck --nofuse "$DEV" \
+        -- "fsck --nofuse should override bogus FAMFS_MODE and check via v1"
+    mount_retry "$DEV" "$MPT" || fail "remount after FAMFS_MODE override test"
 fi
 
 set +x

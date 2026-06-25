@@ -48,12 +48,19 @@ print_usage(int   argc,
 	       "                        Without this flag, mkfs fails with a clear message if the\n"
 	       "                        device is not already in famfs mode. The device is left in\n"
 	       "                        famfs mode after the operation.\n"
+	       "    -F|--nofuse       - Use the standalone famfs v1 path for the internal dummy\n"
+	       "                        mount (overrides FAMFS_MODE and auto-detection).\n"
+	       "    --fuse            - Use the fuse path for the internal dummy mount\n"
+	       "                        (overrides FAMFS_MODE and auto-detection).\n"
 	       "\n",
 	       progname, progname);
 }
 
 int verbose_flag;
 int kill_super;
+
+/* Long-only option value for --fuse (-f is already taken by --force) */
+#define MKFS_OPT_FUSE 256
 
 struct option global_options[] = {
 	/* These options set a flag. */
@@ -65,6 +72,8 @@ struct option global_options[] = {
 	{"loglen",      required_argument, 0,              'l'},
 	{"nodax",       no_argument,       0,              'D'},
 	{"set-daxmode", no_argument,       0,              'M'},
+	{"nofuse",      no_argument,       0,              'F'},
+	{"fuse",        no_argument,       0,  MKFS_OPT_FUSE},
 	{"verbose",     no_argument,       0,              'v'},
 	{0, 0, 0, 0}
 };
@@ -86,7 +95,7 @@ main(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+fkl:DMh?",
+	while ((c = getopt_long(argc, argv, "+fFkl:DMh?",
 				global_options, &optind)) != EOF) {
 		char *endptr;
 		s64 mult;
@@ -112,6 +121,15 @@ main(int argc, char *argv[])
 			break;
 		case 'M':
 			set_daxmode = true;
+			break;
+		case 'F':
+			/* Pin the internal dummy mount to standalone v1.
+			 * famfs_select_mode() reads FAMFS_MODE; overwrite it so
+			 * an explicit flag beats any inherited env value. */
+			setenv("FAMFS_MODE", "v1", 1);
+			break;
+		case MKFS_OPT_FUSE:
+			setenv("FAMFS_MODE", "fuse", 1);
 			break;
 		case 'v':
 			verbose++;

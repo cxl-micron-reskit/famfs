@@ -101,14 +101,14 @@ if [[ "$FAMFS_MODE" == "v1" || "$FAMFS_MODE" == "fuse" ]]; then
 
     if [[ "$FAMFS_MODE" == "fuse" ]]; then
         MOUNT_OPTS=("--fuse")
-        MKFS_OPTS=()
-        FSCK_OPTS=()
+        MKFS_OPTS=("--fuse")
+        FSCK_OPTS=("--fuse")
         [[ -n "$NODAX_ARG" ]] && MKFS_OPTS+=("$NODAX_ARG")
         [[ -n "$NODAX_ARG" ]] && FSCK_OPTS+=("$NODAX_ARG")
     else
         MOUNT_OPTS=("--nofuse")
-        MKFS_OPTS=()
-        FSCK_OPTS=()
+        MKFS_OPTS=("--nofuse")
+        FSCK_OPTS=("--nofuse")
     fi
 else
     echo "FAMFS_MODE: invalid"
@@ -118,11 +118,18 @@ fi
 # ---------------------------------------------------------------------
 # Final command arrays (created AFTER option parsing)
 # ---------------------------------------------------------------------
-MOUNT=( "sudo" "${VG[@]}" "$BIN/famfs" "mount" "${MOUNT_OPTS[@]}" )
-MKFS=(  "sudo" "${VG[@]}" "$BIN/mkfs.famfs" "${MKFS_OPTS[@]}" )
-CLI=(   "sudo" "${VG[@]}" "$BIN/famfs" )
+# Propagate FAMFS_MODE to the famfs binaries. sudo resets the environment, so
+# an exported FAMFS_MODE does not survive into the sudo'd CLI; pass it as an
+# explicit "NAME=value" sudo argument. Without this, mkfs.famfs/famfs fall back
+# to auto-detection, which prefers FUSE on a dual-mode kernel and breaks
+# --nofuse runs where fuse is unavailable. The export covers the rare non-sudo
+# (CLI_NOSUDO) path.
+export FAMFS_MODE
+MOUNT=( "sudo" "FAMFS_MODE=$FAMFS_MODE" "${VG[@]}" "$BIN/famfs" "mount" "${MOUNT_OPTS[@]}" )
+MKFS=(  "sudo" "FAMFS_MODE=$FAMFS_MODE" "${VG[@]}" "$BIN/mkfs.famfs" "${MKFS_OPTS[@]}" )
+CLI=(   "sudo" "FAMFS_MODE=$FAMFS_MODE" "${VG[@]}" "$BIN/famfs" )
 CLI_NOSUDO=( "${VG[@]}" "$BIN/famfs" )
-FSCK=(  "sudo" "${VG[@]}" "$BIN/famfs" "fsck" "${FSCK_OPTS[@]}" )
+FSCK=(  "sudo" "FAMFS_MODE=$FAMFS_MODE" "${VG[@]}" "$BIN/famfs" "fsck" "${FSCK_OPTS[@]}" )
 
 # RAW_MOUNT_OPTS, CREAT, VERIFY, CP remain as defined
 

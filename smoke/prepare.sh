@@ -55,6 +55,16 @@ else
 fi
 
 #
+# In v1 (standalone) mode on kernel >= 6.15, every mkfs/fsck writes the
+# superblock via a temporary famfsv1 "dummy mount", which requires the module
+# to be loaded. Load it now, before the first mkfs below. (modprobe is
+# idempotent, so the later load in the mount section remains harmless.)
+#
+if [[ "$FAMFS_MODE" == "v1" ]]; then
+    expect_good sudo modprobe "$FAMFS_MOD" -- "modprobe ${FAMFS_MOD} (v1 dummy mount)"
+fi
+
+#
 # Test mkfs --set-daxmode (kernel >= 7.0 only, once per run)
 #
 # Switch to devdax via daxctl to create the precondition, then verify that

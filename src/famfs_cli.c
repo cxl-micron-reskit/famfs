@@ -33,6 +33,11 @@
 #include "famfs_log.h"
 #include "libfcc.h"
 
+/* Long-only option value for --fuse (-f is taken by --force in subcommands
+ * that select mode, e.g. fsck). Used to pin the mode for the internal dummy
+ * mount that unmounted-device operations perform on kernel >= 6.15. */
+#define FAMFS_CLI_OPT_FUSE 256
+
 /* Global option related stuff */
 
 struct option global_options[] = {
@@ -700,6 +705,11 @@ famfs_fsck_usage(int argc,
 	       "                       with a clear message if the mode is wrong.\n"
 	       "    -L|--load-module - Call modprobe to load the famfs V1 kernel module before\n"
 	       "                       checking an unmounted device. Only affects V1 path.\n"
+	       "    -F|--nofuse      - Use the standalone famfs v1 path for the internal dummy\n"
+	       "                       mount of an unmounted device (overrides FAMFS_MODE and\n"
+	       "                       auto-detection).\n"
+	       "    --fuse           - Use the fuse path for the internal dummy mount of an\n"
+	       "                       unmounted device (overrides FAMFS_MODE and auto-detection).\n"
 	       "\n"
 	       "Exit codes:\n"
 	       "  0  - No errors were found\n"
@@ -728,6 +738,8 @@ do_famfs_cli_fsck(int argc, char *argv[])
 		{"nbuckets",     required_argument,       0,  'B'},
 		{"set-daxmode",  no_argument,             0,  'M'},
 		{"load-module",  no_argument,             0,  'L'},
+		{"nofuse",       no_argument,             0,  'F'},
+		{"fuse",         no_argument,   0, FAMFS_CLI_OPT_FUSE},
 
 		/* Un-publicized options */
 		{"mmap",         no_argument,             0,  'm'},
@@ -741,7 +753,7 @@ do_famfs_cli_fsck(int argc, char *argv[])
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+vh?mrfMLB:D",
+	while ((c = getopt_long(argc, argv, "+vh?mrfMLB:DF",
 				fsck_options, &optind)) != EOF) {
 
 		switch (c) {
@@ -772,6 +784,15 @@ do_famfs_cli_fsck(int argc, char *argv[])
 			break;
 		case 'L':
 			load_module = true;
+			break;
+		case 'F':
+			/* Pin the unmounted-device dummy mount to standalone v1.
+			 * famfs_select_mode() reads FAMFS_MODE; overwrite it so
+			 * an explicit flag beats any inherited env value. */
+			setenv("FAMFS_MODE", "v1", 1);
+			break;
+		case FAMFS_CLI_OPT_FUSE:
+			setenv("FAMFS_MODE", "fuse", 1);
 			break;
 		case '?':
 			famfs_fsck_usage(argc, argv);

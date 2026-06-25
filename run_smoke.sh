@@ -283,7 +283,7 @@ grp=$(id -gn)
 if [[ "$BIN" == *[[:space:]]* ]]; then
     fail "ERROR: the BIN path ($BIN) contains spaces!"
 fi
-if [[ "$SCRIPTS" =~ *[[:space:]]* ]]; then
+if [[ "$SCRIPTS" == *[[:space:]]* ]]; then
     fail "ERROR: the SCRIPTS path ($SCRIPTS) contains spaces!"
 fi
 
