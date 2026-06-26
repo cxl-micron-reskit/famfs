@@ -7,6 +7,7 @@
 #define FAMFS_FUSED_H
 
 #include <assert.h>
+#include <pthread.h>
 #include "famfs_fused_icache.h"
 
 enum {
@@ -29,6 +30,16 @@ struct famfs_ctx {
 	int pass_yaml; /* pass the shadow yaml through */
 	int readdirplus;
 	struct famfs_icache icache;
+
+	/*
+	 * Push-mode daxdev registration (one consumer of the daxdev table).
+	 * Daxdevs are pushed to the kernel densely in index order, so the
+	 * pushed state is just the highest index pushed so far (-1 = none) -
+	 * the fuse analog of the kernel's GET_MAX_DAXDEV. daxdev_push_mutex
+	 * serializes the check-and-push against concurrent lookups.
+	 */
+	pthread_mutex_t daxdev_push_mutex;
+	int             daxdev_max_pushed;
 };
 
 #endif /* FAMFS_FUSED_H */

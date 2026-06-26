@@ -25,6 +25,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <pthread.h>
+#include <sys/param.h> /* MAX() (fuse_i.h provides its own MIN) */
 #include <sys/file.h>
 #include <sys/xattr.h>
 #include <systemd/sd-journal.h>
@@ -33,6 +34,9 @@
 #include "famfs_lib.h"
 #include "famfs_fmap.h"
 #include "fuse_kernel.h"
+/* fuse_i.h redefines MIN; drop sys/param.h's first to avoid a redefinition
+ * warning (we only need MAX here). libfuse is left unmodified. */
+#undef MIN
 #include "fuse_i.h"
 #include "famfs_fused.h"
 #include "famfs_fused_icache.h"
@@ -353,6 +357,119 @@ famfs_check_inode(
 	return 0;
 }
 
+/*
+ * Daxdev push registration requires fuse_daxdev_open() and the
+ * FUSE_DEV_IOC_DAXDEV_OPEN ioctl, both added by the famfs libfuse patch.
+ * Guard on the ioctl macro (from fuse_kernel.h) so famfs_fused still builds
+ * against a libfuse without the daxdev feature; there the push is a no-op.
+ */
+#ifdef FUSE_DEV_IOC_DAXDEV_OPEN
+/*
+ * famfs_push_one_daxdev() - register one daxdev (by index) with the kernel.
+ *
+ * The push is one consumer of the daxdev table; it hands the kernel an open fd
+ * via fuse_daxdev_open(). Caller holds lo->daxdev_push_mutex and pushes indices
+ * densely in order (see famfs_push_fmap_daxdevs). On success the daxdev fd is
+ * closed - the kernel holds its own reference once the ioctl returns success.
+ * Returns 0 on success, -1 on failure (logged).
+ */
+static int
+famfs_push_one_daxdev(fuse_req_t req, struct famfs_ctx *lo, int devindex)
+{
+	const char *daxdev;
+	int fd;
+	int rc;
+
+	if (devindex == 0) {
+		daxdev = (lo->daxdev_table && lo->daxdev_table[0].dd_daxdev[0])
+			? lo->daxdev_table[0].dd_daxdev : lo->daxdev;
+	} else {
+		/*
+		 * Secondaries need the uuid->devname resolver and the
+		 * <shadow>/daxdevs/N files, which are not built yet.
+		 */
+		famfs_log(FAMFS_LOG_ERR,
+			  "%s: cannot push daxdev index %d: multi-daxdev "
+			  "support not implemented yet\n", __func__, devindex);
+		return -1;
+	}
+
+	if (!daxdev || daxdev[0] == '\0') {
+		famfs_log(FAMFS_LOG_ERR, "%s: no devname for daxdev index %d\n",
+			  __func__, devindex);
+		return -1;
+	}
+
+	fd = open(daxdev, O_RDWR);
+	if (fd < 0) {
+		famfs_log(FAMFS_LOG_ERR, "%s: open(%s) failed: %s\n",
+			  __func__, daxdev, strerror(errno));
+		return -1;
+	}
+
+	rc = fuse_daxdev_open(req, fd, devindex);
+	if (rc <= 0) {
+		famfs_log(FAMFS_LOG_ERR,
+			  "%s: fuse_daxdev_open(%s, index=%d) failed (rc=%d)\n",
+			  __func__, daxdev, devindex, rc);
+		close(fd);
+		return -1;
+	}
+
+	close(fd);
+	famfs_log(FAMFS_LOG_NOTICE, "%s: pushed daxdev %s as index %d\n",
+		  __func__, daxdev, devindex);
+	return 0;
+}
+
+/*
+ * famfs_push_fmap_daxdevs() - ensure every daxdev an fmap references is
+ * registered with the kernel. Called at lookup time, where the file's fmap is
+ * known; lookup precedes any open/GET_FMAP/fault, so this satisfies the "daxdev
+ * registered before its map is installed" ordering.
+ *
+ * Devices are pushed densely in index order: for the highest index the fmap
+ * references, push every not-yet-pushed index from (max_pushed+1)..max, in
+ * order, so the kernel's daxdev table grows densely (no sparse indices - the
+ * same invariant the standalone log-replay path maintains). Stop at the first
+ * failure (index K+1 can't be densely added without K) and leave the rest for
+ * a later lookup to retry. daxdev_max_pushed is the fuse analog of the kernel's
+ * GET_MAX_DAXDEV.
+ */
+static void
+famfs_push_fmap_daxdevs(fuse_req_t req, struct famfs_ctx *lo,
+			const struct famfs_log_file_meta *fmeta)
+{
+	const struct famfs_log_fmap *fmap = &fmeta->fm_fmap;
+	int maxdev = -1;
+	u32 i, j;
+
+	switch (fmap->fmap_ext_type) {
+	case FAMFS_EXT_SIMPLE:
+		for (i = 0; i < fmap->fmap_nextents; i++)
+			maxdev = MAX(maxdev, (int)fmap->se[i].se_devindex);
+		break;
+	case FAMFS_EXT_INTERLEAVE:
+		for (i = 0; i < fmap->fmap_niext; i++)
+			for (j = 0; j < fmap->ie[i].ie_nstrips; j++)
+				maxdev = MAX(maxdev,
+					     (int)fmap->ie[i].ie_strips[j].se_devindex);
+		break;
+	default:
+		return;
+	}
+
+	pthread_mutex_lock(&lo->daxdev_push_mutex);
+	while (lo->daxdev_max_pushed < maxdev) {
+		if (famfs_push_one_daxdev(req, lo,
+					  lo->daxdev_max_pushed + 1) != 0)
+			break; /* can't densely push the next index; retry later */
+		lo->daxdev_max_pushed++;
+	}
+	pthread_mutex_unlock(&lo->daxdev_push_mutex);
+}
+#endif /* FUSE_DEV_IOC_DAXDEV_OPEN */
+
 static int
 famfs_do_lookup(
 	fuse_req_t req,
@@ -451,6 +568,17 @@ famfs_do_lookup(
 		if (res)
 			goto out_err;
 		st.st_ino = ino;
+
+#ifdef FUSE_DEV_IOC_DAXDEV_OPEN
+		/*
+		 * Push-mode daxdev registration: register every daxdev this
+		 * file's fmap references with the kernel now, before it can be
+		 * opened or mapped. Failures are logged, not fatal - the lookup
+		 * still succeeds and a later lookup retries.
+		 */
+		if (lo->daxdev)
+			famfs_push_fmap_daxdevs(req, lo, fmeta);
+#endif
 
 		if (yaml_buf)
 			free(yaml_buf);
@@ -1267,6 +1395,10 @@ int main(int argc, char *argv[])
 	lo->xattr = 0;
 	lo->cache = CACHE_NORMAL;
 	lo->pass_yaml = 0;
+#ifdef FUSE_DEV_IOC_DAXDEV_OPEN
+	pthread_mutex_init(&lo->daxdev_push_mutex, NULL);
+	lo->daxdev_max_pushed = -1;
+#endif
 
 	/*fuse_set_log_func(fused_syslog); */
 	fuse_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
