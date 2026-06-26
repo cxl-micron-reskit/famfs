@@ -73,7 +73,7 @@ Phase 2  primary_dev_uuid in superblock
 Phase 3  daxdev UUID -> devname resolver (+ 'famfs daxdev' CLI)
    |--> Phase 4
    |--> Phase 7 (ADD_DAXDEV + GET_MAX_DAXDEV ioctls)
-   |--> Phase 8 (daemon loads <shadow>/daxdev_table)
+   |--> Phase 8 (daemon loads <shadow>/daxdevs/)
    |--> Phase 9 commit 2 (secondary->primary redirect)
 
 Phase 4 --> Phase 6, Phase 8, Phase 9, Phase 10
@@ -98,8 +98,9 @@ Reading the order top-down:
   per-host `/dev/dax*` path.
 - **Phases 4-5 are the plumbing that turns 1-3 into working
   features.**  Phase 4 wires Phase 1's accumulation helper into
-  logplay so replay records the device list (to `<shadow>/daxdev_table`
-  for the fuse daemon to load; via the kernel ioctl for standalone),
+  logplay so replay records the device list (to per-device
+  `<shadow>/daxdevs/N` files for the fuse daemon to load; via the kernel
+  ioctl for standalone),
   and materializes per-secondary `.meta/.superblock.<N>` meta files so
   the secondary superblocks are accessible just like the primary's
   `.meta/.superblock` is today.
@@ -109,10 +110,10 @@ Reading the order top-down:
 - **Phases 6-8 are the in-memory and surface-facing pieces.**  Phase 6
   splits the allocator's bitmap state per device.  Phase 7 adds the
   kernel-facing ioctl(s).  Phase 8 makes the fuse daemon load the
-  logplay-written `<shadow>/daxdev_table` file so it can make non-zero
-  daxdevs available to the kernel - by answering `GET_DAXDEV` (the
-  baseline), with proactive push documented as the likely future
-  variant.
+  logplay-written `<shadow>/daxdevs/N` files into its in-memory
+  `daxdev_table`; how the daemon then delivers a daxdev to the kernel
+  (pull `GET_DAXDEV` / push `fuse_daxdev_open`) is a separate,
+  present-day concern that consumes the table.
 - **Phase 9 is the fsck capstone**, shipped as two commits.  Commit 1
   makes multi-device fsck report overall and per-device used/free,
   revives the raw-mmap fsck path under `daxmode_required` (required
@@ -200,14 +201,21 @@ lifecycles differ:
   communicate through the shadow tree, **not** shared memory - the
   daemon never calls logplay.  So the walker cannot fill the daemon's
   memory directly.  Instead, logplay runs the walker and serializes the
-  result to a daemon-private file **above** `<shadow>/root` -
-  `<shadow>/daxdev_table`, holding `{ devindex, uuid, size }` per
-  device, flock-serialized.  The long-lived daemon **loads** that file
-  into its in-memory `famfs_ctx.daxdev_table` (exists today) - at
-  startup, and lazily on a `GET_DAXDEV` for an index it doesn't yet
-  have (i.e. after a `devadd` + logplay) - resolving each uuid to a
-  devname via the resolver cache.  Phase 4 is the writer; Phase 8 is
-  the reader.
+  result to daemon-private, **per-device** files **above**
+  `<shadow>/root` - `<shadow>/daxdevs/N` (one file per devindex N, the
+  access key, mirroring `.meta/.superblock.N`), each holding that
+  device's `{ uuid, size }`.  Each file is published **atomically** by
+  writing a temp file in the same directory and `rename()`-ing it into
+  place, so **no lock is needed**: a reader sees a complete file or
+  none, and because the `index -> uuid -> size` binding is invariant
+  (log-derived) a re-publish of N is a byte-identical idempotent replace
+  - concurrent writers never conflict (different N -> different files;
+  same N -> same bytes).  The long-lived daemon **loads** these into its
+  in-memory `famfs_ctx.daxdev_table` (exists today) - at startup (a
+  `readdir` of `<shadow>/daxdevs/`), and lazily when it first needs an
+  index it doesn't yet have (i.e. after a `devadd` + logplay) by opening
+  `<shadow>/daxdevs/N` - resolving each uuid to a devname via the
+  resolver cache.  Phase 4 is the writer; Phase 8 is the reader.
 - **standalone**: there is no long-lived daemon and no shadow tree;
   each one-shot CLI invocation that needs the table builds it on demand
   by running the walker over the log.  Its home is `struct
@@ -221,7 +229,7 @@ lifecycles differ:
 
 No phase may source the device count from `famfs_ctx` alone, nor assume
 logplay can write the daemon's memory.  The fuse daemon's count comes
-from the `<shadow>/daxdev_table` file; the standalone count comes from
+from the `<shadow>/daxdevs/` directory; the standalone count comes from
 the walker over the log.
 
 ### Enabler: raw read/write on famfs-mode devices
@@ -479,8 +487,9 @@ direction is hard.  The devname-in verbs (`mkfs.famfs`, `devadd`)
 already have a local devname and do not need the resolver to operate.
 The resolver exists for the **reverse** problem: a log entry or
 secondary superblock carries an invariant `dd_uuid`, and a *different
-node* replaying that log (Phase 4) or answering `GET_DAXDEV` for a
-non-zero index (Phase 8) must find which local `/dev/dax*` currently
+node* replaying that log (Phase 4) or the fuse daemon resolving a
+non-zero index it has loaded into its table (Phase 8) must find which
+local `/dev/dax*` currently
 backs that uuid.  Devnames are per-host; the uuid is the only thing
 that survives the trip.
 
@@ -596,15 +605,16 @@ are avoiding - and DCD-era sysfs makes it moot.
 - Phase 4's **standalone** logplay arm calls
   `famfs_resolve_daxdev_uuid()` to get the devname for the `ADD_DAXDEV`
   ioctl arg.  (The fuse logplay path does *not* resolve - it writes only
-  `{ devindex, uuid, size }` to `<shadow>/daxdev_table`, and the daemon
+  `{ uuid, size }` to per-device `<shadow>/daxdevs/N`, and the daemon
   resolves on load, Phase 8.)
 - Phase 5's `devadd` CLI uses the resolver only as a sanity check -
   the operator supplied a devname directly, but the resolver can
   confirm `ts_dev_uuid` matches what's about to be logged.
 - Phase 7's ioctl is invoked by userspace, so userspace runs the
   resolver before constructing the arg struct.
-- Phase 8's `GET_DAXDEV` handler in the fuse daemon falls back to the
-  resolver on a cache miss for the daxdev-table slot's `dd_daxdev`.
+- Phase 8's daemon loader resolves each daxdev's uuid to a local devname
+  (falling back to the resolver on a cache miss) when filling the
+  daxdev-table slot's `dd_daxdev`.
 - Phase 9 commit 2's fsck resolves a secondary's `ts_primary_dev_uuid`
   to the primary devname (the secondary->primary redirect), and
   resolves each secondary `dd_uuid` for unmounted by-device superblock
@@ -644,14 +654,15 @@ materializing meta files and recording the device list for the fuse
 daemon.  Phase 1 already turns `FAMFS_LOG_ADD_DAXDEV` entries into a
 `struct famfs_daxdev` table; this phase makes replay (a) on the
 **fuse** path, run the walker and serialize the device list to
-`<shadow>/daxdev_table` (above `<shadow>/root`, flock-serialized) so
-the daemon can load it - logplay and the daemon are separate processes
+per-device `<shadow>/daxdevs/N` files (above `<shadow>/root`, lock-free
+atomic publish) so the daemon can load them - logplay and the daemon
+are separate processes
 and do **not** share memory (see Cross-cutting concerns); and (b) on
 **both** paths, materialize a `.meta/.superblock.<N>` meta file mapping
 the secondary daxdev's superblock region.  The device list is keyed by
 uuid; the local devname is resolved by the daemon (Phase 8) and by
 standalone consumers (Phases 6/9), not stored in `daxdev_table`.  The
-**meta-file creation** and the **`<shadow>/daxdev_table` update** are
+**meta-file creation** and the **`<shadow>/daxdevs/N` writes** are
 the fuse path's logplay work; the **standalone** path instead registers
 each device with the kernel via the `ADD_DAXDEV` ioctl (Phase 7) and
 builds its userspace table on demand later (Phases 6/9), keeping no
@@ -677,7 +688,7 @@ suffix) for backward compatibility.  Rationale:
 - `.superblock.N.<uuid>` was considered and rejected: it forces a
   wildcard match instead of a direct open and lets two files claim the
   same index with different uuids.  (Same index-keyed spirit as
-  Phase 8's single `<shadow>/daxdev_table`.)
+  Phase 8's `<shadow>/daxdevs/N`.)
 
 These `.superblock.N` files are the **mounted** read path (and how the
 fuse daemon reaches secondary superblocks).  Unmounted by-device fsck
@@ -696,10 +707,10 @@ directly (Phase 9).  Both routes land on the same set of superblocks.
   `famfs_dump_logentry`) already got graceful arms in Phase 1.  The arm:
   1. **fuse**: add the device to the in-memory walker array via
      Phase 1's `famfs_daxdev_table_add()` (`dd_uuid` / `dd_size`), then
-     (re)write `<shadow>/daxdev_table` under flock.  **No devname
-     resolution here** - the table file stores only
-     `{ devindex, uuid, size }`, and the daemon resolves uuid->devname
-     when it loads the file (Phase 8).
+     publish `<shadow>/daxdevs/N` via atomic temp+`rename()` (no lock).
+     **No devname resolution here** - each file stores only
+     `{ uuid, size }` (devindex is the filename N), and the daemon
+     resolves uuid->devname when it loads the file (Phase 8).
      **standalone**: resolve `dd_uuid` -> local devname via the Phase 3
      resolver (needed for the ioctl arg; a miss blocks registration of
      that device), then issue the `ADD_DAXDEV` ioctl (Phase 7).  The
@@ -738,18 +749,20 @@ directly (Phase 9).  Both routes land on the same set of superblocks.
   to that helper.  It is a pure daxdev-table helper with no log-machinery
   coupling, so it stays out of `famfs_lib.c` (which is ~6k lines and
   should not grow gratuitously); the Phase 4 logplay arm there only
-  *calls* it.  The `<shadow>/daxdev_table` serialize/parse helpers live
-  in `famfs_dax.c` too, shared by the Phase 4 writer and the Phase 8
-  reader.
-  - **fuse**: logplay runs the walker and serializes the device list to
-    `<shadow>/daxdev_table` (above `<shadow>/root`, flock-serialized).
-    It does **not** write `famfs_ctx.daxdev_table` directly - that lives
-    in the *daemon's* address space, a different process.  The daemon
-    (Phase 8) loads the file into `famfs_ctx.daxdev_table` /
+  *calls* it.  The `<shadow>/daxdevs/N` serialize/parse helpers (one
+  device per file) live in `famfs_dax.c` too, shared by the Phase 4
+  writer and the Phase 8 reader.
+  - **fuse**: logplay runs the walker and, per discovered device,
+    publishes `<shadow>/daxdevs/N` (above `<shadow>/root`) by writing a
+    temp file in that directory and `rename()`-ing it into place -
+    atomic, **lock-free**, idempotent (a re-publish is a byte-identical
+    replace).  It does **not** write `famfs_ctx.daxdev_table` directly -
+    that lives in the *daemon's* address space, a different process.  The
+    daemon (Phase 8) loads the files into `famfs_ctx.daxdev_table` /
     `max_daxdevs` (`src/famfs_fused.h:24-25`); its slot-0 allocation at
-    `src/famfs_fused.c:1322-1325` just needs to grow.  Serialization:
-    logplay takes an exclusive flock to rewrite (rewrite-on-replay keeps
-    it idempotent); the daemon takes a shared flock to read.
+    `src/famfs_fused.c:1322-1325` just needs to grow.  No flock on either
+    side: atomic rename gives all-or-nothing visibility, and per-device
+    files have no shared read-modify-write to serialize.
   - **standalone**: Phase 4 logplay does *not* keep a userspace table or
     a table file - it registers devices kernel-side via the
     `ADD_DAXDEV` ioctl (Phase 7) and materializes `.meta/.superblock.N`.
@@ -774,8 +787,21 @@ directly (Phase 9).  Both routes land on the same set of superblocks.
   per discovered device the arm does, serialized: `ADD_DAXDEV` ioctl
   (idempotent) **then** the meta-file create.  That single ordering
   rule covers correctness; the `GET_MAX_DAXDEV` skip is only an
-  optimization on top of it.  The fuse path has no such constraint -
-  shadow files are plain files in the shadow tree.
+  optimization on top of it.
+- **Fuse ordering constraint**: the fuse path has no logplay->kernel
+  registration step (shadow files are plain files in the shadow tree),
+  but it has a producer-side ordering of its own.  The daemon learns a
+  secondary device only from `<shadow>/daxdevs/`, and it must already
+  hold N's file by the time it serves a file that references device N -
+  otherwise it cannot resolve N.  Since a reference to N is reachable
+  only through a file that contains `se_devindex=N`, logplay must make
+  the `<shadow>/daxdevs/N` file durably visible **before** it creates any
+  shadow file - meta (`.superblock.N`) or regular - that references N.
+  In a single replay this falls out of log order (the `ADD_DAXDEV` entry
+  for N precedes any file on N) **only if** the `<shadow>/daxdevs/N` file
+  is published in the `ADD_DAXDEV` arm, not batched to end-of-replay.
+  This is the fuse analog of the standalone "`ADD_DAXDEV` before
+  `set_file_map`" rule above.
 - Duplicate-uuid / conflicting-index behavior is decided and tested in
   Phase 1 (it lives in `famfs_daxdev_table_add()`); this arm just
   propagates whatever error the helper returns.
@@ -795,15 +821,15 @@ directly (Phase 9).  Both routes land on the same set of superblocks.
   N `FAMFS_LOG_ADD_DAXDEV` entries; drive `__famfs_logplay()` with the
   existing `shadow=1`, `dry_run=0` path against a tmpdir (so the shadow
   files are actually created on disk); assert:
-  1. `<shadow>/daxdev_table` (above `<shadow>/root`) exists and lists
-     the N devices in encounter order with the right
-     `{ devindex, uuid, size }` - this is what logplay hands the daemon,
+  1. `<shadow>/daxdevs/1..N` (above `<shadow>/root`) exist, one per
+     device, each holding the right `{ uuid, size }` keyed by its
+     filename index - this is what logplay hands the daemon,
      since logplay does not touch the daemon's `famfs_ctx`.
   2. `.meta/.superblock.1`, `.meta/.superblock.2`, ... exist under the
      shadow root and contain `famfs_log_file_meta` YAML with
      `se_devindex=N` and `se_offset=0`.
   3. Running the same logplay twice produces identical results
-     (idempotency) - both the table file and the meta files.
+     (idempotency) - both the `daxdevs/N` files and the meta files.
 
 ---
 
@@ -1023,13 +1049,13 @@ secondary on each replay (not catastrophic, just wasted syscalls).
 - Documented convention: invoke on the superblock-file FD or
   log-file FD (file types already enumerated at
   `linux_include/linux/famfs_ioctl.h:22-26`).
-- **Fuse push (forward reference)**: if the fuse path adopts a push
-  model (Phase 8 - daemon pushes daxdevs into the kernel instead of the
-  kernel pulling via `GET_DAXDEV`), the daemon issues the same
-  `famfs_ioc_add_daxdev` wire struct against the fuse kernel side.  The
-  struct is shared; only the receiving kernel component differs.  The
-  fuse daemon does not need `GET_MAX_DAXDEV` - its lifetime equals the
-  mount's, so it tracks pushed devices in memory (see Phase 8).
+- **Shared wire struct with the fuse push delivery**: if the fuse daemon
+  delivers daxdevs by *pushing* them (a separate, present-day delivery
+  concern, not part of this roadmap), it issues this same
+  `famfs_ioc_add_daxdev` wire struct against the fuse kernel side - the
+  struct is shared; only the receiving kernel component differs.  That
+  daemon does not need `GET_MAX_DAXDEV`: its lifetime equals the mount's,
+  so it tracks pushed devices in memory.
 
 **Notes**: kernel-side implementation lives outside this repo, but
 the header must land here because the build prefers the bundled copy
@@ -1057,105 +1083,81 @@ wire format the kernel side will rely on.
 ## Phase 8 - daemon learns the daxdev table
 
 **Goal**: `famfs_fused` becomes aware of every daxdev (not just index
-0), so it can make each one available to the kernel - by answering
-`GET_DAXDEV` (pull) or by pushing it (see "pull vs push" below).
-Primary is known at startup via the `-o daxdev=` mount option (parsed
-at `src/famfs_fused.c:137-138`, stored to `daxdev_table[0]` at
-`:1321-1327`).  Secondaries are recorded by logplay in
-`<shadow>/daxdev_table` (Phase 4); **this phase makes the daemon load
-that file** into its in-memory `famfs_ctx.daxdev_table`.
+0) by loading the per-device files logplay writes into its in-memory
+`famfs_ctx.daxdev_table`.  This phase is purely table *population*; how
+the daemon then hands daxdevs to the kernel is a separate delivery
+concern that consumes the table (see "Delivery to the kernel is a
+separate concern" below).  Primary is known at startup via the
+`-o daxdev=` mount option (parsed at `src/famfs_fused.c:137-138`, stored
+to `daxdev_table[0]` at `:1321-1327`).  Secondaries are recorded by
+logplay as per-device files `<shadow>/daxdevs/N` (Phase 4); **this phase
+makes the daemon load them** into the table.
 
 **Mechanism**: logplay and the daemon are separate processes that share
 the shadow tree, not memory (Cross-cutting concerns).  Logplay
-maintains `<shadow>/daxdev_table` - above `<shadow>/root`,
-flock-serialized, `{ devindex, uuid, size }` per device, log-derived.
-The daemon loads it:
+maintains one file per device, `<shadow>/daxdevs/N` - above
+`<shadow>/root`, each holding `{ uuid, size }` (devindex is the
+filename), published atomically by temp+`rename()` and therefore
+**lock-free**, log-derived.  The daemon loads them:
 
 - **at startup**, after the existing slot-0 init from `-o daxdev=`:
-  take a shared flock and read rows into slots `1..N` (grow the
-  `calloc` at `src/famfs_fused.c:1322-1325` to `max_daxdevs`);
-- **lazily**, on a `GET_DAXDEV` for an index not yet in the in-memory
-  table (i.e. after a `devadd` + logplay appended a row): reload the
-  file.
+  `readdir` `<shadow>/daxdevs/` and read each file into slots `1..N`
+  (grow the `calloc` at `src/famfs_fused.c:1322-1325` to `max_daxdevs`);
+- **lazily**, when the daemon first needs an index not yet in the
+  in-memory table (e.g. after a `devadd` + logplay published a file):
+  open `<shadow>/daxdevs/N`.
 
-For each row the daemon resolves uuid -> devname via the Phase 3
+For each device the daemon resolves uuid -> devname via the Phase 3
 resolver/cache (`<shadow>/daxdev_map.yaml`, also above `root/`,
-host-local).  **The table file stores no devname** - that is host-local
+host-local).  **The files store no devname** - that is host-local
 and the daemon supplies it, so different hosts can disagree on the path
 for the same uuid.
 
-Why the table lives above `root/` and not in `.meta`: it is the
+Why these files live above `root/` and not in `.meta`: they are the
 logplay -> daemon **IPC channel** - daemon plumbing, not served
-filesystem content - so it stays out of the mount.  (The actual
+filesystem content - so they stay out of the mount.  (The actual
 superblock *content* for each secondary is reachable as filesystem
-content via `.meta/.superblock.N`, which is a separate thing.)  A
-single table file is preferable to per-index files (e.g.
-`.meta/daxdevs/N`): the daemon wants one cheap read, and per-index
-files inside `.meta` would replicate into the mount on every node.
+content via `.meta/.superblock.N`, which is a separate thing.)
+Per-device files above `root/` - rather than a single table file - are
+what make the channel **lock-free**: one file per devindex N (the access
+key, like `.meta/.superblock.N`) means there is no shared
+read-modify-write to serialize, and atomic temp+`rename()` publish gives
+readers an all-or-nothing view with no flock.  (The earlier objection to
+per-index files - replication into the mount - applied only to
+`.meta/daxdevs/N`, *inside* the served tree; `<shadow>/daxdevs/N` is
+daemon-private above `root/`, exactly like the rest of this channel, so
+it does not replicate.)  The cost is a `readdir` + N opens at startup
+instead of one read - negligible for a handful of devices, and lazy
+access opens a single file by index.
 
-### Delivery to the kernel: pull (baseline) vs push (documented variant)
+### Delivery to the kernel is a separate concern
 
-Loading `<shadow>/daxdev_table` and resolving devnames is needed either
-way; only *how the kernel learns of a daxdev* differs.  **Decision:
-pull is the baseline implemented now; push is documented as the likely
-future variant** (the fuse community is pushing for it), to be promoted
-once the fuse-side ioctl is settled.
-
-- **Pull (today's model)**: the fuse kernel side sends `GET_DAXDEV`
-  the first time it sees a reference to a daxdev it hasn't retrieved;
-  the daemon answers from the loaded table + resolver.  Lazy,
-  kernel-driven.
-- **Push (likely future)**: the daemon proactively pushes a daxdev
-  into the kernel via the `famfs_ioc_add_daxdev` ioctl (Phase 7, shared
-  wire struct, fuse kernel target) and the kernel never pulls.  This
-  requires the daemon to:
-  1. Track which daxdev indices it has **already pushed** (in-memory
-     set; the daemon's lifetime equals the mount's, so no kernel query
-     is needed - the fuse analog of standalone's `GET_MAX_DAXDEV`).
-     Slot 0 (the mount device) starts pushed.
-  2. Before answering a **`GET_FMAP`**, scan the fmap's extents for
-     distinct `se_devindex` values; for any not yet pushed, resolve
-     uuid -> devname (table + resolver) and push it **before**
-     responding.  This guarantees the kernel knows every daxdev a file
-     references before it installs that file's map - the fuse analog of
-     standalone's "`ADD_DAXDEV` ioctl before `set_file_map`" ordering
-     (Phase 4 / Phase 7).
-  Under push, `GET_DAXDEV` / `famfs_get_daxdev()` is removed or kept
-  only as a fallback.
-
-Note the **symmetry** push creates: both paths then *push* daxdevs to
-the kernel ahead of need - standalone from the logplay arm before
-`set_file_map`, fuse from the `GET_FMAP` handler before returning the
-map - and both dedup against already-known devices (standalone via
-`GET_MAX_DAXDEV`, fuse via the in-memory pushed set).
-
-The Touchpoints and test below are written for the **pull** model in
-tree today; the push variant is called out inline.  Promote push to the
-primary design once the fuse-side ioctl is settled.
+Populating `daxdev_table` is all this phase does.  *How* the daemon then
+hands a daxdev to the kernel - the kernel pulling `GET_DAXDEV` and the
+daemon answering from the table, or the daemon pushing via
+`fuse_daxdev_open` - is an orthogonal, **present-day** delivery mechanism
+(it already exists for device 0, with no multi-daxdev machinery) that
+simply *consumes* this table.  It is not introduced by multi-daxdev and
+is not specified here; once the table holds more than slot 0, whichever
+mechanism is in use picks up the new rows unchanged.
 
 **Touchpoints**:
 
-- `famfs_get_daxdev()` (`src/famfs_fused.c:668-707`) **[pull]**: drop
-  the `daxdev_index != 0` rejection at `:682-688`; serve from the
-  in-memory `famfs_ctx.daxdev_table`, reloading `<shadow>/daxdev_table`
-  on a miss; resolve the uuid to a local devname via the Phase 3
-  resolver/cache; populate `struct fuse_daxdev_out` from the
-  combination.
-- **[push]** instead: a `pushed_daxdevs` set on `famfs_ctx`, and in the
-  `GET_FMAP` handler, an extent scan that pushes any unpushed
-  `se_devindex` (via the Phase 7 ioctl) before the map is returned.
-- Daemon startup loader: a thin `famfs_fused.c` routine that fills
-  `famfs_ctx.daxdev_table` by calling the shared `<shadow>/daxdev_table`
-  **parser in `famfs_dax.c`** (the same helper Phase 4's writer pairs
-  with) under a shared flock - the file-format logic is not duplicated
-  in the daemon.  Phase 4 is the writer of this file.
+- Daemon loader: a thin `famfs_fused.c` routine that fills
+  `famfs_ctx.daxdev_table` by calling the shared per-device
+  `<shadow>/daxdevs/N` **parser in `famfs_dax.c`** (the same helper
+  Phase 4's writer pairs with) - one file per device, no flock (atomic
+  rename publish).  At startup it `readdir`s `<shadow>/daxdevs/`; on a
+  lazy miss it opens a single file by index.  Phase 4 is the writer.
 
-**Unit tests (same PR)**: add `TEST(famfs, famfs_daxdev_table_file)`.
-Write a known `<shadow>/daxdev_table` fixture, load it through the
-daemon's loader helper, and assert `{ devindex, uuid, size }` round-trip
-in index order with no devname (that comes from the resolver).  Assert
-a `GET_DAXDEV` for an index beyond the loaded set triggers a reload.
-Cover at least one malformed input to confirm a graceful error.
+**Unit tests (same PR)**: add `TEST(famfs, famfs_daxdev_files)`.
+Write known `<shadow>/daxdevs/1..N` fixtures, load them through the
+daemon's loader helper, and assert `{ uuid, size }` round-trip per file
+keyed by the filename index, with no devname (that comes from the
+resolver).  Assert that loading an index with no file yet fails
+gracefully, and that after publishing `<shadow>/daxdevs/N` (atomic
+rename) a subsequent load finds it.  Cover at least one malformed file
+to confirm a graceful error.
 
 ---
 
@@ -1539,8 +1541,8 @@ landable unit is testable on its own.
   - Phase 7 - the ABI encoding of both ioctls
     (`_IOW`/`_IOR`/`sizeof`/`offsetof`) is frozen by a unit test even
     though the kernel behavior is not in this repo.
-  - Phase 8 - `<shadow>/daxdev_table` load round-trip from a fixture
-    (devindex/uuid/size; reload-on-missing-index).
+  - Phase 8 - `<shadow>/daxdevs/N` per-device load round-trip from
+    fixtures (uuid/size keyed by filename index; open-on-missing-index).
   - Phase 9 - commit 1 (`famfs_fsck_scan()` over a synthetic
     superblock+log, mounted SB validation) is Phase-3-free; commit 2
     adds the resolver-backed redirect and unmounted validation.
@@ -1588,9 +1590,9 @@ Cross-link this roadmap to `markdown/famfs-fuse-design-notes.md`
   generic random-permutation helper
 - Allowing fsck to operate on a secondary device alone (validate its
   superblock and `ts_primary_dev_uuid` only)
-- The fuse **push** delivery model (daemon pushes daxdevs to the kernel
-  before `GET_FMAP`); pull via `GET_DAXDEV` is the baseline, push is
-  documented as a future variant in Phase 8
+- Daxdev **delivery to the kernel** (the daemon answering `GET_DAXDEV`
+  pulls, or pushing via `fuse_daxdev_open`) - a separate, present-day
+  concern that consumes the `daxdev_table`, not part of this roadmap
 - Allocation policies beyond "random device + fallback" / "stripe
   across distinct devices" (e.g. least-used, primary-first,
   caller-specified)
