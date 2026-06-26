@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /*
- * Copyright (C) 2025 Micron Technology, Inc.  All rights reserved.
+ * Copyright (C) 2025-2026 Micron Technology, Inc.  All rights reserved.
  */
 
 #define _GNU_SOURCE
@@ -53,7 +53,6 @@ static void famfs_dispatch_http(
 				      "%d\n", famfs_log_get_level());
 			famfs_log(log_level, "log_level is %d (%s)",
 				  log_level, famfs_log_level_string(log_level));
-			
 
 		} else if (mg_match(hm->method, mg_str("POST"), NULL) ||
 			   mg_match(hm->method, mg_str("PUT"), NULL)) {
@@ -71,7 +70,7 @@ static void famfs_dispatch_http(
 			new_level = atoi(buf);
 			famfs_log_set_level(new_level);
 			recheck_level = famfs_log_get_level();
-			
+
 			if (new_level == recheck_level) {
 				char *meta = "Content-Type: text/plain\r\n"
 					"Connection: close\r\n";

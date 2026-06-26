@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /*
- * Copyright (C) 2023-2025 Micron Technology, Inc.  All rights reserved.
+ * Copyright (C) 2023-2026 Micron Technology, Inc.  All rights reserved.
  */
 
 #define _GNU_SOURCE
@@ -965,14 +965,15 @@ famfs_mount_fuse(
 		rc = __famfs_mkmeta_log(shadow_root, log_offset, log_size,
 					role, 1 /* shadow */, verbose);
 		if (rc) {
-			fprintf(stderr, "%s: failed to create superblock file\n",
+			fprintf(stderr,
+				"%s: failed to create superblock file\n",
 				__func__);
 			goto out;
 		}
-	
-		/* Wait for the log meta file to appear.  By this point the daemon
-		 * is confirmed alive (it served the superblock), so the log file
-		 * should appear quickly; use a modest timeout.
+
+		/* Wait for the log meta file to appear.  By this point the
+		 * daemon is confirmed alive (it served the superblock), so the
+		 * log file should appear quickly; use a modest timeout.
 		 */
 		if (check_file_exists(realmpt, ".meta/.log",
 				      FUSE_DAEMON_EXTRA_SECS,

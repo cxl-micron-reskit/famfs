@@ -59,7 +59,6 @@ log_level_valid(int level)
 		return false;
 	return true;
 }
-			
 
 void famfs_log_set_level(int level)
 {

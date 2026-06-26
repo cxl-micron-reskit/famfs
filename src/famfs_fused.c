@@ -6,7 +6,7 @@
   See the file COPYING.
 */
 /*
- * Copyright (C) 2024-2025 Micron Technology, Inc.  All rights reserved.
+ * Copyright (C) 2024-2026 Micron Technology, Inc.  All rights reserved.
  */
 
 #define _GNU_SOURCE
@@ -432,7 +432,7 @@ famfs_do_lookup(
 		fmeta = calloc(1, sizeof(*fmeta));
 		if (!fmeta)
 			goto out_err;
-		
+
 		yaml_buf = famfs_read_fd_to_buf(newfd, FAMFS_YAML_MAX,
 						&yaml_size);
 		if (!yaml_buf) {
@@ -863,7 +863,7 @@ famfs_do_readdir(
 					err = errno;
 					goto error;
 				} else {  /* End of stream */
-					break; 
+					break;
 				}
 			}
 		}
@@ -896,11 +896,11 @@ famfs_do_readdir(
 						    &st, nextoff);
 		}
 		if (entsize > rem) {
-			if (entry_ino != 0) 
+			if (entry_ino != 0)
 				famfs_forget_one(req, entry_ino, 1);
 			break;
 		}
-		
+
 		p += entsize;
 		rem -= entsize;
 
@@ -1064,7 +1064,6 @@ famfs_statfs(
 		fuse_reply_err(req, errno);
 	else
 		fuse_reply_statfs(req, &stbuf);
-	
 }
 
 #define FAMFS_XATTR_SHADOW "user.famfs.shadow"
@@ -1130,7 +1129,7 @@ famfs_flock(
 	case LOCK_EX:
 		if (inode->flock_held) {
 			famfs_log(FAMFS_LOG_ERR,
-				  "%s: nodeid=%lx op=%d LOCK_EX but flock already held\n",
+				  "%s: nodeid=%lx op=%d LOCK_EX already held\n",
 				  __func__, nodeid, op);
 			rc = EINVAL;
 			goto err_out;
@@ -1139,7 +1138,8 @@ famfs_flock(
 		break;
 	case LOCK_UN:
 		if (!inode->flock_held) {
-			famfs_log(FAMFS_LOG_ERR, "%s: nodeid=%lx op=%d LOCK_UN but flock not held\n",
+			famfs_log(FAMFS_LOG_ERR,
+				  "%s: nodeid=%lx op=%d LOCK_UN but not held\n",
 				  __func__, nodeid, op);
 			rc = EINVAL;
 			goto err_out;
@@ -1147,7 +1147,8 @@ famfs_flock(
 		famfs_icache_unflock(inode);
 		break;
 	case LOCK_SH:
-		famfs_log(FAMFS_LOG_ERR, "%s: nodeid=%lx op=%d LOCK_SH not supported\n",
+		famfs_log(FAMFS_LOG_ERR,
+			  "%s: nodeid=%lx op=%d LOCK_SH not supported\n",
 			  __func__, nodeid, op);
 		rc = EINVAL;
 		goto err_out;
@@ -1269,7 +1270,7 @@ int main(int argc, char *argv[])
 
 	/*fuse_set_log_func(fused_syslog); */
 	fuse_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
-	
+
 	/*
 	 * This gets opts (fuse_cmdline_opts)
 	 * (This is a struct containing option fields)
