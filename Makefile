@@ -146,6 +146,17 @@ ndctl:
 # Optimization: skip checkout and build if already on the correct branch
 # and the build output exists.
 #
+#
+# libfuse: build, don't branch-manage.
+#
+# Clone libfuse on first use and check out the kernel-appropriate branch only
+# on that fresh clone (zero local state, so the checkout is always safe). We
+# deliberately do NOT switch branches on an existing checkout - the developer
+# owns the libfuse branch, like the other manually-managed "outlaw" subrepos.
+# This keeps the build VCS-agnostic (no jj/git branch dance) and avoids the
+# failure where jj treats a pushed branch as immutable. ninja makes the rebuild
+# incremental, so we just compile whatever is checked out.
+#
 libfuse:
 	@echo "Build dir: $(BDIR), libfuse branch: $(LIBFUSE_BRANCH)"
 	@if [ -z "$(BDIR)" ]; then \
@@ -154,52 +165,20 @@ libfuse:
 	fi
 	@if [ ! -d "libfuse" ]; then \
 		echo "Cloning libfuse..."; \
-		git clone $(LIBFUSE_REPO); \
+		git clone $(LIBFUSE_REPO) || { echo "Error: git clone failed"; exit 1; }; \
+		(cd libfuse && git checkout $(LIBFUSE_BRANCH)) || { \
+			echo "Error: libfuse branch '$(LIBFUSE_BRANCH)' not found"; exit 1; }; \
 	fi
-	@NEED_BUILD=0; \
-	cd libfuse && \
-	if [ -d ".jj" ]; then \
-		CURRENT_BRANCH=$$(jj log -r @ --no-graph -T 'bookmarks' 2>/dev/null | tr -d ' '); \
-	else \
-		CURRENT_BRANCH=$$(git rev-parse --abbrev-ref HEAD 2>/dev/null); \
-	fi; \
-	if [ "$$CURRENT_BRANCH" != "$(LIBFUSE_BRANCH)" ]; then \
-		echo "Branch mismatch: current=$$CURRENT_BRANCH, needed=$(LIBFUSE_BRANCH)"; \
-		NEED_BUILD=1; \
-	elif [ ! -f "../$(BDIR)/libfuse/lib/libfuse3.so" ]; then \
-		echo "libfuse build output missing"; \
-		NEED_BUILD=1; \
-	else \
-		echo "libfuse already on branch $(LIBFUSE_BRANCH) and built - skipping"; \
-	fi; \
-	cd ..; \
-	if [ "$$NEED_BUILD" = "1" ]; then \
-		cd libfuse && \
-		if [ -d ".jj" ]; then \
-			echo "libfuse is a jj repo, using jj commands..."; \
-			jj git fetch && \
-			if ! jj edit $(LIBFUSE_BRANCH); then \
-				echo "Error: libfuse branch $(LIBFUSE_BRANCH) does not exist"; \
-				echo "Available branches:"; \
-				jj bookmark list | grep 'famfs' | sed 's/^/  /'; \
-				exit 1; \
-			fi; \
-		else \
-			git fetch origin && \
-			if ! git checkout $(LIBFUSE_BRANCH); then \
-				echo "Error: libfuse branch $(LIBFUSE_BRANCH) does not exist"; \
-				echo "Available branches:"; \
-				git branch -r | grep 'origin/famfs' | sed 's/origin\//  /'; \
-				exit 1; \
-			fi && \
-			git pull origin $(LIBFUSE_BRANCH) 2>/dev/null || true; \
-		fi && \
-		cd .. && \
-		mkdir -p $(BDIR)/libfuse && \
-		(meson setup -Dexamples=false $(BDIR)/libfuse ./libfuse --wipe 2>/dev/null || \
-			meson setup -Dexamples=false $(BDIR)/libfuse ./libfuse) && \
-		meson compile -C $(BDIR)/libfuse; \
+	@cur=$$(cd libfuse && git rev-parse --abbrev-ref HEAD 2>/dev/null); \
+	if [ "$$cur" != "HEAD" ] && [ "$$cur" != "$(LIBFUSE_BRANCH)" ]; then \
+		echo "WARNING: libfuse is on branch '$$cur', expected '$(LIBFUSE_BRANCH)'"; \
+		echo "         (not switching - check it out yourself if that is wrong)"; \
 	fi
+	@mkdir -p $(BDIR)/libfuse
+	@if [ ! -f "$(BDIR)/libfuse/build.ninja" ]; then \
+		meson setup -Dexamples=false $(BDIR)/libfuse ./libfuse; \
+	fi
+	@meson compile -C $(BDIR)/libfuse
 
 sanitize: cmake-modules threadpool mongoose ndctl
 	$(call check_kernel_version)
