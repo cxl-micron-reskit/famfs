@@ -267,7 +267,7 @@ coverage_dual_pcq:	coverage
 	sudo chown -R "$(UID):$(GID)" coverage
 	$(MAKE) unit_coverage
 
-release:	cmake-modules threadpool mongoose
+release:	cmake-modules threadpool mongoose ndctl
 	$(call check_kernel_version)
 	mkdir -p release;
 	$(MAKE) libfuse BDIR="release"
