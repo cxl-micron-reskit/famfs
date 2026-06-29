@@ -725,9 +725,11 @@ famfs_gen_superblock_crc(const struct famfs_superblock *sb)
 	crc = crc32(crc, (const unsigned char *)&sb->ts_uuid,
 		    sizeof(sb->ts_uuid));
 	crc = crc32(crc, (const unsigned char *)&sb->ts_dev_uuid,
-		    sizeof(sb->ts_uuid));
+		    sizeof(sb->ts_dev_uuid));
 	crc = crc32(crc, (const unsigned char *)&sb->ts_system_uuid,
 		    sizeof(sb->ts_system_uuid));
+	crc = crc32(crc, (const unsigned char *)&sb->ts_primary_dev_uuid,
+		    sizeof(sb->ts_primary_dev_uuid));
 	return crc;
 }
 
@@ -1138,6 +1140,41 @@ famfs_check_super(
 			__func__, sb->ts_alloc_unit);
 		return -1;
 	}
+
+	/* Validate primary/secondary superblock flags */
+	if (sb->ts_sb_flags & FAMFS_SECONDARY_SB) {
+		/* Secondary must have ts_primary_dev_uuid populated
+		 * TODO: Verify ts_primary_dev_uuid matches actual primary device uuid
+		 */
+		static const uuid_le null_uuid = {0};
+		if (memcmp(&sb->ts_primary_dev_uuid, &null_uuid,
+			   sizeof(uuid_le)) == 0) {
+			fprintf(stderr,
+				"%s: secondary superblock missing primary UUID\n",
+				__func__);
+			return -1;
+		}
+		/* Secondary must NOT have a log */
+		if (sb->ts_log_offset != 0 || sb->ts_log_len != 0) {
+			fprintf(stderr,
+				"%s: secondary superblock cannot have a log\n",
+				__func__);
+			return -1;
+		}
+	} else if (sb->ts_sb_flags & FAMFS_PRIMARY_SB) {
+		/* Primary should not reference another primary */
+		static const uuid_le null_uuid = {0};
+		if (memcmp(&sb->ts_primary_dev_uuid, &null_uuid,
+			   sizeof(uuid_le)) != 0) {
+			fprintf(stderr,
+				"%s: primary superblock should not reference another primary\n",
+				__func__);
+			return -1;
+		}
+	}
+	/* Note: ts_sb_flags == 0 is allowed for backward compatibility
+	 * with older superblocks that predate multi-device support.
+	 */
 
 	if (log_offset)
 		*log_offset = sb->ts_log_offset;
@@ -5904,6 +5941,10 @@ __famfs_mkfs(const char              *daxdev,
 	/* Note: generated UUIDs are ok now, but we will need to use
 	 * tagged-capacity UUIDs when CXL3 provdies UUIDs as tags */
 	famfs_uuidgen(&sb->ts_dev_uuid);
+
+	/* Mark as primary superblock with no primary reference */
+	sb->ts_sb_flags = FAMFS_PRIMARY_SB;
+	memset(&sb->ts_primary_dev_uuid, 0, sizeof(sb->ts_primary_dev_uuid));
 
 	/* Configure the first daxdev */
 	sb->ts_daxdev.dd_size = device_size;

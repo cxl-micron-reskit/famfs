@@ -38,7 +38,7 @@
 #define FAMFS_STATFS_MAGIC     0x87b282fd /* fuse statfs magic number*/
 #endif
 
-#define FAMFS_CURRENT_VERSION  48
+#define FAMFS_CURRENT_VERSION  49
 
 #define FAMFS_LOG_OFFSET    0x200000 /* 2MiB */
 #define FAMFS_LOG_LEN       0x800000 /* 8MiB */
@@ -59,7 +59,7 @@ static inline size_t round_size_to_alloc_unit(u64 size, u64 alloc_unit)
 #define FAMFS_DEVNAME_LEN 64
 
 #define FAMFS_OMF_VER_MAJOR 2
-#define FAMFS_OMF_VER_MINOR 2 /* +FAMFS_LOG_ADD_DAXDEV (additive, backward-compatible) */
+#define FAMFS_OMF_VER_MINOR 3 /* +ts_primary_dev_uuid in superblock */
 
 struct famfs_daxdev {
 	size_t              dd_size;
@@ -85,8 +85,9 @@ struct famfs_superblock {
 	uuid_le             ts_uuid;        /* UUID of this file system */
 	uuid_le             ts_dev_uuid;    /* uuid of this device */
 	uuid_le             ts_system_uuid; /* system uuid */
+	uuid_le             ts_primary_dev_uuid; /* primary's ts_dev_uuid; zero on primary */
 	u64                 ts_crc;         /* Covers all fields prior to this one */
-	u32                 ts_sb_flags;
+	u32                 ts_sb_flags;    /* FAMFS_PRIMARY_SB or FAMFS_SECONDARY_SB */
 	struct famfs_daxdev ts_daxdev;
 };
 

@@ -219,6 +219,82 @@ TEST(famfs, famfs_super_test)
 	logp->famfs_log_crc--;
 	rc = famfs_validate_log_header(logp);
 	ASSERT_EQ(rc, 0);
+
+	/* ========================================
+	 * Primary/Secondary superblock tests
+	 * ======================================== */
+
+	/* Test 1: Verify primary superblock has correct flags after mkfs */
+	ASSERT_EQ(sb->ts_sb_flags, (u32)FAMFS_PRIMARY_SB);
+	ASSERT_NE(sb->ts_log_offset, 0ULL);
+	ASSERT_NE(sb->ts_log_len, 0ULL);
+	/* ts_primary_dev_uuid should be zero for primary */
+	{
+		uuid_le null_uuid = {0};
+		ASSERT_EQ(memcmp(&sb->ts_primary_dev_uuid, &null_uuid, sizeof(uuid_le)), 0);
+	}
+	rc = famfs_check_super(sb, NULL, NULL);
+	ASSERT_EQ(rc, 0);
+
+	/* Test 2: Build a valid secondary superblock manually */
+	struct famfs_superblock *sb_secondary;
+	sb_secondary = (struct famfs_superblock *)calloc(1, FAMFS_SUPERBLOCK_SIZE);
+
+	sb_secondary->ts_magic = FAMFS_SUPER_MAGIC;
+	sb_secondary->ts_version = FAMFS_CURRENT_VERSION;
+	sb_secondary->ts_log_offset = 0;  /* Secondary has no log */
+	sb_secondary->ts_log_len = 0;     /* Secondary has no log */
+	sb_secondary->ts_alloc_unit = FAMFS_ALLOC_UNIT;
+	sb_secondary->ts_omf_ver_major = FAMFS_OMF_VER_MAJOR;
+	sb_secondary->ts_omf_ver_minor = FAMFS_OMF_VER_MINOR;
+	memcpy(&sb_secondary->ts_uuid, &sb->ts_uuid, sizeof(uuid_le));  /* Same fs */
+	famfs_uuidgen(&sb_secondary->ts_dev_uuid);  /* Different device UUID */
+	memcpy(&sb_secondary->ts_system_uuid, &sb->ts_system_uuid, sizeof(uuid_le));
+	memcpy(&sb_secondary->ts_primary_dev_uuid, &sb->ts_dev_uuid, sizeof(uuid_le));
+	sb_secondary->ts_sb_flags = FAMFS_SECONDARY_SB;
+	sb_secondary->ts_crc = famfs_gen_superblock_crc(sb_secondary);
+
+	rc = famfs_check_super(sb_secondary, NULL, NULL);
+	ASSERT_EQ(rc, 0);
+
+	/* Test 3: Secondary with missing ts_primary_dev_uuid should fail */
+	{
+		uuid_le null_uuid = {0};
+		memcpy(&sb_secondary->ts_primary_dev_uuid, &null_uuid, sizeof(uuid_le));
+		sb_secondary->ts_crc = famfs_gen_superblock_crc(sb_secondary);
+		rc = famfs_check_super(sb_secondary, NULL, NULL);
+		ASSERT_EQ(rc, -1);
+		/* Restore */
+		memcpy(&sb_secondary->ts_primary_dev_uuid, &sb->ts_dev_uuid, sizeof(uuid_le));
+		sb_secondary->ts_crc = famfs_gen_superblock_crc(sb_secondary);
+	}
+
+	/* Test 4: Secondary with non-zero ts_log_offset should fail */
+	sb_secondary->ts_log_offset = FAMFS_LOG_OFFSET;
+	sb_secondary->ts_crc = famfs_gen_superblock_crc(sb_secondary);
+	rc = famfs_check_super(sb_secondary, NULL, NULL);
+	ASSERT_EQ(rc, -1);
+	/* Restore */
+	sb_secondary->ts_log_offset = 0;
+	sb_secondary->ts_crc = famfs_gen_superblock_crc(sb_secondary);
+
+	/* Test 5: Primary with populated ts_primary_dev_uuid should fail */
+	memcpy(&sb->ts_primary_dev_uuid, &sb_secondary->ts_dev_uuid, sizeof(uuid_le));
+	sb->ts_crc = famfs_gen_superblock_crc(sb);
+	rc = famfs_check_super(sb, NULL, NULL);
+	ASSERT_EQ(rc, -1);
+	/* Restore */
+	{
+		uuid_le null_uuid = {0};
+		memcpy(&sb->ts_primary_dev_uuid, &null_uuid, sizeof(uuid_le));
+		sb->ts_crc = famfs_gen_superblock_crc(sb);
+	}
+	rc = famfs_check_super(sb, NULL, NULL);
+	ASSERT_EQ(rc, 0);
+
+	free(sb_secondary);
+	free(sb);
+	free(logp);
 }
 
 #define SB_RELPATH ".meta/.superblock"
@@ -1943,8 +2019,8 @@ TEST(famfs, famfs_log_add_daxdev_entry)
 
 	/* OMF version constants bumped for the additive log entry type */
 	ASSERT_EQ(FAMFS_OMF_VER_MAJOR, 2);
-	ASSERT_EQ(FAMFS_OMF_VER_MINOR, 2);
-	ASSERT_EQ(FAMFS_CURRENT_VERSION, 48);
+	ASSERT_EQ(FAMFS_OMF_VER_MINOR, 3);
+	ASSERT_EQ(FAMFS_CURRENT_VERSION, 49);
 
 	/* A minimal in-memory log - no device, fs, or root required */
 	logp = (struct famfs_log *)calloc(1, FAMFS_LOG_LEN);
