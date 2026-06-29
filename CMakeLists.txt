@@ -95,6 +95,7 @@ add_library(libfamfs
     src/famfs_debug.c
     src/famfs_log.c
     src/famfs_dax.c
+    src/famfs_config.c
 )
 
 target_include_directories(libfamfs
