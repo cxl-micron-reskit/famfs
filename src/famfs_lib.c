@@ -705,31 +705,17 @@ famfs_gen_superblock_crc(const struct famfs_superblock *sb)
 	unsigned long crc = crc32(0L, Z_NULL, 0);
 
 	assert(sb);
-	crc = crc32(crc, (const unsigned char *)&sb->ts_magic,
-		    sizeof(sb->ts_magic));
-	crc = crc32(crc, (const unsigned char *)&sb->ts_version,
-		    sizeof(sb->ts_version));
-	crc = crc32(crc, (const unsigned char *)&sb->ts_log_offset,
-		    sizeof(sb->ts_log_offset));
 
-	crc = crc32(crc, (const unsigned char *)&sb->ts_log_len,
-		    sizeof(sb->ts_log_len));
+	/*
+	 * ts_crc covers every field that precedes it in the superblock. Hash
+	 * the contiguous byte range from the start of the struct up to ts_crc
+	 * (offsetof) rather than enumerating fields, so this stays correct as
+	 * fields are added before ts_crc. (The covered prefix has no internal
+	 * padding, so this is byte-identical to hashing the fields one by one.)
+	 */
+	crc = crc32(crc, (const unsigned char *)sb,
+			offsetof(struct famfs_superblock, ts_crc));
 
-	crc = crc32(crc, (const unsigned char *)&sb->ts_alloc_unit,
-		    sizeof(sb->ts_alloc_unit));
-	crc = crc32(crc, (const unsigned char *)&sb->ts_omf_ver_major,
-		    sizeof(sb->ts_omf_ver_major));
-	crc = crc32(crc, (const unsigned char *)&sb->ts_omf_ver_minor,
-		    sizeof(sb->ts_omf_ver_minor));
-
-	crc = crc32(crc, (const unsigned char *)&sb->ts_uuid,
-		    sizeof(sb->ts_uuid));
-	crc = crc32(crc, (const unsigned char *)&sb->ts_dev_uuid,
-		    sizeof(sb->ts_dev_uuid));
-	crc = crc32(crc, (const unsigned char *)&sb->ts_system_uuid,
-		    sizeof(sb->ts_system_uuid));
-	crc = crc32(crc, (const unsigned char *)&sb->ts_primary_dev_uuid,
-		    sizeof(sb->ts_primary_dev_uuid));
 	return crc;
 }
 
