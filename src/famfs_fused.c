@@ -337,6 +337,8 @@ famfs_setattr(
 }
 
 #define FMAP_MSG_MAX 4096
+/* Upper clamp on the kernel-provided GET_FMAP reply-buffer size (defensive). */
+#define FMAP_REPLY_MAX (16 * 1024 * 1024)
 
 static int
 famfs_check_inode(
@@ -729,12 +731,24 @@ famfs_get_fmap(
 	size_t size)
 {
 	struct famfs_ctx *lo = famfs_ctx_from_req(req);
-	ssize_t fmap_bufsize = FMAP_MSG_MAX;
+	ssize_t fmap_bufsize;
 	struct famfs_inode *inode = NULL;
 	char *fmap_message = NULL;
 	ssize_t fmap_size;
 	int err = 0;
-	(void)size;
+
+	/*
+	 * The kernel passes the size of its GET_FMAP reply buffer via the
+	 * request's fuse_getxattr_in.size, so a large fmap can be returned in
+	 * one shot. Clamp defensively: an older kernel that does not send the
+	 * size leaves it unspecified, so fall back to the minimum and cap
+	 * absurd values.
+	 */
+	fmap_bufsize = size;
+	if (fmap_bufsize < FMAP_MSG_MAX)
+		fmap_bufsize = FMAP_MSG_MAX;
+	if (fmap_bufsize > FMAP_REPLY_MAX)
+		fmap_bufsize = FMAP_REPLY_MAX;
 
 	fmap_message = calloc(1, fmap_bufsize);
 	if (!fmap_message) {

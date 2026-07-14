@@ -204,87 +204,87 @@ famfs_log_file_meta_to_msg(
 {
 	struct fuse_famfs_fmap_header *flh = (struct fuse_famfs_fmap_header *)msg;
 	const struct famfs_log_fmap *log_fmap = &fmeta->fm_fmap;
-	uint cursor = 0;
+	struct fuse_famfs_simple_ext *se;
+	size_t hdr_size = sizeof(*flh);
+	size_t full_size;
+	uint nextents;
 	uint i;
 
-	if (msg_size < sizeof(*flh))
+	if (msg_size < hdr_size)
 		return -EINVAL;
 
+	/*
+	 * Determine the number of (unrolled) simple extents up front, so we
+	 * know the full message size before writing anything. Striped files
+	 * are unrolled to one simple extent per chunk; the on-media log keeps
+	 * the compact interleaved form.
+	 */
+	switch (log_fmap->fmap_ext_type) {
+	case FUSE_FAMFS_EXT_SIMPLE:
+		nextents = log_fmap->fmap_nextents;
+		break;
+	case FAMFS_EXT_INTERLEAVE: {
+		const struct famfs_interleaved_ext *ext = &log_fmap->ie[0];
+
+		/* Only a single interleaved extent is supported today */
+		if (log_fmap->fmap_niext != 1 ||
+		    ext->ie_chunk_size == 0 || ext->ie_nstrips == 0)
+			return -EINVAL;
+
+		/* one simple extent per chunk */
+		nextents = (fmeta->fm_size + ext->ie_chunk_size - 1) /
+			   ext->ie_chunk_size;
+		break;
+	}
+	default:
+		return -EINVAL;
+	}
+
+	full_size = hdr_size + (size_t)nextents * sizeof(*se);
+
+	/* The header is always written and always carries the full size */
 	flh->fmap_version = FAMFS_FMAP_VERSION;
 	flh->file_type = file_type;
-	flh->ext_type = fmeta->fm_fmap.fmap_ext_type;
+	flh->ext_type = FAMFS_EXT_SIMPLE; /* the wire is simple-extent only */
+	flh->nextents = nextents;
+	flh->fmap_size = full_size;
 	flh->file_size = fmeta->fm_size;
-	switch (flh->ext_type) {
-	case FAMFS_EXT_SIMPLE:
-		flh->nextents = fmeta->fm_fmap.fmap_nextents;
-		break;
-	case FAMFS_EXT_INTERLEAVE:
-		flh->nextents = fmeta->fm_fmap.fmap_niext;
-		break;
-	default:
-		goto err_out;
-	}
 
-	cursor += sizeof(*flh);
+	/*
+	 * If the whole fmap does not fit in the kernel's reply buffer, reply
+	 * with just the header. fmap_size tells the kernel how big a buffer to
+	 * reallocate before it retries the request.
+	 */
+	if (full_size > msg_size)
+		return hdr_size;
 
-	printf("%s: size=%ld ext_type=%d nextents=%d\n",
-	       __func__, flh->file_size, flh->ext_type, flh->nextents);
-	famfs_emit_file_yaml(fmeta, stdout); /* needs famfs_lib.h */
+	/* The whole fmap fits: emit the simple-extent list */
+	se = (struct fuse_famfs_simple_ext *)&msg[hdr_size];
+	memset(se, 0, (size_t)nextents * sizeof(*se));
+
 	switch (log_fmap->fmap_ext_type) {
-	case FUSE_FAMFS_EXT_SIMPLE: {
-		struct fuse_famfs_simple_ext *se = (struct fuse_famfs_simple_ext *)&msg[cursor];
-		size_t ext_list_size = log_fmap->fmap_nextents * sizeof(*se);
-
-		cursor += ext_list_size;
-		if (cursor > msg_size)
-			goto err_out;
-
-		flh->nextents = log_fmap->fmap_nextents;
-
-		memset(se, 0, ext_list_size);
-		for (i = 0; i < flh->nextents; i++) {
-			memset(&se[i], 0, sizeof(se[i]));
+	case FUSE_FAMFS_EXT_SIMPLE:
+		for (i = 0; i < nextents; i++) {
 			se[i].se_devindex = log_fmap->se[i].se_devindex;
-			se[i].se_offset = log_fmap->se[i].se_offset;
-			se[i].se_len = log_fmap->se[i].se_len;
+			se[i].se_offset   = log_fmap->se[i].se_offset;
+			se[i].se_len      = log_fmap->se[i].se_len;
 		}
-
 		break;
-	}
 	case FAMFS_EXT_INTERLEAVE: {
 		/*
-		 * TEST: unroll the interleaved extent into a flat list of
-		 * simple extents -- one per chunk -- so the wire fmap contains
-		 * only simple extents (no interleaved-extent type on the wire).
-		 * This lets famfs keep its compact interleaved on-media form
-		 * while feeding a simple-extent-only kernel, and keeps the
-		 * per-file fmap self-contained (evictable with the inode).
-		 *
-		 * Chunk c of the file maps, per the kernel's stripe math, to:
+		 * Unroll: chunk c maps, per the kernel's stripe math, to
 		 *   strip    = c % nstrips
 		 *   round    = c / nstrips
 		 *   devindex = ie_strips[strip].se_devindex
 		 *   offset   = ie_strips[strip].se_offset + round * chunk_size
 		 *   len      = min(chunk_size, file_size - file_pos)
-		 *
-		 * Cost: one 24-byte simple extent per chunk, so the file size
-		 * is bounded by ((msg_size - header) / 24) * chunk_size. With a
-		 * one-page (4096B) GET_FMAP payload and 2MiB chunks that is
-		 * 169 extents => ~338 MiB per striped file.
 		 */
 		const struct famfs_interleaved_ext *ext = &log_fmap->ie[0];
-		struct fuse_famfs_simple_ext *se =
-			(struct fuse_famfs_simple_ext *)&msg[cursor];
 		u64 chunk_size = ext->ie_chunk_size;
 		u64 nstrips    = ext->ie_nstrips;
 		u64 file_size  = fmeta->fm_size;
 		u64 file_pos   = 0;
-		uint next      = 0;
 		u64 c;
-
-		/* Only a single interleaved extent is supported today */
-		if (log_fmap->fmap_niext != 1 || chunk_size == 0 || nstrips == 0)
-			goto err_out;
 
 		for (c = 0; file_pos < file_size; c++) {
 			u64 strip = c % nstrips;
@@ -294,34 +294,17 @@ famfs_log_file_meta_to_msg(
 			if (len > file_size - file_pos)
 				len = file_size - file_pos;
 
-			cursor += sizeof(*se);
-			if (cursor > msg_size)
-				/* file too large to unroll into one GET_FMAP page */
-				goto err_out;
-
-			memset(&se[next], 0, sizeof(se[next]));
-			se[next].se_devindex = ext->ie_strips[strip].se_devindex;
-			se[next].se_offset   = ext->ie_strips[strip].se_offset +
-					       round * chunk_size;
-			se[next].se_len      = len;
-
+			se[c].se_devindex = ext->ie_strips[strip].se_devindex;
+			se[c].se_offset   = ext->ie_strips[strip].se_offset +
+					    round * chunk_size;
+			se[c].se_len      = len;
 			file_pos += len;
-			next++;
 		}
-
-		/* The wire fmap is now a flat simple-extent list */
-		flh->ext_type = FAMFS_EXT_SIMPLE;
-		flh->nextents = next;
 		break;
 	}
-	default:
-		return -EINVAL;
 	}
 
-	return cursor;
-
-err_out:
-	return -EINVAL;
+	return full_size;
 }
 
 /*
