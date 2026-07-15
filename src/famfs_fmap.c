@@ -195,12 +195,82 @@ out_free:
 		
 }
 
+/*
+ * famfs_emit_interleave_msg() - emit the compact *interleaved* wire form of an
+ * fmap: one fuse_famfs_iext per interleaved extent, each followed by its strip
+ * list. This is what legacy (interleave-capable) kernels expect; those kernels
+ * have a small fixed extent-count limit and would reject a striped file
+ * unrolled into a long simple-extent list. Used when the kernel is not
+ * simple-only (no FUSE_DEV_IOC_DAXDEV_OPEN). The reply buffer is caller-zeroed.
+ */
+static ssize_t
+famfs_emit_interleave_msg(
+	char *msg,
+	uint msg_size,
+	int file_type,
+	const struct famfs_log_file_meta *fmeta)
+{
+	struct fuse_famfs_fmap_header *flh = (struct fuse_famfs_fmap_header *)msg;
+	const struct famfs_log_fmap *log_fmap = &fmeta->fm_fmap;
+	size_t cursor = sizeof(*flh);
+	uint i, j;
+
+	if (log_fmap->fmap_niext < 1)
+		return -EINVAL;
+
+	flh->fmap_version = FAMFS_FMAP_VERSION;
+	flh->file_type = file_type;
+	flh->ext_type = FAMFS_EXT_INTERLEAVE;
+	flh->nextents = log_fmap->fmap_niext;
+	flh->file_size = fmeta->fm_size;
+
+	for (i = 0; i < log_fmap->fmap_niext; i++) {
+		const struct famfs_interleaved_ext *mie = &log_fmap->ie[i];
+		struct fuse_famfs_iext *ie;
+		struct fuse_famfs_simple_ext *se;
+
+		if (cursor + sizeof(*ie) > msg_size)
+			return -EINVAL;
+		ie = (struct fuse_famfs_iext *)&msg[cursor];
+		cursor += sizeof(*ie);
+
+		ie->ie_nstrips    = mie->ie_nstrips;
+		ie->ie_chunk_size = mie->ie_chunk_size;
+		ie->ie_nbytes     = fmeta->fm_size;
+
+		if (cursor + (size_t)mie->ie_nstrips * sizeof(*se) > msg_size)
+			return -EINVAL;
+		se = (struct fuse_famfs_simple_ext *)&msg[cursor];
+		cursor += (size_t)mie->ie_nstrips * sizeof(*se);
+
+		for (j = 0; j < mie->ie_nstrips; j++) {
+			se[j].se_devindex = mie->ie_strips[j].se_devindex;
+			se[j].se_offset   = mie->ie_strips[j].se_offset;
+			se[j].se_len      = mie->ie_strips[j].se_len;
+		}
+	}
+
+	return cursor;
+}
+
+/*
+ * famfs_log_file_meta_to_msg() - format a file's fmap into the GET_FMAP reply.
+ *
+ * simple_fmap selects the wire form:
+ *   nonzero - emit a simple-extent list; a striped (interleaved) file is
+ *             unrolled to one extent per chunk. Required by simple-only
+ *             kernels; chosen when the daemon is in daxdev-push mode
+ *             (FUSE_DEV_IOC_DAXDEV_OPEN works) or forced with -o simple_fmaps.
+ *   zero    - emit the compact interleaved form for legacy kernels.
+ * A contiguous/simple on-media fmap emits a simple list either way.
+ */
 ssize_t
 famfs_log_file_meta_to_msg(
 	char *msg,
 	uint msg_size,
 	int file_type,
-	const struct famfs_log_file_meta *fmeta)
+	const struct famfs_log_file_meta *fmeta,
+	int simple_fmap)
 {
 	struct fuse_famfs_fmap_header *flh = (struct fuse_famfs_fmap_header *)msg;
 	const struct famfs_log_fmap *log_fmap = &fmeta->fm_fmap;
@@ -212,6 +282,14 @@ famfs_log_file_meta_to_msg(
 
 	if (msg_size < hdr_size)
 		return -EINVAL;
+
+	/*
+	 * Legacy kernel + interleaved on-media fmap: emit the compact
+	 * interleaved wire form (unrolling to simple would overflow the legacy
+	 * kernel's fixed extent-count limit).
+	 */
+	if (!simple_fmap && log_fmap->fmap_ext_type == FAMFS_EXT_INTERLEAVE)
+		return famfs_emit_interleave_msg(msg, msg_size, file_type, fmeta);
 
 	/*
 	 * Determine the number of (unrolled) simple extents up front, so we
@@ -272,33 +350,30 @@ famfs_log_file_meta_to_msg(
 		break;
 	case FAMFS_EXT_INTERLEAVE: {
 		/*
-		 * Unroll: chunk c maps, per the kernel's stripe math, to
-		 *   strip    = c % nstrips
-		 *   round    = c / nstrips
-		 *   devindex = ie_strips[strip].se_devindex
-		 *   offset   = ie_strips[strip].se_offset + round * chunk_size
-		 *   len      = min(chunk_size, file_size - file_pos)
+		 * Unroll: chunk c maps to strip (c % nstrips) at device offset
+		 *   ie_strips[strip].se_offset + (c / nstrips) * chunk_size
+		 *
+		 * Every extent is a full chunk_size, so all extents are
+		 * PMD-aligned (the kernel rejects non-aligned ext_len) and
+		 * uniform (enabling the kernel's shift-indexed resolver). The
+		 * strips are chunk-aligned allocations, so the last chunk's full
+		 * chunk_size is backed on device even when the file's logical
+		 * size is not a chunk multiple; the logical size is carried in
+		 * the header and reads past it are bounded by i_size.
 		 */
 		const struct famfs_interleaved_ext *ext = &log_fmap->ie[0];
 		u64 chunk_size = ext->ie_chunk_size;
 		u64 nstrips    = ext->ie_nstrips;
-		u64 file_size  = fmeta->fm_size;
-		u64 file_pos   = 0;
 		u64 c;
 
-		for (c = 0; file_pos < file_size; c++) {
+		for (c = 0; c < nextents; c++) {
 			u64 strip = c % nstrips;
 			u64 round = c / nstrips;
-			u64 len   = chunk_size;
-
-			if (len > file_size - file_pos)
-				len = file_size - file_pos;
 
 			se[c].se_devindex = ext->ie_strips[strip].se_devindex;
 			se[c].se_offset   = ext->ie_strips[strip].se_offset +
 					    round * chunk_size;
-			se[c].se_len      = len;
-			file_pos += len;
+			se[c].se_len      = chunk_size;
 		}
 		break;
 	}

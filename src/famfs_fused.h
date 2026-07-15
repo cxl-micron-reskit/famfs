@@ -29,6 +29,8 @@ struct famfs_ctx {
 	int timeout_set;
 	int pass_yaml; /* pass the shadow yaml through */
 	int readdirplus;
+	int simple_fmaps; /* force simple-extent GET_FMAP replies (unroll
+			   * interleave); also auto-enabled in daxdev-push mode */
 	struct famfs_icache icache;
 
 	/*

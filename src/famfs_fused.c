@@ -160,6 +160,8 @@ static const struct fuse_opt famfs_opts[] = {
 	  offsetof(struct famfs_ctx, readdirplus), 1 },
 	{ "no_readdirplus",
 	  offsetof(struct famfs_ctx, readdirplus), 0 },
+	{ "simple_fmaps",
+	  offsetof(struct famfs_ctx, simple_fmaps), 1 },
 	{ "debug=%d",
 	  offsetof(struct famfs_ctx, debug), 0 },
 
@@ -735,6 +737,7 @@ famfs_get_fmap(
 	struct famfs_inode *inode = NULL;
 	char *fmap_message = NULL;
 	ssize_t fmap_size;
+	int simple_fmap;
 	int err = 0;
 
 	/*
@@ -774,10 +777,20 @@ famfs_get_fmap(
 		goto out_err;
 	}
 
+	/*
+	 * Choose the wire fmap form. Unroll to a simple-extent list only when
+	 * the kernel is simple-only: either forced (-o simple_fmaps) or detected
+	 * via daxdev-push mode - a daxdev was successfully registered through
+	 * FUSE_DEV_IOC_DAXDEV_OPEN, which is the new (simple-only) ABI. The push
+	 * happens at lookup, before any GET_FMAP, so this is settled by now.
+	 * Otherwise emit the compact interleaved form a legacy kernel expects.
+	 */
+	simple_fmap = lo->simple_fmaps || (lo->daxdev_max_pushed >= 0);
+
 	/* XXX: FUSE_FAMFS_FILE_REG - mark sb and log correctly */
 	fmap_size = famfs_log_file_meta_to_msg(fmap_message, fmap_bufsize,
 					       FUSE_FAMFS_FILE_REG,
-					       inode->fmeta);
+					       inode->fmeta, simple_fmap);
 	if (fmap_size <= 0) {
 		/* Send reply without fmap */
 		famfs_log(FAMFS_LOG_ERR,
@@ -1409,9 +1422,17 @@ int main(int argc, char *argv[])
 	lo->xattr = 0;
 	lo->cache = CACHE_NORMAL;
 	lo->pass_yaml = 0;
+	/*
+	 * -1 = no daxdev pushed / not in daxdev-push mode. Initialize it
+	 * unconditionally: it also gates the GET_FMAP wire form (>= 0 selects
+	 * the simple/unrolled form). When built against a libfuse without
+	 * FUSE_DEV_IOC_DAXDEV_OPEN the push code is compiled out, so without
+	 * this the static-global default of 0 would wrongly select simple and
+	 * break striped files on legacy (interleave-only) kernels.
+	 */
+	lo->daxdev_max_pushed = -1;
 #ifdef FUSE_DEV_IOC_DAXDEV_OPEN
 	pthread_mutex_init(&lo->daxdev_push_mutex, NULL);
-	lo->daxdev_max_pushed = -1;
 #endif
 
 	/*fuse_set_log_func(fused_syslog); */
