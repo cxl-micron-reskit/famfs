@@ -154,23 +154,26 @@ struct famfs_ioc_get_fmap {
 };
 
 /**
- * struct famfs_ioc_daxdev - register an additional backing daxdev
- * @fd:           an open fd to the devdax (character) device
- * @flags:        reserved; must be zero on the daxdev-open path
- * @daxdev_index: the (cluster-invariant) index this daxdev occupies in extent
- *                dev_index fields. Index 0 is the mount-time primary daxdev.
+ * struct famfs_ioc_daxdev - register an additional backing daxdev by path
+ * @daxdev_index:    the (cluster-invariant) index this daxdev occupies in
+ *                   extent dev_index fields. Index 0 is the mount-time primary.
+ * @daxdev_path:     userspace pointer to the devdax device path (e.g.
+ *                   "/dev/dax0.0"); resolved in the kernel the same way the
+ *                   mount primary is.
+ * @daxdev_path_len: length of the path string, not counting the NUL.
+ * @flags:           reserved; must be zero.
  *
- * This mirrors the payload of fuse's FUSE_DEV_IOC_DAXDEV_OPEN
- * (struct fuse_backing_map) so both daxdev-registration ioctls share one
- * structure.
+ * Standalone famfs registers every daxdev by path: the mount primary comes in
+ * as the mount device name, and slots 1..n come in here. (This deliberately
+ * differs from fuse's fd-based FUSE_DEV_IOC_DAXDEV_OPEN; each side is uniform
+ * within itself.) Passing the path by pointer keeps the struct fixed-size, so
+ * longer paths never require an ABI change.
  */
 struct famfs_ioc_daxdev {
-	__s32 fd;
+	__u64 daxdev_index;
+	__u64 daxdev_path;
+	__u32 daxdev_path_len;
 	__u32 flags;
-	union {
-		__u64 padding;
-		__u64 daxdev_index;
-	};
 };
 
 #define FAMFSIOC_MAGIC 'u'
