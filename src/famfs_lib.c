@@ -6090,7 +6090,18 @@ famfs_recursive_check(const char *dirpath,
 				nerrs++;
 			}
 #else
-			/* KABI 44 has no MAP_GET; skip the per-file map check */
+			/*
+			 * KABI 44 has no MAP_GET, so we cannot ask the kernel
+			 * for the file's map. famfs never creates a zero-length
+			 * file (famfs_mkfile rejects size 0), so a zero-length
+			 * regular file in the mount is by definition unmapped.
+			 */
+			if (st.st_size == 0) {
+				fprintf(stderr,
+					"%s: Error file not mapped: %s\n",
+					__func__, fullpath);
+				nerrs++;
+			}
 #endif
 			close(fd);
 			break;
