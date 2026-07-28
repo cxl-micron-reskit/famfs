@@ -232,9 +232,15 @@ if [ -f "${FAMFS_IOCTL_H}" ]; then
     fi
 fi
 
+# Standalone ioctl ABI (KABI) the binary was built for. Informational here;
+# each test recomputes it in test_header.sh. Not meaningful in fuse mode.
+FAMFS_ABI=$("$BIN/famfs" kabi 2>/dev/null)
+[[ "$FAMFS_ABI" =~ ^[0-9]+$ ]] || FAMFS_ABI=0
+
 echo ":==*****************************************************************"
 echo ":== run_smoke.sh $(date)"
 echo ":==MODE:     $FAMFS_MODE"
+echo ":==ABI:      $FAMFS_ABI  (standalone ioctl ABI; n/a in fuse mode)"
 echo ":==CWD:      $CWD"
 echo ":==BIN:      $BIN"
 echo ":==SCRIPTS:  $SCRIPTS"

@@ -20,9 +20,9 @@ NOT_IN_FAMFS=no_leading_slash
 expect_fail "${CLI[@]}" creat -s 0x400000 "$NOT_IN_FAMFS" \
     -- "creating file not in famfs file system should fail"
 
-# famfs getmap tests (v1 only)
+# famfs getmap tests (standalone only, and only where get_map exists: KABI < 44)
 LOG="$MPT/.meta/.log"
-if [[ "${FAMFS_MODE}" == "v1" ]]; then
+if [[ "${FAMFS_MODE}" == "v1" && "${FAMFS_ABI}" -lt 44 ]]; then
     expect_good "${CLI[@]}" getmap -h -- "getmap -h should succeed"
     expect_fail "${CLI[@]}" getmap   -- "getmap with no file arg should fail"
     expect_fail "${CLI[@]}" getmap badfile -- "getmap on nonexistent file should fail"

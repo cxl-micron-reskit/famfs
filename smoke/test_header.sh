@@ -125,6 +125,15 @@ fi
 # --nofuse runs where fuse is unavailable. The export covers the rare non-sudo
 # (CLI_NOSUDO) path.
 export FAMFS_MODE
+
+# Standalone ioctl ABI (KABI) the famfs binary was built for. Tests use this to
+# gate standalone-only, get_map-dependent commands (getmap, clone) that were
+# dropped at KABI 44. Only meaningful when FAMFS_MODE == v1; ignored in fuse
+# mode. Defaults to 0 if the binary is too old to know 'kabi'.
+FAMFS_ABI=$("$BIN/famfs" kabi 2>/dev/null)
+[[ "$FAMFS_ABI" =~ ^[0-9]+$ ]] || FAMFS_ABI=0
+export FAMFS_ABI
+
 MOUNT=( "sudo" "FAMFS_MODE=$FAMFS_MODE" "${VG[@]}" "$BIN/famfs" "mount" "${MOUNT_OPTS[@]}" )
 MKFS=(  "sudo" "FAMFS_MODE=$FAMFS_MODE" "${VG[@]}" "$BIN/mkfs.famfs" "${MKFS_OPTS[@]}" )
 CLI=(   "sudo" "FAMFS_MODE=$FAMFS_MODE" "${VG[@]}" "$BIN/famfs" )

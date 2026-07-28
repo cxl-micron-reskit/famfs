@@ -2533,6 +2533,35 @@ struct famfs_cli_cmd {
 
 static void do_famfs_cli_help(int argc, char **argv);
 
+void
+famfs_kabi_usage(int argc, char *argv[])
+{
+	char *progname = argv[0];
+	(void)argc;
+
+	printf("\n"
+	       "famfs kabi: Print the standalone famfs ioctl ABI (KABI) version this\n"
+	       "binary was built for, as a decimal integer, then exit.\n"
+	       "\n"
+	       "This reports the standalone ABI only (from <linux/famfs_ioctl.h>); it\n"
+	       "says nothing about the fuse path, which versions its protocol\n"
+	       "separately via fuse_kernel.h. It is a compile-time constant and does\n"
+	       "not probe the running kernel.\n"
+	       "\n"
+	       "    %s kabi\n"
+	       "\n", progname);
+}
+
+int
+do_famfs_cli_kabi(int argc, char *argv[])
+{
+	(void)argc;
+	(void)argv;
+
+	printf("%d\n", FAMFS_KABI_VERSION);
+	return 0;
+}
+
 struct
 famfs_cli_cmd famfs_cli_cmds[] = {
 
@@ -2549,6 +2578,7 @@ famfs_cli_cmd famfs_cli_cmds[] = {
 	{"getmap",  do_famfs_cli_getmap,  famfs_getmap_usage},
 	{"clone",   do_famfs_cli_clone,   famfs_clone_usage},
 	{"chkread", do_famfs_cli_chkread, famfs_chkread_usage},
+	{"kabi",    do_famfs_cli_kabi,    famfs_kabi_usage},
 
 	{NULL, NULL, NULL}
 };

@@ -18,6 +18,15 @@ if [[ "$FAMFS_MODE" == "fuse" ]]; then
     exit 0
 fi
 
+# test_errors is built entirely on 'famfs clone', which relies on get_map and
+# was dropped at KABI 44. Skip the whole test on a standalone KABI-44+ binary.
+if [[ "$FAMFS_ABI" -ge 44 ]]; then
+    echo "*************************************************************"
+    echo "test_errors skipped: 'clone' (get_map) not available at KABI $FAMFS_ABI"
+    echo "*************************************************************"
+    exit 0
+fi
+
 #
 # Fresh filesystem
 #
