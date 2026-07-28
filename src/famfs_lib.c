@@ -319,10 +319,10 @@ file_is_famfs_v1(const char *fname)
 	return rc;
 }
 
+#if (FAMFS_KABI_VERSION < 44)
 static int
 file_has_v1_map(int fd)
 {
-#if (FAMFS_KABI_VERSION < 44)
 	struct famfs_ioc_map filemap = {0};
 	int rc;
 
@@ -331,11 +331,26 @@ file_has_v1_map(int fd)
 		return 0; /* It's not a valid famfs file */
 
 	return 1;
-#else
-	(void)fd;
-	return 0; /* KABI 44 dropped v1 maps; nothing to probe */
-#endif
 }
+#else
+static int
+file_has_fmap(int fd)
+{
+	struct stat st;
+
+	/*
+	 * KABI 44 has no MAP_GET, so we cannot ask the kernel for the file's
+	 * map. A famfs meta/data file gets its size from MAP_CREATE, so a
+	 * nonzero size means the file already has a map. This lets mkmeta skip
+	 * re-mapping the superblock/log on remount (mount -R) instead of
+	 * failing when MAP_CREATE rejects an already-mapped file.
+	 */
+	if (fstat(fd, &st) != 0)
+		return 0;
+
+	return st.st_size > 0;
+}
+#endif
 
 void
 famfs_print_role_string(int role)
@@ -1336,7 +1351,11 @@ __famfs_mkmeta_superblock(
 			return -1;
 		}
 
+#if (FAMFS_KABI_VERSION < 44)
 		if (file_has_v1_map(sbfd)) {
+#else
+		if (file_has_fmap(sbfd)) {
+#endif
 			fprintf(stderr,
 				"%s: found valid superblock file; NOP\n",
 				__func__);
@@ -1470,7 +1489,11 @@ __famfs_mkmeta_log(
 			return -1;
 		}
 
+#if (FAMFS_KABI_VERSION < 44)
 		if (file_has_v1_map(logfd)) {
+#else
+		if (file_has_fmap(logfd)) {
+#endif
 			fprintf(stderr,
 				"%s: found valid log file; doing nothing\n",
 				__func__);
