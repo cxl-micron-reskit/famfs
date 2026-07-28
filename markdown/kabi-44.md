@@ -232,6 +232,29 @@ of the design, but they change specific structs/flows.
    - **R: (a).** A fresh KABI-44 kernel has no reason to inherit the unroll
      limit, and native interleave keeps the ioctl messages small.
 
+   **DECIDED: (a) is the default, with (b) retained as an opt-in.** Native
+   interleave is the standalone default: the userspace emitter
+   (`famfs_log_file_meta_to_msg()`, called from `famfs_v3_set_file_map()`)
+   passes `simple_fmap=0` unless told otherwise.
+
+   Current implementation status (userspace-only so far): the kernel v3
+   `MAP_CREATE` parser (`famfs_file_init_dax_v3`) handles the *simple-extent*
+   wire form only and returns `-EOPNOTSUPP` for the interleaved form, because
+   the shared uapi (`fuse.h`) does not yet define an interleaved wire struct.
+   So contiguous/single-extent files (superblock, log, non-striped) work
+   end-to-end today; striped files do not until the kernel gains native
+   interleave parsing.
+
+   Unrolling (option b) is a **deferred, opt-in bridge** for that gap, not a
+   creat/cp concern: log entries always store the interleaved_extent format,
+   so the unroll decision belongs at **logplay** time (`__famfs_logplay`, the
+   regular-file arm that calls `famfs_v3_set_file_map`). It is **off by
+   default** for standalone and is surfaced as a **config option** in the
+   global / user / specific-mount config-file system (separate in-flight PR),
+   *not* a CLI flag. The effective value is resolved at logplay and threaded
+   into `famfs_v3_set_file_map()`'s `simple_fmap` argument; the shared emitter
+   already unrolls when `simple_fmap=1`.
+
 3. **Runtime-compatibility story for a KABI-44 userspace build.**
    **DECIDED: (a) clean break.** KABI 44 is the next standalone patch set and
    drops the legacy ioctls outright, so a KABI-44 build talks only to KABI-44
