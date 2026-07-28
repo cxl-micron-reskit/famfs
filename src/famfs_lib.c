@@ -1006,6 +1006,7 @@ famfs_check_super(
 	return 0;
 }
 
+#if (FAMFS_KABI_VERSION < 44)
 /**
  * famfs_ext_to_simple_ext()
  *
@@ -1030,6 +1031,7 @@ famfs_ext_to_simple_ext(
 	}
 	return se;
 }
+#endif /* FAMFS_KABI_VERSION < 44 */
 
 #if (FAMFS_KABI_VERSION < 44)
 /**
@@ -5423,6 +5425,12 @@ int
 famfs_clone(const char *srcfile,
 	    const char *destfile)
 {
+#if (FAMFS_KABI_VERSION >= 44)
+	(void)srcfile;
+	(void)destfile;
+	fprintf(stderr, "famfs_clone: not supported at KABI 44 (no MAP_GET)\n");
+	return -EOPNOTSUPP;
+#else
 	struct famfs_simple_extent *se = NULL;
 	struct famfs_ioc_map filemap = {0};
 	struct famfs_extent *ext_list = NULL;
@@ -5643,6 +5651,7 @@ err_out:
 	if (dfd > 0)
 		close(dfd);
 	return rc;
+#endif /* FAMFS_KABI_VERSION < 44 */
 }
 
 /**
@@ -6041,7 +6050,9 @@ famfs_recursive_check(const char *dirpath,
 	/* Loop through the directry entries */
 	while ((entry = readdir(directory)) != NULL) {
 		char fullpath[PATH_MAX];
+#if (FAMFS_KABI_VERSION < 44)
 		struct famfs_ioc_map filemap = {0};
+#endif
 		int fd;
 
 		if (strcmp(entry->d_name, ".") == 0 ||
@@ -6080,7 +6091,6 @@ famfs_recursive_check(const char *dirpath,
 			}
 #else
 			/* KABI 44 has no MAP_GET; skip the per-file map check */
-			(void)filemap;
 #endif
 			close(fd);
 			break;
