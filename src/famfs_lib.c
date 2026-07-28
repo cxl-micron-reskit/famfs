@@ -39,6 +39,11 @@
 #include "famfs_meta.h"
 #include "famfs_lib.h"
 #include "famfs_lib_internal.h"
+#if (FAMFS_KABI_VERSION >= 44)
+/* KABI 44 create path serializes the fmap into the shared fuse GET_FMAP msg */
+#include "fuse_kernel.h"
+#include "famfs_fmap.h"
+#endif
 #include "thpool.h"
 #include "libfcc.h"
 
@@ -317,6 +322,7 @@ file_is_famfs_v1(const char *fname)
 static int
 file_has_v1_map(int fd)
 {
+#if (FAMFS_KABI_VERSION < 44)
 	struct famfs_ioc_map filemap = {0};
 	int rc;
 
@@ -325,6 +331,10 @@ file_has_v1_map(int fd)
 		return 0; /* It's not a valid famfs file */
 
 	return 1;
+#else
+	(void)fd;
+	return 0; /* KABI 44 dropped v1 maps; nothing to probe */
+#endif
 }
 
 void
@@ -1021,6 +1031,7 @@ famfs_ext_to_simple_ext(
 	return se;
 }
 
+#if (FAMFS_KABI_VERSION < 44)
 /**
  * famfs_v1_set_file_map()
  *
@@ -1065,6 +1076,74 @@ famfs_v1_set_file_map(
 
 	return rc;
 }
+#endif /* FAMFS_KABI_VERSION < 44 */
+
+#if (FAMFS_KABI_VERSION >= 44)
+/**
+ * famfs_v3_set_file_map()
+ *
+ * Attach a file map to @fd using the KABI-44 self-describing fmap message -
+ * the same wire format the fuse side replies to GET_FMAP with. The message is
+ * built by the shared serializer famfs_log_file_meta_to_msg() and handed to the
+ * reclaimed FAMFSIOC_MAP_CREATE ioctl.
+ *
+ * @fd:    file descriptor for the file whose map will be created (already open)
+ * @type:  famfs file type (regular, superblock, log)
+ * @fmeta: file metadata carrying fm_size and the fmap extent list
+ */
+static int
+famfs_v3_set_file_map(
+	int                                 fd,
+	enum famfs_file_type                type,
+	const struct famfs_log_file_meta   *fmeta,
+	int                                 verbose)
+{
+	char *msg;
+	ssize_t msg_size;
+	int ftype;
+	int rc;
+
+	assert(fd > 0);
+
+	/* famfs_file_type -> fuse_famfs_file_type for the wire header */
+	switch (type) {
+	case FAMFS_SUPERBLOCK:
+		ftype = FUSE_FAMFS_FILE_SUPERBLOCK;
+		break;
+	case FAMFS_LOG:
+		ftype = FUSE_FAMFS_FILE_LOG;
+		break;
+	default:
+		ftype = FUSE_FAMFS_FILE_REG;
+		break;
+	}
+
+	msg = calloc(1, FAMFS_FMAP_MAX);
+	if (!msg)
+		return -ENOMEM;
+
+	/*
+	 * simple_fmap=0: emit the compact/native interleaved form (a fresh
+	 * KABI-44 kernel handles interleave directly; no unroll limit).
+	 */
+	msg_size = famfs_log_file_meta_to_msg(msg, FAMFS_FMAP_MAX, ftype,
+					      fmeta, 0);
+	if (msg_size <= 0) {
+		fprintf(stderr, "%s: failed to serialize fmap (%ld)\n",
+			__func__, (long)msg_size);
+		free(msg);
+		return (msg_size < 0) ? (int)msg_size : -EINVAL;
+	}
+
+	rc = ioctl(fd, FAMFSIOC_MAP_CREATE, msg);
+	if (rc && verbose)
+		fprintf(stderr, "%s: MAP_CREATE failed rc=%d errno=%d\n",
+			__func__, rc, errno);
+
+	free(msg);
+	return rc;
+}
+#endif /* FAMFS_KABI_VERSION >= 44 */
 
 #if (FAMFS_KABI_VERSION == 43)
 /**
@@ -1262,8 +1341,23 @@ __famfs_mkmeta_superblock(
 		} else {
 			ext.se_offset = 0;
 			ext.se_len    = FAMFS_SUPERBLOCK_SIZE;
+#if (FAMFS_KABI_VERSION >= 44)
+			{
+				struct famfs_log_file_meta fmeta = {0};
+
+				fmeta.fm_size = FAMFS_SUPERBLOCK_SIZE;
+				fmeta.fm_fmap.fmap_ext_type = FAMFS_EXT_SIMPLE;
+				fmeta.fm_fmap.fmap_nextents = 1;
+				fmeta.fm_fmap.se[0].se_devindex = 0;
+				fmeta.fm_fmap.se[0].se_offset = ext.se_offset;
+				fmeta.fm_fmap.se[0].se_len = ext.se_len;
+				rc = famfs_v3_set_file_map(sbfd, FAMFS_SUPERBLOCK,
+							   &fmeta, verbose);
+			}
+#else
 			rc = famfs_v1_set_file_map(sbfd, FAMFS_SUPERBLOCK_SIZE,
 						   1, &ext, FAMFS_SUPERBLOCK);
+#endif
 			if (rc) {
 				fprintf(stderr,
 				    "%s: failed to create superblock file %s\n",
@@ -1381,8 +1475,23 @@ __famfs_mkmeta_log(
 		} else {
 			ext.se_offset = log_offset;
 			ext.se_len    = log_size;
+#if (FAMFS_KABI_VERSION >= 44)
+			{
+				struct famfs_log_file_meta fmeta = {0};
+
+				fmeta.fm_size = log_size;
+				fmeta.fm_fmap.fmap_ext_type = FAMFS_EXT_SIMPLE;
+				fmeta.fm_fmap.fmap_nextents = 1;
+				fmeta.fm_fmap.se[0].se_devindex = 0;
+				fmeta.fm_fmap.se[0].se_offset = ext.se_offset;
+				fmeta.fm_fmap.se[0].se_len = ext.se_len;
+				rc = famfs_v3_set_file_map(logfd, FAMFS_LOG,
+							   &fmeta, verbose);
+			}
+#else
 			rc = famfs_v1_set_file_map(logfd, log_size, 1,
 						   &ext, FAMFS_LOG);
+#endif
 			if (rc) {
 				fprintf(stderr,
 					"%s: failed to create log file %s\n",
@@ -1852,7 +1961,18 @@ __famfs_logplay(
 			/* Build extent list of famfs_simple_extent; the
 			 * log entry has a different kind of extent list...
 			 */
-#if (FAMFS_KABI_VERSION == 43)
+#if (FAMFS_KABI_VERSION >= 44)
+			{
+				rc = famfs_v3_set_file_map(fd, FAMFS_REG,
+							   fm, verbose);
+				if (rc) {
+					fprintf(stderr,
+						"%s: v3 setmap "
+						"failed to create file %s\n",
+						__func__, rpath);
+				}
+			}
+#elif (FAMFS_KABI_VERSION == 43)
 			{
 				rc =  famfs_v2_set_file_map(fd, fm->fm_size,
 							    &fm->fm_fmap,
@@ -4012,7 +4132,24 @@ __famfs_mkfile(
 			goto out;
 
 		if (!mock_kmod) {
-#if (FAMFS_KABI_VERSION == 43)
+#if (FAMFS_KABI_VERSION >= 44)
+			{
+				struct famfs_log_file_meta fmeta = {0};
+
+				fmeta.fm_size = size;
+				fmeta.fm_fmap = *fmap;
+				rc = famfs_v3_set_file_map(fd, FAMFS_REG,
+							   &fmeta, verbose);
+				if (rc) {
+					close(fd);
+					fd = rc;
+					fprintf(stderr,
+						"%s: failed to create dest "
+						"%s\n",
+						__func__, filename);
+				}
+			}
+#elif (FAMFS_KABI_VERSION == 43)
 			{
 				rc =  famfs_v2_set_file_map(fd, size, fmap,
 							    FAMFS_REG,
@@ -5379,6 +5516,7 @@ famfs_clone(const char *srcfile,
 	/*
 	 * Get map for source file
 	 */
+#if (FAMFS_KABI_VERSION < 44)
 	/* Get the map, which includes the extent count */
 	rc = ioctl(sfd, FAMFSIOC_MAP_GET, &filemap);
 	if (rc) {
@@ -5395,6 +5533,13 @@ famfs_clone(const char *srcfile,
 			__func__, rc, errno);
 		goto err_out;
 	}
+#else
+	/* KABI 44 has no MAP_GET/MAP_GETEXT; clone-by-map is unsupported for now */
+	fprintf(stderr, "%s: clone is not supported at KABI 44 (no MAP_GET)\n",
+		__func__);
+	rc = -EOPNOTSUPP;
+	goto err_out;
+#endif
 
 	/*
 	 * For this operation we need to open the log file, which also gets us
@@ -5435,6 +5580,7 @@ famfs_clone(const char *srcfile,
 		rc = -ENOMEM;
 		goto err_out;
 	}
+#if (FAMFS_KABI_VERSION < 44)
 	rc = famfs_v1_set_file_map(dfd, filemap.file_size,
 				   filemap.ext_list_count,
 				   se, FAMFS_REG);
@@ -5443,6 +5589,11 @@ famfs_clone(const char *srcfile,
 			__func__, destfile);
 		goto err_out;
 	}
+#else
+	/* Unreachable: clone bails at MAP_GET above on KABI 44 */
+	rc = -EOPNOTSUPP;
+	goto err_out;
+#endif
 
 	/* Now have created the destination file (and therefore we know it
 	 * is in a famfs mount, we need its relative path of
@@ -5919,6 +6070,7 @@ famfs_recursive_check(const char *dirpath,
 					__func__, fullpath);
 				continue;
 			}
+#if (FAMFS_KABI_VERSION < 44)
 			rc = ioctl(fd, FAMFSIOC_MAP_GET, &filemap);
 			if (rc) {
 				fprintf(stderr,
@@ -5926,6 +6078,10 @@ famfs_recursive_check(const char *dirpath,
 					__func__, fullpath);
 				nerrs++;
 			}
+#else
+			/* KABI 44 has no MAP_GET; skip the per-file map check */
+			(void)filemap;
+#endif
 			close(fd);
 			break;
 

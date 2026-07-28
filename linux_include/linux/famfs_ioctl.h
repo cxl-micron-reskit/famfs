@@ -14,10 +14,23 @@
 #include <linux/ioctl.h>
 #include <linux/uuid.h>
 
-#define FAMFS_KABI_VERSION 43
+#define FAMFS_KABI_VERSION 44
 #define FAMFS_MAX_EXTENTS 2
 #define FAMFS_MAX_STRIPS 16
 #define FAMFS_IOC_MAX_INTERLEAVED_EXTENTS 4
+
+/*
+ * This is a superset header: it carries the KABI 42 (v1) and 43 (v2) structs
+ * and opcodes as well as the current KABI 44 (v3) ones, so a single userspace
+ * source tree can be built against a 42, 43, or 44 kernel by selecting
+ * FAMFS_KABI_VERSION. Opcodes that changed meaning across ABIs are gated below.
+ *
+ * At KABI 44 the fmap create ioctl carries the self-describing fmap message
+ * that the fuse side uses for GET_FMAP replies (struct fuse_famfs_fmap_header).
+ * That struct comes from fuse_kernel.h; rather than drag a libfuse include into
+ * every consumer of this header, a caller that actually issues FAMFSIOC_MAP_CREATE
+ * at KABI 44 must include fuse_kernel.h itself before using the opcode.
+ */
 
 enum famfs_file_type {
 	FAMFS_REG,
@@ -69,6 +82,8 @@ enum famfs_file_type {
  *
  * * Data is laid out across chunks in chunk # order
  * * Columns are strips
+ * * Strips are contiguous devdax extents, likely each coming from a different
+ *   memory device
  * * Rows are stripes
  * * The number of chunks is (int)((file_size + chunk_size - 1) / chunk_size)
  *   (and obviously the last chunk could be partial)
@@ -78,12 +93,12 @@ enum famfs_file_type {
  * * stripe_num(offset) = offset / stripe_size
  * * ...You get the idea - see the code for more details...
  *
- * Some concrete examples:
+ * Some concrete examples from the layout above:
  * * Offset 0 in the file is offset 0 in chunk 0, which is offset 0 in strip 0
  * * offset 4MiB in the file is offset 0 in chunk 2, which is offset 0 in
  *   strip 2
  * * Offset 15MiB in the file is offset 1MiB in chunk 7, which is offset 3MiB
- *   in strip 4
+ *   in strip 3
  *
  * Notes about this metadata format:
  *
@@ -185,17 +200,52 @@ struct famfs_ioc_get_fmap {
 	};
 };
 
+/**
+ * struct famfs_ioc_daxdev - register an additional backing daxdev
+ * @fd:           an open fd to the devdax (character) device
+ * @flags:        reserved; must be zero on the daxdev-open path
+ * @daxdev_index: the (cluster-invariant) index this daxdev occupies in extent
+ *                dev_index fields. Index 0 is the mount-time primary daxdev.
+ *
+ * This mirrors the payload of fuse's FUSE_DEV_IOC_DAXDEV_OPEN
+ * (struct fuse_backing_map) so both daxdev-registration ioctls share one
+ * structure.
+ */
+struct famfs_ioc_daxdev {
+	__s32 fd;
+	__u32 flags;
+	union {
+		__u64 padding;
+		__u64 daxdev_index;
+	};
+};
+
 #define FAMFSIOC_MAGIC 'u'
 
 /* famfs file ioctl opcodes */
+/* Version-agnostic: "is this file in famfs?" probe */
+#define FAMFSIOC_NOP           _IO(FAMFSIOC_MAGIC,  0x53)
+
+#if (FAMFS_KABI_VERSION >= 44)
+/*
+ * ABI 44 (v3). Clean break for the standalone driver: MAP_CREATE (0x50) is
+ * reclaimed to carry the self-describing fmap message (fuse_famfs_fmap_header),
+ * the same wire format the fuse side replies to GET_FMAP with. The _IOW size
+ * field folds in sizeof(the header), so this 32-bit ioctl constant differs
+ * from the old 0x50, and a version-mismatched caller gets -ENOTTY. No MAP_GET
+ * at 44 yet.
+ */
+#define FAMFSIOC_MAP_CREATE    _IOW(FAMFSIOC_MAGIC, 0x50, struct fuse_famfs_fmap_header)
+#define FAMFSIOC_DAXDEV_OPEN   _IOW(FAMFSIOC_MAGIC, 0x56, struct famfs_ioc_daxdev)
+#else
 /* ABI 42 / v1 */
 #define FAMFSIOC_MAP_CREATE    _IOW(FAMFSIOC_MAGIC, 0x50, struct famfs_ioc_map)
 #define FAMFSIOC_MAP_GET       _IOR(FAMFSIOC_MAGIC, 0x51, struct famfs_ioc_map)
 #define FAMFSIOC_MAP_GETEXT    _IOR(FAMFSIOC_MAGIC, 0x52, struct famfs_extent)
-#define FAMFSIOC_NOP           _IO(FAMFSIOC_MAGIC,  0x53)
 
 /* ABI 43 / v2 */
 #define FAMFSIOC_MAP_CREATE_V2 _IOW(FAMFSIOC_MAGIC, 0x54, struct famfs_ioc_fmap)
 #define FAMFSIOC_MAP_GET_V2    _IOR(FAMFSIOC_MAGIC, 0x55, struct famfs_ioc_get_fmap)
+#endif
 
 #endif /* FAMFS_IOCTL_H */

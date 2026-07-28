@@ -1131,6 +1131,12 @@ famfs_getmap_usage(int argc,
 int
 do_famfs_cli_getmap(int argc, char *argv[])
 {
+#if (FAMFS_KABI_VERSION >= 44)
+	(void)argc;
+	(void)argv;
+	fprintf(stderr, "famfs_getmap: not supported at KABI 44 (no MAP_GET)\n");
+	return -EOPNOTSUPP;
+#else
 #if (FAMFS_KABI_VERSION == 42)
 	struct famfs_ioc_map filemap = {0};
 #endif
@@ -1333,6 +1339,7 @@ err_out:
 		close(fd);
 
 	return rc;
+#endif /* FAMFS_KABI_VERSION < 44 */
 }
 
 /********************************************************************/

@@ -49,14 +49,14 @@ struct famfs_interleave_param {
  * default or an unrecognized version would risk selecting the wrong ABI (or
  * none). Fail the build loudly rather than guess.
  *
- * Supported range is currently 42..43. Raise the upper bound here when a new
- * KABI (e.g. 44) is wired up. (The header also provides enum
+ * Supported range is currently 42..44. Raise the upper bound here when a new
+ * KABI is wired up. (For 42/43 the header also provides enum
  * famfs_extent_type / SIMPLE_DAX_EXTENT, so no fallback definition is needed.)
  */
 #ifndef FAMFS_KABI_VERSION
 #error "FAMFS_KABI_VERSION undefined: linux/famfs_ioctl.h is missing or too old"
-#elif (FAMFS_KABI_VERSION < 42 || FAMFS_KABI_VERSION > 43)
-#error "FAMFS_KABI_VERSION out of range: this famfs userspace supports only 42..43"
+#elif (FAMFS_KABI_VERSION < 42 || FAMFS_KABI_VERSION > 44)
+#error "FAMFS_KABI_VERSION out of range: this famfs userspace supports only 42..44"
 #endif
 
 enum famfs_type {
