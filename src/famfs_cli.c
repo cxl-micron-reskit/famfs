@@ -1131,7 +1131,9 @@ famfs_getmap_usage(int argc,
 int
 do_famfs_cli_getmap(int argc, char *argv[])
 {
+#if (FAMFS_KABI_VERSION == 42)
 	struct famfs_ioc_map filemap = {0};
+#endif
 	int continue_on_err = 0;
 	struct stat st = { 0 };
 	char *filename = NULL;
@@ -1218,8 +1220,8 @@ do_famfs_cli_getmap(int argc, char *argv[])
 			goto err_out;
 		}
 
-		if (FAMFS_KABI_VERSION > 42) {
-#if (FAMFS_KABI_VERSION > 42)
+#if (FAMFS_KABI_VERSION == 43)
+		{
 			struct famfs_ioc_get_fmap ifmap;
 
 			/* In v2 we get the whole thing in one ioctl */
@@ -1272,8 +1274,9 @@ do_famfs_cli_getmap(int argc, char *argv[])
 				break;
 			}
 			}
-#endif
-		} else {
+		}
+#elif (FAMFS_KABI_VERSION == 42)
+		{
 			struct famfs_extent *ext_list = NULL;
 
 			rc = ioctl(fd, FAMFSIOC_MAP_GET, &filemap);
@@ -1319,6 +1322,7 @@ do_famfs_cli_getmap(int argc, char *argv[])
 
 			free(ext_list);
 		}
+#endif
 next_file:
 		printf("famfs_getmap: good file %s\n", filename);
 		close(fd);

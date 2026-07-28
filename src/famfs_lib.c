@@ -1066,7 +1066,7 @@ famfs_v1_set_file_map(
 	return rc;
 }
 
-#if (FAMFS_KABI_VERSION > 42)
+#if (FAMFS_KABI_VERSION == 43)
 /**
  * famfs_v2_set_file_map()
  *
@@ -1852,8 +1852,8 @@ __famfs_logplay(
 			/* Build extent list of famfs_simple_extent; the
 			 * log entry has a different kind of extent list...
 			 */
-			if (FAMFS_KABI_VERSION > 42) {
-#if (FAMFS_KABI_VERSION > 42)
+#if (FAMFS_KABI_VERSION == 43)
+			{
 				rc =  famfs_v2_set_file_map(fd, fm->fm_size,
 							    &fm->fm_fmap,
 							    FAMFS_REG,
@@ -1864,9 +1864,9 @@ __famfs_logplay(
 						"failed to create file %s\n",
 						__func__, rpath);
 				}
-#endif
 			}
-			else {
+#elif (FAMFS_KABI_VERSION == 42)
+			{
 				struct famfs_simple_extent *el;
 
 				if (fm->fm_fmap.fmap_ext_type
@@ -1901,6 +1901,7 @@ bad_log_fmap:
 						__func__, rpath);
 				free(el);
 			}
+#endif
 
 
 			close(fd);
@@ -4011,8 +4012,8 @@ __famfs_mkfile(
 			goto out;
 
 		if (!mock_kmod) {
-			if (FAMFS_KABI_VERSION > 42) {
-#if (FAMFS_KABI_VERSION > 42)
+#if (FAMFS_KABI_VERSION == 43)
+			{
 				rc =  famfs_v2_set_file_map(fd, size, fmap,
 							    FAMFS_REG,
 							    verbose);
@@ -4024,8 +4025,9 @@ __famfs_mkfile(
 						"%s\n",
 						__func__, filename);
 				}
-#endif
-			} else {
+			}
+#elif (FAMFS_KABI_VERSION == 42)
+			{
 				struct famfs_simple_extent ext = {0};
 
 				if (fmap->fmap_nextents > 1) {
@@ -4049,6 +4051,7 @@ __famfs_mkfile(
 					goto out;
 				}
 			}
+#endif
 		}
 	}
 

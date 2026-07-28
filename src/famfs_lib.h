@@ -41,12 +41,22 @@ struct famfs_interleave_param {
 #define LOG_FILE_RELPATH   ".meta/.log"
 #define CFG_FILE_RELPATH   ".meta/.alloc.cfg"
 
-/* Hack due to unintended consequences of kmod v1/v2 change */
+/*
+ * FAMFS_KABI_VERSION must be provided by <linux/famfs_ioctl.h> - either the
+ * target kernel's system header or the bundled copy in linux_include/ - and
+ * must name a KABI this userspace actually supports. The exact-version ioctl
+ * guards below depend on it being a concrete, in-range value; a silent
+ * default or an unrecognized version would risk selecting the wrong ABI (or
+ * none). Fail the build loudly rather than guess.
+ *
+ * Supported range is currently 42..43. Raise the upper bound here when a new
+ * KABI (e.g. 44) is wired up. (The header also provides enum
+ * famfs_extent_type / SIMPLE_DAX_EXTENT, so no fallback definition is needed.)
+ */
 #ifndef FAMFS_KABI_VERSION
-enum famfs_extent_type {
-	SIMPLE_DAX_EXTENT,
-	INVALID_EXTENT_TYPE,
-};
+#error "FAMFS_KABI_VERSION undefined: linux/famfs_ioctl.h is missing or too old"
+#elif (FAMFS_KABI_VERSION < 42 || FAMFS_KABI_VERSION > 43)
+#error "FAMFS_KABI_VERSION out of range: this famfs userspace supports only 42..43"
 #endif
 
 enum famfs_type {
