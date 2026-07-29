@@ -32,6 +32,49 @@
 #include "famfs_fmap.h"
 #include "fuse_kernel.h"
 
+/*
+ * This file is the single fmap serializer for both the fuse GET_FMAP reply
+ * (fuse_famfs_* structs, from <linux/fuse.h>) and the standalone famfs
+ * FAMFSIOC_MAP_CREATE message (famfs_ioc_* structs, from
+ * <linux/famfs_ioctl.h>). That only works if the two struct families are
+ * byte-identical; lock the layouts here so a change to either side that
+ * breaks the shared wire fails to compile.
+ *
+ * The famfs_ioc_* structs only exist at KABI 44; a legacy (42/43) header has
+ * neither them nor the standalone MAP_CREATE wire, so only assert there.
+ */
+#if (FAMFS_KABI_VERSION >= 44)
+_Static_assert(sizeof(struct famfs_ioc_fmap_header) ==
+	       sizeof(struct fuse_famfs_fmap_header), "fmap_header size");
+_Static_assert(sizeof(struct famfs_ioc_simple_ext) ==
+	       sizeof(struct fuse_famfs_simple_ext), "simple_ext size");
+_Static_assert(sizeof(struct famfs_ioc_iext) ==
+	       sizeof(struct fuse_famfs_iext), "iext size");
+
+_Static_assert(offsetof(struct famfs_ioc_fmap_header, ext_type) ==
+	       offsetof(struct fuse_famfs_fmap_header, ext_type), "ext_type");
+_Static_assert(offsetof(struct famfs_ioc_fmap_header, nextents) ==
+	       offsetof(struct fuse_famfs_fmap_header, nextents), "nextents");
+_Static_assert(offsetof(struct famfs_ioc_fmap_header, fmap_size) ==
+	       offsetof(struct fuse_famfs_fmap_header, fmap_size), "fmap_size");
+_Static_assert(offsetof(struct famfs_ioc_fmap_header, file_size) ==
+	       offsetof(struct fuse_famfs_fmap_header, file_size), "file_size");
+
+_Static_assert(offsetof(struct famfs_ioc_simple_ext, se_devindex) ==
+	       offsetof(struct fuse_famfs_simple_ext, se_devindex), "se_devindex");
+_Static_assert(offsetof(struct famfs_ioc_simple_ext, se_offset) ==
+	       offsetof(struct fuse_famfs_simple_ext, se_offset), "se_offset");
+_Static_assert(offsetof(struct famfs_ioc_simple_ext, se_len) ==
+	       offsetof(struct fuse_famfs_simple_ext, se_len), "se_len");
+
+_Static_assert(offsetof(struct famfs_ioc_iext, ie_nstrips) ==
+	       offsetof(struct fuse_famfs_iext, ie_nstrips), "ie_nstrips");
+_Static_assert(offsetof(struct famfs_ioc_iext, ie_chunk_size) ==
+	       offsetof(struct fuse_famfs_iext, ie_chunk_size), "ie_chunk_size");
+_Static_assert(offsetof(struct famfs_ioc_iext, ie_nbytes) ==
+	       offsetof(struct fuse_famfs_iext, ie_nbytes), "ie_nbytes");
+#endif /* FAMFS_KABI_VERSION >= 44 */
+
 void pr_verbose(int verbose, const char *format, ...) {
 	if (!verbose) {
 		return;
@@ -198,10 +241,13 @@ out_free:
 /*
  * famfs_emit_interleave_msg() - emit the compact *interleaved* wire form of an
  * fmap: one fuse_famfs_iext per interleaved extent, each followed by its strip
- * list. This is what legacy (interleave-capable) kernels expect; those kernels
- * have a small fixed extent-count limit and would reject a striped file
- * unrolled into a long simple-extent list. Used when the kernel is not
- * simple-only (no FUSE_DEV_IOC_DAXDEV_OPEN). The reply buffer is caller-zeroed.
+ * list. Used when the kernel handles interleave natively (not simple-only).
+ *
+ * Like the simple path, this is self-describing and grow-friendly: the header
+ * (with fmap_size = full message length) is always written, and if @msg_size
+ * is too small to hold the extents, only the header is emitted and hdr_size is
+ * returned. The caller reallocs to fmap_size and retries (standalone ioctl
+ * path), or the kernel does (fuse GET_FMAP). The reply buffer is caller-zeroed.
  */
 static ssize_t
 famfs_emit_interleave_msg(
@@ -212,34 +258,45 @@ famfs_emit_interleave_msg(
 {
 	struct fuse_famfs_fmap_header *flh = (struct fuse_famfs_fmap_header *)msg;
 	const struct famfs_log_fmap *log_fmap = &fmeta->fm_fmap;
-	size_t cursor = sizeof(*flh);
+	size_t hdr_size = sizeof(*flh);
+	size_t full_size;
+	size_t cursor;
 	uint i, j;
 
+	if (msg_size < hdr_size)
+		return -EINVAL;
 	if (log_fmap->fmap_niext < 1)
 		return -EINVAL;
+
+	/* Compute the full message size up front (header + all iexts+strips) */
+	full_size = hdr_size;
+	for (i = 0; i < log_fmap->fmap_niext; i++)
+		full_size += sizeof(struct fuse_famfs_iext) +
+			     (size_t)log_fmap->ie[i].ie_nstrips *
+			     sizeof(struct fuse_famfs_simple_ext);
 
 	flh->fmap_version = FAMFS_FMAP_VERSION;
 	flh->file_type = file_type;
 	flh->ext_type = FAMFS_EXT_INTERLEAVE;
 	flh->nextents = log_fmap->fmap_niext;
+	flh->fmap_size = full_size;
 	flh->file_size = fmeta->fm_size;
 
+	/* Doesn't fit: emit just the header; caller reallocs to fmap_size */
+	if (full_size > msg_size)
+		return hdr_size;
+
+	cursor = hdr_size;
 	for (i = 0; i < log_fmap->fmap_niext; i++) {
 		const struct famfs_interleaved_ext *mie = &log_fmap->ie[i];
-		struct fuse_famfs_iext *ie;
+		struct fuse_famfs_iext *ie = (struct fuse_famfs_iext *)&msg[cursor];
 		struct fuse_famfs_simple_ext *se;
 
-		if (cursor + sizeof(*ie) > msg_size)
-			return -EINVAL;
-		ie = (struct fuse_famfs_iext *)&msg[cursor];
 		cursor += sizeof(*ie);
-
 		ie->ie_nstrips    = mie->ie_nstrips;
 		ie->ie_chunk_size = mie->ie_chunk_size;
 		ie->ie_nbytes     = fmeta->fm_size;
 
-		if (cursor + (size_t)mie->ie_nstrips * sizeof(*se) > msg_size)
-			return -EINVAL;
 		se = (struct fuse_famfs_simple_ext *)&msg[cursor];
 		cursor += (size_t)mie->ie_nstrips * sizeof(*se);
 
@@ -250,7 +307,7 @@ famfs_emit_interleave_msg(
 		}
 	}
 
-	return cursor;
+	return full_size;
 }
 
 /*

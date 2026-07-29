@@ -1116,6 +1116,7 @@ famfs_v3_set_file_map(
 	int                                 verbose)
 {
 	char *msg;
+	size_t msg_alloc;
 	ssize_t msg_size;
 	int ftype;
 	int rc;
@@ -1135,16 +1136,37 @@ famfs_v3_set_file_map(
 		break;
 	}
 
-	msg = calloc(1, FAMFS_FMAP_MAX);
+	/*
+	 * Build the self-describing fmap message. There is no advertised size
+	 * cap: start with a small buffer and, since the serializer always
+	 * stamps the full message length in the header's fmap_size, grow to
+	 * that and re-emit if it did not fit. simple_fmap=0 requests the
+	 * compact/native interleaved form (a KABI-44 kernel handles interleave
+	 * directly). An over-large message is caught by the kernel (-EFBIG).
+	 */
+	msg_alloc = 4096;
+	msg = calloc(1, msg_alloc);
 	if (!msg)
 		return -ENOMEM;
 
-	/*
-	 * simple_fmap=0: emit the compact/native interleaved form (a fresh
-	 * KABI-44 kernel handles interleave directly; no unroll limit).
-	 */
-	msg_size = famfs_log_file_meta_to_msg(msg, FAMFS_FMAP_MAX, ftype,
-					      fmeta, 0);
+	msg_size = famfs_log_file_meta_to_msg(msg, msg_alloc, ftype, fmeta, 0);
+	if (msg_size > 0) {
+		size_t need = ((struct fuse_famfs_fmap_header *)msg)->fmap_size;
+
+		if (need > msg_alloc) {
+			char *bigger = realloc(msg, need);
+
+			if (!bigger) {
+				free(msg);
+				return -ENOMEM;
+			}
+			msg = bigger;
+			msg_alloc = need;
+			memset(msg, 0, msg_alloc);
+			msg_size = famfs_log_file_meta_to_msg(msg, msg_alloc,
+							      ftype, fmeta, 0);
+		}
+	}
 	if (msg_size <= 0) {
 		fprintf(stderr, "%s: failed to serialize fmap (%ld)\n",
 			__func__, (long)msg_size);

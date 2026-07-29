@@ -23,13 +23,60 @@ enum famfs_file_type {
 };
 
 /*
- * Extent type of a famfs file's in-core map. This is no longer part of any
- * ioctl payload (the v3 MAP_CREATE message uses fuse's enum famfs_ext_type);
- * it is retained only as the type of famfs_file_meta.fm_extent_type.
+ * Extent type in a famfs fmap message, and of the in-core map
+ * (famfs_file_meta.fm_extent_type).
  */
 enum famfs_ioc_ext_type {
 	FAMFS_IOC_EXT_SIMPLE,
 	FAMFS_IOC_EXT_INTERLEAVE,
+};
+
+/*
+ * The FAMFSIOC_MAP_CREATE payload is a self-describing fmap message: a
+ * struct famfs_ioc_fmap_header immediately followed by @nextents extent
+ * records. @fmap_size gives the total message length, so a reader is
+ * self-delimiting.
+ *
+ * For ext_type == FAMFS_IOC_EXT_SIMPLE the records are an array of
+ * @nextents famfs_ioc_simple_ext. For ext_type == FAMFS_IOC_EXT_INTERLEAVE
+ * each of the @nextents records is a famfs_ioc_iext header immediately
+ * followed by ie_nstrips famfs_ioc_simple_ext strip extents.
+ *
+ * This wire layout is byte-identical to the fmap carried in a fuse famfs
+ * GET_FMAP reply (the fuse_famfs_* structs in <linux/fuse.h>), so the same
+ * userspace serializer emits both. famfs_fmap.c static_asserts that the two
+ * layouts stay in lockstep.
+ *
+ * The message is self-describing (@fmap_size bounds it), so neither the extent
+ * and strip counts nor the total size are capped by this ABI. The kernel
+ * applies an internal sanity limit to the copy-in and returns -EFBIG for a
+ * message larger than it will accept.
+ */
+#define FAMFS_FMAP_VERSION 1
+
+struct famfs_ioc_simple_ext {
+	__u32 se_devindex;
+	__u32 reserved;
+	__u64 se_offset;
+	__u64 se_len;
+};
+
+struct famfs_ioc_iext {		/* interleaved (striped) extent */
+	__u32 ie_nstrips;
+	__u32 ie_chunk_size;
+	__u64 ie_nbytes;	/* total bytes mapped by this interleaved extent */
+	__u64 reserved;
+};
+
+struct famfs_ioc_fmap_header {
+	__u8  file_type;	/* enum famfs_file_type */
+	__u8  reserved;
+	__u16 fmap_version;	/* FAMFS_FMAP_VERSION */
+	__u32 ext_type;		/* enum famfs_ioc_ext_type */
+	__u32 nextents;
+	__u32 fmap_size;	/* total message bytes, including this header */
+	__u64 file_size;
+	__u64 reserved1;
 };
 
 /**
@@ -63,11 +110,10 @@ struct famfs_ioc_daxdev {
 
 /* ABI 44 */
 /*
- * MAP_CREATE (0x50, reclaimed) carries the self-describing fmap message shared
- * with the fuse GET_FMAP reply (struct fuse_famfs_fmap_header, from
- * <linux/fuse.h>). A caller that issues this opcode must include that header.
+ * MAP_CREATE (0x50, reclaimed) carries the self-describing fmap message -
+ * struct famfs_ioc_fmap_header followed by the extent list (see above).
  */
-#define FAMFSIOC_MAP_CREATE    _IOW(FAMFSIOC_MAGIC, 0x50, struct fuse_famfs_fmap_header)
+#define FAMFSIOC_MAP_CREATE    _IOW(FAMFSIOC_MAGIC, 0x50, struct famfs_ioc_fmap_header)
 #define FAMFSIOC_DAXDEV_OPEN   _IOW(FAMFSIOC_MAGIC, 0x56, struct famfs_ioc_daxdev)
 
 #endif /* FAMFS_IOCTL_H */
