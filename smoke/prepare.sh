@@ -61,7 +61,7 @@ fi
 # idempotent, so the later load in the mount section remains harmless.)
 #
 if [[ "$FAMFS_MODE" == "v1" ]]; then
-    expect_good sudo modprobe "$FAMFS_MOD" -- "modprobe ${FAMFS_MOD} (v1 dummy mount)"
+    expect_good famfs_modprobe_v1 -- "load standalone famfs module (v1 dummy mount)"
 fi
 
 #
@@ -156,8 +156,8 @@ verify_dev_not_mounted $DEV "$DEV lingering dummy mount after fsck"
 #
 
 if [[ "$FAMFS_MODE" == "v1" ]]; then
-    # Ensure module is loaded
-    expect_good sudo modprobe "$FAMFS_MOD" -- "modprobe ${FAMFS_MOD}"
+    # Ensure module is loaded (accepts famfs.ko or famfsv1.ko, and already-loaded)
+    expect_good famfs_modprobe_v1 -- "load standalone famfs module"
 
     #
     # Test manual mount / mkmeta / logplay

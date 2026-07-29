@@ -625,7 +625,7 @@ famfs_recreate() {
     verify_dev_not_mounted "$DEV" "famfs_recreate: dummy mount after mkfs ($MSG)"
 
     if [[ "$FAMFS_MODE" == "v1" ]]; then
-        sudo modprobe "${FAMFS_MOD}" || fail "famfs_recreate: modprobe ($MSG)"
+        famfs_modprobe_v1 || fail "famfs_recreate: modprobe ($MSG)"
     fi
 
     mount_retry "$DEV" "$MPT"     || fail "famfs_recreate: famfs mount ($MSG)"
@@ -638,14 +638,33 @@ famfs_fuse_supported() {
     grep -c famfs_fuse_iomap_begin /proc/kallsyms
 }
 
+# True (0) if the standalone famfs kernel module is loaded, under either the
+# famfs or famfsv1 name and regardless of how it was loaded (insmod or
+# modprobe). Mirrors famfs_module_loaded() in the C code.
+famfs_v1_loaded() {
+    [ -d /sys/module/famfs ] || [ -d /sys/module/famfsv1 ]
+}
+
 famfs_v1_supported() {
-    if modprobe --dry-run famfsv1 >/dev/null 2>&1; then
-        echo 1
-    elif modprobe --dry-run famfs >/dev/null 2>&1; then
+    # Supported if the standalone module is already loaded (covers an
+    # out-of-tree insmod, which modprobe --dry-run cannot see) OR is installed
+    # and modprobe-able under either name.
+    if famfs_v1_loaded ||
+       modprobe --dry-run famfs   >/dev/null 2>&1 ||
+       modprobe --dry-run famfsv1 >/dev/null 2>&1; then
         echo 1
     else
         echo 0
     fi
+}
+
+# Ensure the standalone module is loaded, accepting either module name and
+# tolerating a module that is already loaded (e.g. insmod'd out-of-tree, where
+# modprobe cannot find it). Nonzero only if it is neither loaded nor
+# modprobe-able under either name.
+famfs_modprobe_v1() {
+    famfs_v1_loaded && return 0
+    sudo modprobe famfs 2>/dev/null || sudo modprobe famfsv1
 }
 
 generate_random_int() {
