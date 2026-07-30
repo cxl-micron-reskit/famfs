@@ -129,8 +129,15 @@ if [[ "$FAMFS_MODE" == "fuse" ]]; then
     expect_fail sudo rm "$MPT/memfile"                   -- "rm fuse should fail"
     expect_fail sudo touch "$MPT/touchfile"              -- "touch fuse should fail"
 
+# v1: run the immutability negative tests when the kmod is new enough to
+# enforce them (kernel >= 6.12, with a correct cross-major comparison) OR
+# whenever the standalone ABI is >= 44, which enforces them regardless of
+# kernel version. The ABI clause keeps this working on kernels 7.0-7.11,
+# where the old "MAJOR>=6 && MINOR>=12" test wrongly evaluated false.
 elif [[ "$FAMFS_MODE" == "v1" && \
-	    "$KERNEL_MAJOR" -ge 6 && "$KERNEL_MINOR" -ge 12 ]]; then
+	    ( "$FAMFS_ABI" -ge 44 || \
+	      "$KERNEL_MAJOR" -gt 6 || \
+	      ( "$KERNEL_MAJOR" -eq 6 && "$KERNEL_MINOR" -ge 12 ) ) ]]; then
 
     expect_fail sudo truncate --size 0 "$MPT/memfile"    -- "truncate v1 should fail"
     expect_fail sudo ln "$MPT/newlink" "$MPT/memfile"    -- "hardlink v1 should fail"
