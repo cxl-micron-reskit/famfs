@@ -118,6 +118,21 @@ while (( $# > 0)); do
 	    SKIP_STRIPE_TEST=1
 	    COVERAGE=0
 	    ;;
+	(--mmap-only)
+	    # Run prepare followed by the mmap test only
+	    SKIP_DAXMODE=1
+	    SKIP_LOAD_MODULE=1
+	    SKIP_TEST0=1
+	    SKIP_SHADOW_YAML=1
+	    SKIP_TEST1=1
+	    SKIP_TEST2=1
+	    SKIP_TEST3=1
+	    SKIP_TEST4=1
+	    SKIP_ERRS=1
+	    SKIP_STRIPE_TEST=1
+	    SKIP_PCQ=1
+	    SKIP_FIO=1
+	    ;;
 	(--quick)
 	    SKIP_PCQ=1
 	    SKIP_FIO=1
@@ -419,6 +434,19 @@ if [ -z "$SKIP_TEST4" ]; then
     sleep "${SLEEP_TIME}"
 else
     echo ":== skipped test4 due to run_smoke options"
+fi
+
+if [ -z "$SKIP_MMAP" ]; then
+    start_time=$(date +%s)
+    ./smoke/test_mmap.sh "${SMOKE_ARGS[@]}" || exit -1
+    sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
+    elapsed=$(($(date +%s) - start_time))
+    TEST_NAMES+=("test_mmap")
+    TEST_TIMES+=("$elapsed")
+    echo ":== test_mmap success ($(format_time $elapsed))"
+    sleep "${SLEEP_TIME}"
+else
+    echo ":== skipped test_mmap due to run_smoke options"
 fi
 
 if [ -z "$SKIP_ERRS" ]; then
