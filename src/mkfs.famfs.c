@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <string.h>
+#include <strings.h>
 #include <stddef.h>
 #include <assert.h>
 #include <sys/types.h>
@@ -44,6 +45,8 @@ print_usage(int   argc,
 	       "    -f|--force        - Will create the file system even if there is already a valid superblock\n"
 	       "    -k|--kill         - Will 'kill' existing superblock (also requires -f)\n"
 	       "    -l|--loglen <len> - Default loglen: 8 MiB; valid range: >= 8 MiB\n"
+	       "    -U|--alloc-unit <au> - Allocation unit: 4k or 2m (default: 2m)\n"
+	       "    --4k              - Shortcut for --alloc-unit 4k (also --4K)\n"
 	       "    -M|--set-daxmode  - Switch daxdev to famfs mode if needed (kernel >= 7.0 only).\n"
 	       "                        Without this flag, mkfs fails with a clear message if the\n"
 	       "                        device is not already in famfs mode. The device is left in\n"
@@ -61,6 +64,27 @@ int kill_super;
 
 /* Long-only option value for --fuse (-f is already taken by --force) */
 #define MKFS_OPT_FUSE 256
+/* Long-only option value for the --4k / --4K alloc-unit shortcut */
+#define MKFS_OPT_4K   257
+
+/*
+ * Parse an --alloc-unit value. Accepts "4k"/"4096" (4 KiB) and "2m"/"2097152"
+ * (2 MiB), case-insensitively. Returns 0 and sets *au_out on success, -1 on an
+ * unrecognized value. These are the only allocation units famfs supports.
+ */
+static int
+parse_alloc_unit(const char *s, u64 *au_out)
+{
+	if (!strcasecmp(s, "4k") || !strcmp(s, "4096")) {
+		*au_out = 4096;
+		return 0;
+	}
+	if (!strcasecmp(s, "2m") || !strcmp(s, "2097152")) {
+		*au_out = FAMFS_ALLOC_UNIT;
+		return 0;
+	}
+	return -1;
+}
 
 struct option global_options[] = {
 	/* These options set a flag. */
@@ -75,6 +99,9 @@ struct option global_options[] = {
 	{"nofuse",      no_argument,       0,              'F'},
 	{"fuse",        no_argument,       0,  MKFS_OPT_FUSE},
 	{"verbose",     no_argument,       0,              'v'},
+	{"alloc-unit",  required_argument, 0,              'U'},
+	{"4k",          no_argument,       0,  MKFS_OPT_4K},
+	{"4K",          no_argument,       0,  MKFS_OPT_4K},
 	{0, 0, 0, 0}
 };
 
@@ -89,13 +116,14 @@ main(int argc, char *argv[])
 	bool set_daxmode = false;
 	char *daxdev = NULL;
 	u64 loglen = 0x800000;
+	u64 alloc_unit = FAMFS_ALLOC_UNIT; /* default 2 MiB; --4k selects 4 KiB */
 
 	/* Process global options, if any */
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
 	 * (e.g. the command that will mux us off to the command handlers
 	 */
-	while ((c = getopt_long(argc, argv, "+fFkl:DMh?",
+	while ((c = getopt_long(argc, argv, "+fFkl:DMU:h?",
 				global_options, &optind)) != EOF) {
 		char *endptr;
 		s64 mult;
@@ -131,6 +159,17 @@ main(int argc, char *argv[])
 		case MKFS_OPT_FUSE:
 			setenv("FAMFS_MODE", "fuse", 1);
 			break;
+		case 'U':
+			if (parse_alloc_unit(optarg, &alloc_unit)) {
+				fprintf(stderr,
+					"mkfs.famfs: invalid alloc unit '%s' "
+					"(valid: 4k or 2m)\n", optarg);
+				return 1;
+			}
+			break;
+		case MKFS_OPT_4K:
+			alloc_unit = 4096;
+			break;
 		case 'v':
 			verbose++;
 			break;
@@ -157,7 +196,7 @@ main(int argc, char *argv[])
 	famfs_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
 	famfs_log(FAMFS_LOG_NOTICE, "Starting famfs mkfs on device %s", daxdev);
 
-	rc = famfs_mkfs(daxdev, loglen, kill_super, nodax, force, set_daxmode, verbose);
+	rc = famfs_mkfs(daxdev, loglen, alloc_unit, kill_super, nodax, force, set_daxmode, verbose);
 	if (rc == 0)
 		famfs_log(FAMFS_LOG_NOTICE,
 			  "mkfs %s command successful on device %s",

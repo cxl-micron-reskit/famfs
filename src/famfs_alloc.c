@@ -446,7 +446,7 @@ famfs_file_alloc_contiguous(
 
 	fmap->fmap_ext_type = FAMFS_EXT_SIMPLE;
 	fmap->se[0].se_devindex = 0;
-	fmap->se[0].se_len = round_size_to_alloc_unit(size);
+	fmap->se[0].se_len = round_size_to_alloc_unit(size, lp->alloc_unit);
 	fmap->se[0].se_offset = offset;
 	fmap->fmap_nextents = 1;
 

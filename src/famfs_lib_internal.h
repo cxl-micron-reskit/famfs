@@ -121,7 +121,7 @@ int __file_is_famfs_v1(int fd);
 unsigned long famfs_gen_superblock_crc(const struct famfs_superblock *sb);
 unsigned long famfs_gen_log_header_crc(const struct famfs_log *logp);
 int __famfs_mkfs(const char *daxdev, struct famfs_superblock *sb, struct famfs_log *logp,
-		 u64 log_len, u64 device_size, int force, int kill);
+		 u64 log_len, u64 alloc_unit, u64 device_size, int force, int kill);
 int __open_relpath(const char *path, const char *relpath, int read_only, size_t *size_out, ssize_t size_in,
 		   char *mpt_out, enum lock_opt lockopt, int no_fscheck);
 int __famfs_cp(struct famfs_locked_log  *lp, const char *srcfile, const char *destfile,

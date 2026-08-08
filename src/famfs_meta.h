@@ -51,9 +51,9 @@
 STATIC_ASSERT(!(FAMFS_LOG_LEN & (FAMFS_LOG_LEN - 1)), FAMFS_LOG_LEN_must_be_power_of_2);
 STATIC_ASSERT(!(FAMFS_ALLOC_UNIT & (FAMFS_ALLOC_UNIT - 1)), FAMFS_ALLOC_UNIT_must_be_power_of_2);
 
-static inline size_t round_size_to_alloc_unit(u64 size)
+static inline size_t round_size_to_alloc_unit(u64 size, u64 alloc_unit)
 {
-	return ((size + FAMFS_ALLOC_UNIT - 1) / FAMFS_ALLOC_UNIT) * FAMFS_ALLOC_UNIT;
+	return ((size + alloc_unit - 1) / alloc_unit) * alloc_unit;
 }
 
 #define FAMFS_DEVNAME_LEN 64

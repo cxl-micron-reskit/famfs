@@ -116,7 +116,7 @@ int create_mock_famfs_instance(
 	memset(logp, 0, FAMFS_LOG_LEN);
 
 	/* First mkfs should succeed */
-	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, FAMFS_LOG_LEN, device_size, 0, 0);
+	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, FAMFS_LOG_LEN, FAMFS_ALLOC_UNIT, device_size, 0, 0);
 	famfs_assert_eq(rc, 0);
 
 	close(lfd);

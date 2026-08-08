@@ -5711,6 +5711,7 @@ __famfs_mkfs(const char              *daxdev,
 	     struct famfs_superblock *sb,
 	     struct famfs_log        *logp,
 	     u64                      log_len,
+	     u64                      alloc_unit,
 	     u64                      device_size,
 	     int                      force,
 	     int                      kill)
@@ -5753,7 +5754,7 @@ __famfs_mkfs(const char              *daxdev,
 	sb->ts_version    = FAMFS_CURRENT_VERSION;
 	sb->ts_log_offset = FAMFS_LOG_OFFSET;
 	sb->ts_log_len    = log_len;
-	sb->ts_alloc_unit = FAMFS_ALLOC_UNIT; /* Future: make configurable */
+	sb->ts_alloc_unit = alloc_unit;
 	sb->ts_omf_ver_major = FAMFS_OMF_VER_MAJOR;
 	sb->ts_omf_ver_minor = FAMFS_OMF_VER_MINOR;
 	famfs_uuidgen(&sb->ts_uuid);
@@ -5853,6 +5854,7 @@ static int
 famfs_mkfs_via_dummy_mount(
 	const char *daxdev,
 	u64         log_len, /* already validated */
+	u64         alloc_unit,
 	int         kill,
 	int         force,
 	bool        set_daxmode,
@@ -5953,7 +5955,7 @@ famfs_mkfs_via_dummy_mount(
 		goto out_umount;
 	}
 
-	rc = __famfs_mkfs(daxdev, sb, logp, log_len, devsize_out, force, kill);
+	rc = __famfs_mkfs(daxdev, sb, logp, log_len, alloc_unit, devsize_out, force, kill);
 
 out_umount:
 	if (logp) {
@@ -5982,6 +5984,7 @@ int
 famfs_mkfs_rawdev(
 	const char *daxdev,
 	u64         log_len, /* already validated */
+	u64         alloc_unit,
 	int         kill,
 	int         force)
 {
@@ -6023,7 +6026,7 @@ famfs_mkfs_rawdev(
 	if (rc)
 		return -1;
 
-	rc = __famfs_mkfs(daxdev, sb, logp, log_len, devsize_out, force, kill);
+	rc = __famfs_mkfs(daxdev, sb, logp, log_len, alloc_unit, devsize_out, force, kill);
 	if (sb) {
 		int rc2 = munmap(sb, FAMFS_SUPERBLOCK_SIZE);
 		if (rc2)
@@ -6043,6 +6046,7 @@ int
 famfs_mkfs(
 	const char *daxdev,
 	u64         log_len,
+	u64         alloc_unit,
 	int         kill,
 	bool        nodax_in,
 	int         force,
@@ -6059,11 +6063,19 @@ famfs_mkfs(
 		return -EINVAL;
 	}
 
+	/* The only supported allocation units are 4KiB and 2MiB */
+	if (alloc_unit != 4096 && alloc_unit != FAMFS_ALLOC_UNIT) {
+		fprintf(stderr, "%s: Error: invalid alloc unit (%lld); "
+			"valid values are 4096 and %d\n",
+			__func__, alloc_unit, FAMFS_ALLOC_UNIT);
+		return -EINVAL;
+	}
+
 	if (no_raw_dax)
-		rc = famfs_mkfs_via_dummy_mount(daxdev, log_len, kill, force,
-						set_daxmode, verbose);
+		rc = famfs_mkfs_via_dummy_mount(daxdev, log_len, alloc_unit, kill,
+						force, set_daxmode, verbose);
 	else
-		rc = famfs_mkfs_rawdev(daxdev, log_len, kill, force);
+		rc = famfs_mkfs_rawdev(daxdev, log_len, alloc_unit, kill, force);
 
 	return rc;
 }
