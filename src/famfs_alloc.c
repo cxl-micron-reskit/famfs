@@ -199,7 +199,7 @@ famfs_build_bitmap(const struct famfs_log   *logp,
 			const struct famfs_log_file_meta *fm = &le->famfs_fm;
 			const struct famfs_log_fmap *fmap = &fm->fm_fmap;
 			const struct famfs_log_fmap *ext = &fm->fm_fmap;
-				
+
 			ls.f_logged++;
 			fsize_sum += fm->fm_size;
 
@@ -837,7 +837,7 @@ mu_bitmap_range_stats(
 			bs->smallest_free_section =
 				MIN(free_ct, bs->smallest_free_section);
 			bs->largest_free_section =
-				MAX(free_ct, bs->largest_free_section);	
+				MAX(free_ct, bs->largest_free_section);
 	}
 }
 
