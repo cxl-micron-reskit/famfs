@@ -738,6 +738,85 @@ TEST(famfs, famfs_alloc)
 	mock_kmod = 0;
 }
 
+/*
+ * Direct check of the alloc-unit rounding the allocator uses. Environment
+ * independent (no mock instance or kernel), so it exercises the core of the
+ * round_size_to_alloc_unit() fix everywhere.
+ */
+TEST(famfs, round_size_to_alloc_unit)
+{
+	/* 4KiB unit */
+	EXPECT_EQ(round_size_to_alloc_unit(0, 4096), (size_t)0);
+	EXPECT_EQ(round_size_to_alloc_unit(1, 4096), (size_t)4096);
+	EXPECT_EQ(round_size_to_alloc_unit(4096, 4096), (size_t)4096);
+	EXPECT_EQ(round_size_to_alloc_unit(4097, 4096), (size_t)8192);
+	EXPECT_EQ(round_size_to_alloc_unit(5000, 4096), (size_t)8192);
+
+	/* 2MiB unit: the same small size rounds all the way up to 2MiB */
+	EXPECT_EQ(round_size_to_alloc_unit(5000, FAMFS_ALLOC_UNIT),
+		  (size_t)FAMFS_ALLOC_UNIT);
+	EXPECT_EQ(round_size_to_alloc_unit(FAMFS_ALLOC_UNIT + 1, FAMFS_ALLOC_UNIT),
+		  (size_t)(2 * FAMFS_ALLOC_UNIT));
+}
+
+/*
+ * Verify that the allocator honors a 4KiB allocation unit: a file's extent is
+ * rounded up to the filesystem's alloc unit, so the same size rounds to 8KiB
+ * with a 4K unit but to 2MiB with the default 2M unit. This locks down
+ * round_size_to_alloc_unit() taking the runtime alloc unit rather than a
+ * hardcoded 2MiB. (Requires a working mock instance, so it runs on the test
+ * box; round_size_to_alloc_unit above covers the math everywhere.)
+ */
+TEST(famfs, famfs_alloc_4k)
+{
+	u64 device_size = 1024 * 1024 * 256;
+	struct famfs_log_fmap *fmap = NULL;
+	struct famfs_superblock *sb;
+	struct famfs_locked_log ll;
+	char *fspath = "/tmp/famfs";
+	struct famfs_log *logp;
+	extern int mock_kmod;
+	extern int mock_fstype;
+	int rc;
+
+	mock_kmod = 1;
+	mock_fstype = FAMFS_V1;
+
+	/* 4K alloc unit: a 5000-byte file rounds up to 8192 (2 * 4096) */
+	rc = create_mock_famfs_instance_au(fspath, device_size, 4096, &sb, &logp);
+	ASSERT_EQ(rc, 0);
+	ASSERT_EQ(sb->ts_alloc_unit, (u64)4096);
+	rc = famfs_init_locked_log(&ll, fspath, 0, 1);
+	ASSERT_EQ(rc, 0);
+	ASSERT_EQ(ll.alloc_unit, (u64)4096);
+	mock_kmod = 0;
+
+	rc = famfs_file_alloc(&ll, 5000, &fmap, 1);
+	ASSERT_EQ(rc, 0);
+	ASSERT_NE(fmap, nullptr);
+	ASSERT_EQ(fmap->fmap_ext_type, FAMFS_EXT_SIMPLE);
+	ASSERT_EQ(fmap->fmap_nextents, 1u);
+	EXPECT_EQ(fmap->se[0].se_len, (u64)8192); /* round_up(5000, 4096) */
+	free(fmap);
+	fmap = NULL;
+
+	/* Contrast: the same size on the default 2M alloc unit rounds to 2MiB */
+	mock_kmod = 1;
+	rc = create_mock_famfs_instance_au(fspath, device_size, FAMFS_ALLOC_UNIT,
+					   &sb, &logp);
+	ASSERT_EQ(rc, 0);
+	ASSERT_EQ(sb->ts_alloc_unit, (u64)FAMFS_ALLOC_UNIT);
+	rc = famfs_init_locked_log(&ll, fspath, 0, 1);
+	ASSERT_EQ(rc, 0);
+	mock_kmod = 0;
+
+	rc = famfs_file_alloc(&ll, 5000, &fmap, 1);
+	ASSERT_EQ(rc, 0);
+	ASSERT_NE(fmap, nullptr);
+	EXPECT_EQ(fmap->se[0].se_len, (u64)FAMFS_ALLOC_UNIT); /* round_up(5000, 2M) */
+	free(fmap);
+}
+
 TEST(famfs, famfs_log)
 {
 	u64 device_size = 1024 * 1024 * 1024;

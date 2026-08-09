@@ -47,6 +47,17 @@ int create_mock_famfs_instance(
 	struct famfs_superblock **sb_out,
 	struct famfs_log **log_out)
 {
+	return create_mock_famfs_instance_au(path, device_size, FAMFS_ALLOC_UNIT,
+					     sb_out, log_out);
+}
+
+int create_mock_famfs_instance_au(
+	const char *path,
+	u64 device_size,
+	u64 alloc_unit,
+	struct famfs_superblock **sb_out,
+	struct famfs_log **log_out)
+{
 	char *buf  = (char *)calloc(1, FAMFS_LOG_LEN);
 	struct famfs_superblock *sb;
 	struct famfs_log *logp;
@@ -116,7 +127,7 @@ int create_mock_famfs_instance(
 	memset(logp, 0, FAMFS_LOG_LEN);
 
 	/* First mkfs should succeed */
-	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, FAMFS_LOG_LEN, FAMFS_ALLOC_UNIT, device_size, 0, 0);
+	rc = __famfs_mkfs("/dev/dax0.0", sb, logp, FAMFS_LOG_LEN, alloc_unit, device_size, 0, 0);
 	famfs_assert_eq(rc, 0);
 
 	close(lfd);
