@@ -537,6 +537,12 @@ do_famfs_cli_mount(int argc, char *argv[])
 		goto err_out;
 	}
 
+	/* Verify the loaded standalone kernel speaks the ABI we were built for
+	 * before we mount and start issuing ioctls. */
+	rc = famfs_check_kernel_kabi(verbose);
+	if (rc)
+		goto err_out;
+
 	if (daxmode_required) {
 		/* kernel >= 6.15: ensure device is in famfs-dax mode before mount() */
 		rc = famfs_check_or_set_daxmode(realdaxdev, set_daxmode,

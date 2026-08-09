@@ -2233,6 +2233,44 @@ TEST(famfs, tokenize_string)
 	free_string_list(strings, count);
 }
 
+TEST(famfs, famfs_kabi_check)
+{
+	extern int mock_kernel_kabi;
+	extern int mock_kmod;
+	int saved_kmod = mock_kmod;
+
+	/* Drive the real policy via mock_kernel_kabi (mock_kmod off). */
+	mock_kmod = 0;
+
+	/* Exact match -> ok */
+	mock_kernel_kabi = FAMFS_KABI_VERSION;
+	EXPECT_EQ(famfs_check_kernel_kabi(0), 0);
+
+	/* Kernel newer than userspace -> always rejected */
+	mock_kernel_kabi = FAMFS_KABI_VERSION + 1;
+	EXPECT_NE(famfs_check_kernel_kabi(0), 0);
+
+	/* Kernel older than userspace -> rejected (for now) */
+	mock_kernel_kabi = FAMFS_KABI_VERSION - 1;
+	EXPECT_NE(famfs_check_kernel_kabi(0), 0);
+
+	/* Parameter absent: rejected iff this build is KABI >= 44 */
+	mock_kernel_kabi = -1;
+	if (FAMFS_KABI_VERSION >= 44)
+		EXPECT_NE(famfs_check_kernel_kabi(0), 0);
+	else
+		EXPECT_EQ(famfs_check_kernel_kabi(0), 0);
+
+	/* mock_kmod (simulated cooperative kernel) short-circuits to success,
+	 * even with an otherwise-incompatible mocked kernel KABI */
+	mock_kmod = 1;
+	mock_kernel_kabi = FAMFS_KABI_VERSION + 1;
+	EXPECT_EQ(famfs_check_kernel_kabi(0), 0);
+
+	mock_kernel_kabi = 0;
+	mock_kmod = saved_kmod;
+}
+
 TEST(famfs, famfs_select_mode)
 {
 	extern int mock_kernel_type;

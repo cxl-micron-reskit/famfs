@@ -1120,6 +1120,10 @@ famfs_dummy_mount_v1(
 
 	assert(mpt_out);
 
+	rc = famfs_check_kernel_kabi(verbose);
+	if (rc)
+		return rc;
+
 	mpt = gen_dummy_mpt();
 	if (!mpt) {
 		fprintf(stderr, "%s: failed to create dummy mount point\n",

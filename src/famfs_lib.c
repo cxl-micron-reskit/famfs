@@ -267,6 +267,131 @@ famfs_module_loaded(int verbose)
 	return 1;
 }
 
+/* unit tests: 0 = read the real sysfs value; >0 = pretend the kernel reports
+ * this KABI; <0 = pretend the kabi_version parameter is absent */
+int mock_kernel_kabi = 0;
+
+#define FAMFS_MODULE_KABI_PARAM    FAMFS_MODULE_SYSFS "/parameters/kabi_version"
+
+/*
+ * famfs_read_kernel_kabi() - read the standalone famfs kernel module's KABI
+ * version from /sys/module/famfs/parameters/kabi_version.
+ *
+ * This parameter exists only starting at standalone KABI 44, where the module
+ * is always named "famfs" (never the legacy "famfsv1"), so there is a single
+ * path to check. On success returns 0 and sets *kabi_out. Returns -ENOENT if
+ * the parameter does not exist (a pre-44 kernel, or the module is not loaded),
+ * or another negative errno on read error.
+ */
+static int
+famfs_read_kernel_kabi(int *kabi_out)
+{
+	char buf[32];
+	ssize_t n;
+	int fd;
+
+	if (mock_kernel_kabi > 0) {
+		*kabi_out = mock_kernel_kabi;
+		return 0;
+	}
+	if (mock_kernel_kabi < 0)
+		return -ENOENT;
+
+	fd = open(FAMFS_MODULE_KABI_PARAM, O_RDONLY);
+	if (fd < 0)
+		return -ENOENT;
+	n = read(fd, buf, sizeof(buf) - 1);
+	close(fd);
+	if (n <= 0)
+		return -EIO;
+	buf[n] = '\0';
+	*kabi_out = (int)strtol(buf, NULL, 0);
+	return 0;
+}
+
+/*
+ * famfs_check_kernel_kabi() - verify that the running standalone kernel's KABI
+ * is compatible with the ABI this userspace was compiled for
+ * (FAMFS_KABI_VERSION).
+ *
+ * Standalone only: every caller is on a standalone path. In fuse mode libfuse
+ * handles protocol versioning, and the standalone module (hence the parameter)
+ * may not even be loaded, so this is never called there.
+ *
+ * The result is memoized (the running kernel does not change under us), so the
+ * sysfs read happens once per process even though this is called from hot
+ * paths such as map creation. The mock path is never memoized, so unit tests
+ * can exercise every case.
+ *
+ * Policy:
+ *   kernel == compiled -> ok
+ *   kernel  > compiled -> error: userspace can never speak a newer ABI
+ *   kernel  < compiled -> error (for now): this build needs an exact match; a
+ *                         future userspace may downgrade to the kernel's ABI
+ *   parameter absent:
+ *     compiled >= 44    -> error: expected a KABI-44+ kernel that exports it
+ *     compiled  < 44    -> ok: pre-44 kernel, nothing to verify (legacy v1/v2)
+ *
+ * Returns 0 if compatible, or a negative errno otherwise.
+ */
+int
+famfs_check_kernel_kabi(int verbose)
+{
+	static int cached = 1; /* 1 = not yet determined */
+	int kver = 0;
+	int result;
+	int rc;
+
+	/* Unit tests that simulate a cooperative kernel (mock_kmod) skip real
+	 * KABI verification. */
+	if (mock_kmod)
+		return 0;
+
+	/* Memoize the real result; the mock_kernel_kabi path is never cached so
+	 * tests can vary it. */
+	if (!mock_kernel_kabi && cached <= 0)
+		return cached;
+
+	rc = famfs_read_kernel_kabi(&kver);
+	if (rc == -ENOENT) {
+		/* FAMFS_KABI_VERSION is what we were built with */
+#if (FAMFS_KABI_VERSION >= 44)
+		fprintf(stderr,
+			"%s: standalone kernel does not export kabi_version; "
+			"this famfs is built for KABI %d and needs a matching "
+			"kernel\n", __func__, FAMFS_KABI_VERSION);
+		result = -EPROTO;
+#else
+		/* pre-44 kernel: no kabi_version parameter, nothing to verify */
+		result = 0;
+#endif
+	} else if (rc) {
+		fprintf(stderr, "%s: error reading kernel kabi_version: %s\n",
+			__func__, strerror(-rc));
+		result = rc;
+	} else if (kver == FAMFS_KABI_VERSION) {
+		if (verbose)
+			printf("%s: kernel KABI %d matches\n", __func__, kver);
+		result = 0;
+	} else if (kver > FAMFS_KABI_VERSION) {
+		fprintf(stderr,
+			"%s: standalone kernel KABI %d is newer than this famfs "
+			"build (KABI %d); upgrade famfs userspace\n",
+			__func__, kver, FAMFS_KABI_VERSION);
+		result = -EPROTO;
+	} else {
+		fprintf(stderr,
+			"%s: standalone kernel KABI %d is older than this famfs "
+			"build (KABI %d); a matching kernel is required\n",
+			__func__, kver, FAMFS_KABI_VERSION);
+		result = -EPROTO;
+	}
+
+	if (!mock_kernel_kabi)
+		cached = result;
+	return result;
+}
+
 /**
  * famfs_load_module() - try to load the famfs V1 kernel module via modprobe
  *
@@ -1074,6 +1199,10 @@ famfs_v1_set_file_map(
 
 	assert(fd > 0);
 
+	rc = famfs_check_kernel_kabi(0);
+	if (rc)
+		return rc;
+
 	filemap.file_type      = type;
 	filemap.file_size      = size;
 	filemap.extent_type    = SIMPLE_DAX_EXTENT;
@@ -1122,6 +1251,10 @@ famfs_v3_set_file_map(
 	int rc;
 
 	assert(fd > 0);
+
+	rc = famfs_check_kernel_kabi(verbose);
+	if (rc)
+		return rc;
 
 	/* famfs_file_type -> fuse_famfs_file_type for the wire header */
 	switch (type) {

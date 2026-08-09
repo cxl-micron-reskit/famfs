@@ -147,6 +147,7 @@ int famfs_get_system_uuid(uuid_le *uuid_out);
 void famfs_print_uuid(const uuid_le *uuid);
 enum famfs_type famfs_get_kernel_type(int verbose);
 enum famfs_type famfs_select_mode(int verbose);
+int famfs_check_kernel_kabi(int verbose);
 bool famfs_daxmode_required(void);
 void free_string_list(char **strings, int nstrings);
 char **tokenize_string(const char *input, char delimiter, int *out_count);
