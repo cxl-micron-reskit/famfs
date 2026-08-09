@@ -479,6 +479,30 @@ else
     fi
 fi
 
+# 4K allocation-unit test: standalone KABI>=44 only (the kernel must accept
+# 4K-aligned extents). Fuse and pre-44 kernels skip.
+TEST_4K_SKIP=""
+if [[ "$FAMFS_MODE" != "v1" || "$FAMFS_ABI" -lt 44 ]]; then
+    TEST_4K_SKIP=1
+fi
+
+if [ -z "$SKIP_TEST_4K" ] && [ -z "$TEST_4K_SKIP" ]; then
+    start_time=$(date +%s)
+    ./smoke/test_4k.sh "${SMOKE_ARGS[@]}" || exit -1
+    sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
+    elapsed=$(($(date +%s) - start_time))
+    TEST_NAMES+=("test_4k")
+    TEST_TIMES+=("$elapsed")
+    echo ":== test_4k success ($(format_time $elapsed))"
+    sleep "${SLEEP_TIME}"
+else
+    if [ -n "$SKIP_TEST_4K" ]; then
+	echo ":== Skipped test_4k due to caller options"
+    else
+	echo ":== Skipped test_4k (4K alloc unit needs standalone KABI >= 44)"
+    fi
+fi
+
 if [[ $COVERAGE -ne 1 ]] || [[ -n "$FORCE_PCQ" ]]; then
     if [ -z "$SKIP_PCQ" ]; then
 	# XXX: get test_pcq running properly in coverage test mode
