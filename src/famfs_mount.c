@@ -687,23 +687,6 @@ famfs_umount(const char *mpt)
 }
 
 /**
- * famfs_mount_fuse() - mount a famfs file system via fuse
- *
- * @realdaxdev
- * @realmpt
- * @realshadow
- * @timeout
- * @logplay_use_mmap
- * @useraccess
- * @default_perm
- * @dummy            - Perform a mount and create meta files but don't verify
- *                     superblock and log, and don't play the log.
- * @dummy_log_size   - Size of log file for dummy mount
- * @debug
- * @verbose
- */
-
-/**
  * famfs_fuse_daemon_alive() - Check whether the famfs_fused daemon is running.
  * @shadow: Shadow directory path (the socket lives at <shadow>/sock).
  * @verbose: Verbosity level.
@@ -752,6 +735,23 @@ famfs_fuse_daemon_alive(const char *shadow, int verbose)
 	}
 	return 1;
 }
+
+/**
+ * famfs_mount_fuse() - mount a famfs file system via fuse
+ *
+ * @realdaxdev
+ * @realmpt
+ * @realshadow
+ * @timeout
+ * @logplay_use_mmap
+ * @useraccess
+ * @default_perm
+ * @dummy            - Perform a mount and create meta files but don't verify
+ *                     superblock and log, and don't play the log.
+ * @dummy_log_size   - Size of log file for dummy mount
+ * @debug
+ * @verbose
+ */
 
 int
 famfs_mount_fuse(
