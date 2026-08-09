@@ -23,6 +23,14 @@
 
 static const uintptr_t CACHELINE_SIZE = 64;
 
+/*
+ * When set, the flush/invalidate primitives below become no-ops. The unit
+ * tests set this: they run against process-local memory that is never shared
+ * across hosts, so cache flushing is unnecessary for correctness and only
+ * slows them down (famfs_append_log flushes the whole log on every append).
+ */
+int mock_flush = 0;
+
 /* Define types for internal function pointers */
 typedef void (*fcc_func_ptr)(uintptr_t addr);
 typedef void (*fence_fn_t)(void);
@@ -126,6 +134,8 @@ static void x86_flush_range(uintptr_t start, size_t len, fcc_func_ptr fcc_func)
 
 void flush_processor_cache(const void *addr, size_t len)
 {
+	if (mock_flush)
+		return;
 	pthread_once(&initialized, x86_init_flush_functions);
 	famfs_log(FAMFS_LOG_DEBUG,
 			"flush_processor_cache 0x%" PRIxPTR " %lu \n",
@@ -138,6 +148,8 @@ void flush_processor_cache(const void *addr, size_t len)
 
 void invalidate_processor_cache(const void *addr, size_t len)
 {
+	if (mock_flush)
+		return;
 	pthread_once(&initialized, x86_init_flush_functions);
 	/* Invalidate: flush and invalidate each line */
 	famfs_log(FAMFS_LOG_DEBUG,
@@ -149,6 +161,8 @@ void invalidate_processor_cache(const void *addr, size_t len)
 
 void hard_flush_processor_cache(const void *addr, size_t len)
 {
+	if (mock_flush)
+		return;
 	pthread_once(&initialized, x86_init_flush_functions);
 	/* Use a full memory barrier before and after to enforce strong ordering */
 	famfs_log(FAMFS_LOG_DEBUG,

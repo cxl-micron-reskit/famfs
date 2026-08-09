@@ -33,7 +33,17 @@ extern "C" {
 #include "famfs_fused.h"
 
 extern int mock_failure;
+extern int mock_flush;
 }
+
+/*
+ * The unit tests operate on a fake, process-local in-memory famfs (mmap'd
+ * /tmp files) that is never shared across hosts, so CPU cache flush and
+ * invalidate are no-ops for correctness here. Disable them globally: it makes
+ * no observable difference but avoids famfs_append_log's whole-log CLWB flush
+ * on every append, which otherwise made the log-overflow tests take ~50s each.
+ */
+static const int famfs_unit_disable_flush = (mock_flush = 1, 0);
 
 /****+++++++++++++++++++++++++++++++++++++++++++++
  * NOTE THESE TESTS MUST BE RUN AS ROOT!!

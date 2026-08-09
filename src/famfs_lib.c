@@ -49,7 +49,7 @@
 
 int mock_kmod = 0; /* unit tests can set this to avoid ioctl calls and whatnot */
 int mock_fstype = 0;
-int mock_flush = 0; /* for unit tests to avoid actual flushing */
+/* mock_flush is defined in fcc-x86_64.c, next to the flush primitives it gates */
 int mock_role = 0; /* for unit tests to specify role rather than testing for it */
 int mock_uuid = 0; /* for unit tests to simulate uuid related errors */
 int mock_path = 0; /* for unit tests to simulate path related errors */
