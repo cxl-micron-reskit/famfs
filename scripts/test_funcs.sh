@@ -605,6 +605,8 @@ famfs_get_capacity() {
 
 famfs_recreate() {
     local MSG=$1
+    # Any args after MSG are passed to the mkfs that creates the fs (e.g. --4k)
+    local -a EXTRA=("${@:2}")
 
     # Ensure not mounted
     sudo umount "$MPT" >/dev/null 2>&1 || true
@@ -621,7 +623,7 @@ famfs_recreate() {
     "${MKFS[@]}" /tmp/nonexistent && fail "famfs_recreate: mkfs on nonexistent dev should fail ($MSG)"
     "${MKFS[@]}" -f -k "$DEV"      || fail "famfs_recreate: mkfs/kill should succeed with --force ($MSG)"
     verify_dev_not_mounted "$DEV" "famfs_recreate: dummy mount after mkfs/kill ($MSG)"
-    "${MKFS[@]}" "$DEV"            || fail "famfs_recreate: mkfs ($MSG)"
+    "${MKFS[@]}" "${EXTRA[@]}" "$DEV" || fail "famfs_recreate: mkfs ($MSG)"
     verify_dev_not_mounted "$DEV" "famfs_recreate: dummy mount after mkfs ($MSG)"
 
     if [[ "$FAMFS_MODE" == "v1" ]]; then
