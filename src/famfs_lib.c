@@ -2714,15 +2714,15 @@ famfs_append_log(struct famfs_log       *logp,
 	logp->famfs_log_next_seqnum++;
 	logp->famfs_log_next_index++;
 
-	/* Could flush: 1) the log entry, 2) the log header
-	 * That would be less flushing, but would not guarantee that the entry
-	 * is visible before the log header. If the log header becomes visible
-	 * first (leading to reading a cache-incoherent log entry), the checksum
-	 * on the log entry will save us - and the logplay can be retried.
-	 *
-	 * But now we're just flushing the whole log every time...
+	/* Flush 1) the new log entry, then 2) the log header. This is far less
+	 * flushing than the whole log. flush_processor_cache() ends in an SFENCE,
+	 * so the entry is globally visible before the header that indexes it. Even
+	 * if a reader somehow saw the header ahead of the entry, the checksum on
+	 * the log entry would catch the cache-incoherent entry - and the logplay
+	 * can be retried.
 	 */
-	flush_processor_cache(logp, logp->famfs_log_len);
+	flush_processor_cache(&logp->entries[logp->famfs_log_next_index - 1], sizeof(*e));
+	flush_processor_cache(logp, offsetof(struct famfs_log, entries));
 
 	return 0;
 }
