@@ -17,6 +17,7 @@
 #include <errno.h>
 #include <string.h>
 #include <assert.h>
+#include <stddef.h>
 #include <sys/ioctl.h>
 #include <sys/user.h>
 #include <sys/param.h> /* MIN()/MAX() */
@@ -34,46 +35,77 @@
 
 /*
  * This file is the single fmap serializer for both the fuse GET_FMAP reply
- * (fuse_famfs_* structs, from <linux/fuse.h>) and the standalone famfs
- * FAMFSIOC_MAP_CREATE message (famfs_ioc_* structs, from
- * <linux/famfs_ioctl.h>). That only works if the two struct families are
- * byte-identical; lock the layouts here so a change to either side that
- * breaks the shared wire fails to compile.
- *
- * The famfs_ioc_* structs only exist at KABI 44; a legacy (42/43) header has
- * neither them nor the standalone MAP_CREATE wire, so only assert there.
+ * and the standalone famfs FAMFSIOC_MAP_CREATE message. The format is the
+ * famfs-owned wire format in famfs_fmap.h; the kernel-side copies must stay
+ * byte-identical, so lock the layouts against whichever copies this build can
+ * see and fail to compile if either side drifts:
+ *  - famfs_ioc_* (<linux/famfs_ioctl.h>): only at KABI >= 44
+ *  - fuse_famfs_* (fuse_kernel.h): only with a DAX_FMAP fuse ABI libfuse
+ *    (the extent-map ABI has no GET_FMAP and no such structs)
  */
+#define FAMFS_WIRE_ASSERT_FIELD(w, k, f) \
+	_Static_assert(offsetof(w, f) == offsetof(k, f), #k "." #f)
+#define FAMFS_WIRE_ASSERT_SIZE(w, k) \
+	_Static_assert(sizeof(w) == sizeof(k), #k " size")
+
 #if (FAMFS_KABI_VERSION >= 44)
-_Static_assert(sizeof(struct famfs_ioc_fmap_header) ==
-	       sizeof(struct fuse_famfs_fmap_header), "fmap_header size");
-_Static_assert(sizeof(struct famfs_ioc_simple_ext) ==
-	       sizeof(struct fuse_famfs_simple_ext), "simple_ext size");
-_Static_assert(sizeof(struct famfs_ioc_iext) ==
-	       sizeof(struct fuse_famfs_iext), "iext size");
+_Static_assert(FAMFS_FMAP_WIRE_VERSION == FAMFS_FMAP_VERSION, "fmap_version");
+_Static_assert((int)FAMFS_FMAP_WIRE_EXT_SIMPLE == (int)FAMFS_IOC_EXT_SIMPLE &&
+	       (int)FAMFS_FMAP_WIRE_EXT_INTERLEAVE == (int)FAMFS_IOC_EXT_INTERLEAVE,
+	       "ext_type values");
+_Static_assert((int)FAMFS_FMAP_WIRE_FILE_REG == (int)FAMFS_REG &&
+	       (int)FAMFS_FMAP_WIRE_FILE_SUPERBLOCK == (int)FAMFS_SUPERBLOCK &&
+	       (int)FAMFS_FMAP_WIRE_FILE_LOG == (int)FAMFS_LOG, "file_type values");
 
-_Static_assert(offsetof(struct famfs_ioc_fmap_header, ext_type) ==
-	       offsetof(struct fuse_famfs_fmap_header, ext_type), "ext_type");
-_Static_assert(offsetof(struct famfs_ioc_fmap_header, nextents) ==
-	       offsetof(struct fuse_famfs_fmap_header, nextents), "nextents");
-_Static_assert(offsetof(struct famfs_ioc_fmap_header, fmap_size) ==
-	       offsetof(struct fuse_famfs_fmap_header, fmap_size), "fmap_size");
-_Static_assert(offsetof(struct famfs_ioc_fmap_header, file_size) ==
-	       offsetof(struct fuse_famfs_fmap_header, file_size), "file_size");
+FAMFS_WIRE_ASSERT_SIZE(struct famfs_fmap_wire_header, struct famfs_fmap_wire_header);
+FAMFS_WIRE_ASSERT_SIZE(struct famfs_fmap_wire_simple_ext, struct famfs_fmap_wire_simple_ext);
+FAMFS_WIRE_ASSERT_SIZE(struct famfs_fmap_wire_iext, struct famfs_fmap_wire_iext);
 
-_Static_assert(offsetof(struct famfs_ioc_simple_ext, se_devindex) ==
-	       offsetof(struct fuse_famfs_simple_ext, se_devindex), "se_devindex");
-_Static_assert(offsetof(struct famfs_ioc_simple_ext, se_offset) ==
-	       offsetof(struct fuse_famfs_simple_ext, se_offset), "se_offset");
-_Static_assert(offsetof(struct famfs_ioc_simple_ext, se_len) ==
-	       offsetof(struct fuse_famfs_simple_ext, se_len), "se_len");
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_header, struct famfs_fmap_wire_header, file_type);
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_header, struct famfs_fmap_wire_header, fmap_version);
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_header, struct famfs_fmap_wire_header, ext_type);
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_header, struct famfs_fmap_wire_header, nextents);
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_header, struct famfs_fmap_wire_header, fmap_size);
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_header, struct famfs_fmap_wire_header, file_size);
 
-_Static_assert(offsetof(struct famfs_ioc_iext, ie_nstrips) ==
-	       offsetof(struct fuse_famfs_iext, ie_nstrips), "ie_nstrips");
-_Static_assert(offsetof(struct famfs_ioc_iext, ie_chunk_size) ==
-	       offsetof(struct fuse_famfs_iext, ie_chunk_size), "ie_chunk_size");
-_Static_assert(offsetof(struct famfs_ioc_iext, ie_nbytes) ==
-	       offsetof(struct fuse_famfs_iext, ie_nbytes), "ie_nbytes");
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_simple_ext, struct famfs_fmap_wire_simple_ext, se_devindex);
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_simple_ext, struct famfs_fmap_wire_simple_ext, se_offset);
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_simple_ext, struct famfs_fmap_wire_simple_ext, se_len);
+
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_iext, struct famfs_fmap_wire_iext, ie_nstrips);
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_iext, struct famfs_fmap_wire_iext, ie_chunk_size);
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_iext, struct famfs_fmap_wire_iext, ie_nbytes);
 #endif /* FAMFS_KABI_VERSION >= 44 */
+
+#ifdef FUSE_DAX_FMAP /* DAX_FMAP fuse ABI libfuse: fuse_famfs_* are visible */
+_Static_assert(FAMFS_FMAP_WIRE_VERSION == FAMFS_FMAP_VERSION, "fmap_version");
+_Static_assert((int)FAMFS_FMAP_WIRE_EXT_SIMPLE == (int)FUSE_FAMFS_EXT_SIMPLE &&
+	       (int)FAMFS_FMAP_WIRE_EXT_INTERLEAVE == (int)FUSE_FAMFS_EXT_INTERLEAVE,
+	       "ext_type values");
+_Static_assert((int)FAMFS_FMAP_WIRE_FILE_REG == (int)FUSE_FAMFS_FILE_REG &&
+	       (int)FAMFS_FMAP_WIRE_FILE_SUPERBLOCK == (int)FUSE_FAMFS_FILE_SUPERBLOCK &&
+	       (int)FAMFS_FMAP_WIRE_FILE_LOG == (int)FUSE_FAMFS_FILE_LOG,
+	       "file_type values");
+
+FAMFS_WIRE_ASSERT_SIZE(struct famfs_fmap_wire_header, struct fuse_famfs_fmap_header);
+FAMFS_WIRE_ASSERT_SIZE(struct famfs_fmap_wire_simple_ext, struct fuse_famfs_simple_ext);
+FAMFS_WIRE_ASSERT_SIZE(struct famfs_fmap_wire_iext, struct fuse_famfs_iext);
+
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_header, struct fuse_famfs_fmap_header, file_type);
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_header, struct fuse_famfs_fmap_header, fmap_version);
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_header, struct fuse_famfs_fmap_header, ext_type);
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_header, struct fuse_famfs_fmap_header, nextents);
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_header, struct fuse_famfs_fmap_header, fmap_size);
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_header, struct fuse_famfs_fmap_header, file_size);
+
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_simple_ext, struct fuse_famfs_simple_ext, se_devindex);
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_simple_ext, struct fuse_famfs_simple_ext, se_offset);
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_simple_ext, struct fuse_famfs_simple_ext, se_len);
+
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_iext, struct fuse_famfs_iext, ie_nstrips);
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_iext, struct fuse_famfs_iext, ie_chunk_size);
+FAMFS_WIRE_ASSERT_FIELD(struct famfs_fmap_wire_iext, struct fuse_famfs_iext, ie_nbytes);
+#endif /* FUSE_DAX_FMAP */
 
 void pr_verbose(int verbose, const char *format, ...) {
 	if (!verbose) {
@@ -144,68 +176,6 @@ alloc_simple_extlist(int next)
 }
 
 /**
- * alloc_interleaved_fmap(): This allocates an interleaved fmap
- *
- * @ninterleave - number of interleaved extents
- * @nstrips_per_interleave - number of strips per interleaved extent
- *
- * struct_tags are initialized, but extents and strips are not initialized
- * (other than their struct tags)
- *
- * The following are left uninitialized:
- * * ie_chunk_size
- * * ie_nbytes
- * * simple extents for strips (except the struct_tag, which is initialized)
- */
-struct fmap_mem_header *
-alloc_interleaved_fmap(
-	int ninterleave,
-	int nstrips_per_interleave,
-	int verbose)
-{
-	struct fmap_mem_header *fm = alloc_mem_fmap();
-	int i;
-
-	if (!fm)
-		return NULL;
-	if (ninterleave > FAMFS_MAX_SIMPLE_EXT)
-		goto out_free;
-	if (nstrips_per_interleave == 0)
-		goto out_free;
-	if (nstrips_per_interleave > FAMFS_MAX_SIMPLE_EXT)
-		goto out_free;
-
-	fm->flh.fmap_ext_type = FUSE_FAMFS_EXT_INTERLEAVE;
-	fm->flh.niext = ninterleave;
-
-	pr_verbose(verbose, "%s: ninterleave=%d sizeof(ie)=%ld\n",
-		   __func__, ninterleave, sizeof(*(fm->ie)));
-	fm->ie = calloc(ninterleave, sizeof(*(fm->ie)));
-
-	if (!fm->ie)
-		goto out_free;
-
-	for (i = 0; i < ninterleave; i++) {
-		pr_verbose(verbose, "%s(%d): %p set LOG_IEXT_TAG\n",
-			   __func__, i, &(fm->ie[i]));
-		fm->ie[i].iext.struct_tag = LOG_IEXT_TAG;
-		fm->ie[i].iext.ie_nstrips = nstrips_per_interleave;
-		fm->ie[i].se = alloc_simple_extlist(nstrips_per_interleave);
-	}
-
-	pr_verbose(verbose, "%s: success(%d, %d)\n", __func__,
-		   ninterleave, nstrips_per_interleave);
-	pr_verbose(verbose, "%s: dumping:\n", __func__);
-	validate_mem_fmap(fm, 0, 1);
-	return fm;
-
-out_free:
-	pr_verbose(verbose, "%s: error\n", __func__);
-	free(fm);
-	return NULL;
-}
-
-/**
  * alloc_simple_fmap()
  *
  * This allocates a simple fmap, which is valid except that the extents
@@ -238,9 +208,71 @@ out_free:
 		
 }
 
+/**
+ * alloc_interleaved_fmap(): This allocates an interleaved fmap
+ *
+ * @ninterleave - number of interleaved extents
+ * @nstrips_per_interleave - number of strips per interleaved extent
+ *
+ * struct_tags are initialized, but extents and strips are not initialized
+ * (other than their struct tags)
+ *
+ * The following are left uninitialized:
+ * * ie_chunk_size
+ * * ie_nbytes
+ * * simple extents for strips (except the struct_tag, which is initialized)
+ */
+struct fmap_mem_header *
+alloc_interleaved_fmap(
+	int ninterleave,
+	int nstrips_per_interleave,
+	int verbose)
+{
+	struct fmap_mem_header *fm = alloc_mem_fmap();
+	int i;
+
+	if (!fm)
+		return NULL;
+	if (ninterleave > FAMFS_MAX_SIMPLE_EXT)
+		goto out_free;
+	if (nstrips_per_interleave == 0)
+		goto out_free;
+	if (nstrips_per_interleave > FAMFS_MAX_SIMPLE_EXT)
+		goto out_free;
+
+	fm->flh.fmap_ext_type = FAMFS_EXT_INTERLEAVE;
+	fm->flh.niext = ninterleave;
+
+	pr_verbose(verbose, "%s: ninterleave=%d sizeof(ie)=%ld\n",
+		   __func__, ninterleave, sizeof(*(fm->ie)));
+	fm->ie = calloc(ninterleave, sizeof(*(fm->ie)));
+
+	if (!fm->ie)
+		goto out_free;
+
+	for (i = 0; i < ninterleave; i++) {
+		pr_verbose(verbose, "%s(%d): %p set LOG_IEXT_TAG\n",
+			   __func__, i, &(fm->ie[i]));
+		fm->ie[i].iext.struct_tag = LOG_IEXT_TAG;
+		fm->ie[i].iext.ie_nstrips = nstrips_per_interleave;
+		fm->ie[i].se = alloc_simple_extlist(nstrips_per_interleave);
+	}
+
+	pr_verbose(verbose, "%s: success(%d, %d)\n", __func__,
+		   ninterleave, nstrips_per_interleave);
+	pr_verbose(verbose, "%s: dumping:\n", __func__);
+	validate_mem_fmap(fm, 0, 1);
+	return fm;
+
+out_free:
+	pr_verbose(verbose, "%s: error\n", __func__);
+	free(fm);
+	return NULL;
+}
+
 /*
  * famfs_emit_interleave_msg() - emit the compact *interleaved* wire form of an
- * fmap: one fuse_famfs_iext per interleaved extent, each followed by its strip
+ * fmap: one famfs_fmap_wire_iext per interleaved extent, each followed by its strip
  * list. Used when the kernel handles interleave natively (not simple-only).
  *
  * Like the simple path, this is self-describing and grow-friendly: the header
@@ -256,7 +288,7 @@ famfs_emit_interleave_msg(
 	int file_type,
 	const struct famfs_log_file_meta *fmeta)
 {
-	struct fuse_famfs_fmap_header *flh = (struct fuse_famfs_fmap_header *)msg;
+	struct famfs_fmap_wire_header *flh = (struct famfs_fmap_wire_header *)msg;
 	const struct famfs_log_fmap *log_fmap = &fmeta->fm_fmap;
 	size_t hdr_size = sizeof(*flh);
 	size_t full_size;
@@ -271,13 +303,13 @@ famfs_emit_interleave_msg(
 	/* Compute the full message size up front (header + all iexts+strips) */
 	full_size = hdr_size;
 	for (i = 0; i < log_fmap->fmap_niext; i++)
-		full_size += sizeof(struct fuse_famfs_iext) +
+		full_size += sizeof(struct famfs_fmap_wire_iext) +
 			     (size_t)log_fmap->ie[i].ie_nstrips *
-			     sizeof(struct fuse_famfs_simple_ext);
+			     sizeof(struct famfs_fmap_wire_simple_ext);
 
-	flh->fmap_version = FAMFS_FMAP_VERSION;
+	flh->fmap_version = FAMFS_FMAP_WIRE_VERSION;
 	flh->file_type = file_type;
-	flh->ext_type = FAMFS_EXT_INTERLEAVE;
+	flh->ext_type = FAMFS_FMAP_WIRE_EXT_INTERLEAVE;
 	flh->nextents = log_fmap->fmap_niext;
 	flh->fmap_size = full_size;
 	flh->file_size = fmeta->fm_size;
@@ -289,15 +321,15 @@ famfs_emit_interleave_msg(
 	cursor = hdr_size;
 	for (i = 0; i < log_fmap->fmap_niext; i++) {
 		const struct famfs_interleaved_ext *mie = &log_fmap->ie[i];
-		struct fuse_famfs_iext *ie = (struct fuse_famfs_iext *)&msg[cursor];
-		struct fuse_famfs_simple_ext *se;
+		struct famfs_fmap_wire_iext *ie = (struct famfs_fmap_wire_iext *)&msg[cursor];
+		struct famfs_fmap_wire_simple_ext *se;
 
 		cursor += sizeof(*ie);
 		ie->ie_nstrips    = mie->ie_nstrips;
 		ie->ie_chunk_size = mie->ie_chunk_size;
 		ie->ie_nbytes     = fmeta->fm_size;
 
-		se = (struct fuse_famfs_simple_ext *)&msg[cursor];
+		se = (struct famfs_fmap_wire_simple_ext *)&msg[cursor];
 		cursor += (size_t)mie->ie_nstrips * sizeof(*se);
 
 		for (j = 0; j < mie->ie_nstrips; j++) {
@@ -329,9 +361,9 @@ famfs_log_file_meta_to_msg(
 	const struct famfs_log_file_meta *fmeta,
 	int simple_fmap)
 {
-	struct fuse_famfs_fmap_header *flh = (struct fuse_famfs_fmap_header *)msg;
+	struct famfs_fmap_wire_header *flh = (struct famfs_fmap_wire_header *)msg;
 	const struct famfs_log_fmap *log_fmap = &fmeta->fm_fmap;
-	struct fuse_famfs_simple_ext *se;
+	struct famfs_fmap_wire_simple_ext *se;
 	size_t hdr_size = sizeof(*flh);
 	size_t full_size;
 	uint nextents;
@@ -355,7 +387,7 @@ famfs_log_file_meta_to_msg(
 	 * the compact interleaved form.
 	 */
 	switch (log_fmap->fmap_ext_type) {
-	case FUSE_FAMFS_EXT_SIMPLE:
+	case FAMFS_EXT_SIMPLE:
 		nextents = log_fmap->fmap_nextents;
 		break;
 	case FAMFS_EXT_INTERLEAVE: {
@@ -378,9 +410,9 @@ famfs_log_file_meta_to_msg(
 	full_size = hdr_size + (size_t)nextents * sizeof(*se);
 
 	/* The header is always written and always carries the full size */
-	flh->fmap_version = FAMFS_FMAP_VERSION;
+	flh->fmap_version = FAMFS_FMAP_WIRE_VERSION;
 	flh->file_type = file_type;
-	flh->ext_type = FAMFS_EXT_SIMPLE; /* the wire is simple-extent only */
+	flh->ext_type = FAMFS_FMAP_WIRE_EXT_SIMPLE; /* the wire is simple-extent only */
 	flh->nextents = nextents;
 	flh->fmap_size = full_size;
 	flh->file_size = fmeta->fm_size;
@@ -394,11 +426,11 @@ famfs_log_file_meta_to_msg(
 		return hdr_size;
 
 	/* The whole fmap fits: emit the simple-extent list */
-	se = (struct fuse_famfs_simple_ext *)&msg[hdr_size];
+	se = (struct famfs_fmap_wire_simple_ext *)&msg[hdr_size];
 	memset(se, 0, (size_t)nextents * sizeof(*se));
 
 	switch (log_fmap->fmap_ext_type) {
-	case FUSE_FAMFS_EXT_SIMPLE:
+	case FAMFS_EXT_SIMPLE:
 		for (i = 0; i < nextents; i++) {
 			se[i].se_devindex = log_fmap->se[i].se_devindex;
 			se[i].se_offset   = log_fmap->se[i].se_offset;

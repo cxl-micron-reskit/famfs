@@ -20,6 +20,60 @@
 
 #define FAMFS_MAX_SIMPLE_EXT 16 /* I don't see a reason to make this big...? */
 
+/*
+ * famfs fmap wire format
+ *
+ * famfs_log_file_meta_to_msg() serializes a file's fmap into this format for
+ * two consumers: the fuse GET_FMAP reply (DAX_FMAP fuse ABI; the kernel side
+ * is struct fuse_famfs_* in <linux/fuse.h>) and the standalone famfs module's
+ * FAMFSIOC_MAP_CREATE payload (struct famfs_ioc_* in <linux/famfs_ioctl.h>,
+ * KABI >= 44). famfs owns the format; the kernel structs are byte-identical
+ * copies, and famfs_fmap.c static-asserts that against whichever of them the
+ * build can see.
+ *
+ * A message is one famfs_fmap_wire_header followed by @nextents records. For
+ * ext_type == SIMPLE each record is a famfs_fmap_wire_simple_ext; for
+ * INTERLEAVE each is a famfs_fmap_wire_iext immediately followed by its
+ * ie_nstrips strip famfs_fmap_wire_simple_ext records.
+ */
+#define FAMFS_FMAP_WIRE_VERSION 1
+
+enum famfs_fmap_wire_file_type {
+	FAMFS_FMAP_WIRE_FILE_REG = 0,
+	FAMFS_FMAP_WIRE_FILE_SUPERBLOCK = 1,
+	FAMFS_FMAP_WIRE_FILE_LOG = 2,
+};
+
+enum famfs_fmap_wire_ext_type {
+	FAMFS_FMAP_WIRE_EXT_SIMPLE = 0,
+	FAMFS_FMAP_WIRE_EXT_INTERLEAVE = 1,
+};
+
+struct famfs_fmap_wire_simple_ext {
+	u32 se_devindex;
+	u32 reserved;
+	u64 se_offset;
+	u64 se_len;
+};
+
+struct famfs_fmap_wire_iext {	/* interleaved (striped) extent */
+	u32 ie_nstrips;
+	u32 ie_chunk_size;
+	u64 ie_nbytes;		/* total bytes mapped by this interleaved extent */
+	u64 reserved;
+};
+
+struct famfs_fmap_wire_header {
+	u8  file_type;		/* enum famfs_fmap_wire_file_type */
+	u8  reserved;
+	u16 fmap_version;	/* FAMFS_FMAP_WIRE_VERSION */
+	u32 ext_type;		/* enum famfs_fmap_wire_ext_type */
+	u32 nextents;
+	u32 fmap_size;		/* total message bytes, including this header */
+	u64 file_size;
+	u64 reserved1;
+};
+
 /* Structs used serializing fmaps into buffers/message */
 struct fmap_simple_ext {
 	u16 struct_tag;

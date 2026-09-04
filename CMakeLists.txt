@@ -187,7 +187,12 @@ add_subdirectory(testlib)
 add_executable(famfs src/famfs_cli.c)
 add_executable(mkfs.famfs src/mkfs.famfs.c)
 add_executable(pcq src/pcq.c)
-add_executable(famfs_fused src/famfs_fused.c src/famfs_fused_rest.c)
+add_executable(famfs_fused
+    src/famfs_fused.c
+    src/famfs_fused_rest.c
+    src/famfs_fused_extmap.c   # extent-map fuse ABI (empty unless selected)
+    src/famfs_fused_daxfmap.c  # DAX_FMAP fuse ABI (empty unless selected)
+)
 
 find_package(PkgConfig REQUIRED)
 if (NOT PKG_CONFIG_FOUND)

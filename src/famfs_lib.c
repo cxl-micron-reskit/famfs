@@ -1279,19 +1279,7 @@ famfs_v3_set_file_map(
 	if (rc)
 		return rc;
 
-	/* famfs_file_type -> fuse_famfs_file_type for the wire header */
-	switch (type) {
-	case FAMFS_SUPERBLOCK:
-		ftype = FUSE_FAMFS_FILE_SUPERBLOCK;
-		break;
-	case FAMFS_LOG:
-		ftype = FUSE_FAMFS_FILE_LOG;
-		break;
-	default:
-		ftype = FUSE_FAMFS_FILE_REG;
-		break;
-	}
-
+	ftype = type;
 	/*
 	 * Build the self-describing fmap message. There is no advertised size
 	 * cap: start with a small buffer and, since the serializer always
@@ -1307,7 +1295,7 @@ famfs_v3_set_file_map(
 
 	msg_size = famfs_log_file_meta_to_msg(msg, msg_alloc, ftype, fmeta, 0);
 	if (msg_size > 0) {
-		size_t need = ((struct fuse_famfs_fmap_header *)msg)->fmap_size;
+		size_t need = ((struct famfs_ioc_fmap_header *)msg)->fmap_size;
 
 		if (need > msg_alloc) {
 			char *bigger = realloc(msg, need);

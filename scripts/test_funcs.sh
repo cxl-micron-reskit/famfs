@@ -636,8 +636,10 @@ famfs_recreate() {
 }
 
 famfs_fuse_supported() {
-    # this function can't be optimized out because it's an iomap operation
-    grep -c famfs_fuse_iomap_begin /proc/kallsyms
+    # Count of famfs fuse support markers in the running kernel, under either
+    # fuse ABI: famfs_fuse_iomap_begin is the DAX_FMAP kernel's iomap op (it
+    # can't be optimized out), fuse_backing_is_dax the extent-map kernel's.
+    grep -c -E 'famfs_fuse_iomap_begin|fuse_backing_is_dax' /proc/kallsyms
 }
 
 # True (0) if the standalone famfs kernel module is loaded, under either the

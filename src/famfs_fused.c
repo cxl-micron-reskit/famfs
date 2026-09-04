@@ -41,6 +41,7 @@
 #include "famfs_fused.h"
 #include "famfs_fused_icache.h"
 #include "famfs_fused_rest.h"
+#include "famfs_fuse_abi.h"
 
 #ifdef FAMFS_COVERAGE
 extern void __gcov_dump(void);
@@ -221,23 +222,7 @@ static void famfs_init(
 		conn->want |= FUSE_CAP_FLOCK_LOCKS;
 	}
 
-	if (conn->capable & FUSE_CAP_PASSTHROUGH)
-		famfs_log(FAMFS_LOG_NOTICE, "%s: Kernel is passthrough-capable\n",
-			 __func__);
-
-	if (conn->capable_ext & FUSE_CAP_DAX_FMAP) {
-		famfs_log(FAMFS_LOG_NOTICE,  "%s: Kernel is DAX_IOMAP-capable\n",
-			 __func__);
-		if (lo->daxdev) {
-			famfs_log(FAMFS_LOG_NOTICE,
-				 "%s: ENABLING DAX_IOMAP\n", __func__);
-			conn->want_ext |= FUSE_CAP_DAX_FMAP;
-		} else {
-			famfs_log(FAMFS_LOG_NOTICE,
-				 "%s: disabling DAX_IOMAP (no daxdev)\n",
-				 __func__);
-		}
-	}
+	famfs_abi_init(lo, conn);
 }
 
 static void famfs_destroy(void *userdata)
@@ -338,10 +323,6 @@ famfs_setattr(
 	famfs_inode_putref(inode);
 }
 
-#define FMAP_MSG_MAX 4096
-/* Upper clamp on the kernel-provided GET_FMAP reply-buffer size (defensive). */
-#define FMAP_REPLY_MAX (16 * 1024 * 1024)
-
 static int
 famfs_check_inode(
 	struct famfs_inode *inode,
@@ -362,20 +343,19 @@ famfs_check_inode(
 }
 
 /*
- * Daxdev push registration requires fuse_daxdev_open() and the
- * FUSE_DEV_IOC_DAXDEV_OPEN ioctl, both added by the famfs libfuse patch.
- * Guard on the ioctl macro (from fuse_kernel.h) so famfs_fused still builds
- * against a libfuse without the daxdev feature; there the push is a no-op.
+ * Daxdev push registration: both fuse ABIs register daxdevs by handing the
+ * kernel an open fd (famfs_abi_register_daxdev()); only the DAXFMAP ABI on a
+ * libfuse without FUSE_DEV_IOC_DAXDEV_OPEN cannot (FAMFS_FUSE_DAXDEV_PUSH is
+ * 0 there and lookup skips the push; those kernels pull daxdevs instead).
  */
-#ifdef FUSE_DEV_IOC_DAXDEV_OPEN
 /*
  * famfs_push_one_daxdev() - register one daxdev (by index) with the kernel.
  *
  * The push is one consumer of the daxdev table; it hands the kernel an open fd
- * via fuse_daxdev_open(). Caller holds lo->daxdev_push_mutex and pushes indices
- * densely in order (see famfs_push_fmap_daxdevs). On success the daxdev fd is
- * closed - the kernel holds its own reference once the ioctl returns success.
- * Returns 0 on success, -1 on failure (logged).
+ * via famfs_abi_register_daxdev(). Caller holds lo->daxdev_push_mutex and
+ * pushes indices densely in order (see famfs_push_fmap_daxdevs). The daxdev
+ * fd is closed afterwards - the kernel holds its own reference once
+ * registration succeeds. Returns 0 on success, -1 on failure (logged).
  */
 static int
 famfs_push_one_daxdev(fuse_req_t req, struct famfs_ctx *lo, int devindex)
@@ -411,16 +391,14 @@ famfs_push_one_daxdev(fuse_req_t req, struct famfs_ctx *lo, int devindex)
 		return -1;
 	}
 
-	rc = fuse_daxdev_open(req, fd, devindex);
-	if (rc <= 0) {
+	rc = famfs_abi_register_daxdev(req, fd, devindex);
+	close(fd);
+	if (rc) {
 		famfs_log(FAMFS_LOG_ERR,
-			  "%s: fuse_daxdev_open(%s, index=%d) failed (rc=%d)\n",
-			  __func__, daxdev, devindex, rc);
-		close(fd);
+			  "%s: registering daxdev %s (index=%d) failed\n",
+			  __func__, daxdev, devindex);
 		return -1;
 	}
-
-	close(fd);
 	famfs_log(FAMFS_LOG_NOTICE, "%s: pushed daxdev %s as index %d\n",
 		  __func__, daxdev, devindex);
 	return 0;
@@ -472,7 +450,6 @@ famfs_push_fmap_daxdevs(fuse_req_t req, struct famfs_ctx *lo,
 	}
 	pthread_mutex_unlock(&lo->daxdev_push_mutex);
 }
-#endif /* FUSE_DEV_IOC_DAXDEV_OPEN */
 
 static int
 famfs_do_lookup(
@@ -504,6 +481,7 @@ famfs_do_lookup(
 	memset(e, 0, sizeof(*e));
 	e->attr_timeout = lo->timeout;
 	e->entry_timeout = lo->timeout;
+	famfs_abi_lookup_entry(e);
 
 	/* Note: this accesses the parent inode in our icache without looking
 	 * it up. 'parent' is a pointer directly to the famfs_inode.
@@ -573,16 +551,14 @@ famfs_do_lookup(
 			goto out_err;
 		st.st_ino = ino;
 
-#ifdef FUSE_DEV_IOC_DAXDEV_OPEN
 		/*
 		 * Push-mode daxdev registration: register every daxdev this
 		 * file's fmap references with the kernel now, before it can be
 		 * opened or mapped. Failures are logged, not fatal - the lookup
 		 * still succeeds and a later lookup retries.
 		 */
-		if (lo->daxdev)
+		if (lo->daxdev && FAMFS_FUSE_DAXDEV_PUSH)
 			famfs_push_fmap_daxdevs(req, lo, fmeta);
-#endif
 
 		if (yaml_buf)
 			free(yaml_buf);
@@ -724,141 +700,6 @@ famfs_lookup(
 		fuse_reply_err(req, err);
 	else
 		fuse_reply_entry(req, &e);
-}
-
-static void
-famfs_get_fmap(
-	fuse_req_t req,
-	fuse_ino_t nodeid,
-	size_t size)
-{
-	struct famfs_ctx *lo = famfs_ctx_from_req(req);
-	ssize_t fmap_bufsize;
-	struct famfs_inode *inode = NULL;
-	char *fmap_message = NULL;
-	ssize_t fmap_size;
-	int simple_fmap;
-	int err = 0;
-
-	/*
-	 * The kernel passes the size of its GET_FMAP reply buffer via the
-	 * request's fuse_getxattr_in.size, so a large fmap can be returned in
-	 * one shot. Clamp defensively: an older kernel that does not send the
-	 * size leaves it unspecified, so fall back to the minimum and cap
-	 * absurd values.
-	 */
-	fmap_bufsize = size;
-	if (fmap_bufsize < FMAP_MSG_MAX)
-		fmap_bufsize = FMAP_MSG_MAX;
-	if (fmap_bufsize > FMAP_REPLY_MAX)
-		fmap_bufsize = FMAP_REPLY_MAX;
-
-	fmap_message = calloc(1, fmap_bufsize);
-	if (!fmap_message) {
-		err = ENOMEM;
-		goto out_err;
-	}
-
-	/* The nodeid is the address of the famfs_inode. Retrieving it
-	 * this way validates that there is indeed an inode at that address.
-	 */
-	inode = famfs_get_inode_from_nodeid(&lo->icache, nodeid);
-
-	if (!inode) {
-		famfs_log(FAMFS_LOG_ERR, "%s: inode 0x%ld not found\n",
-			 __func__, nodeid);
-		err = EINVAL;
-		goto out_err;
-	}
-
-	if (!inode->fmeta) {
-		famfs_log(FAMFS_LOG_ERR, "%s: no fmap on inode\n", __func__);
-		err = ENOENT;
-		goto out_err;
-	}
-
-	/*
-	 * Choose the wire fmap form. Unroll to a simple-extent list only when
-	 * the kernel is simple-only: either forced (-o simple_fmaps) or detected
-	 * via daxdev-push mode - a daxdev was successfully registered through
-	 * FUSE_DEV_IOC_DAXDEV_OPEN, which is the new (simple-only) ABI. The push
-	 * happens at lookup, before any GET_FMAP, so this is settled by now.
-	 * Otherwise emit the compact interleaved form a legacy kernel expects.
-	 */
-	simple_fmap = lo->simple_fmaps || (lo->daxdev_max_pushed >= 0);
-
-	/* XXX: FUSE_FAMFS_FILE_REG - mark sb and log correctly */
-	fmap_size = famfs_log_file_meta_to_msg(fmap_message, fmap_bufsize,
-					       FUSE_FAMFS_FILE_REG,
-					       inode->fmeta, simple_fmap);
-	if (fmap_size <= 0) {
-		/* Send reply without fmap */
-		famfs_log(FAMFS_LOG_ERR,
-			  "%s: %ld error putting fmap in message\n",
-			 __func__, fmap_size);
-		err = EINVAL;
-		goto out_err;
-	}
-
-	err = fuse_reply_buf(req, fmap_message, fmap_size /* FMAP_MSG_MAX */);
-	if (err)
-		famfs_log(FAMFS_LOG_ERR, "%s: fuse_reply_buf returned err %d\n",
-			 __func__, err);
-
-	free(fmap_message);
-
-	famfs_inode_putref(inode);
-	return;
-
-out_err:
-	if (inode)
-		famfs_inode_putref(inode);
-
-	if (fmap_message)
-		free(fmap_message);
-
-	fuse_reply_err(req, err);
-}
-
-static void
-famfs_get_daxdev(
-	fuse_req_t req,
-	int daxdev_index)
-{
-	struct famfs_ctx *fd = famfs_ctx_from_req(req);
-	struct fuse_daxdev_out daxdev;
-	int err = 0;
-
-	famfs_log(FAMFS_LOG_NOTICE, "%s: daxdev_index=%d\n",
-		 __func__, daxdev_index);
-	memset(&daxdev, 0, sizeof(daxdev));
-
-	/* Fill in daxdev struct */
-	if (daxdev_index != 0) {
-		/* XXX drop this test when we support more than one daxdev */
-		famfs_log(FAMFS_LOG_ERR, "%s: non-zero daxdev index\n",
-			  __func__);
-		err = EINVAL;
-		goto out_err;
-	}
-	if (!fd->daxdev) {
-		famfs_log(FAMFS_LOG_ERR, "%s: dax not enabled\n", __func__);
-		err = EOPNOTSUPP;
-		goto out_err;
-	}
-
-	strncpy(daxdev.name, fd->daxdev_table[daxdev_index].dd_daxdev,
-		FAMFS_DEVNAME_LEN - 1);
-
-	err = fuse_reply_buf(req, (void *)&daxdev, sizeof(daxdev));
-	if (err)
-		famfs_log(FAMFS_LOG_ERR,
-			  "%s: fuse_reply_buf returned err %d\n",
-			 __func__, err);
-	return;
-
-out_err:
-	fuse_reply_err(req, err);
 }
 
 static void
@@ -1142,6 +983,7 @@ famfs_open(
 	struct famfs_ctx *lo = famfs_ctx_from_req(req);
 	struct famfs_inode *inode = famfs_get_inode_from_nodeid(&lo->icache,
 								nodeid);
+	int err;
 
 	famfs_log(FAMFS_LOG_DEBUG, "%s: nodeid=%lx\n", __func__, nodeid);
 
@@ -1163,6 +1005,16 @@ famfs_open(
 	   To make parallel_direct_writes valid, need set fi->direct_io
 	   in current function. */
 	fi->parallel_direct_writes = 1;
+
+	err = famfs_abi_open(req, lo, inode, fi);
+	if (err) {
+		/* A failed open gets no release: drop the get and open refs */
+		pthread_mutex_lock(&lo->icache.mutex);
+		famfs_inode_putref_locked(inode, 2);
+		pthread_mutex_unlock(&lo->icache.mutex);
+		fuse_reply_err(req, err);
+		return;
+	}
 
 	/*
 	 * We got a ref on the inode above, and it will stay on the inode until
@@ -1360,8 +1212,6 @@ static const struct fuse_lowlevel_ops famfs_oper = {
 	/* .copy_file_range */
 #endif
 	/* .lseek */
-	.get_fmap       = famfs_get_fmap,
-	.get_daxdev     = famfs_get_daxdev,
 };
 
 void jg_print_fuse_opts(struct fuse_cmdline_opts *opts)
@@ -1409,6 +1259,7 @@ int main(int argc, char *argv[])
 	struct famfs_ctx *lo = &famfs_context;
 	struct fuse_loop_config *config;
 	struct fuse_cmdline_opts opts;
+	struct fuse_lowlevel_ops famfs_ops;
 	char *shadow_root = NULL;
 	struct fuse_session *se;
 	int ret = -1;
@@ -1424,16 +1275,14 @@ int main(int argc, char *argv[])
 	lo->pass_yaml = 0;
 	/*
 	 * -1 = no daxdev pushed / not in daxdev-push mode. Initialize it
-	 * unconditionally: it also gates the GET_FMAP wire form (>= 0 selects
-	 * the simple/unrolled form). When built against a libfuse without
-	 * FUSE_DEV_IOC_DAXDEV_OPEN the push code is compiled out, so without
-	 * this the static-global default of 0 would wrongly select simple and
-	 * break striped files on legacy (interleave-only) kernels.
+	 * unconditionally: under the DAXFMAP ABI it also gates the GET_FMAP
+	 * wire form (>= 0 selects the simple/unrolled form), and when the push
+	 * is unavailable (FAMFS_FUSE_DAXDEV_PUSH == 0) the static-global
+	 * default of 0 would wrongly select simple and break striped files on
+	 * legacy (interleave-only) kernels.
 	 */
 	lo->daxdev_max_pushed = -1;
-#ifdef FUSE_DEV_IOC_DAXDEV_OPEN
 	pthread_mutex_init(&lo->daxdev_push_mutex, NULL);
-#endif
 
 	/*fuse_set_log_func(fused_syslog); */
 	fuse_log_enable_syslog("famfs", LOG_PID | LOG_CONS, LOG_DAEMON);
@@ -1540,15 +1389,19 @@ int main(int argc, char *argv[])
 		ret = 1;
 		goto err_out1;
 	}
+	lo->icache.free_inode = famfs_abi_inode_free;
 
 	/*
 	 * this creates the fuse session
 	 */
-	se = fuse_session_new(&args, &famfs_oper, sizeof(famfs_oper),
+	famfs_ops = famfs_oper;
+	famfs_abi_set_ops(&famfs_ops); /* ABI-specific ops (e.g. get_fmap) */
+	se = fuse_session_new(&args, &famfs_ops, sizeof(famfs_ops),
 			      &famfs_context);
 	if (se == NULL)
 	    goto err_out1;
 
+	lo->se = se;
 	if (fuse_set_signal_handlers(se) != 0)
 	    goto err_out2;
 

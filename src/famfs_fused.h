@@ -32,6 +32,7 @@ struct famfs_ctx {
 	int simple_fmaps; /* force simple-extent GET_FMAP replies (unroll
 			   * interleave); also auto-enabled in daxdev-push mode */
 	struct famfs_icache icache;
+	struct fuse_session *se;
 
 	/*
 	 * Push-mode daxdev registration (one consumer of the daxdev table).

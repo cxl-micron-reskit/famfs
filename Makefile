@@ -65,28 +65,37 @@ ifdef WITH_ERRORS
 endif
 
 #
-# Determine the appropriate libfuse branch based on kernel version
-# - kernel <= 6.14: use famfs-6.14
-# - kernel >= 6.15: use famfs-6.19
+# libfuse branch selection
 #
-# The build will fail if the required branch does not exist in the repo.
+# famfs_fused needs a libfuse with famfs support, and the checkout in
+# ./libfuse decides which fuse ABI famfs_fused is built for (see
+# src/famfs_fuse_abi.h):
+#
+# - If ./libfuse exists it is built as is - never switched (see the libfuse
+#   target); the developer owns that checkout.
+# - Otherwise it is cloned from LIBFUSE_REPO at branch LIBFUSE_BRANCH, which
+#   defaults to the extent-map ABI branch (LIBFUSE_BRANCH_NEW). Hosts that
+#   need the DAX_FMAP ABI set LIBFUSE_BRANCH in the environment (the old-ABI
+#   CI agents export it from their jenkins-agent systemd unit) or on the
+#   command line:
+#     famfs       - DAX_FMAP ABI, kernels >= 6.15
+#     famfs-6.14  - DAX_FMAP ABI, kernels <= 6.14
 #
 LIBFUSE_BRANCH_6_14 := famfs-6.14
 LIBFUSE_BRANCH_6_19 := famfs
+LIBFUSE_BRANCH_NEW  := famfs-new
 
-# Default branch selection based on running kernel
-# This can be overridden by passing LIBFUSE_BRANCH= on the command line
-ifeq ($(shell test $(KERNEL_MAJOR) -eq 6 -a $(KERNEL_MINOR) -le 14 && echo yes),yes)
-    LIBFUSE_BRANCH_AUTO := $(LIBFUSE_BRANCH_6_14)
-else
-    # For kernel 6.15+: use famfs-6.19
-    LIBFUSE_BRANCH_AUTO := $(LIBFUSE_BRANCH_6_19)
-endif
-
-# Use auto-detected branch unless explicitly overridden
-LIBFUSE_BRANCH ?= $(LIBFUSE_BRANCH_AUTO)
+# Environment or command-line LIBFUSE_BRANCH wins (?= does not override it)
+LIBFUSE_BRANCH ?= $(LIBFUSE_BRANCH_NEW)
 
 LIBFUSE_REPO := https://github.com/jagalactic/libfuse.git
+
+#
+# Default target
+#
+all:	ndctl
+	@echo "Building with libfuse branch $(LIBFUSE_BRANCH)"
+	$(MAKE) debug
 
 cmake-modules:
 	@if [ ! -d "cmake-modules" ]; then \
@@ -136,9 +145,8 @@ ndctl:
 #
 # libfuse target: clone repo (if needed) and checkout the appropriate branch
 #
-# The branch is determined by:
-# 1. LIBFUSE_BRANCH if explicitly set on command line
-# 2. Otherwise, auto-detected based on kernel version
+# The branch is LIBFUSE_BRANCH (command line, environment, or the default;
+# see "libfuse branch selection" above) and only matters on a fresh clone.
 #
 # The build will fail if the branch does not exist.
 # Supports both git and jj repositories.
@@ -273,22 +281,22 @@ release:	cmake-modules threadpool mongoose ndctl
 	$(MAKE) libfuse BDIR="release"
 	cd release; cmake $(CMAKE_CACHE_CLEAR) ..; $(MAKE)
 
-#
-# Default target: build with famfs-6.19 libfuse branch (kernel >= 6.15)
-#
-all:	ndctl
-	@echo "Building with libfuse branch $(LIBFUSE_BRANCH_6_19) (kernel >= 6.15)"
-	$(MAKE) debug LIBFUSE_BRANCH="$(LIBFUSE_BRANCH_6_19)"
 
 #
-# Explicit kernel version targets: build with specific libfuse branch
-# regardless of the running kernel version
+# Explicit libfuse-branch targets (only matter when ./libfuse is absent and
+# gets cloned)
 #
 all-old:	ndctl
 	@echo "Building with libfuse branch $(LIBFUSE_BRANCH_6_14) (kernel <= 6.14)"
 	$(MAKE) debug LIBFUSE_BRANCH="$(LIBFUSE_BRANCH_6_14)"
 
-all-6.19:	all
+all-6.19:	ndctl
+	@echo "Building with libfuse branch $(LIBFUSE_BRANCH_6_19) (DAX_FMAP ABI, kernel >= 6.15)"
+	$(MAKE) debug LIBFUSE_BRANCH="$(LIBFUSE_BRANCH_6_19)"
+
+all-new:	ndctl
+	@echo "Building with libfuse branch $(LIBFUSE_BRANCH_NEW) (extent-map ABI)"
+	$(MAKE) debug LIBFUSE_BRANCH="$(LIBFUSE_BRANCH_NEW)"
 
 clean:
 	sudo rm -rf debug release coverage sanitize
@@ -373,4 +381,4 @@ teardown:
 	@./scripts/teardown.sh
 
 .PHONY:	test threadpool-test smoke debug release coverage chk_include libfuse libfuse_install sanitize \
-	all all-old all-6.19 ndctl
+	all all-old all-6.19 all-new ndctl

@@ -54,6 +54,7 @@ struct famfs_inode {
 	struct famfs_inode *parent;        /* parent ref must be dropped */
 	char *name;                        /* name must be freed */
 	int flock_held;
+	bool mapping_pushed;
 };
 
 struct famfs_icache {
@@ -67,6 +68,7 @@ struct famfs_icache {
 	uint64_t search_count;   /* How many times did we find_get an inode */
 	uint64_t nodes_scanned;  /* how many nodes scanned in find_get ops */
 	uint64_t search_fail_ct; /* How many searches failed */
+	void (*free_inode)(void *owner, struct famfs_inode *);
 };
 
 static inline uint64_t

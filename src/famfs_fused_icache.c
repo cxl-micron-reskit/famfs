@@ -260,6 +260,8 @@ famfs_inode_free(struct famfs_inode *inode)
 		free(inode->fmeta);
 	if (inode->name)
 		free(inode->name);
+	if (inode->icache->free_inode)
+		inode->icache->free_inode(inode->icache->owner, inode);
 	free(inode);
 }
 
@@ -277,12 +279,10 @@ void famfs_inode_putref_locked(struct famfs_inode *inode, uint64_t count)
 		next->prev = prev;
 		prev->next = next;
 		inode->icache->count--;
-		inode->icache = NULL;
 
 		if (inode->parent)
 			famfs_inode_putref_locked(inode->parent, 1);
 
-		inode->parent = 0;
 		famfs_inode_free(inode);
 	}
 };
