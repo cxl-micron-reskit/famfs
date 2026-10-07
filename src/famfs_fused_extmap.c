@@ -76,30 +76,42 @@ famfs_meta_to_fuse_msg(
 {
 	const struct famfs_log_fmap *log_fmap = &fmeta->fm_fmap;
 	const struct famfs_simple_extent *fse;
+	u64 chunk_size = 0; /* nonzero: cyclic map, one chunk per strip */
 	uint nextents;
 	uint i;
 	loff_t curr_off;
 
 	/*
-	 * Determine the number of (unrolled) simple extents up front, so we
-	 * know the full message size before writing anything. Striped files
-	 * are unrolled to one simple extent per chunk; the on-media log keeps
-	 * the compact interleaved form.
+	 * A simple fmap maps one extent per on-media extent. An interleaved
+	 * (striped) fmap maps as a cyclic map: a uniform list of one extent
+	 * per strip that repeats. The kernel resolves file offset o with
+	 * len = extent length and n = extent count as cycle k = (o / len) / n,
+	 * extent s = (o / len) % n, backing address addr[s] + k * len. So each
+	 * strip contributes exactly one chunk-sized extent at the strip's
+	 * start; cycle k of strip s then lands at se_offset + k * chunk_size,
+	 * which is the famfs stripe layout. (Emitting the whole strip length
+	 * would make the chunk the strip and concatenate the strips.) The
+	 * on-media log keeps the compact interleaved form.
 	 */
 	switch (log_fmap->fmap_ext_type) {
 	case FAMFS_EXT_SIMPLE:
 		nextents = log_fmap->fmap_nextents;
 		fse = log_fmap->se;
 		break;
-	case FAMFS_EXT_INTERLEAVE:
+	case FAMFS_EXT_INTERLEAVE: {
+		const struct famfs_interleaved_ext *ie = &log_fmap->ie[0];
+
 		/* Only a single interleaved extent is supported today */
-		if (log_fmap->fmap_niext != 1)
+		if (log_fmap->fmap_niext != 1 ||
+		    ie->ie_nstrips == 0 || ie->ie_chunk_size == 0)
 			return -EINVAL;
 
-		nextents = log_fmap->ie[0].ie_nstrips;
-		fse = log_fmap->ie[0].ie_strips;
+		nextents = ie->ie_nstrips;
+		fse = ie->ie_strips;
+		chunk_size = ie->ie_chunk_size;
 		*flags |= FUSE_EXT_MAP_CYCLIC;
 		break;
+	}
 	default:
 		return -EINVAL;
 	}
@@ -109,11 +121,17 @@ famfs_meta_to_fuse_msg(
 
 	curr_off = 0;
 	for (i = 0; i < nextents; i++) {
+		u64 len = chunk_size ? chunk_size : fse[i].se_len;
+
+		/* A strip must hold at least one chunk */
+		if (chunk_size && fse[i].se_len < chunk_size)
+			return -EINVAL;
+
 		exts[i].offset = curr_off;
-		exts[i].length = fse[i].se_len;
+		exts[i].length = len;
 		exts[i].backing_id = fse[i].se_devindex + 1;
 		exts[i].addr = fse[i].se_offset;
-		curr_off += fse[i].se_len;
+		curr_off += len;
 	}
 
 	return nextents;
