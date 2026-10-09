@@ -3,6 +3,7 @@
  * Copyright (C) 2024-2025 Micron Technology, Inc.  All rights reserved.
  */
 #include <stdio.h>
+#include <stddef.h>
 #include <stdarg.h>
 #include <unistd.h>
 #include <getopt.h>
