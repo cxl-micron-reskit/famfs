@@ -78,8 +78,9 @@ endif
 #   need the DAX_FMAP ABI set LIBFUSE_BRANCH in the environment (the old-ABI
 #   CI agents export it from their jenkins-agent systemd unit) or on the
 #   command line:
-#     famfs       - DAX_FMAP ABI, kernels >= 6.15
-#     famfs-6.14  - DAX_FMAP ABI, kernels <= 6.14
+#     famfs.extmap - extent-map ABI (the default; Miklos Szeredi's libfuse work)
+#     famfs        - DAX_FMAP ABI, kernels >= 6.15
+#     famfs-6.14   - DAX_FMAP ABI, kernels <= 6.14
 #
 # The libfuse target also compares the ABI the checkout's headers select
 # against the one the running kernel speaks (same kallsyms symbols as
@@ -88,7 +89,7 @@ endif
 #
 LIBFUSE_BRANCH_6_14 := famfs-6.14
 LIBFUSE_BRANCH_6_19 := famfs
-LIBFUSE_BRANCH_NEW  := famfs-new
+LIBFUSE_BRANCH_NEW  := famfs.extmap
 
 # Environment or command-line LIBFUSE_BRANCH wins (?= does not override it)
 LIBFUSE_BRANCH ?= $(LIBFUSE_BRANCH_NEW)
