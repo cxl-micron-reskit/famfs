@@ -91,6 +91,7 @@ if [ -z "$FAMFS_MODE" ]; then
     if [ $(famfs_fuse_supported) -ge 1 ]; then
 	echo "Defaulting to fuse mode"
 	FAMFS_MODE="fuse"
+	famfs_check_fuse_abi "$BIN/famfs_fused" || exit 1
     elif [ $(famfs_v1_supported) -eq 1 ]; then
 	echo "Fuse mode not enabled; defaulting to v1 mode"
 	FAMFS_MODE="v1"
@@ -110,6 +111,7 @@ else
     else
 	if [ $(famfs_fuse_supported) -ge 1 ]; then
 	    echo "Sniff test: testing famfs in fuse mode"
+	    famfs_check_fuse_abi "$BIN/famfs_fused" || exit 1
 	else
 	    echo "ERROR: famfs-fuse was specified, but the kernel does not support it"
 	    exit 1

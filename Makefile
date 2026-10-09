@@ -81,6 +81,11 @@ endif
 #     famfs       - DAX_FMAP ABI, kernels >= 6.15
 #     famfs-6.14  - DAX_FMAP ABI, kernels <= 6.14
 #
+# The libfuse target also compares the ABI the checkout's headers select
+# against the one the running kernel speaks (same kallsyms symbols as
+# famfs_get_kernel_fuse_abi() in src/famfs_misc.c) and warns on a mismatch.
+# It is only a warning: the build host need not be the test host.
+#
 LIBFUSE_BRANCH_6_14 := famfs-6.14
 LIBFUSE_BRANCH_6_19 := famfs
 LIBFUSE_BRANCH_NEW  := famfs-new
@@ -181,6 +186,19 @@ libfuse:
 	if [ "$$cur" != "HEAD" ] && [ "$$cur" != "$(LIBFUSE_BRANCH)" ]; then \
 		echo "WARNING: libfuse is on branch '$$cur', expected '$(LIBFUSE_BRANCH)'"; \
 		echo "         (not switching - check it out yourself if that is wrong)"; \
+	fi
+	@if grep -qs 'define FUSE_EXT_MAP_CREATE' libfuse/include/*.h; then libabi=extmap; \
+	elif grep -qs 'define FUSE_CAP_DAX_FMAP' libfuse/include/*.h; then libabi=daxfmap; \
+	else libabi=unknown; fi; \
+	if grep -qsw fuse_backing_is_dax /proc/kallsyms; then kabi=extmap; \
+	elif grep -qsw famfs_fuse_iomap_begin /proc/kallsyms; then kabi=daxfmap; \
+	else kabi=none; fi; \
+	echo "libfuse fuse ABI: $$libabi, running kernel fuse ABI: $$kabi"; \
+	if [ "$$kabi" != none ] && [ "$$libabi" != unknown ] && [ "$$kabi" != "$$libabi" ]; then \
+		echo "WARNING: ./libfuse selects the '$$libabi' fuse ABI but this kernel speaks '$$kabi';"; \
+		echo "         famfs_fused built from it will refuse to mount on this kernel."; \
+		echo "         To fix: rm -rf libfuse and rebuild with LIBFUSE_BRANCH set for '$$kabi'"; \
+		echo "         (extmap: $(LIBFUSE_BRANCH_NEW); daxfmap: $(LIBFUSE_BRANCH_6_19) or $(LIBFUSE_BRANCH_6_14))"; \
 	fi
 	@mkdir -p $(BDIR)/libfuse
 	@if [ ! -f "$(BDIR)/libfuse/build.ninja" ]; then \

@@ -2436,6 +2436,39 @@ TEST(famfs, famfs_kabi_check)
 	mock_kmod = saved_kmod;
 }
 
+TEST(famfs, famfs_get_kernel_fuse_abi)
+{
+	extern int mock_kernel_fuse_abi;
+	extern int mock_kernel_type;
+	enum famfs_fuse_abi abi;
+
+	/* Name <-> enum round trips; names match FAMFS_FUSE_ABI_NAME strings */
+	EXPECT_STREQ(famfs_fuse_abi_name(FAMFS_FUSE_ABI_EXTMAP), "extmap");
+	EXPECT_STREQ(famfs_fuse_abi_name(FAMFS_FUSE_ABI_DAXFMAP), "daxfmap");
+	EXPECT_STREQ(famfs_fuse_abi_name(FAMFS_FUSE_ABI_NONE), "none");
+	EXPECT_EQ(famfs_fuse_abi_from_name("extmap"), FAMFS_FUSE_ABI_EXTMAP);
+	EXPECT_EQ(famfs_fuse_abi_from_name("daxfmap"), FAMFS_FUSE_ABI_DAXFMAP);
+	EXPECT_EQ(famfs_fuse_abi_from_name("bogus"), FAMFS_FUSE_ABI_NONE);
+	EXPECT_EQ(famfs_fuse_abi_from_name(NULL), FAMFS_FUSE_ABI_NONE);
+
+	/* Mocked kernel ABI is returned as-is */
+	mock_kernel_fuse_abi = FAMFS_FUSE_ABI_EXTMAP;
+	abi = famfs_get_kernel_fuse_abi(0);
+	EXPECT_EQ(abi, FAMFS_FUSE_ABI_EXTMAP);
+
+	/* ...and either fuse ABI makes the kernel type FAMFS_FUSE */
+	mock_kernel_type = 0;
+	EXPECT_EQ(famfs_get_kernel_type(0), FAMFS_FUSE);
+	mock_kernel_fuse_abi = FAMFS_FUSE_ABI_DAXFMAP;
+	EXPECT_EQ(famfs_get_kernel_type(0), FAMFS_FUSE);
+
+	/* Unmocked: whatever the host kernel has, it is one of the three */
+	mock_kernel_fuse_abi = 0;
+	abi = famfs_get_kernel_fuse_abi(1);
+	EXPECT_TRUE(abi == FAMFS_FUSE_ABI_NONE || abi == FAMFS_FUSE_ABI_DAXFMAP
+		    || abi == FAMFS_FUSE_ABI_EXTMAP);
+}
+
 TEST(famfs, famfs_select_mode)
 {
 	extern int mock_kernel_type;

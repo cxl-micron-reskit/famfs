@@ -518,6 +518,93 @@ int shadow_path_valid(const char *path)
 
 #define NARGV 64
 
+/*
+ * famfs_fused lives next to whichever famfs binary we are (debug/, release/,
+ * /usr/local/bin). Returns 0 and fills @path, or -1.
+ */
+static int
+famfs_fused_path(char *path, size_t len)
+{
+	char exe_path[PATH_MAX] = { 0 };
+	ssize_t n;
+
+	n = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+	if (n < 0) {
+		fprintf(stderr, "%s: readlink /proc/self/exe failed\n",
+			__func__);
+		return -1;
+	}
+	snprintf(path, len, "%s/famfs_fused", dirname(exe_path));
+	return 0;
+}
+
+/**
+ * famfs_check_fused_abi() - Refuse a mount the kernel cannot possibly serve
+ *
+ * famfs_fused is built for exactly one fuse DAX ABI (famfs_fuse_abi.h) and
+ * reports it via 'famfs_fused --fuse-abi'. If the running kernel speaks the
+ * other one, the mount would fail deep inside famfs_fused with no useful
+ * message; catch it here instead. If either side cannot be determined (no
+ * famfs symbols in kallsyms, or a famfs_fused too old to know --fuse-abi)
+ * the mount proceeds as before.
+ *
+ * Returns 0 if the mount may proceed, -1 on a definite mismatch.
+ */
+static int
+famfs_check_fused_abi(int verbose)
+{
+	enum famfs_fuse_abi kernel_abi, fused_abi;
+	char fused[PATH_MAX];
+	char cmd[PATH_MAX + 16];
+	char line[64] = { 0 };
+	FILE *fp;
+
+	kernel_abi = famfs_get_kernel_fuse_abi(verbose > 1);
+	if (kernel_abi == FAMFS_FUSE_ABI_NONE) {
+		if (verbose)
+			printf("%s: no famfs fuse ABI detected in kernel\n",
+			       __func__);
+		return 0;
+	}
+
+	if (famfs_fused_path(fused, sizeof(fused)))
+		return 0;
+
+	snprintf(cmd, sizeof(cmd), "%s --fuse-abi", fused);
+	fp = popen(cmd, "r");
+	if (!fp)
+		return 0;
+	if (!fgets(line, sizeof(line), fp))
+		line[0] = 0;
+	pclose(fp);
+	line[strcspn(line, "\n")] = 0;
+
+	fused_abi = famfs_fuse_abi_from_name(line);
+	if (fused_abi == FAMFS_FUSE_ABI_NONE) {
+		if (verbose)
+			printf("%s: %s did not report its fuse ABI (%s)\n",
+			       __func__, fused, line);
+		return 0;
+	}
+
+	if (verbose)
+		printf("%s: kernel fuse ABI=%s famfs_fused ABI=%s\n", __func__,
+		       famfs_fuse_abi_name(kernel_abi),
+		       famfs_fuse_abi_name(fused_abi));
+
+	if (fused_abi != kernel_abi) {
+		fprintf(stderr,
+			"%s: famfs_fused (%s) was built for fuse ABI '%s' but "
+			"the running kernel speaks '%s'\n"
+			"%s: rebuild against the matching libfuse branch "
+			"(see LIBFUSE_BRANCH in the Makefile)\n",
+			__func__, fused, famfs_fuse_abi_name(fused_abi),
+			famfs_fuse_abi_name(kernel_abi), __func__);
+		return -1;
+	}
+	return 0;
+}
+
 static int
 famfs_start_fuse_daemon(
 	const char *mpt,
@@ -530,13 +617,10 @@ famfs_start_fuse_daemon(
 	int verbose)
 {
 	char target_path[PATH_MAX] = { 0 };
-	char exe_path[PATH_MAX] = { 0 };
 	char opts[PATH_MAX] = { 0 };
 	char *argv[NARGV] = { 0 };
 	char asan_log_path[PATH_MAX];
 	int argc = 0;
-	ssize_t len;
-	char *dir;
 	pid_t pid;
 
 	pid = fork();
@@ -554,13 +638,8 @@ famfs_start_fuse_daemon(
 		return 0;
 	}
 
-	len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
-	if (len < 0)
-		fprintf(stderr, "%s: readlink /proc/self/exe failed\n",
-			__func__);
-	dir = dirname(exe_path);
-	snprintf(target_path, sizeof(target_path) - 1, "%s/%s",
-		 dir, "famfs_fused");
+	if (famfs_fused_path(target_path, sizeof(target_path)))
+		_exit(1);
 
 	/*
 	 * Set addr sanitizer env option to capture any any sanitizer errors
@@ -844,6 +923,13 @@ famfs_mount_fuse(
 			"%s: failed to create shadow root path %s\n",
 			__func__, local_shadow);
 		rc = -1;
+		goto out;
+	}
+
+	/* A famfs_fused built for the other fuse ABI can never mount here */
+	rc = famfs_check_fused_abi(verbose);
+	if (rc) {
+		rc = -EPROTONOSUPPORT;
 		goto out;
 	}
 

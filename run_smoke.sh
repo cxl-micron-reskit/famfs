@@ -212,6 +212,7 @@ if [ -z "$FAMFS_MODE" ]; then
     if [ $(famfs_fuse_supported) -ge 1 ]; then
 	echo "Defaulting to fuse mode"
 	FAMFS_MODE="fuse"
+	famfs_check_fuse_abi "$BIN/famfs_fused" || exit 1
     elif [ $(famfs_v1_supported) -eq 1 ]; then
 	echo "Fuse mode not enabled; defaulting to v1 mode"
 	FAMFS_MODE="v1"
@@ -231,6 +232,7 @@ else
     else
 	if [ $(famfs_fuse_supported) -ge 1 ]; then
 	    echo "Smoke: testing famfs in fuse mode"
+	    famfs_check_fuse_abi "$BIN/famfs_fused" || exit 1
 	else
 	    echo "ERROR: famfs-fuse was specified, but the kernel does not support it"
 	    exit 1
@@ -256,6 +258,7 @@ echo ":==*****************************************************************"
 echo ":== run_smoke.sh $(date)"
 echo ":==MODE:     $FAMFS_MODE"
 echo ":==ABI:      $FAMFS_ABI  (standalone ioctl ABI; n/a in fuse mode)"
+echo ":==FUSE ABI: kernel=$(famfs_kernel_fuse_abi) famfs_fused=$(famfs_fused_fuse_abi "$BIN/famfs_fused")"
 echo ":==CWD:      $CWD"
 echo ":==BIN:      $BIN"
 echo ":==SCRIPTS:  $SCRIPTS"

@@ -26,6 +26,12 @@
  * choice. Both ABI files are always compiled; each is empty unless its ABI is
  * selected. famfs_fused.c itself has no ABI conditionals: it calls the
  * famfs_abi_*() hooks declared below.
+ *
+ * The running kernel speaks at most one of these ABIs;
+ * famfs_get_kernel_fuse_abi() (famfs_misc.c) detects which from kallsyms.
+ * 'famfs_fused --fuse-abi' prints FAMFS_FUSE_ABI_NAME so 'famfs mount' and
+ * the test scripts can refuse a mismatched pairing up front, and famfs_fused
+ * itself refuses to start on a kernel that speaks the other ABI.
  */
 #ifndef FAMFS_FUSE_ABI_H
 #define FAMFS_FUSE_ABI_H

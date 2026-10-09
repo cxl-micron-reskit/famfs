@@ -134,6 +134,19 @@ FAMFS_ABI=$("$BIN/famfs" kabi 2>/dev/null)
 [[ "$FAMFS_ABI" =~ ^[0-9]+$ ]] || FAMFS_ABI=0
 export FAMFS_ABI
 
+# Fuse DAX ABI: the one the running kernel speaks (extmap|daxfmap|none) and
+# the one famfs_fused was built for (extmap|daxfmap|unknown). Tests gate
+# ABI-specific behavior on these. A mismatch cannot mount, so stop here with
+# a clear message rather than in the first mount. The helpers live in
+# test_funcs.sh, which most tests source after this file.
+declare -F famfs_kernel_fuse_abi >/dev/null || source "$SCRIPTS/test_funcs.sh"
+FAMFS_KERNEL_FUSE_ABI=$(famfs_kernel_fuse_abi)
+FAMFS_FUSE_ABI=$(famfs_fused_fuse_abi "$BIN/famfs_fused")
+export FAMFS_KERNEL_FUSE_ABI FAMFS_FUSE_ABI
+if [[ "$FAMFS_MODE" == "fuse" ]]; then
+    famfs_check_fuse_abi "$BIN/famfs_fused" || return 1 2>/dev/null || exit 1
+fi
+
 MOUNT=( "sudo" "FAMFS_MODE=$FAMFS_MODE" "${VG[@]}" "$BIN/famfs" "mount" "${MOUNT_OPTS[@]}" )
 MKFS=(  "sudo" "FAMFS_MODE=$FAMFS_MODE" "${VG[@]}" "$BIN/mkfs.famfs" "${MKFS_OPTS[@]}" )
 CLI=(   "sudo" "FAMFS_MODE=$FAMFS_MODE" "${VG[@]}" "$BIN/famfs" )

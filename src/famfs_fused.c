@@ -194,7 +194,9 @@ static void famfs_fused_help(void)
 "    -o timeout=0/1         Timeout is set\n"
 "    -o cache=never         Disable cache\n"
 "    -o cache=auto          Auto enable cache\n"
-"    -o cache=always        Cache always\n");
+"    -o cache=always        Cache always\n"
+"    --fuse-abi             Print the fuse DAX ABI this binary speaks\n"
+"                           (extmap|daxfmap) and exit\n");
 }
 
 static struct famfs_ctx *famfs_ctx_from_req(fuse_req_t req)
@@ -1260,9 +1262,20 @@ int main(int argc, char *argv[])
 	struct fuse_loop_config *config;
 	struct fuse_cmdline_opts opts;
 	struct fuse_lowlevel_ops famfs_ops;
+	enum famfs_fuse_abi kernel_abi;
 	char *shadow_root = NULL;
 	struct fuse_session *se;
 	int ret = -1;
+
+	/*
+	 * Report the fuse DAX ABI this binary was built for and exit. Used by
+	 * 'famfs mount' and the test harness to check it against the running
+	 * kernel before trying to mount. Handled before libfuse sees argv.
+	 */
+	if (argc == 2 && strcmp(argv[1], "--fuse-abi") == 0) {
+		printf("%s\n", FAMFS_FUSE_ABI_NAME);
+		return 0;
+	}
 
 	/* Don't mask creation mode, kernel already did that */
 	umask(0);
@@ -1307,6 +1320,7 @@ int main(int argc, char *argv[])
 	} else if (opts.show_version) {
 		printf("FUSE library version %s\n", fuse_pkgversion());
 		fuse_lowlevel_version();
+		printf("famfs fuse ABI: %s\n", FAMFS_FUSE_ABI_NAME);
 		ret = 0;
 		goto err_out1;
 	}
@@ -1334,6 +1348,27 @@ int main(int argc, char *argv[])
 		 lo->source, opts.mountpoint);
 
 	famfs_dump_opts(&famfs_context);
+
+	/*
+	 * Built for one fuse DAX ABI; the kernel speaks at most one. A mismatch
+	 * cannot work, and failing later (INIT negotiation, first open) gives
+	 * no hint why. An undetectable kernel ABI (no famfs symbols in
+	 * kallsyms) is not an error here; the mount fails on its own.
+	 */
+	kernel_abi = famfs_get_kernel_fuse_abi(0);
+	if (kernel_abi != FAMFS_FUSE_ABI_NONE &&
+	    kernel_abi != famfs_fuse_abi_from_name(FAMFS_FUSE_ABI_NAME)) {
+		const char *fmt = "%s: built for fuse ABI '%s' but the running "
+			"kernel speaks '%s'; rebuild against the matching "
+			"libfuse branch\n";
+
+		famfs_log(FAMFS_LOG_ERR, fmt, PROGNAME, FAMFS_FUSE_ABI_NAME,
+			  famfs_fuse_abi_name(kernel_abi));
+		fprintf(stderr, fmt, PROGNAME, FAMFS_FUSE_ABI_NAME,
+			famfs_fuse_abi_name(kernel_abi));
+		ret = 1;
+		goto err_out1;
+	}
 
 	if (lo->daxdev) {
 		/* Store the primary daxdev in slot 0 of the daxdev_table... */

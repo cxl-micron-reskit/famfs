@@ -66,6 +66,17 @@ enum famfs_type {
 	FAMFS_FUSE,            /* FUSE-based famfs (famfs_fused daemon) */
 };
 
+/*
+ * The fuse DAX ABI a kernel (or a famfs_fused binary) speaks. famfs_fused is
+ * built for exactly one of these (see famfs_fuse_abi.h); the running kernel
+ * supports at most one. They must match or fuse mounts cannot work.
+ */
+enum famfs_fuse_abi {
+	FAMFS_FUSE_ABI_NONE = 0, /* kernel has no famfs fuse support */
+	FAMFS_FUSE_ABI_DAXFMAP,  /* DAX_FMAP: kernel pulls fmaps (FUSE_GET_FMAP) */
+	FAMFS_FUSE_ABI_EXTMAP,   /* extent-map: daemon pushes maps (BACKING_MAP) */
+};
+
 /* fuse-only functions */
 int famfs_get_shadow_from_xattr(const char *path, char *shadow_out,
 				size_t shadow_size);
@@ -147,6 +158,9 @@ int famfs_get_system_uuid(uuid_le *uuid_out);
 void famfs_print_uuid(const uuid_le *uuid);
 enum famfs_type famfs_get_kernel_type(int verbose);
 enum famfs_type famfs_select_mode(int verbose);
+enum famfs_fuse_abi famfs_get_kernel_fuse_abi(int verbose);
+const char *famfs_fuse_abi_name(enum famfs_fuse_abi abi);
+enum famfs_fuse_abi famfs_fuse_abi_from_name(const char *name);
 int famfs_check_kernel_kabi(int verbose);
 bool famfs_daxmode_required(void);
 void free_string_list(char **strings, int nstrings);

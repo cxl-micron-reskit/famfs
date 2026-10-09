@@ -642,6 +642,48 @@ famfs_fuse_supported() {
     grep -c -E 'famfs_fuse_iomap_begin|fuse_backing_is_dax' /proc/kallsyms
 }
 
+# Fuse DAX ABI the running kernel speaks: "extmap", "daxfmap" or "none".
+# Keys on the same kallsyms symbols as famfs_get_kernel_fuse_abi() in
+# src/famfs_misc.c; keep them in sync.
+famfs_kernel_fuse_abi() {
+    if grep -qsw fuse_backing_is_dax /proc/kallsyms; then
+        echo extmap
+    elif grep -qsw famfs_fuse_iomap_begin /proc/kallsyms; then
+        echo daxfmap
+    else
+        echo none
+    fi
+}
+
+# Fuse DAX ABI a famfs_fused binary was built for: "extmap", "daxfmap", or
+# "unknown" if the binary is missing or too old to answer --fuse-abi.
+famfs_fused_fuse_abi() {
+    local bin=${1:-$BIN/famfs_fused}
+    local abi
+    abi=$("$bin" --fuse-abi 2>/dev/null) || abi=""
+    case "$abi" in
+        extmap|daxfmap) echo "$abi" ;;
+        *) echo unknown ;;
+    esac
+}
+
+# Verify that the famfs_fused binary speaks the running kernel's fuse ABI.
+# Prints both; returns 1 (with an error message) on a definite mismatch.
+# Unknown on either side is not a mismatch: the mount itself will decide.
+famfs_check_fuse_abi() {
+    local bin=${1:-$BIN/famfs_fused}
+    local kabi fabi
+    kabi=$(famfs_kernel_fuse_abi)
+    fabi=$(famfs_fused_fuse_abi "$bin")
+    echo "fuse ABI: kernel=$kabi famfs_fused=$fabi"
+    if [[ "$kabi" != none && "$fabi" != unknown && "$kabi" != "$fabi" ]]; then
+        echo "ERROR: $bin was built for fuse ABI '$fabi' but this kernel speaks '$kabi'"
+        echo "       rebuild against the matching libfuse branch (LIBFUSE_BRANCH in the Makefile)"
+        return 1
+    fi
+    return 0
+}
+
 # True (0) if the standalone famfs kernel module is loaded, under either the
 # famfs or famfsv1 name and regardless of how it was loaded (insmod or
 # modprobe). Mirrors famfs_module_loaded() in the C code.

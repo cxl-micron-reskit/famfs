@@ -50,6 +50,7 @@
 
 extern int mock_uuid;
 int mock_kernel_type = 0; /* unit tests: if nonzero, famfs_get_kernel_type() returns this */
+int mock_kernel_fuse_abi = 0; /* unit tests: if nonzero, famfs_get_kernel_fuse_abi() returns this */
 
 /**
  * get_multiplier()
@@ -416,6 +417,57 @@ kernel_symbol_exists(
 }
 
 /**
+ * famfs_get_kernel_fuse_abi() - Which fuse DAX ABI does the running kernel speak?
+ *
+ * Probes /proc/kallsyms for a marker symbol of each ABI, in the fuse module:
+ *   extent-map: fuse_backing_is_dax()     (fs/fuse/backing.c)
+ *   DAX_FMAP:   famfs_fuse_iomap_begin()  (fs/fuse/famfs.c)
+ *
+ * The shell helper famfs_kernel_fuse_abi() in scripts/test_funcs.sh and the
+ * Makefile's libfuse target key on the same two symbols; keep them in sync.
+ *
+ * Returns FAMFS_FUSE_ABI_EXTMAP, FAMFS_FUSE_ABI_DAXFMAP, or
+ * FAMFS_FUSE_ABI_NONE if neither symbol is present (no famfs fuse support, or
+ * kallsyms could not be read).
+ */
+enum famfs_fuse_abi
+famfs_get_kernel_fuse_abi(int verbose)
+{
+	if (mock_kernel_fuse_abi)
+		return (enum famfs_fuse_abi)mock_kernel_fuse_abi;
+
+	if (kernel_symbol_exists("fuse_backing_is_dax", "fuse", verbose))
+		return FAMFS_FUSE_ABI_EXTMAP;
+
+	if (kernel_symbol_exists("famfs_fuse_iomap_begin", "fuse", verbose))
+		return FAMFS_FUSE_ABI_DAXFMAP;
+
+	return FAMFS_FUSE_ABI_NONE;
+}
+
+/* Names match FAMFS_FUSE_ABI_NAME in famfs_fuse_abi.h and the test scripts */
+const char *
+famfs_fuse_abi_name(enum famfs_fuse_abi abi)
+{
+	switch (abi) {
+	case FAMFS_FUSE_ABI_EXTMAP:  return "extmap";
+	case FAMFS_FUSE_ABI_DAXFMAP: return "daxfmap";
+	case FAMFS_FUSE_ABI_NONE:    return "none";
+	}
+	return "unknown";
+}
+
+enum famfs_fuse_abi
+famfs_fuse_abi_from_name(const char *name)
+{
+	if (name && strcmp(name, "extmap") == 0)
+		return FAMFS_FUSE_ABI_EXTMAP;
+	if (name && strcmp(name, "daxfmap") == 0)
+		return FAMFS_FUSE_ABI_DAXFMAP;
+	return FAMFS_FUSE_ABI_NONE;
+}
+
+/**
  * famfs_get_kernel_type()
  *
  * Return a valid kernel type (FAMFS_FUSE or FAMFS_V1) that matches the
@@ -427,8 +479,8 @@ famfs_get_kernel_type(int verbose)
 	if (mock_kernel_type)
 		return (enum famfs_type)mock_kernel_type;
 
-	/* First choice is fuse */
-	if (kernel_symbol_exists("famfs_fuse_iomap_begin", "fuse", verbose))
+	/* First choice is fuse, under either fuse DAX ABI */
+	if (famfs_get_kernel_fuse_abi(verbose) != FAMFS_FUSE_ABI_NONE)
 		return FAMFS_FUSE;
 
 	if (kernel_symbol_exists("famfs_create", "famfsv1", verbose))
