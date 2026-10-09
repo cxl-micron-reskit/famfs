@@ -73,34 +73,63 @@ endif
 #
 # - If ./libfuse exists it is built as is - never switched (see the libfuse
 #   target); the developer owns that checkout.
-# - Otherwise it is cloned from LIBFUSE_REPO at branch LIBFUSE_BRANCH, which
-#   defaults to the extent-map ABI branch (LIBFUSE_BRANCH_NEW). Hosts that
-#   need the DAX_FMAP ABI set LIBFUSE_BRANCH in the environment (the old-ABI
-#   CI agents export it from their jenkins-agent systemd unit) or on the
-#   command line:
-#     famfs.extmap - extent-map ABI (the default; Miklos Szeredi's libfuse work)
-#     famfs        - DAX_FMAP ABI, kernels >= 6.15
+# - Otherwise it is cloned from LIBFUSE_REPO at branch LIBFUSE_BRANCH. If
+#   LIBFUSE_BRANCH is not given (environment or command line), it is chosen
+#   from the running kernel, in this order:
+#     famfs.extmap - the kernel speaks the extent-map fuse ABI
+#                    (Miklos Szeredi's libfuse work)
 #     famfs-6.14   - DAX_FMAP ABI, kernels <= 6.14
+#     famfs        - DAX_FMAP ABI, kernels >= 6.15 (also the fallback when
+#                    the kernel has no famfs fuse support at all)
+#   The CI jobs rm -rf libfuse before every build, so this choice is what
+#   decides each agent's fuse ABI; an agent with an extent-map kernel gets
+#   famfs.extmap with no per-agent configuration.
 #
 # The libfuse target also compares the ABI the checkout's headers select
-# against the one the running kernel speaks (same kallsyms symbols as
-# famfs_get_kernel_fuse_abi() in src/famfs_misc.c) and warns on a mismatch.
-# It is only a warning: the build host need not be the test host.
+# against the one the running kernel speaks and warns on a mismatch. It is
+# only a warning: the build host need not be the test host.
 #
-LIBFUSE_BRANCH_6_14 := famfs-6.14
-LIBFUSE_BRANCH_6_19 := famfs
-LIBFUSE_BRANCH_NEW  := famfs.extmap
-
-# Environment or command-line LIBFUSE_BRANCH wins (?= does not override it)
-LIBFUSE_BRANCH ?= $(LIBFUSE_BRANCH_NEW)
+LIBFUSE_BRANCH_6_14   := famfs-6.14
+LIBFUSE_BRANCH_6_19   := famfs
+LIBFUSE_BRANCH_EXTMAP := famfs.extmap
 
 LIBFUSE_REPO := https://github.com/jagalactic/libfuse.git
+
+# Fuse DAX ABI of the running kernel: extmap, daxfmap or none. The kallsyms
+# marker symbols are the same ones famfs_get_kernel_fuse_abi() in
+# src/famfs_misc.c keys on, but they only appear once the fuse module is
+# loaded, so the installed uapi fuse.h is a second signal (the CI VMs install
+# headers from the kernel they boot). FUSE_UAPI_H is overridable for tests.
+FUSE_UAPI_H ?= /usr/include/linux/fuse.h
+KERNEL_FUSE_ABI := $(shell \
+	if grep -qsw fuse_backing_is_dax /proc/kallsyms; then echo extmap; \
+	elif grep -qsw famfs_fuse_iomap_begin /proc/kallsyms; then echo daxfmap; \
+	elif grep -qsw FUSE_NOTIFY_BACKING_MAP $(FUSE_UAPI_H); then echo extmap; \
+	elif grep -qsw FUSE_DAX_FMAP $(FUSE_UAPI_H); then echo daxfmap; \
+	else echo none; fi)
+
+ifeq ($(KERNEL_FUSE_ABI),extmap)
+    LIBFUSE_BRANCH_AUTO := $(LIBFUSE_BRANCH_EXTMAP)
+    LIBFUSE_BRANCH_WHY  := kernel speaks the extent-map fuse ABI
+else ifeq ($(shell test $(KERNEL_MAJOR) -eq 6 -a $(KERNEL_MINOR) -le 14 && echo yes),yes)
+    LIBFUSE_BRANCH_AUTO := $(LIBFUSE_BRANCH_6_14)
+    LIBFUSE_BRANCH_WHY  := kernel $(KERNEL_VERSION) is 6.14 or older
+else
+    LIBFUSE_BRANCH_AUTO := $(LIBFUSE_BRANCH_6_19)
+    LIBFUSE_BRANCH_WHY  := kernel $(KERNEL_VERSION) is 6.15 or newer, fuse ABI $(KERNEL_FUSE_ABI)
+endif
+
+# Environment or command-line LIBFUSE_BRANCH wins (?= does not override it)
+ifdef LIBFUSE_BRANCH
+    LIBFUSE_BRANCH_WHY := LIBFUSE_BRANCH given explicitly
+endif
+LIBFUSE_BRANCH ?= $(LIBFUSE_BRANCH_AUTO)
 
 #
 # Default target
 #
 all:	ndctl
-	@echo "Building with libfuse branch $(LIBFUSE_BRANCH)"
+	@echo "Building with libfuse branch $(LIBFUSE_BRANCH) ($(LIBFUSE_BRANCH_WHY))"
 	$(MAKE) debug
 
 cmake-modules:
@@ -172,34 +201,32 @@ ndctl:
 # incremental, so we just compile whatever is checked out.
 #
 libfuse:
-	@echo "Build dir: $(BDIR), libfuse branch: $(LIBFUSE_BRANCH)"
+	@echo "Build dir: $(BDIR), libfuse branch: $(LIBFUSE_BRANCH) ($(LIBFUSE_BRANCH_WHY))"
 	@if [ -z "$(BDIR)" ]; then \
 		echo "Error: BDIR macro empty"; \
 		exit 1; \
 	fi
 	@if [ ! -d "libfuse" ]; then \
-		echo "Cloning libfuse..."; \
+		echo "Cloning libfuse at branch $(LIBFUSE_BRANCH)..."; \
 		git clone $(LIBFUSE_REPO) || { echo "Error: git clone failed"; exit 1; }; \
 		(cd libfuse && git checkout $(LIBFUSE_BRANCH)) || { \
 			echo "Error: libfuse branch '$(LIBFUSE_BRANCH)' not found"; exit 1; }; \
-	fi
-	@cur=$$(cd libfuse && git rev-parse --abbrev-ref HEAD 2>/dev/null); \
-	if [ "$$cur" != "HEAD" ] && [ "$$cur" != "$(LIBFUSE_BRANCH)" ]; then \
-		echo "WARNING: libfuse is on branch '$$cur', expected '$(LIBFUSE_BRANCH)'"; \
-		echo "         (not switching - check it out yourself if that is wrong)"; \
+	else \
+		echo "Using the existing ./libfuse checkout as is" \
+		     "($$(cd libfuse && git rev-parse --abbrev-ref HEAD 2>/dev/null)," \
+		     "$$(cd libfuse && git rev-parse --short HEAD 2>/dev/null))"; \
 	fi
 	@if grep -qs 'define FUSE_EXT_MAP_CREATE' libfuse/include/*.h; then libabi=extmap; \
 	elif grep -qs 'define FUSE_CAP_DAX_FMAP' libfuse/include/*.h; then libabi=daxfmap; \
 	else libabi=unknown; fi; \
-	if grep -qsw fuse_backing_is_dax /proc/kallsyms; then kabi=extmap; \
-	elif grep -qsw famfs_fuse_iomap_begin /proc/kallsyms; then kabi=daxfmap; \
-	else kabi=none; fi; \
+	kabi="$(KERNEL_FUSE_ABI)"; \
 	echo "libfuse fuse ABI: $$libabi, running kernel fuse ABI: $$kabi"; \
 	if [ "$$kabi" != none ] && [ "$$libabi" != unknown ] && [ "$$kabi" != "$$libabi" ]; then \
 		echo "WARNING: ./libfuse selects the '$$libabi' fuse ABI but this kernel speaks '$$kabi';"; \
 		echo "         famfs_fused built from it will refuse to mount on this kernel."; \
-		echo "         To fix: rm -rf libfuse and rebuild with LIBFUSE_BRANCH set for '$$kabi'"; \
-		echo "         (extmap: $(LIBFUSE_BRANCH_NEW); daxfmap: $(LIBFUSE_BRANCH_6_19) or $(LIBFUSE_BRANCH_6_14))"; \
+		echo "         To fix: rm -rf libfuse and rebuild (the branch is then chosen for"; \
+		echo "         this kernel), or check out the right branch in ./libfuse yourself"; \
+		echo "         (extmap: $(LIBFUSE_BRANCH_EXTMAP); daxfmap: $(LIBFUSE_BRANCH_6_19) or $(LIBFUSE_BRANCH_6_14))"; \
 	fi
 	@mkdir -p $(BDIR)/libfuse
 	@if [ ! -f "$(BDIR)/libfuse/build.ninja" ]; then \
@@ -314,8 +341,8 @@ all-6.19:	ndctl
 	$(MAKE) debug LIBFUSE_BRANCH="$(LIBFUSE_BRANCH_6_19)"
 
 all-new:	ndctl
-	@echo "Building with libfuse branch $(LIBFUSE_BRANCH_NEW) (extent-map ABI)"
-	$(MAKE) debug LIBFUSE_BRANCH="$(LIBFUSE_BRANCH_NEW)"
+	@echo "Building with libfuse branch $(LIBFUSE_BRANCH_EXTMAP) (extent-map ABI)"
+	$(MAKE) debug LIBFUSE_BRANCH="$(LIBFUSE_BRANCH_EXTMAP)"
 
 clean:
 	sudo rm -rf debug release coverage sanitize
