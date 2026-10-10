@@ -85,8 +85,19 @@ expect_good "${CHECK[@]}" -e pmd "$F" \
 #    2 MiB aligned on the device; a chunk size of 2 MiB is the hardest case
 #    because every PMD is a separate chunk on a separate strip.
 #
+# Chunk sizes to try. 2 MiB is one PMD per chunk; 4 MiB puts two PMDs in each
+# chunk. The standalone KABI 44 kernel accepts only chunk sizes equal to an
+# allocation unit (4 KiB or 2 MiB; MAP_CREATE returns EINVAL otherwise), so
+# the 4 MiB case is fuse-only there. KABI 43 and the fuse kernels take any
+# power-of-2 multiple of the allocation unit.
+CHUNKS="2m 4m"
+if [[ "$FAMFS_MODE" == "v1" && "$FAMFS_ABI" -ge 44 ]]; then
+    echo "Skipping the 4m chunk case: standalone KABI $FAMFS_ABI allows only 4k/2m chunks"
+    CHUNKS="2m"
+fi
+
 if (( INTERLEAVE_OK )); then
-    for CHUNK in 2m 4m; do
+    for CHUNK in $CHUNKS; do
         F="$MPT/pmd_interleaved_$CHUNK"
         expect_good "${CLI[@]}" "${CREAT[@]}" \
             -N "$NSTRIPS" -B "$NBUCKETS" -C "$CHUNK" -s 64m "$F" \
