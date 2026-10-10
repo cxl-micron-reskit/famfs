@@ -474,7 +474,13 @@ else
     echo ":== skipped test_mmap due to run_smoke options"
 fi
 
-if [ -z "$SKIP_PMD_FAULTS" ]; then
+# test_pmd_faults decides PMD-vs-PTE from the helper's own page fault count,
+# which valgrind's shadow memory inflates by thousands, so it is skipped in
+# --valgrind mode. Checked before SKIP_PMD_FAULTS so --valgrind wins even
+# when combined with --justpmd.
+if [ -n "$VGARG" ]; then
+    echo ":== skipped test_pmd_faults under valgrind (fault counts are not meaningful)"
+elif [ -z "$SKIP_PMD_FAULTS" ]; then
     start_time=$(date +%s)
     ./smoke/test_pmd_faults.sh "${SMOKE_ARGS[@]}" || exit -1
     sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
