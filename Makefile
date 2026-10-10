@@ -211,6 +211,10 @@ libfuse:
 		git clone $(LIBFUSE_REPO) || { echo "Error: git clone failed"; exit 1; }; \
 		(cd libfuse && git checkout $(LIBFUSE_BRANCH)) || { \
 			echo "Error: libfuse branch '$(LIBFUSE_BRANCH)' not found"; exit 1; }; \
+		if [ -d "$(BDIR)/libfuse" ]; then \
+			echo "Fresh libfuse clone: discarding the old $(BDIR)/libfuse meson configuration"; \
+			rm -rf "$(BDIR)/libfuse"; \
+		fi; \
 	else \
 		echo "Using the existing ./libfuse checkout as is" \
 		     "($$(cd libfuse && git rev-parse --abbrev-ref HEAD 2>/dev/null)," \
@@ -227,6 +231,19 @@ libfuse:
 		echo "         To fix: rm -rf libfuse and rebuild (the branch is then chosen for"; \
 		echo "         this kernel), or check out the right branch in ./libfuse yourself"; \
 		echo "         (extmap: $(LIBFUSE_BRANCH_EXTMAP); daxfmap: $(LIBFUSE_BRANCH_6_19) or $(LIBFUSE_BRANCH_6_14))"; \
+	fi
+	@# A build dir configured on another host (shared home dir) or before a
+	@# compiler/ccache change remembers a compiler launcher that may not exist
+	@# here any more; meson will not notice, every compile just fails with
+	@# "No such file or directory". Reconfigure from scratch in that case.
+	@if [ -f "$(BDIR)/libfuse/build.ninja" ]; then \
+		cc1=$$(sed -n 's/^ *"\(\/[^"]*\)",*$$/\1/p' \
+			"$(BDIR)/libfuse/meson-info/intro-compilers.json" 2>/dev/null | head -1); \
+		if [ -n "$$cc1" ] && [ ! -x "$$cc1" ]; then \
+			echo "Compiler '$$cc1' recorded in $(BDIR)/libfuse is missing on this host;" \
+			     "discarding that meson configuration"; \
+			rm -rf "$(BDIR)/libfuse"; \
+		fi; \
 	fi
 	@mkdir -p $(BDIR)/libfuse
 	@if [ ! -f "$(BDIR)/libfuse/build.ninja" ]; then \
