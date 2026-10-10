@@ -96,6 +96,7 @@ while (( $# > 0)); do
 	    SKIP_PCQ=1
 	    SKIP_FIO=1
 	    SKIP_ERRS=
+	    SKIP_PMD_FAULTS=1
 	    ;;
 	(-f|--justfio)
 	    SKIP_TEST0=1
@@ -105,6 +106,7 @@ while (( $# > 0)); do
 	    SKIP_TEST4=1
 	    SKIP_PCQ=1
 #	    SKIP_FIO=0
+	    SKIP_PMD_FAULTS=1
 	    ;;
 	(--justpcq)
 	    SKIP_TEST0=1
@@ -117,6 +119,7 @@ while (( $# > 0)); do
 	    SKIP_SHADOW_YAML=1
 	    SKIP_STRIPE_TEST=1
 	    COVERAGE=0
+	    SKIP_PMD_FAULTS=1
 	    ;;
 	(--mmap-only)
 	    # Run prepare followed by the mmap test only
@@ -130,6 +133,23 @@ while (( $# > 0)); do
 	    SKIP_TEST4=1
 	    SKIP_ERRS=1
 	    SKIP_STRIPE_TEST=1
+	    SKIP_PCQ=1
+	    SKIP_FIO=1
+	    ;;
+	(--justpmd)
+	    # Run prepare followed by the PMD fault test only
+	    SKIP_DAXMODE=1
+	    SKIP_LOAD_MODULE=1
+	    SKIP_TEST0=1
+	    SKIP_SHADOW_YAML=1
+	    SKIP_TEST1=1
+	    SKIP_TEST2=1
+	    SKIP_TEST3=1
+	    SKIP_TEST4=1
+	    SKIP_MMAP=1
+	    SKIP_ERRS=1
+	    SKIP_STRIPE_TEST=1
+	    SKIP_TEST_4K=1
 	    SKIP_PCQ=1
 	    SKIP_FIO=1
 	    ;;
@@ -148,6 +168,7 @@ while (( $# > 0)); do
 	    SKIP_FIO=1
 	    SKIP_ERRS=1
 	    SKIP_STRIPE_TEST=1
+	    SKIP_PMD_FAULTS=1
 	    ;;
 	(--stripe)
 	    # Just test0 and test_shadow_yaml
@@ -161,6 +182,7 @@ while (( $# > 0)); do
 	    SKIP_ERRS=1
 	    SKIP_SHADOW_YAML=1
 	    #SKIP_STRIPE_TEST=
+	    SKIP_PMD_FAULTS=1
 	    ;;
 	(-N|--nosleep)
 	    SLEEP_TIME=0
@@ -450,6 +472,19 @@ if [ -z "$SKIP_MMAP" ]; then
     sleep "${SLEEP_TIME}"
 else
     echo ":== skipped test_mmap due to run_smoke options"
+fi
+
+if [ -z "$SKIP_PMD_FAULTS" ]; then
+    start_time=$(date +%s)
+    ./smoke/test_pmd_faults.sh "${SMOKE_ARGS[@]}" || exit -1
+    sudo chown -R ${id}:${grp} $BIN # fixup permissions for gcov
+    elapsed=$(($(date +%s) - start_time))
+    TEST_NAMES+=("test_pmd_faults")
+    TEST_TIMES+=("$elapsed")
+    echo ":== test_pmd_faults success ($(format_time $elapsed))"
+    sleep "${SLEEP_TIME}"
+else
+    echo ":== skipped test_pmd_faults due to run_smoke options"
 fi
 
 if [ -z "$SKIP_ERRS" ]; then

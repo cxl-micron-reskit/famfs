@@ -61,3 +61,21 @@ target_sources("${name}_tests" PRIVATE $<TARGET_OBJECTS:libicache_obj>)
     endif()
   endif()
 endforeach()
+
+#
+# pmd_fault_check: standalone smoke-test helper (no gtest, no libfamfs) that
+# verifies famfs mmaps are populated by PMD faults. It lands in the build
+# root next to famfs so the smoke scripts find it via $BIN.
+#
+add_executable(pmd_fault_check pmd_fault_check.c)
+set_target_properties(pmd_fault_check PROPERTIES
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+#
+# The helper counts its own page faults, so it must not be instrumented: an
+# ASan build (make sanitize) takes one extra fault per 4 KiB of shadow memory
+# (2048 extra for a 64 MiB mapping), which reads as a PTE/PMD mix and fails
+# the test even though the kernel trace shows only PMD faults. These options
+# come after CMAKE_C_FLAGS on the command line, so they win.
+#
+target_compile_options(pmd_fault_check PRIVATE -fno-sanitize=all)
+target_link_options(pmd_fault_check PRIVATE -fno-sanitize=all)
