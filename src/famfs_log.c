@@ -64,7 +64,7 @@ void famfs_log_set_level(int level)
 {
 	if (!log_level_valid(level)) {
 		famfs_log(FAMFS_LOG_ERR, "%s: invalid log level %d\n",
-			  __func__);
+			  __func__, level);
 		return;
 	}
 	famfs_log_level = level;

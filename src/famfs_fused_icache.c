@@ -83,7 +83,7 @@ void famfs_icache_unflock(struct famfs_inode *inode)
 	struct famfs_icache *icache = inode->icache;
 
 	if (!inode->flock_held) {
-		famfs_log(FAMFS_LOG_ERR, "%s: ino %d name %s flock not held\n",
+		famfs_log(FAMFS_LOG_ERR, "%s: ino %lu name %s flock not held\n",
 			  __func__, inode->ino, inode->name);
 		return;
 	}
@@ -95,7 +95,7 @@ void dump_inode(const char *caller, struct famfs_inode *inode, int loglevel)
 {
 	famfs_log(loglevel,
 		  "%s: %s ino=%ld nodeid=%llx flags=%d refcount=%ld ftype=%d "
-		  "icache=%llx Parent=%llx pin=%d name=(%s)\n",
+		  "icache=%llx Parent=%lx pin=%d name=(%s)\n",
 		  caller,
 		  (inode->ftype == FAMFS_FREG) ? "FILE":"DIR",
 		  inode->ino, (u64)inode, inode->flags,

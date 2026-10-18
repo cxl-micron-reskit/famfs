@@ -863,7 +863,7 @@ famfs_read_fd_to_buf(int fd, ssize_t max_size, ssize_t *size_out)
 	ssize_t n;
 
 	if (max_size > FAMFS_YAML_MAX)
-		famfs_log(FAMFS_LOG_ERR, "%s: max_size=%lld > limit=%d\n",
+		famfs_log(FAMFS_LOG_ERR, "%s: max_size=%ld > limit=%d\n",
 			 __func__, max_size, FAMFS_YAML_MAX);
 
 	buf = calloc(1, max_size + 8);

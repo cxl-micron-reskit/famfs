@@ -474,8 +474,8 @@ famfs_do_lookup(
 	int res;
 
 	famfs_log(FAMFS_LOG_DEBUG,
-		 "%s: parent_inode=%lx ino=%ld ref=%lld "
-		  "icache_count=%lld name=%s\n",
+		 "%s: parent_inode=%p ino=%ld ref=%lu "
+		  "icache_count=%lu name=%s\n",
 		  __func__, parent_inode, parent_inode->ino,
 		  parent_inode->refcount,
 		  famfs_icache_count(&lo->icache), name);
@@ -512,7 +512,7 @@ famfs_do_lookup(
 	if (S_ISDIR(st.st_mode)) {
 		ftype = FAMFS_FDIR;
 		famfs_log(FAMFS_LOG_DEBUG,
-			 "               : inode=%d is a directory\n",
+			 "               : inode=%lu is a directory\n",
 			 e->attr.st_ino);
 	} else if (S_ISREG(st.st_mode)) {
 		void *yaml_buf = NULL;
@@ -567,7 +567,7 @@ famfs_do_lookup(
 
 	} else {
 		famfs_log(FAMFS_LOG_DEBUG,
-			 "               : inode=%d is neither file nor dir\n",
+			 "               : inode=%lu is neither file nor dir\n",
 			 e->attr.st_ino);
 		saverr = ENOENT;
 		goto out_err;
@@ -610,7 +610,7 @@ famfs_do_lookup(
 				goto out_err;
 			}
 			famfs_log(FAMFS_LOG_DEBUG,
-				  "               : Caching inode %d\n",
+				  "               : Caching inode %lu\n",
 				  e->attr.st_ino);
 			famfs_icache_insert_locked(&lo->icache, inode);
 		}
@@ -620,7 +620,7 @@ famfs_do_lookup(
 found_inode:
 
 		famfs_log(FAMFS_LOG_DEBUG,
-			  "s: inode=%d already cached\n", inode->ino);
+			  "s: inode=%lu already cached\n", inode->ino);
 
 		/* Use cached attrs (preserves chown/chmod changes) */
 		e->attr = inode->attr;
@@ -714,7 +714,7 @@ famfs_forget_one(
 	struct famfs_inode *inode = famfs_get_inode_from_nodeid(&lo->icache,
 							    nodeid);
 
-	famfs_log(FAMFS_LOG_DEBUG, "%s: ino=%lld refcount=%lld count=%lld\n",
+	famfs_log(FAMFS_LOG_DEBUG, "%s: ino=%lu refcount=%lu count=%lu\n",
 		  __func__, inode->ino, inode->refcount, nlookup);
 
 	/* +1 because we got a ref when we looked it up here */
@@ -1044,7 +1044,7 @@ famfs_release(
 	if (inode->flock_held) {
 		famfs_icache_unflock(inode);
 		famfs_log(FAMFS_LOG_NOTICE,
-			  "%s: ino=%lld name=%s released flock\n",
+			  "%s: ino=%lu name=%s released flock\n",
 			  __func__, inode->ino, inode->name);
 	}
 	pthread_mutex_lock(&lo->icache.mutex);

@@ -1285,7 +1285,7 @@ famfs_shadow_to_stat(
 	yaml_stream = fmemopen((void *)yaml_buf, bufsize, "r");
 	if (!yaml_stream) {
 		famfs_log(FAMFS_LOG_ERR,
-			 "failed to convert yaml_buf to stream (errno=%d\n",
+			 "%s: failed to convert yaml_buf to stream (errno=%d\n",
 			 __func__, errno);
 		return -1;
 	}
