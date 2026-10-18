@@ -1440,15 +1440,43 @@ int main(int argc, char *argv[])
 	if (fuse_set_signal_handlers(se) != 0)
 	    goto err_out2;
 
-	if (fuse_session_mount(se, opts.mountpoint) != 0)
+	/*
+	 * Create the REST socket (<shadow>/sock) before the mount becomes
+	 * visible: famfs (file_is_famfs(), the mount-time liveness probe)
+	 * treats a fuse mount whose socket is missing as not-famfs or dead,
+	 * so the socket must never appear after the mount does. Only the
+	 * listening fd is created here; it survives fuse_daemonize()'s fork,
+	 * and the serving thread is started after that.
+	 */
+	ret = famfs_diag_server_listen(shadow_root);
+	if (ret) {
+		fprintf(stderr, "%s: failed to create REST socket (%d)\n",
+			PROGNAME, ret);
+		ret = 1;
 		goto err_out3;
+	}
+
+	if (fuse_session_mount(se, opts.mountpoint) != 0) {
+		famfs_diag_server_stop(); /* closes and unlinks the socket */
+		goto err_out3;
+	}
 
 	jg_print_fuse_opts(&opts);
 
 	/* This daemonizes if !opts.foreground */
 	fuse_daemonize(opts.foreground);
 
-	famfs_diag_server_start(shadow_root);
+	ret = famfs_diag_server_start(shadow_root);
+	if (ret) {
+		famfs_log(FAMFS_LOG_ERR,
+			  "%s: failed to start REST server thread (%d)\n",
+			  PROGNAME, ret);
+		famfs_diag_server_stop();
+		fuse_session_unmount(se);
+		famfs_icache_destroy(&lo->icache);
+		ret = 1;
+		goto err_out3;
+	}
 
 	/* Block until ctrl+c or fusermount -u */
 	if (opts.singlethread)

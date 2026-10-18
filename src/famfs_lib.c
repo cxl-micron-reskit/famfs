@@ -149,35 +149,20 @@ file_is_famfs(const char *fname)
 	case FUSE_SUPER_MAGIC: {
 		/*
 		 * FUSE magic doesn't guarantee this is famfs. Verify by
-		 * getting the shadow path and checking the REST API.
+		 * reading the shadow-path xattr, which only famfs_fused
+		 * serves. That alone identifies the mount; whether the
+		 * daemon is healthy is a separate question (see
+		 * famfs_fuse_daemon_alive()), and its REST socket is
+		 * created before the mount, so checking for it here would
+		 * add nothing but a dependency on daemon state.
 		 */
 		char shadow[PATH_MAX];
-		char sock_path[PATH_MAX];
-		size_t shadow_len;
 		int rc;
-		struct stat st;
 
 		rc = famfs_get_shadow_from_xattr(check_path, shadow,
 						 sizeof(shadow));
 		free(local_path);
 		if (rc < 0)
-			return NOT_FAMFS;
-
-		/* Socket is at $shadow/sock; ensure it fits */
-		shadow_len = strlen(shadow);
-		if (shadow_len + 6 > sizeof(sock_path)) /* 6 = strlen("/sock") + 1 */
-			return NOT_FAMFS;
-		memcpy(sock_path, shadow, shadow_len);
-		memcpy(sock_path + shadow_len, "/sock", 6);
-
-		rc = stat(sock_path, &st);
-		if (rc < 0) {
-			fprintf(stderr, "%s: failed to stat file %s (%s)\n",
-					__func__, sock_path, strerror(errno));
-			return NOT_FAMFS;
-		}
-
-		if (!S_ISSOCK(st.st_mode))
 			return NOT_FAMFS;
 
 		return FAMFS_FUSE;

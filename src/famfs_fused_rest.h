@@ -6,7 +6,8 @@
 #ifndef _H_FAMFS_REST
 #define _H_FAMFS_REST
 
-void famfs_diag_server_start(const char *path);
+int famfs_diag_server_listen(const char *shadow_root);
+int famfs_diag_server_start(const char *shadow_root);
 void famfs_diag_server_stop(void);
 
 #endif /* _H_FAMFS_REST */

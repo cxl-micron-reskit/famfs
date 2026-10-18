@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 #include <limits.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
@@ -26,6 +27,7 @@ static pthread_t diag_thread;
 static volatile int diag_shutdown_requested = 0;
 static int diag_server_running = 0;
 static char *sock_path = NULL;
+static int listen_fd = -1;
 
 /*
  * Handle a parsed HTTP request and replies
@@ -174,48 +176,18 @@ static void famfs_unix_bridge(struct mg_connection *c, int ev, void *ev_data)
 
 /*
  * Rest server thread
+ *
+ * The listening socket is created beforehand by famfs_diag_server_listen();
+ * this thread only accepts and serves connections on it. Connections that
+ * arrive before the thread starts wait in the listen backlog.
  */
 static void *diag_server_thread_fn(void *arg)
 {
 	(void)arg;
-	int listen_fd = -1;
-	struct sockaddr_un sa;
 	struct mg_mgr mgr;
 
-	if (!sock_path || !*sock_path) return NULL;
-	unlink(sock_path);
-
-	listen_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-	if (listen_fd < 0) {
-		famfs_log(FAMFS_LOG_ERR,
-			  "%s: socket failed AF_UNIX (errno=%d)\n",
-			  __func__, errno);
-		perror("socket");
+	if (listen_fd < 0)
 		return NULL;
-	}
-
-	memset(&sa, 0, sizeof(sa));
-	sa.sun_family = AF_UNIX;
-	strncpy(sa.sun_path, sock_path, sizeof(sa.sun_path) - 1);
-
-	if (bind(listen_fd, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
-		famfs_log(FAMFS_LOG_ERR, "%s: bind failed (errno=%d)\n",
-			  __func__, errno);
-		perror("bind");
-		close(listen_fd);
-		return NULL;
-	}
-
-	chmod(sock_path, 0660);
-	if (listen(listen_fd, 64) < 0) {
-		famfs_log(FAMFS_LOG_ERR,
-			  "%s: socket failed AF_UNIX (errno=%d)\n",
-			  __func__, errno);
-		perror("listen");
-		close(listen_fd);
-		unlink(sock_path);
-		return NULL;
-	}
 
 	mg_mgr_init(&mgr);
 	diag_server_running = 1;
@@ -245,6 +217,7 @@ static void *diag_server_thread_fn(void *arg)
 
 	mg_mgr_free(&mgr);
 	close(listen_fd);
+	listen_fd = -1;
 	unlink(sock_path);
 	diag_server_running = 0;
 	return NULL;
@@ -290,26 +263,123 @@ char *sock_path_from_shadow_root(const char *path)
 }
 
 /*
- * Start and stop rest server
+ * famfs_diag_server_listen() - create the REST socket at <shadow>/sock
+ * @shadow_root: the shadow root path; the socket goes in its parent dir
+ *
+ * Call this in famfs_fused before fuse_session_mount(). The socket inode
+ * exists as soon as bind() returns, so any process that can see the fuse
+ * mount can also see the socket (file_is_famfs() and the mount-time
+ * liveness probe depend on that). The listening fd survives the fork in
+ * fuse_daemonize(); the serving thread is started afterwards with
+ * famfs_diag_server_start().
+ *
+ * Returns 0 on success, -errno on failure.
  */
-void famfs_diag_server_start(const char *shadow_root)
+int famfs_diag_server_listen(const char *shadow_root)
 {
-	if (diag_server_running)
-		return;
+	struct sockaddr_un sa;
+	int fd;
+	int rc;
+
+	if (listen_fd >= 0)
+		return 0;
+
 	free(sock_path);
 	sock_path = sock_path_from_shadow_root(shadow_root);
+	if (!sock_path || !*sock_path) {
+		famfs_log(FAMFS_LOG_ERR, "%s: bad shadow root %s\n",
+			  __func__, shadow_root ? shadow_root : "(null)");
+		return -EINVAL;
+	}
+	if (strlen(sock_path) >= sizeof(sa.sun_path)) {
+		famfs_log(FAMFS_LOG_ERR, "%s: socket path too long: %s\n",
+			  __func__, sock_path);
+		return -ENAMETOOLONG;
+	}
+
+	unlink(sock_path);
+
+	fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (fd < 0) {
+		rc = -errno;
+		famfs_log(FAMFS_LOG_ERR,
+			  "%s: socket failed AF_UNIX (errno=%d)\n",
+			  __func__, errno);
+		perror("socket");
+		return rc;
+	}
+
+	memset(&sa, 0, sizeof(sa));
+	sa.sun_family = AF_UNIX;
+	strncpy(sa.sun_path, sock_path, sizeof(sa.sun_path) - 1);
+
+	if (bind(fd, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
+		rc = -errno;
+		famfs_log(FAMFS_LOG_ERR, "%s: bind %s failed (errno=%d)\n",
+			  __func__, sock_path, errno);
+		perror("bind");
+		close(fd);
+		return rc;
+	}
+
+	chmod(sock_path, 0660);
+	if (listen(fd, 64) < 0) {
+		rc = -errno;
+		famfs_log(FAMFS_LOG_ERR, "%s: listen %s failed (errno=%d)\n",
+			  __func__, sock_path, errno);
+		perror("listen");
+		close(fd);
+		unlink(sock_path);
+		return rc;
+	}
+
+	listen_fd = fd;
+	famfs_log(FAMFS_LOG_NOTICE, "Rest server socket ready at %s\n",
+		  sock_path);
+	return 0;
+}
+
+/*
+ * Start and stop rest server
+ *
+ * famfs_diag_server_start() creates the socket itself if
+ * famfs_diag_server_listen() was not called first; that keeps the old
+ * one-call usage working, but then the socket may appear after the mount.
+ */
+int famfs_diag_server_start(const char *shadow_root)
+{
+	int rc;
+
+	if (diag_server_running)
+		return 0;
+	if (listen_fd < 0) {
+		rc = famfs_diag_server_listen(shadow_root);
+		if (rc)
+			return rc;
+	}
 	famfs_log(FAMFS_LOG_NOTICE, "Starting rest server on %s\n", sock_path);
 	diag_shutdown_requested = 0;
-	pthread_create(&diag_thread, NULL, diag_server_thread_fn, NULL);
+	rc = pthread_create(&diag_thread, NULL, diag_server_thread_fn, NULL);
+	if (rc) {
+		famfs_log(FAMFS_LOG_ERR, "%s: pthread_create failed (%d)\n",
+			  __func__, rc);
+		return -rc;
+	}
+	return 0;
 }
 
 void famfs_diag_server_stop(void)
 {
 	famfs_log(FAMFS_LOG_NOTICE, "Stopping rest server\n");
-	if (!diag_server_running)
-		return;
-	diag_shutdown_requested = 1;
-	pthread_join(diag_thread, NULL);
+	if (diag_server_running) {
+		diag_shutdown_requested = 1;
+		pthread_join(diag_thread, NULL);
+	} else if (listen_fd >= 0) {
+		/* Socket was created but the thread never started */
+		close(listen_fd);
+		listen_fd = -1;
+		unlink(sock_path);
+	}
 	free(sock_path);
 	sock_path = NULL;
 }

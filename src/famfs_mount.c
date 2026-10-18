@@ -771,9 +771,10 @@ famfs_umount(const char *mpt)
  * @verbose: Verbosity level.
  *
  * The famfs_fused daemon creates a Unix domain socket at <shadow>/sock for its
- * REST diagnostic interface.  Socket creation happens in a separate thread, so
- * the socket may appear after the FUSE mount is established; it is NOT a
- * substitute for watching the superblock file.  This function is used as a
+ * REST diagnostic interface.  The socket is bound before the FUSE mount is
+ * made, so it exists whenever the mount is visible; but requests are only
+ * served once the daemon's REST thread runs, and the socket's presence is NOT
+ * a substitute for watching the superblock file.  This function is used as a
  * health check after a grace period: if the superblock file has not appeared
  * and the daemon cannot be contacted via its socket, the daemon has almost
  * certainly crashed and the mount should be aborted rather than waiting for
@@ -962,10 +963,11 @@ famfs_mount_fuse(
 	 *   waiting for the full timeout.  If the socket is responsive, the
 	 *   daemon is alive but slow; allow extra time.
 	 *
-	 * Note: the socket is created by a separate thread and may appear
-	 * slightly after the FUSE mount is established, so a missing socket
-	 * during the grace period is not itself an error — only a missing
-	 * socket *after* the grace period is diagnostic.
+	 * Note: famfs_fused binds the socket before mounting, so once the
+	 * mount is visible the socket file exists; what may lag slightly is
+	 * the REST thread that answers on it.  That is why the probe is only
+	 * consulted after the grace period, when a missing or silent socket
+	 * is diagnostic.
 	 */
 	if (check_file_exists(realmpt, ".meta/.superblock",
 			      FUSE_DAEMON_GRACE_SECS,
