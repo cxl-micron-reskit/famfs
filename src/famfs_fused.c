@@ -306,7 +306,7 @@ famfs_setattr(
 		buf.st_gid = attr->st_gid;
 	if (valid & FUSE_SET_ATTR_SIZE) {
 		famfs_log(FAMFS_LOG_ERR, "%s: Truncate(%lld) not supported\n",
-			  attr->st_size);
+			  __func__, (long long)attr->st_size);
 		errs++;
 	}
 	if (valid & FUSE_SET_ATTR_MTIME)
