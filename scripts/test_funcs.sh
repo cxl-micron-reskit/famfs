@@ -642,6 +642,17 @@ famfs_fuse_supported() {
     grep -c -E 'famfs_fuse_iomap_begin|fuse_backing_is_dax' /proc/kallsyms
 }
 
+# famfs_kernel_at_least MAJOR MINOR - true if the running kernel is at least
+# MAJOR.MINOR (from uname -r).
+famfs_kernel_at_least() {
+    local want_major=$1 want_minor=$2
+    local major minor
+    major=$(uname -r | cut -d. -f1)
+    minor=$(uname -r | cut -d. -f2 | sed 's/[^0-9].*//')
+    [[ "$major" =~ ^[0-9]+$ && "$minor" =~ ^[0-9]+$ ]] || return 1
+    (( major > want_major || (major == want_major && minor >= want_minor) ))
+}
+
 # Fuse DAX ABI the running kernel speaks: "extmap", "daxfmap" or "none".
 # Keys on the same kallsyms symbols as famfs_get_kernel_fuse_abi() in
 # src/famfs_misc.c; keep them in sync.

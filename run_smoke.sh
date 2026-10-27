@@ -525,13 +525,16 @@ fi
 
 # 4K allocation-unit test: needs a kernel that accepts 4K-aligned extents.
 # That is standalone KABI >= 44, or fuse on an extent-map kernel (its extents
-# only need page alignment; a 2 MiB-misaligned extent just takes PTE faults).
-# The DAX_FMAP fuse kernels require PMD-aligned extents, so they skip.
+# only need page alignment), or fuse on a DAX_FMAP kernel of 7.2 or later
+# (older DAX_FMAP kernels require PMD-aligned extents). A 2 MiB-misaligned
+# extent just takes PTE faults.
 TEST_4K_SKIP=1
 if [[ "$FAMFS_MODE" == "v1" && "$FAMFS_ABI" -ge 44 ]]; then
     TEST_4K_SKIP=""
-elif [[ "$FAMFS_MODE" == "fuse" && "$(famfs_kernel_fuse_abi)" == "extmap" ]]; then
-    TEST_4K_SKIP=""
+elif [[ "$FAMFS_MODE" == "fuse" ]]; then
+    if [[ "$(famfs_kernel_fuse_abi)" == "extmap" ]] || famfs_kernel_at_least 7 2; then
+        TEST_4K_SKIP=""
+    fi
 fi
 
 if [ -z "$SKIP_TEST_4K" ] && [ -z "$TEST_4K_SKIP" ]; then

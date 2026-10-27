@@ -12,18 +12,21 @@ source "$SCRIPTS/test_funcs.sh"
 start_test $TEST
 
 # A 4KiB allocation unit needs a kernel that accepts 4K-aligned extents:
-# standalone KABI >= 44, or fuse on an extent-map kernel (page-aligned extents
-# are enough there; a 2 MiB-misaligned extent just takes PTE faults). The
-# DAX_FMAP fuse kernels require PMD-aligned extents. run_smoke.sh gates this
-# test, but guard here too in case it is run directly.
+# standalone KABI >= 44, fuse on an extent-map kernel (page-aligned extents
+# are enough there), or fuse on a DAX_FMAP kernel of 7.2 or later (older
+# DAX_FMAP kernels require PMD-aligned extents). A 2 MiB-misaligned extent
+# just takes PTE faults. run_smoke.sh gates this test, but guard here too in
+# case it is run directly.
 TEST_4K_OK=0
 if [[ "$FAMFS_MODE" == "v1" && "$FAMFS_ABI" -ge 44 ]]; then
     TEST_4K_OK=1
-elif [[ "$FAMFS_MODE" == "fuse" && "$FAMFS_KERNEL_FUSE_ABI" == "extmap" ]]; then
-    TEST_4K_OK=1
+elif [[ "$FAMFS_MODE" == "fuse" ]]; then
+    if [[ "$FAMFS_KERNEL_FUSE_ABI" == "extmap" ]] || famfs_kernel_at_least 7 2; then
+        TEST_4K_OK=1
+    fi
 fi
 if (( ! TEST_4K_OK )); then
-    echo ":== test_4k: skipped (needs standalone KABI >= 44 or an extent-map fuse kernel; mode=$FAMFS_MODE abi=$FAMFS_ABI fuse_abi=$FAMFS_KERNEL_FUSE_ABI)"
+    echo ":== test_4k: skipped (needs standalone KABI >= 44, an extent-map fuse kernel, or fuse on kernel >= 7.2; mode=$FAMFS_MODE abi=$FAMFS_ABI fuse_abi=$FAMFS_KERNEL_FUSE_ABI kernel=$KERNEL_VERSION)"
     exit 0
 fi
 
