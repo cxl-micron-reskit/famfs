@@ -72,7 +72,9 @@ expect_fail "${CHECK[@]}" -e pmd -m "$F" \
 #
 # 3. File whose size is not a 2 MiB multiple: 64 MiB + 4 KiB. The 32 full
 #    PMDs must still be PMD faults; only the one tail page may be a PTE fault
-#    (the helper predicts that from the file size).
+#    (the helper predicts that from the file size). Depending on mmap layout
+#    the kernel may first try, and decline, a PMD fault on that tail page;
+#    the wrapper's trace check accepts that fallback on a partial window.
 #
 F="$MPT/pmd_tail"
 expect_good "${CLI[@]}" "${CREAT[@]}" -s 0x4001000 "$F" \

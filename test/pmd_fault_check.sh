@@ -8,10 +8,21 @@
 # on the file's inode, runs the helper, and checks the trace:
 #
 #   --expect pmd (default): exactly as many successful (NOPAGE) PMD faults as
-#                           the helper predicted possible, no FALLBACK results,
-#                           and only as many dax_pte_fault events as the helper
-#                           predicted for pages no PMD can cover (the tail of
-#                           a file whose size is not a 2 MiB multiple)
+#                           the helper predicted possible, no FALLBACK result
+#                           on a 2 MiB window that lies entirely inside the
+#                           mapping, and only as many dax_pte_fault events as
+#                           the helper predicted for pages no PMD can cover
+#                           (the tail of a file whose size is not a 2 MiB
+#                           multiple)
+#
+# A FALLBACK on a partial window (the tail, or a head before the first 2 MiB
+# boundary) is not a failure: the mm core calls the filesystem's huge_fault
+# for any fault whose PMD slot is still empty without first checking that a
+# PMD would fit in the VMA (that check is left to the fault handler), and the
+# DAX PMD handler correctly declines with FALLBACK before the page gets its
+# PTE fault. Whether that attempt happens at all depends on whether a
+# neighbouring mapping already populated the shared PMD slot, so it comes and
+# goes with mmap layout; the helper's own fault count is the same either way.
 #   --expect pte:           no successful PMD fault, and one dax_pte_fault per
 #                           page touched
 #
@@ -124,11 +135,14 @@ if (( HRC == 2 )); then
     exit 2
 fi
 
-# The helper's prediction of what the kernel can do with this mapping
-field() { sed -n "s/.*[[:space:]]$1=\([0-9]*\).*/\1/p" "$HELPER_OUT" | head -1; }
+# The helper's prediction of what the kernel can do with this mapping.
+# pages/pmd_possible/pte_only are decimal; off is printed with %#x, so it is
+# "0" or "0x...", which bash arithmetic accepts as is.
+field() { sed -n "s/.*[[:space:]]$1=\(0x[0-9a-fA-F]*\|[0-9]*\).*/\1/p" "$HELPER_OUT" | head -1; }
 PAGES=$(field pages)
 PMD_POSSIBLE=$(field pmd_possible)
 PTE_ONLY=$(field pte_only)
+OFF=$(field off)
 rm -f "$HELPER_OUT"
 for v in "$PAGES" "$PMD_POSSIBLE" "$PTE_ONLY"; do
     if [[ ! "$v" =~ ^[0-9]+$ ]]; then
@@ -136,11 +150,36 @@ for v in "$PAGES" "$PMD_POSSIBLE" "$PTE_ONLY"; do
         exit 2
     fi
 done
+if [[ ! "$OFF" =~ ^(0x[0-9a-fA-F]+|[0-9]+)$ ]]; then
+    echo "pmd_fault_check.sh: could not parse helper output (off)" >&2
+    exit 2
+fi
+PAGE_SIZE=$(getconf PAGESIZE)
+(( PMD_PAGES = (2 * 1024 * 1024) / PAGE_SIZE ))
+(( OFF_PG = OFF / PAGE_SIZE ))
 
 PTE=$(grep -c 'dax_pte_fault:' "$TRACE_OUT")
 PMD_OK=$(grep 'dax_pmd_fault_done:' "$TRACE_OUT" | grep -c 'NOPAGE')
-PMD_FB=$(grep 'dax_pmd_fault_done:' "$TRACE_OUT" | grep -c 'FALLBACK')
 PMD_OTHER=$(grep 'dax_pmd_fault_done:' "$TRACE_OUT" | grep -v -c -e NOPAGE -e FALLBACK)
+
+# Sort the FALLBACK results by where they happened. The event's pgoff is the
+# page that faulted; round it down to its 2 MiB window in the file (the VA and
+# file colours match whenever a PMD was possible). A window that lies entirely
+# inside the mapped range should have taken a PMD, so a FALLBACK there is a
+# real failure; a FALLBACK on a window that only partly overlaps the mapping
+# (head or tail) is the kernel declining a PMD that could never have fit.
+PMD_FB=0       # fallbacks on full windows: failures
+PMD_FB_EDGE=0  # fallbacks on partial head/tail windows: expected
+while read -r pgoff; do
+    [[ "$pgoff" =~ ^0x[0-9a-fA-F]+$ ]] || continue
+    (( win = pgoff & ~(PMD_PAGES - 1) ))
+    if (( win >= OFF_PG && win + PMD_PAGES <= OFF_PG + PAGES )); then
+        (( PMD_FB++ ))
+    else
+        (( PMD_FB_EDGE++ ))
+    fi
+done < <(grep 'dax_pmd_fault_done:' "$TRACE_OUT" | grep 'FALLBACK' \
+         | sed -n 's/.*[[:space:]]pgoff \(0x[0-9a-fA-F]*\).*/\1/p')
 
 TRC=0
 case "$EXPECT" in
@@ -165,7 +204,7 @@ if (( TRC == 0 )); then
 else
     TRES=FAIL
 fi
-echo "pmd_fault_check.sh: trace ino=$INO pmd_ok=$PMD_OK/$PMD_POSSIBLE pte_faults=$PTE/$PTE_ONLY pmd_fallback=$PMD_FB pmd_other=$PMD_OTHER pages=$PAGES expect=$EXPECT $TRES"
+echo "pmd_fault_check.sh: trace ino=$INO pmd_ok=$PMD_OK/$PMD_POSSIBLE pte_faults=$PTE/$PTE_ONLY pmd_fallback=$PMD_FB pmd_fallback_edge=$PMD_FB_EDGE pmd_other=$PMD_OTHER pages=$PAGES expect=$EXPECT $TRES"
 
 if (( TRC != 0 )); then
     echo "pmd_fault_check.sh: first fallback/pte events:"
