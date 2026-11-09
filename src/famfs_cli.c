@@ -1773,6 +1773,8 @@ do_famfs_cli_creat(int argc, char *argv[])
 
 	if (threadct < 1)
 		threadct = 4;
+	else if (threadct > 256)
+		threadct = 256;
 
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
@@ -2193,6 +2195,8 @@ do_famfs_cli_verify(int argc, char *argv[])
 
 	if (threadct < 1)
 		threadct = 4;
+	else if (threadct > 256)
+		threadct = 256;
 
 	/* Note: the "+" at the beginning of the arg string tells getopt_long
 	 * to return -1 when it sees something that is not recognized option
