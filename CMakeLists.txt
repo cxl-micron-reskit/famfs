@@ -261,12 +261,14 @@ include(ExternalProject)
 
 ExternalProject_Add(multichase
   PREFIX "${CMAKE_CURRENT_BINARY_DIR}"
-  GIT_REPOSITORY "https://github.com/jagalactic/multichase.git"
-  GIT_TAG dax
+  GIT_REPOSITORY "https://github.com/google/multichase.git"
+  GIT_TAG master
   UPDATE_COMMAND ""
   BUILD_IN_SOURCE 1
   CONFIGURE_COMMAND   echo "Empty configure step for multichase ${CMAKE_CURRENT_BINARY_DIR}"
-  BUILD_COMMAND make clean all
+  # Upstream links with -static, but the static libc is not installed by
+  # default on rhel/fedora; override LDFLAGS to link dynamically
+  BUILD_COMMAND make "LDFLAGS=-g -O3 -pthread" clean all
   INSTALL_COMMAND ""
 )
 

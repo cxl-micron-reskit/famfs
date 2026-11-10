@@ -22,7 +22,7 @@ expect_good   "${CLI[@]}" creat -s 3g      "$MPT/memfile"   -- "create memfile f
 expect_good   "${CLI[@]}" creat -s 100m    "$MPT/memfile1"  -- "creat should succeed with -s 100m"
 expect_good   "${CLI[@]}" creat -s 10000k  "$MPT/memfile2"  -- "creat with -s 10000k should succeed"
 
-expect_good   "${MULTICHASE[@]}" -d "$MPT/memfile" -m 2900m \
+expect_good   "${MULTICHASE[@]}" -f "$MPT/memfile" -m 2900m \
               -- "multichase run"
 
 verify_mounted "$DEV" "$MPT" "test4.sh mounted"
